@@ -29,6 +29,7 @@ DJANGO_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core',
+    'base_data',
 ]
 
 THIRD_PARTY_APPS = [
@@ -105,6 +106,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.i18n',
+                'core.context_processors.system_settings',
             ],
         },
     },
