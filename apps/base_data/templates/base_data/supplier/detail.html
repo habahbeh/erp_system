@@ -1,0 +1,256 @@
+{# apps/base_data/templates/base_data/supplier/detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- رأس الصفحة -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">{{ title }}</h1>
+        <div>
+            {% if can_edit %}
+            <a href="{% url 'base_data:supplier_edit' supplier.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+
+            {% if can_delete %}
+            <a href="{% url 'base_data:supplier_delete' supplier.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+
+            <a href="{% url 'base_data:supplier_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات المورد -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-truck"></i> {% trans "معلومات المورد" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th width="200">{% trans "الرمز" %}:</th>
+                                <td>{{ supplier.code }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الاسم" %}:</th>
+                                <td>{{ supplier.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الاسم بالإنجليزية" %}:</th>
+                                <td>{{ supplier.name_en|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "نوع الحساب" %}:</th>
+                                <td>
+                                    {% if supplier.account_type == 'cash' %}
+                                        <span class="badge bg-success">{% trans "نقدي" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{% trans "ذمم" %}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "جهة الاتصال" %}:</th>
+                                <td>{{ supplier.contact_person|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الحالة" %}:</th>
+                                <td>
+                                    {% if supplier.is_active %}
+                                        <span class="badge bg-success">{% trans "نشط" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{% trans "غير نشط" %}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- معلومات الاتصال -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-phone"></i> {% trans "معلومات الاتصال" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th width="200">{% trans "الهاتف" %}:</th>
+                                <td>{{ supplier.phone|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الموبايل" %}:</th>
+                                <td>{{ supplier.mobile|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الفاكس" %}:</th>
+                                <td>{{ supplier.fax|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "البريد الإلكتروني" %}:</th>
+                                <td>
+                                    {% if supplier.email %}
+                                        <a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الموقع الإلكتروني" %}:</th>
+                                <td>
+                                    {% if supplier.website %}
+                                        <a href="{{ supplier.website }}" target="_blank">{{ supplier.website }}</a>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- العنوان -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-map-marker-alt"></i> {% trans "العنوان" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ supplier.address|default:"-"|linebreaks }}</p>
+                    <p>
+                        <strong>{% trans "المدينة" %}:</strong> {{ supplier.city|default:"-" }}<br>
+                        <strong>{% trans "المنطقة" %}:</strong> {{ supplier.region|default:"-" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات مالية -->
+        <div class="col-lg-4">
+            <!-- حدود الائتمان -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-credit-card"></i> {% trans "حدود الائتمان" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th>{% trans "حد الائتمان" %}:</th>
+                                <td>{{ supplier.credit_limit|floatformat:2 }} {{ CURRENCY }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "فترة الائتمان" %}:</th>
+                                <td>{{ supplier.credit_period }} {% trans "يوم" %}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "شروط الدفع" %}:</th>
+                                <td>{{ supplier.payment_terms|default:"-" }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- معلومات ضريبية -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-file-invoice"></i> {% trans "معلومات ضريبية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th>{% trans "الرقم الضريبي" %}:</th>
+                                <td>{{ supplier.tax_number|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الحالة الضريبية" %}:</th>
+                                <td>{{ supplier.get_tax_status_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "السجل التجاري" %}:</th>
+                                <td>{{ supplier.commercial_register|default:"-" }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- إحصائيات -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th>{% trans "إجمالي المشتريات" %}:</th>
+                                <td>{{ total_purchases }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "إجمالي المبلغ" %}:</th>
+                                <td>{{ total_amount|floatformat:2 }} {{ CURRENCY }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الرصيد الحالي" %}:</th>
+                                <td class="{% if balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ balance|floatformat:2 }} {{ CURRENCY }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات إضافية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if supplier.notes %}
+                        <p><strong>{% trans "ملاحظات" %}:</strong></p>
+                        <p>{{ supplier.notes|linebreaks }}</p>
+                    {% endif %}
+                    <hr>
+                    <small class="text-muted">
+                        {% trans "أنشئ بواسطة" %}: {{ supplier.created_by|default:"-" }}<br>
+                        {% trans "تاريخ الإنشاء" %}: {{ supplier.created_at|date:"Y-m-d H:i" }}<br>
+                        {% trans "آخر تعديل" %}: {{ supplier.updated_at|date:"Y-m-d H:i" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
