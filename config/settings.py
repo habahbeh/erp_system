@@ -30,6 +30,12 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
     'core',
     'base_data',
+    'accounting',
+    'sales',
+    'purchases',
+    'inventory',
+    'hr',
+    'reports',
 ]
 
 THIRD_PARTY_APPS = [

@@ -1,12 +1,13 @@
 # apps/base_data/models.py
 """
 نماذج البيانات الأساسية
-يحتوي على: العملاء، الموردين، الأصناف، وحدات القياس، المستودعات
+يحتوي على: الشركاء التجاريين (العملاء/الموردين)، الأصناف، وحدات القياس، المستودعات
 """
 
 from django.db import models
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
+from decimal import Decimal
 from core.models import Company, Branch, User
 
 
@@ -206,10 +207,60 @@ class Item(BaseModel):
         default=16.0
     )
 
+    # حسابات المواد
+    sales_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_items',
+        verbose_name=_('حساب المبيعات')
+    )
+
+    purchase_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_items',
+        verbose_name=_('حساب المشتريات')
+    )
+
+    inventory_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_items',
+        verbose_name=_('حساب المخزون')
+    )
+
+    cost_of_goods_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cogs_items',
+        verbose_name=_('حساب تكلفة البضاعة')
+    )
+
+    # المواد البديلة
+    substitute_items = models.ManyToManyField(
+        'self',
+        blank=True,
+        symmetrical=False,
+        verbose_name=_('المواد البديلة')
+    )
+
     # معلومات إضافية
     manufacturer = models.CharField(
         _('الشركة المصنعة'),
         max_length=100,
+        blank=True
+    )
+
+    specifications = models.TextField(
+        _('المواصفات'),
         blank=True
     )
 
@@ -248,6 +299,12 @@ class Item(BaseModel):
         blank=True
     )
 
+    # حالة المادة
+    is_inactive = models.BooleanField(
+        _('غير فعالة'),
+        default=False
+    )
+
     class Meta:
         verbose_name = _('صنف')
         verbose_name_plural = _('الأصناف')
@@ -255,6 +312,103 @@ class Item(BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class ItemConversion(BaseModel):
+    """معدلات المادة - تحويل الوحدات"""
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='conversions',
+        verbose_name=_('المادة')
+    )
+
+    from_unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        related_name='from_conversions',
+        verbose_name=_('من وحدة')
+    )
+
+    to_unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        related_name='to_conversions',
+        verbose_name=_('إلى وحدة')
+    )
+
+    factor = models.DecimalField(
+        _('معامل التحويل'),
+        max_digits=10,
+        decimal_places=4,
+        validators=[MinValueValidator(Decimal('0.0001'))],
+        help_text=_('عدد وحدات "إلى" في وحدة واحدة من "من"')
+    )
+
+    class Meta:
+        verbose_name = _('معدل المادة')
+        verbose_name_plural = _('معدلات المواد')
+        unique_together = [['item', 'from_unit', 'to_unit']]
+
+    def __str__(self):
+        return f"{self.item.name}: 1 {self.from_unit.name} = {self.factor} {self.to_unit.name}"
+
+
+class ItemComponent(BaseModel):
+    """مستهلكات المادة - مكونات المنتج"""
+
+    parent_item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='components',
+        verbose_name=_('المادة الأساسية')
+    )
+
+    component_item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        related_name='used_in',
+        verbose_name=_('المادة المكونة')
+    )
+
+    quantity = models.DecimalField(
+        _('الكمية'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+
+    unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        verbose_name=_('الوحدة')
+    )
+
+    waste_percentage = models.DecimalField(
+        _('نسبة الهدر %'),
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('مستهلك المادة')
+        verbose_name_plural = _('مستهلكات المواد')
+        unique_together = [['parent_item', 'component_item']]
+
+    def get_total_quantity(self):
+        """الكمية الإجمالية مع الهدر"""
+        return self.quantity * (1 + self.waste_percentage / 100)
+
+    def __str__(self):
+        return f"{self.parent_item.name} <- {self.component_item.name} ({self.quantity})"
 
 
 class Warehouse(BaseModel):
@@ -285,22 +439,49 @@ class Warehouse(BaseModel):
         verbose_name=_('أمين المستودع')
     )
 
+    warehouse_type = models.CharField(
+        _('نوع المستودع'),
+        max_length=20,
+        choices=[
+            ('main', _('رئيسي')),
+            ('branch', _('فرعي')),
+            ('transit', _('ترانزيت')),
+            ('damaged', _('تالف')),
+        ],
+        default='branch'
+    )
+
     class Meta:
         verbose_name = _('مستودع')
         verbose_name_plural = _('المستودعات')
         unique_together = [['company', 'branch', 'code']]
 
     def __str__(self):
-        return f"{self.name} ({self.branch.name})"
+        return f"{self.name} ({self.branch.name if self.branch else 'الشركة'})"
 
 
-class CustomerSupplierBase(BaseModel):
-    """نموذج أساسي للعملاء والموردين"""
+# 🆕 جدول واحد للعملاء والموردين
+class BusinessPartner(BaseModel):
+    """الشركاء التجاريين (العملاء والموردين)"""
+
+    PARTNER_TYPES = [
+        ('customer', _('عميل')),
+        ('supplier', _('مورد')),
+        ('both', _('عميل ومورد')),
+    ]
 
     ACCOUNT_TYPE_CHOICES = [
         ('cash', _('نقدي')),
         ('credit', _('ذمم')),
     ]
+
+    # نوع الشريك
+    partner_type = models.CharField(
+        _('نوع الشريك'),
+        max_length=10,
+        choices=PARTNER_TYPES,
+        default='customer'
+    )
 
     # معلومات أساسية
     code = models.CharField(
@@ -416,25 +597,32 @@ class CustomerSupplierBase(BaseModel):
         default=30
     )
 
-    # معلومات إضافية
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
+    # الحسابات المحاسبية
+    customer_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customer_partners',
+        verbose_name=_('حساب العميل')
     )
 
-    class Meta:
-        abstract = True
+    supplier_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supplier_partners',
+        verbose_name=_('حساب المورد')
+    )
 
-
-class Customer(CustomerSupplierBase):
-    """العملاء"""
-
+    # حقول خاصة بالعملاء
     salesperson = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='customers',
+        related_name='customer_partners',
         verbose_name=_('مندوب المبيعات')
     )
 
@@ -442,31 +630,119 @@ class Customer(CustomerSupplierBase):
         _('نسبة الخصم %'),
         max_digits=5,
         decimal_places=2,
-        default=0
+        default=0,
+        help_text=_('للعملاء فقط')
     )
 
-    class Meta:
-        verbose_name = _('عميل')
-        verbose_name_plural = _('العملاء')
-        unique_together = [['company', 'code']]
+    customer_category = models.CharField(
+        _('تصنيف العميل'),
+        max_length=20,
+        choices=[
+            ('retail', _('تجزئة')),
+            ('wholesale', _('جملة')),
+            ('vip', _('VIP')),
+            ('regular', _('عادي')),
+        ],
+        default='regular',
+        blank=True
+    )
 
-    def __str__(self):
-        return f"{self.code} - {self.name}"
-
-
-class Supplier(CustomerSupplierBase):
-    """الموردين"""
-
+    # حقول خاصة بالموردين
     payment_terms = models.CharField(
         _('شروط الدفع'),
         max_length=100,
+        blank=True,
+        help_text=_('للموردين')
+    )
+
+    supplier_category = models.CharField(
+        _('تصنيف المورد'),
+        max_length=20,
+        choices=[
+            ('manufacturer', _('مصنع')),
+            ('distributor', _('موزع')),
+            ('importer', _('مستورد')),
+            ('local', _('محلي')),
+        ],
+        default='local',
+        blank=True
+    )
+
+    rating = models.IntegerField(
+        _('التقييم'),
+        default=3,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text=_('من 1 إلى 5 - للموردين')
+    )
+
+    # معلومات إضافية
+    notes = models.TextField(
+        _('ملاحظات'),
         blank=True
     )
 
     class Meta:
-        verbose_name = _('مورد')
-        verbose_name_plural = _('الموردين')
+        verbose_name = _('شريك تجاري')
+        verbose_name_plural = _('الشركاء التجاريون')
         unique_together = [['company', 'code']]
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        type_label = dict(self.PARTNER_TYPES)[self.partner_type]
+        return f"{self.code} - {self.name} ({type_label})"
+
+    def is_customer(self):
+        """هل هو عميل؟"""
+        return self.partner_type in ['customer', 'both']
+
+    def is_supplier(self):
+        """هل هو مورد؟"""
+        return self.partner_type in ['supplier', 'both']
+
+
+# للتوافق مع الكود الموجود - يمكن حذفها لاحقاً
+class Customer(BusinessPartner):
+    """العملاء - للتوافق مع الكود الموجود"""
+
+    class Meta:
+        proxy = True
+        verbose_name = _('عميل')
+        verbose_name_plural = _('العملاء')
+
+    def save(self, *args, **kwargs):
+        if not self.partner_type:
+            self.partner_type = 'customer'
+        super().save(*args, **kwargs)
+
+    objects = models.Manager()  # المدير الافتراضي
+
+    class CustomerManager(models.Manager):
+        def get_queryset(self):
+            return super().get_queryset().filter(
+                partner_type__in=['customer', 'both']
+            )
+
+    customers = CustomerManager()
+
+
+class Supplier(BusinessPartner):
+    """الموردين - للتوافق مع الكود الموجود"""
+
+    class Meta:
+        proxy = True
+        verbose_name = _('مورد')
+        verbose_name_plural = _('الموردين')
+
+    def save(self, *args, **kwargs):
+        if not self.partner_type:
+            self.partner_type = 'supplier'
+        super().save(*args, **kwargs)
+
+    objects = models.Manager()  # المدير الافتراضي
+
+    class SupplierManager(models.Manager):
+        def get_queryset(self):
+            return super().get_queryset().filter(
+                partner_type__in=['supplier', 'both']
+            )
+
+    suppliers = SupplierManager()
