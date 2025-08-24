@@ -1,54 +1,161 @@
 # apps/base_data/views/__init__.py
 """
-Views لوحدة البيانات الأساسية
+Views لتطبيق البيانات الأساسية
+منظمة في ملفات منفصلة لسهولة الصيانة
 """
 
-from .customer_views import (
-    CustomerListView, CustomerCreateView,
-    CustomerDetailView, CustomerUpdateView, CustomerDeleteView
-)
-from .supplier_views import (
-    SupplierListView, SupplierCreateView,
-    SupplierDetailView, SupplierUpdateView, SupplierDeleteView
-)
+# Item Views
 from .item_views import (
-    ItemListView, ItemCreateView,
-    ItemDetailView, ItemUpdateView, ItemDeleteView
+    # الأصناف
+    ItemListView,
+    ItemDetailView,
+    ItemCreateView,
+    ItemUpdateView,
+    ItemDeleteView,
+    ItemDataTableView,
+    ItemQuickAddView,
+    ItemImportView,
+    ItemExportView,
+
+    # التصنيفات
+    ItemCategoryListView,
+    ItemCategoryCreateView,
+    ItemCategoryUpdateView,
+    ItemCategoryDeleteView,
+    ItemCategoryDataTableView,
+
+    # معدلات التحويل
+    ItemConversionListView,
+    ItemConversionCreateView,
+    ItemConversionUpdateView,
+    ItemConversionDeleteView,
+
+    # مكونات المواد
+    ItemComponentListView,
+    ItemComponentCreateView,
+    ItemComponentUpdateView,
+    ItemComponentDeleteView,
 )
+
+# Partner Views
+from .partner_views import (
+    # الشركاء التجاريين
+    BusinessPartnerListView,
+    BusinessPartnerDetailView,
+    BusinessPartnerCreateView,
+    BusinessPartnerUpdateView,
+    BusinessPartnerDeleteView,
+    BusinessPartnerDataTableView,
+    BusinessPartnerQuickAddView,
+
+    # العملاء
+    CustomerListView,
+    CustomerCreateView,
+    CustomerUpdateView,
+
+    # الموردين
+    SupplierListView,
+    SupplierCreateView,
+    SupplierUpdateView,
+)
+
+# Warehouse Views
 from .warehouse_views import (
-    WarehouseListView, WarehouseCreateView,
-    WarehouseDetailView, WarehouseUpdateView, WarehouseDeleteView
+    # المستودعات
+    WarehouseListView,
+    WarehouseDetailView,
+    WarehouseCreateView,
+    WarehouseUpdateView,
+    WarehouseDeleteView,
+    WarehouseDataTableView,
+
+    # وحدات القياس
+    UnitOfMeasureListView,
+    UnitOfMeasureCreateView,
+    UnitOfMeasureUpdateView,
+    UnitOfMeasureDeleteView,
+    UnitOfMeasureDataTableView,
 )
-from .unit_views import (
-    UnitListView, UnitCreateView,
-    UnitUpdateView, UnitDeleteView
-)
-from .category_views import (
-    CategoryListView, CategoryCreateView,
-    CategoryUpdateView, CategoryDeleteView
+
+# API Views
+from .api_views import (
+    # API endpoints للاستخدام مع AJAX
+    ItemSearchAPIView,
+    BusinessPartnerSearchAPIView,
+    WarehouseSearchAPIView,
+    CheckBarcodeAPIView,
+    CheckCodeAPIView,
 )
 
 __all__ = [
-    # العملاء
-    'CustomerListView', 'CustomerCreateView',
-    'CustomerDetailView', 'CustomerUpdateView', 'CustomerDeleteView',
+    # Items
+    'ItemListView',
+    'ItemDetailView',
+    'ItemCreateView',
+    'ItemUpdateView',
+    'ItemDeleteView',
+    'ItemDataTableView',
+    'ItemQuickAddView',
+    'ItemImportView',
+    'ItemExportView',
 
-    # الموردين
-    'SupplierListView', 'SupplierCreateView',
-    'SupplierDetailView', 'SupplierUpdateView', 'SupplierDeleteView',
+    # Categories
+    'ItemCategoryListView',
+    'ItemCategoryCreateView',
+    'ItemCategoryUpdateView',
+    'ItemCategoryDeleteView',
+    'ItemCategoryDataTableView',
 
-    # الأصناف
-    'ItemListView', 'ItemCreateView',
-    'ItemDetailView', 'ItemUpdateView', 'ItemDeleteView',
+    # Conversions
+    'ItemConversionListView',
+    'ItemConversionCreateView',
+    'ItemConversionUpdateView',
+    'ItemConversionDeleteView',
 
-    # المستودعات
-    'WarehouseListView', 'WarehouseCreateView',
-    'WarehouseDetailView', 'WarehouseUpdateView', 'WarehouseDeleteView',
+    # Components
+    'ItemComponentListView',
+    'ItemComponentCreateView',
+    'ItemComponentUpdateView',
+    'ItemComponentDeleteView',
 
-    # وحدات القياس
-    'UnitListView', 'UnitCreateView',
-    'UnitUpdateView', 'UnitDeleteView',
+    # Partners
+    'BusinessPartnerListView',
+    'BusinessPartnerDetailView',
+    'BusinessPartnerCreateView',
+    'BusinessPartnerUpdateView',
+    'BusinessPartnerDeleteView',
+    'BusinessPartnerDataTableView',
+    'BusinessPartnerQuickAddView',
 
-    'CategoryListView', 'CategoryCreateView',
-    'CategoryUpdateView', 'CategoryDeleteView',
+    # Customers
+    'CustomerListView',
+    'CustomerCreateView',
+    'CustomerUpdateView',
+
+    # Suppliers
+    'SupplierListView',
+    'SupplierCreateView',
+    'SupplierUpdateView',
+
+    # Warehouses
+    'WarehouseListView',
+    'WarehouseDetailView',
+    'WarehouseCreateView',
+    'WarehouseUpdateView',
+    'WarehouseDeleteView',
+    'WarehouseDataTableView',
+
+    # Units
+    'UnitOfMeasureListView',
+    'UnitOfMeasureCreateView',
+    'UnitOfMeasureUpdateView',
+    'UnitOfMeasureDeleteView',
+    'UnitOfMeasureDataTableView',
+
+    # APIs
+    'ItemSearchAPIView',
+    'BusinessPartnerSearchAPIView',
+    'WarehouseSearchAPIView',
+    'CheckBarcodeAPIView',
+    'CheckCodeAPIView',
 ]
