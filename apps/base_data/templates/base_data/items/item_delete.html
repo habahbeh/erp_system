@@ -1,0 +1,318 @@
+<!-- templates/base_data/items/item_delete.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "حذف الصنف" %}: {{ object.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.delete-warning {
+    border-left: 4px solid #dc3545;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+.item-info-card {
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    background: #f8f9fa;
+}
+.warning-icon {
+    font-size: 4rem;
+    color: #dc3545;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+.danger-zone {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    border-radius: 10px;
+    padding: 20px;
+    color: white;
+}
+.safe-zone {
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    border-radius: 10px;
+    padding: 20px;
+    color: white;
+}
+.connection-item {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+.connection-count {
+    background: #e74c3c;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header with Breadcrumbs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 text-danger mb-2">{{ title }}</h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            {% for breadcrumb in breadcrumbs %}
+                                {% if breadcrumb.active %}
+                                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                                {% else %}
+                                    <li class="breadcrumb-item">
+                                        {% if breadcrumb.url %}
+                                            <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                                        {% else %}
+                                            {{ breadcrumb.title }}
+                                        {% endif %}
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{% url 'base_data:item_detail' object.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-right"></i> {% trans "العودة للتفاصيل" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- تحذير رئيسي -->
+            <div class="text-center mb-4">
+                <i class="fas fa-exclamation-triangle warning-icon"></i>
+                <h2 class="text-danger mt-3">{% trans "تحذير: عملية حذف" %}</h2>
+                <p class="text-muted">{% trans "أنت على وشك حذف الصنف التالي نهائياً من النظام" %}</p>
+            </div>
+
+            <!-- معلومات الصنف -->
+            <div class="card item-info-card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            {% if object.image %}
+                                <img src="{{ object.image.url }}" alt="{{ object.name }}"
+                                     class="img-fluid rounded" style="max-height: 80px;">
+                            {% else %}
+                                <i class="fas fa-box fa-3x text-muted"></i>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-10">
+                            <h4 class="text-primary mb-2">{{ object.name }}</h4>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <strong>{% trans "الرمز" %}:</strong> {{ object.code }}<br>
+                                    <strong>{% trans "التصنيف" %}:</strong> {{ object.category|default:"-" }}<br>
+                                </div>
+                                <div class="col-sm-6">
+                                    <strong>{% trans "وحدة القياس" %}:</strong> {{ object.unit|default:"-" }}<br>
+                                    <strong>{% trans "سعر البيع" %}:</strong> {{ object.sale_price|floatformat:2 }} {% trans "ر.س" %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- فحص الارتباطات -->
+            {% if has_transactions or has_components or has_conversions %}
+                <!-- منطقة الخطر -->
+                <div class="danger-zone mb-4">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-ban fa-2x"></i>
+                        <h4 class="mt-2">{% trans "لا يمكن حذف هذا الصنف" %}</h4>
+                        <p class="mb-0">{% trans "يوجد ارتباطات مع هذا الصنف في النظام" %}</p>
+                    </div>
+
+                    <div class="row">
+                        {% if has_transactions %}
+                        <div class="col-md-6 mb-3">
+                            <div class="connection-item text-center">
+                                <i class="fas fa-exchange-alt fa-2x text-warning mb-2"></i>
+                                <h6>{% trans "المعاملات المالية" %}</h6>
+                                <p class="small mb-0">{% trans "يوجد حركات مالية مرتبطة بهذا الصنف" %}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if has_components %}
+                        <div class="col-md-6 mb-3">
+                            <div class="connection-item text-center">
+                                <i class="fas fa-puzzle-piece fa-2x text-info mb-2"></i>
+                                <h6>{% trans "المكونات" %}</h6>
+                                <p class="small mb-0">
+                                    {% trans "يحتوي على" %}
+                                    <span class="connection-count">{{ object.components.count }}</span>
+                                    {% trans "مكون" %}
+                                </p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if has_conversions %}
+                        <div class="col-md-6 mb-3">
+                            <div class="connection-item text-center">
+                                <i class="fas fa-exchange-alt fa-2x text-success mb-2"></i>
+                                <h6>{% trans "معدلات التحويل" %}</h6>
+                                <p class="small mb-0">
+                                    {% trans "يحتوي على" %}
+                                    <span class="connection-count">{{ object.conversions.count }}</span>
+                                    {% trans "معدل تحويل" %}
+                                </p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>{% trans "اقتراح:" %}</strong>
+                        {% trans "بدلاً من الحذف، يمكنك تعطيل الصنف من خلال تحديد خيار 'غير نشط' في صفحة التعديل." %}
+                        <a href="{% url 'base_data:item_edit' object.pk %}" class="btn btn-warning btn-sm ms-2">
+                            <i class="fas fa-edit"></i> {% trans "تعديل الصنف" %}
+                        </a>
+                    </div>
+                </div>
+
+                <!-- أزرار التحكم - منع الحذف -->
+                <div class="text-center">
+                    <a href="{% url 'base_data:item_detail' object.pk %}" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-arrow-right"></i> {% trans "العودة للصنف" %}
+                    </a>
+                    <a href="{% url 'base_data:item_list' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+                    </a>
+                </div>
+
+            {% else %}
+                <!-- منطقة الأمان - يمكن الحذف -->
+                <div class="safe-zone mb-4">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                        <h4 class="mt-2">{% trans "يمكن حذف هذا الصنف" %}</h4>
+                        <p class="mb-0">{% trans "لا توجد ارتباطات تمنع حذف هذا الصنف" %}</p>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>{% trans "ملاحظة:" %}</strong>
+                        {% trans "عملية الحذف نهائية ولا يمكن التراجع عنها. تأكد من أنك لا تحتاج هذا الصنف في المستقبل." %}
+                    </div>
+                </div>
+
+                <!-- نموذج تأكيد الحذف -->
+                <div class="card shadow">
+                    <div class="card-header bg-danger text-white text-center">
+                        <h5 class="m-0">
+                            <i class="fas fa-trash-alt"></i> {% trans "تأكيد عملية الحذف" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            {% csrf_token %}
+
+                            <div class="text-center mb-4">
+                                <div class="form-check d-inline-block">
+                                    <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                                    <label class="form-check-label text-danger fw-bold" for="confirmDelete">
+                                        {% trans "أؤكد أنني أريد حذف هذا الصنف نهائياً" %}
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-danger btn-lg me-3" id="deleteButton" disabled>
+                                    <i class="fas fa-trash-alt"></i> {% trans "حذف نهائياً" %}
+                                </button>
+
+                                <a href="{% url 'base_data:item_detail' object.pk %}" class="btn btn-secondary btn-lg">
+                                    <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تفعيل زر الحذف عند تأكيد الحذف
+    $('#confirmDelete').on('change', function() {
+        const deleteButton = $('#deleteButton');
+        if ($(this).is(':checked')) {
+            deleteButton.prop('disabled', false).removeClass('btn-secondary').addClass('btn-danger');
+        } else {
+            deleteButton.prop('disabled', true).removeClass('btn-danger').addClass('btn-secondary');
+        }
+    });
+
+    // تأكيد إضافي قبل الحذف
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+
+        const itemName = "{{ object.name|escapejs }}";
+        const confirmMessage = `{% trans "هل أنت متأكد تماماً من حذف الصنف" %} "${itemName}" ؟\n\n{% trans "هذا الإجراء لا يمكن التراجع عنه!" %}`;
+
+        if (confirm(confirmMessage)) {
+            // إرسال النموذج
+            this.submit();
+        } else {
+            // إلغاء تحديد صندوق التأكيد
+            $('#confirmDelete').prop('checked', false).trigger('change');
+        }
+    });
+
+    // تأثيرات بصرية للتحذيرات
+    $('.danger-zone').hover(
+        function() {
+            $(this).addClass('shadow-lg');
+        },
+        function() {
+            $(this).removeClass('shadow-lg');
+        }
+    );
+
+    $('.safe-zone').hover(
+        function() {
+            $(this).addClass('shadow-lg');
+        },
+        function() {
+            $(this).removeClass('shadow-lg');
+        }
+    );
+
+    // تحذير عند محاولة مغادرة الصفحة بعد تأكيد الحذف
+    $('#confirmDelete').on('change', function() {
+        if ($(this).is(':checked')) {
+            window.onbeforeunload = function() {
+                return "{% trans 'لديك تأكيد حذف معلق. هل أنت متأكد من مغادرة الصفحة؟' %}";
+            };
+        } else {
+            window.onbeforeunload = null;
+        }
+    });
+});
+</script>
+{% endblock %}

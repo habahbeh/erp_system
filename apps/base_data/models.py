@@ -274,7 +274,7 @@ class Item(BaseModel):
 
     image = models.ImageField(
         _('صورة الصنف'),
-        upload_to='items/',
+        upload_to='item/',
         blank=True
     )
 

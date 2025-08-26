@@ -134,7 +134,7 @@ class Migration(migrations.Migration):
                 ('tax_rate', models.DecimalField(decimal_places=2, default=16.0, max_digits=5, verbose_name='نسبة الضريبة %')),
                 ('manufacturer', models.CharField(blank=True, max_length=100, verbose_name='الشركة المصنعة')),
                 ('weight', models.DecimalField(blank=True, decimal_places=3, max_digits=10, null=True, verbose_name='الوزن')),
-                ('image', models.ImageField(blank=True, upload_to='items/', verbose_name='صورة الصنف')),
+                ('image', models.ImageField(blank=True, upload_to='item/', verbose_name='صورة الصنف')),
                 ('notes', models.TextField(blank=True, verbose_name='ملاحظات')),
                 ('minimum_quantity', models.DecimalField(decimal_places=2, default=0, max_digits=12, verbose_name='الحد الأدنى')),
                 ('maximum_quantity', models.DecimalField(blank=True, decimal_places=2, max_digits=12, null=True, verbose_name='الحد الأعلى')),

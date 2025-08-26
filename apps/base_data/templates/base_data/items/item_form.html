@@ -1,0 +1,519 @@
+<!-- templates/base_data/items/item_form.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}
+{% if object %}
+    {% trans "تعديل صنف" %}: {{ object.name }}
+{% else %}
+    {% trans "إضافة صنف جديد" %}
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.required-field::after {
+    content: " *";
+    color: red;
+}
+.form-section {
+    background: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.form-section h6 {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+.image-preview {
+    max-width: 200px;
+    max-height: 200px;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
+.image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header with Breadcrumbs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 text-gray-800 mb-2">{{ title }}</h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            {% for breadcrumb in breadcrumbs %}
+                                {% if breadcrumb.active %}
+                                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                                {% else %}
+                                    <li class="breadcrumb-item">
+                                        {% if breadcrumb.url %}
+                                            <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                                        {% else %}
+                                            {{ breadcrumb.title }}
+                                        {% endif %}
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{% url 'base_data:item_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-right"></i> {% trans "العودة للقائمة" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="itemForm">
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- العمود الرئيسي -->
+            <div class="col-lg-8">
+
+                <!-- المعلومات الأساسية -->
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label required-field">
+                                    {{ form.code.label }}
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.errors %}
+                                    <div class="text-danger small">{{ form.code.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.barcode.id_for_label }}" class="form-label">
+                                    {{ form.barcode.label }}
+                                </label>
+                                {{ form.barcode }}
+                                {% if form.barcode.errors %}
+                                    <div class="text-danger small">{{ form.barcode.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                    {{ form.name.label }}
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="text-danger small">{{ form.name.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                    {{ form.name_en.label }}
+                                </label>
+                                {{ form.name_en }}
+                                {% if form.name_en.errors %}
+                                    <div class="text-danger small">{{ form.name_en.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- التصنيف والوحدات -->
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-layer-group"></i> {% trans "التصنيف والوحدات" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.category.id_for_label }}" class="form-label required-field">
+                                    {{ form.category.label }}
+                                </label>
+                                {{ form.category }}
+                                {% if form.category.errors %}
+                                    <div class="text-danger small">{{ form.category.errors }}</div>
+                                {% endif %}
+                                <small class="text-muted">
+                                    {% if perms.base_data.add_itemcategory %}
+                                        <a href="{% url 'base_data:category_add' %}" target="_blank">
+                                            {% trans "إضافة تصنيف جديد" %}
+                                        </a>
+                                    {% endif %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.unit.id_for_label }}" class="form-label required-field">
+                                    {{ form.unit.label }}
+                                </label>
+                                {{ form.unit }}
+                                {% if form.unit.errors %}
+                                    <div class="text-danger small">{{ form.unit.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الأسعار والضرائب -->
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-dollar-sign"></i> {% trans "الأسعار والضرائب" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.purchase_price.id_for_label }}" class="form-label">
+                                    {{ form.purchase_price.label }}
+                                </label>
+                                {{ form.purchase_price }}
+                                {% if form.purchase_price.errors %}
+                                    <div class="text-danger small">{{ form.purchase_price.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.sale_price.id_for_label }}" class="form-label">
+                                    {{ form.sale_price.label }}
+                                </label>
+                                {{ form.sale_price }}
+                                {% if form.sale_price.errors %}
+                                    <div class="text-danger small">{{ form.sale_price.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.tax_rate.id_for_label }}" class="form-label">
+                                    {{ form.tax_rate.label }}
+                                </label>
+                                {{ form.tax_rate }}
+                                {% if form.tax_rate.errors %}
+                                    <div class="text-danger small">{{ form.tax_rate.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الحسابات المحاسبية -->
+                {% if user.is_superuser or perms.accounting %}
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="m-0">
+                            <i class="fas fa-calculator"></i> {% trans "الحسابات المحاسبية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.sales_account.id_for_label }}" class="form-label">
+                                    {{ form.sales_account.label }}
+                                </label>
+                                {{ form.sales_account }}
+                                {% if form.sales_account.errors %}
+                                    <div class="text-danger small">{{ form.sales_account.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.purchase_account.id_for_label }}" class="form-label">
+                                    {{ form.purchase_account.label }}
+                                </label>
+                                {{ form.purchase_account }}
+                                {% if form.purchase_account.errors %}
+                                    <div class="text-danger small">{{ form.purchase_account.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.inventory_account.id_for_label }}" class="form-label">
+                                    {{ form.inventory_account.label }}
+                                </label>
+                                {{ form.inventory_account }}
+                                {% if form.inventory_account.errors %}
+                                    <div class="text-danger small">{{ form.inventory_account.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.cost_of_goods_account.id_for_label }}" class="form-label">
+                                    {{ form.cost_of_goods_account.label }}
+                                </label>
+                                {{ form.cost_of_goods_account }}
+                                {% if form.cost_of_goods_account.errors %}
+                                    <div class="text-danger small">{{ form.cost_of_goods_account.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+
+            <!-- العمود الجانبي -->
+            <div class="col-lg-4">
+
+                <!-- صورة الصنف -->
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-image"></i> {% trans "صورة الصنف" %}
+                        </h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="image-preview mb-3">
+                            {% if object.image %}
+                                <img src="{{ object.image.url }}" alt="{{ object.name }}" id="imagePreview">
+                            {% else %}
+                                <i class="fas fa-image fa-3x text-muted" id="imagePlaceholder"></i>
+                                <p class="text-muted mt-2">{% trans "لا توجد صورة" %}</p>
+                            {% endif %}
+                        </div>
+                        {{ form.image }}
+                        {% if form.image.errors %}
+                            <div class="text-danger small">{{ form.image.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted d-block mt-2">
+                            {% trans "الصيغ المدعومة: JPG, PNG, GIF (الحد الأقصى: 2MB)" %}
+                        </small>
+                    </div>
+                </div>
+
+                <!-- معلومات إضافية -->
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-cogs"></i> {% trans "معلومات إضافية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="{{ form.manufacturer.id_for_label }}" class="form-label">
+                                {{ form.manufacturer.label }}
+                            </label>
+                            {{ form.manufacturer }}
+                            {% if form.manufacturer.errors %}
+                                <div class="text-danger small">{{ form.manufacturer.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.weight.id_for_label }}" class="form-label">
+                                {{ form.weight.label }}
+                            </label>
+                            {{ form.weight }}
+                            {% if form.weight.errors %}
+                                <div class="text-danger small">{{ form.weight.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label for="{{ form.minimum_quantity.id_for_label }}" class="form-label">
+                                    {{ form.minimum_quantity.label }}
+                                </label>
+                                {{ form.minimum_quantity }}
+                                {% if form.minimum_quantity.errors %}
+                                    <div class="text-danger small">{{ form.minimum_quantity.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-6 mb-3">
+                                <label for="{{ form.maximum_quantity.id_for_label }}" class="form-label">
+                                    {{ form.maximum_quantity.label }}
+                                </label>
+                                {{ form.maximum_quantity }}
+                                {% if form.maximum_quantity.errors %}
+                                    <div class="text-danger small">{{ form.maximum_quantity.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.is_inactive }}
+                                <label class="form-check-label" for="{{ form.is_inactive.id_for_label }}">
+                                    {{ form.is_inactive.label }}
+                                </label>
+                            </div>
+                            {% if form.is_inactive.errors %}
+                                <div class="text-danger small">{{ form.is_inactive.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- المواصفات والملاحظات -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="m-0">
+                            <i class="fas fa-clipboard-list"></i> {% trans "المواصفات والملاحظات" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.specifications.id_for_label }}" class="form-label">
+                                    {{ form.specifications.label }}
+                                </label>
+                                {{ form.specifications }}
+                                {% if form.specifications.errors %}
+                                    <div class="text-danger small">{{ form.specifications.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes }}
+                                {% if form.notes.errors %}
+                                    <div class="text-danger small">{{ form.notes.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- أزرار الحفظ -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-body text-center">
+                        <button type="submit" class="btn btn-primary btn-lg me-3">
+                            <i class="fas fa-save"></i> {{ submit_text|default:"حفظ" }}
+                        </button>
+
+                        {% if not object %}
+                        <button type="submit" name="save_add_another" class="btn btn-success btn-lg me-3">
+                            <i class="fas fa-plus"></i> {% trans "حفظ وإضافة آخر" %}
+                        </button>
+                        {% endif %}
+
+                        <a href="{% url 'base_data:item_list' %}" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // تفعيل Select2 للحقول المنسدلة
+    $('.form-select').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar'
+    });
+
+    // معاينة الصورة
+    $('#id_image').on('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = $('#imagePreview');
+                const placeholder = $('#imagePlaceholder');
+
+                if (preview.length) {
+                    preview.attr('src', e.target.result);
+                } else {
+                    placeholder.parent().html(
+                        '<img src="' + e.target.result + '" alt="معاينة" id="imagePreview" class="img-fluid">'
+                    );
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // تحسين تجربة المستخدم - تطبيق أسلوب Bootstrap على جميع الحقول
+    $('input[type="text"], input[type="number"], input[type="email"], textarea, select').addClass('form-control');
+    $('input[type="checkbox"]').addClass('form-check-input');
+    $('textarea').attr('rows', 4);
+
+    // التحقق من صحة النموذج
+    $('#itemForm').on('submit', function(e) {
+        let isValid = true;
+
+        // فحص الحقول المطلوبة
+        $('[required]').each(function() {
+            if (!$(this).val()) {
+                $(this).addClass('is-invalid');
+                isValid = false;
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        if (!isValid) {
+            e.preventDefault();
+            alert('{% trans "يرجى ملء جميع الحقول المطلوبة" %}');
+        }
+    });
+
+    // إزالة تأشير الخطأ عند الكتابة
+    $('input, textarea, select').on('input change', function() {
+        $(this).removeClass('is-invalid');
+    });
+
+    // حساب سعر البيع تلقائياً (اختياري)
+    $('#id_purchase_price, #id_profit_margin').on('input', function() {
+        const purchasePrice = parseFloat($('#id_purchase_price').val()) || 0;
+        const profitMargin = parseFloat($('#id_profit_margin').val()) || 0;
+
+        if (purchasePrice > 0 && profitMargin > 0) {
+            const salePrice = purchasePrice + (purchasePrice * profitMargin / 100);
+            $('#id_sale_price').val(salePrice.toFixed(2));
+        }
+    });
+});
+</script>
+{% endblock %}
