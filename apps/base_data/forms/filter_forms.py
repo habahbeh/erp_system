@@ -1,15 +1,16 @@
 # apps/base_data/forms/filter_forms.py
 """
-نماذج الفلترة والبحث
+نماذج الفلترة والبحث - محدث حسب models.py والمتطلبات
 للاستخدام مع DataTables وواجهات البحث المتقدم
 """
 
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
+from decimal import Decimal
 
 from ..models import Item, ItemCategory, BusinessPartner, Warehouse, UnitOfMeasure
-from core.models import Branch
+from core.models import Branch, User
 
 
 class BaseFilterForm(forms.Form):
@@ -19,7 +20,7 @@ class BaseFilterForm(forms.Form):
         label=_('بحث'),
         required=False,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control form-control-sm',
             'placeholder': _('بحث...'),
             'data-kt-filter': 'search',
         })
@@ -37,8 +38,6 @@ class BaseFilterForm(forms.Form):
         widget=forms.Select(attrs={
             'class': 'form-control form-select form-select-sm',
             'data-kt-filter': 'status',
-            'data-hide-search': 'true',
-            'data-minimum-results-for-search': 'Infinity',
         })
     )
 
@@ -64,7 +63,7 @@ class BaseFilterForm(forms.Form):
 
 
 class ItemFilterForm(BaseFilterForm):
-    """نموذج فلترة الأصناف - للاستخدام مع DataTables"""
+    """نموذج فلترة الأصناف"""
 
     category = forms.ModelChoiceField(
         label=_('التصنيف'),
@@ -79,6 +78,18 @@ class ItemFilterForm(BaseFilterForm):
         })
     )
 
+    unit = forms.ModelChoiceField(
+        label=_('وحدة القياس'),
+        queryset=UnitOfMeasure.objects.none(),
+        required=False,
+        empty_label=_('جميع الوحدات'),
+        widget=forms.Select(attrs={
+            'class': 'form-control form-select form-select-sm',
+            'data-control': 'select2',
+            'data-kt-filter': 'unit',
+        })
+    )
+
     has_barcode = forms.ChoiceField(
         label=_('الباركود'),
         choices=[
@@ -90,7 +101,6 @@ class ItemFilterForm(BaseFilterForm):
         widget=forms.Select(attrs={
             'class': 'form-control form-select form-select-sm',
             'data-kt-filter': 'has_barcode',
-            'data-hide-search': 'true',
         })
     )
 
@@ -110,30 +120,20 @@ class ItemFilterForm(BaseFilterForm):
         })
     )
 
-    stock_status = forms.ChoiceField(
-        label=_('حالة المخزون'),
-        choices=[
-            ('', _('الكل')),
-            ('in_stock', _('متوفر')),
-            ('low_stock', _('مخزون منخفض')),
-            ('out_of_stock', _('نفذ المخزون')),
-        ],
-        required=False,
-        widget=forms.Select(attrs={
-            'class': 'form-control form-select form-select-sm',
-            'data-kt-filter': 'stock_status',
-        })
-    )
-
-    def __init__(self, company, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
         super().__init__(*args, **kwargs)
-        self.company = company
 
-        # فلترة التصنيفات حسب الشركة
-        self.fields['category'].queryset = ItemCategory.objects.filter(
-            company=company,
-            is_active=True
-        ).order_by('level', 'name')
+        if company:
+            self.fields['category'].queryset = ItemCategory.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('level', 'code')
+
+            self.fields['unit'].queryset = UnitOfMeasure.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('name')
 
     def get_queryset(self, queryset):
         """تطبيق الفلاتر على queryset"""
@@ -151,21 +151,29 @@ class ItemFilterForm(BaseFilterForm):
 
         # الحالة
         is_active = self.cleaned_data.get('is_active')
-        if is_active:
-            queryset = queryset.filter(is_active=is_active == '1')
+        if is_active == '1':
+            queryset = queryset.filter(is_active=True)
+        elif is_active == '0':
+            queryset = queryset.filter(is_active=False)
 
         # التصنيف
         category = self.cleaned_data.get('category')
         if category:
             # البحث في التصنيف وتصنيفاته الفرعية
             categories = [category]
-            categories.extend(category.get_descendants())
+            children = ItemCategory.objects.filter(parent=category)
+            categories.extend(children)
             queryset = queryset.filter(category__in=categories)
+
+        # وحدة القياس
+        unit = self.cleaned_data.get('unit')
+        if unit:
+            queryset = queryset.filter(unit=unit)
 
         # الباركود
         has_barcode = self.cleaned_data.get('has_barcode')
         if has_barcode == '1':
-            queryset = queryset.exclude(barcode='')
+            queryset = queryset.exclude(Q(barcode='') | Q(barcode__isnull=True))
         elif has_barcode == '0':
             queryset = queryset.filter(Q(barcode='') | Q(barcode__isnull=True))
 
@@ -197,7 +205,7 @@ class BusinessPartnerFilterForm(BaseFilterForm):
     """نموذج فلترة الشركاء التجاريين"""
 
     partner_type = forms.ChoiceField(
-        label=_('النوع'),
+        label=_('نوع الشريك'),
         choices=[('', _('الكل'))] + BusinessPartner.PARTNER_TYPES,
         required=False,
         widget=forms.Select(attrs={
@@ -213,6 +221,21 @@ class BusinessPartnerFilterForm(BaseFilterForm):
         widget=forms.Select(attrs={
             'class': 'form-control form-select form-select-sm',
             'data-kt-filter': 'account_type',
+        })
+    )
+
+    tax_status = forms.ChoiceField(
+        label=_('الحالة الضريبية'),
+        choices=[
+            ('', _('الكل')),
+            ('taxable', _('خاضع للضريبة')),
+            ('exempt', _('معفى من الضريبة')),
+            ('export', _('تصدير')),
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control form-select form-select-sm',
+            'data-kt-filter': 'tax_status',
         })
     )
 
@@ -255,6 +278,28 @@ class BusinessPartnerFilterForm(BaseFilterForm):
         })
     )
 
+    salesperson = forms.ModelChoiceField(
+        label=_('مندوب المبيعات'),
+        queryset=User.objects.none(),
+        required=False,
+        empty_label=_('جميع المندوبين'),
+        widget=forms.Select(attrs={
+            'class': 'form-control form-select form-select-sm',
+            'data-control': 'select2',
+            'data-kt-filter': 'salesperson',
+        })
+    )
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            self.fields['salesperson'].queryset = User.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('first_name', 'last_name')
+
     def get_queryset(self, queryset):
         """تطبيق الفلاتر على queryset"""
 
@@ -286,6 +331,11 @@ class BusinessPartnerFilterForm(BaseFilterForm):
         if account_type:
             queryset = queryset.filter(account_type=account_type)
 
+        # الحالة الضريبية
+        tax_status = self.cleaned_data.get('tax_status')
+        if tax_status:
+            queryset = queryset.filter(tax_status=tax_status)
+
         # المدينة
         city = self.cleaned_data.get('city')
         if city:
@@ -294,14 +344,30 @@ class BusinessPartnerFilterForm(BaseFilterForm):
         # الرقم الضريبي
         has_tax_number = self.cleaned_data.get('has_tax_number')
         if has_tax_number == '1':
-            queryset = queryset.exclude(tax_number='')
+            queryset = queryset.exclude(Q(tax_number='') | Q(tax_number__isnull=True))
         elif has_tax_number == '0':
             queryset = queryset.filter(Q(tax_number='') | Q(tax_number__isnull=True))
 
+        # مندوب المبيعات
+        salesperson = self.cleaned_data.get('salesperson')
+        if salesperson:
+            queryset = queryset.filter(salesperson=salesperson)
+
         # الحالة
         is_active = self.cleaned_data.get('is_active')
-        if is_active:
-            queryset = queryset.filter(is_active=is_active == '1')
+        if is_active == '1':
+            queryset = queryset.filter(is_active=True)
+        elif is_active == '0':
+            queryset = queryset.filter(is_active=False)
+
+        # التاريخ
+        date_from = self.cleaned_data.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+
+        date_to = self.cleaned_data.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
 
         return queryset
 
@@ -323,8 +389,14 @@ class WarehouseFilterForm(BaseFilterForm):
     )
 
     warehouse_type = forms.ChoiceField(
-        label=_('النوع'),
-        choices=[('', _('الكل'))] + Warehouse.warehouse_type.field.choices,
+        label=_('نوع المستودع'),
+        choices=[
+            ('', _('جميع الأنواع')),
+            ('main', _('رئيسي')),
+            ('branch', _('فرعي')),
+            ('transit', _('ترانزيت')),
+            ('damaged', _('تالف')),
+        ],
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-control form-select form-select-sm',
@@ -332,8 +404,20 @@ class WarehouseFilterForm(BaseFilterForm):
         })
     )
 
-    has_keeper = forms.ChoiceField(
+    keeper = forms.ModelChoiceField(
         label=_('أمين المستودع'),
+        queryset=User.objects.none(),
+        required=False,
+        empty_label=_('جميع الأمناء'),
+        widget=forms.Select(attrs={
+            'class': 'form-control form-select form-select-sm',
+            'data-control': 'select2',
+            'data-kt-filter': 'keeper',
+        })
+    )
+
+    has_keeper = forms.ChoiceField(
+        label=_('وجود أمين'),
         choices=[
             ('', _('الكل')),
             ('1', _('له أمين')),
@@ -346,27 +430,34 @@ class WarehouseFilterForm(BaseFilterForm):
         })
     )
 
-    def __init__(self, company, user=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        self.company = company
-        self.user = user
 
-        # فلترة الفروع
-        branches = Branch.objects.filter(
-            company=company,
-            is_active=True
-        ).order_by('name')
+        if company:
+            # فلترة الفروع
+            branches = Branch.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('name')
 
-        # فلترة حسب صلاحيات المستخدم
-        if user and not user.is_superuser:
-            if hasattr(user, 'profile'):
-                allowed_branches = user.profile.allowed_branches.all()
-                if allowed_branches.exists():
-                    branches = branches.filter(
-                        id__in=allowed_branches.values_list('id', flat=True)
-                    )
+            # فلترة حسب صلاحيات المستخدم
+            if user and not user.is_superuser:
+                if hasattr(user, 'profile') and hasattr(user.profile, 'allowed_branches'):
+                    allowed_branches = user.profile.allowed_branches.all()
+                    if allowed_branches.exists():
+                        branches = branches.filter(
+                            id__in=allowed_branches.values_list('id', flat=True)
+                        )
 
-        self.fields['branch'].queryset = branches
+            self.fields['branch'].queryset = branches
+
+            # أمناء المستودعات
+            self.fields['keeper'].queryset = User.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('first_name', 'last_name')
 
     def get_queryset(self, queryset):
         """تطبيق الفلاتر على queryset"""
@@ -385,12 +476,17 @@ class WarehouseFilterForm(BaseFilterForm):
         if branch:
             queryset = queryset.filter(branch=branch)
 
-        # النوع
+        # نوع المستودع
         warehouse_type = self.cleaned_data.get('warehouse_type')
         if warehouse_type:
             queryset = queryset.filter(warehouse_type=warehouse_type)
 
         # أمين المستودع
+        keeper = self.cleaned_data.get('keeper')
+        if keeper:
+            queryset = queryset.filter(keeper=keeper)
+
+        # وجود أمين
         has_keeper = self.cleaned_data.get('has_keeper')
         if has_keeper == '1':
             queryset = queryset.exclude(keeper__isnull=True)
@@ -399,8 +495,19 @@ class WarehouseFilterForm(BaseFilterForm):
 
         # الحالة
         is_active = self.cleaned_data.get('is_active')
-        if is_active:
-            queryset = queryset.filter(is_active=is_active == '1')
+        if is_active == '1':
+            queryset = queryset.filter(is_active=True)
+        elif is_active == '0':
+            queryset = queryset.filter(is_active=False)
+
+        # التاريخ
+        date_from = self.cleaned_data.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+
+        date_to = self.cleaned_data.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
 
         return queryset
 
@@ -409,10 +516,10 @@ class GlobalSearchForm(forms.Form):
     """نموذج البحث الشامل في جميع البيانات الأساسية"""
 
     SEARCH_IN_CHOICES = [
-        ('all', _('الكل')),
-        ('items', _('الأصناف')),
-        ('partners', _('الشركاء التجاريين')),
-        ('warehouses', _('المستودعات')),
+        ('all', _('البحث في الكل')),
+        ('items', _('الأصناف فقط')),
+        ('partners', _('الشركاء التجاريين فقط')),
+        ('warehouses', _('المستودعات فقط')),
     ]
 
     query = forms.CharField(
@@ -456,6 +563,7 @@ class GlobalSearchForm(forms.Form):
             ).filter(
                 Q(code__icontains=query) |
                 Q(name__icontains=query) |
+                Q(name_en__icontains=query) |
                 Q(barcode__icontains=query)
             )[:10]
 
@@ -464,7 +572,7 @@ class GlobalSearchForm(forms.Form):
                     'title': _('الأصناف'),
                     'items': items,
                     'count': items.count(),
-                    'icon': 'fa-boxes',
+                    'icon': 'fas fa-boxes',
                 }
 
         # البحث في الشركاء
@@ -475,16 +583,18 @@ class GlobalSearchForm(forms.Form):
             ).filter(
                 Q(code__icontains=query) |
                 Q(name__icontains=query) |
+                Q(name_en__icontains=query) |
                 Q(phone__icontains=query) |
-                Q(mobile__icontains=query)
+                Q(mobile__icontains=query) |
+                Q(email__icontains=query)
             )[:10]
 
             if partners:
                 results['partners'] = {
-                    'title': _('الشركاء التجاريين'),
+                    'title': _('الشركاء التجاريون'),
                     'items': partners,
                     'count': partners.count(),
-                    'icon': 'fa-users',
+                    'icon': 'fas fa-users',
                 }
 
         # البحث في المستودعات
@@ -494,7 +604,8 @@ class GlobalSearchForm(forms.Form):
                 is_active=True
             ).filter(
                 Q(code__icontains=query) |
-                Q(name__icontains=query)
+                Q(name__icontains=query) |
+                Q(location__icontains=query)
             )[:10]
 
             if warehouses:
@@ -502,13 +613,12 @@ class GlobalSearchForm(forms.Form):
                     'title': _('المستودعات'),
                     'items': warehouses,
                     'count': warehouses.count(),
-                    'icon': 'fa-warehouse',
+                    'icon': 'fas fa-warehouse',
                 }
 
         return results
 
 
-# نماذج التصدير
 class ExportForm(forms.Form):
     """نموذج تصدير البيانات"""
 
@@ -528,7 +638,7 @@ class ExportForm(forms.Form):
     )
 
     include_inactive = forms.BooleanField(
-        label=_('تضمين غير النشط'),
+        label=_('تضمين البيانات غير النشطة'),
         required=False,
         initial=False,
         widget=forms.CheckboxInput(attrs={
@@ -545,17 +655,71 @@ class ExportForm(forms.Form):
         })
     )
 
+    date_range = forms.ChoiceField(
+        label=_('نطاق التاريخ'),
+        choices=[
+            ('all', _('جميع البيانات')),
+            ('today', _('اليوم')),
+            ('week', _('هذا الأسبوع')),
+            ('month', _('هذا الشهر')),
+            ('year', _('هذا العام')),
+            ('custom', _('نطاق مخصص')),
+        ],
+        initial='all',
+        widget=forms.Select(attrs={
+            'class': 'form-control form-select',
+        })
+    )
+
+    custom_date_from = forms.DateField(
+        label=_('من تاريخ'),
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+        })
+    )
+
+    custom_date_to = forms.DateField(
+        label=_('إلى تاريخ'),
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+        })
+    )
+
     def __init__(self, model_class, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # بناء خيارات الحقول من النموذج
         field_choices = []
         for field in model_class._meta.fields:
-            if field.name not in ['id', 'created_at', 'updated_at', 'created_by', 'updated_by']:
+            if field.name not in ['id', 'company', 'created_by', 'updated_by']:
                 field_choices.append(
-                    (field.name, field.verbose_name)
+                    (field.name, field.verbose_name or field.name)
                 )
 
         self.fields['selected_fields'].choices = field_choices
         # تحديد جميع الحقول افتراضياً
         self.fields['selected_fields'].initial = [c[0] for c in field_choices]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date_range = cleaned_data.get('date_range')
+
+        # التحقق من التواريخ المخصصة
+        if date_range == 'custom':
+            custom_date_from = cleaned_data.get('custom_date_from')
+            custom_date_to = cleaned_data.get('custom_date_to')
+
+            if not custom_date_from:
+                self.add_error('custom_date_from', _('تاريخ البداية مطلوب للنطاق المخصص'))
+
+            if not custom_date_to:
+                self.add_error('custom_date_to', _('تاريخ النهاية مطلوب للنطاق المخصص'))
+
+            if custom_date_from and custom_date_to and custom_date_from > custom_date_to:
+                self.add_error('custom_date_to', _('تاريخ النهاية يجب أن يكون بعد تاريخ البداية'))
+
+        return cleaned_data

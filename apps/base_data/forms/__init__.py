@@ -1,6 +1,6 @@
 # apps/base_data/forms/__init__.py
 """
-استيراد جميع النماذج لسهولة الوصول
+استيراد جميع النماذج لسهولة الوصول - محدث
 """
 
 # نماذج الأصناف
@@ -33,7 +33,8 @@ from .filter_forms import (
     ItemFilterForm,
     BusinessPartnerFilterForm,
     WarehouseFilterForm,
-    GlobalSearchForm
+    GlobalSearchForm,
+    ExportForm
 )
 
 __all__ = [
@@ -56,9 +57,10 @@ __all__ = [
     'UnitOfMeasureForm',
     'WarehouseTransferForm',
 
-    # Filters
+    # Filters & Search
     'ItemFilterForm',
     'BusinessPartnerFilterForm',
     'WarehouseFilterForm',
     'GlobalSearchForm',
+    'ExportForm',
 ]

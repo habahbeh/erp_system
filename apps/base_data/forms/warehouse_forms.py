@@ -1,269 +1,306 @@
 # apps/base_data/forms/warehouse_forms.py
 """
-نماذج المستودعات ووحدات القياس
-يتضمن: المستودعات، وحدات القياس، التحويلات بين المستودعات
+النماذج الخاصة بالمستودعات ووحدات القياس
 """
 
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
+from decimal import Decimal
 
-from ..models import Warehouse, UnitOfMeasure
-from core.models import User, Branch
-
-
-class UnitOfMeasureForm(forms.ModelForm):
-    """نموذج وحدة القياس"""
-
-    class Meta:
-        model = UnitOfMeasure
-        fields = ['code', 'name', 'name_en']
-        widgets = {
-            'code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': _('مثال: KG, M, PC, BOX'),
-                'maxlength': '10',
-                'required': True,
-                'autofocus': True,
-                'style': 'text-transform: uppercase;',
-            }),
-            'name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': _('مثال: كيلوغرام، متر، قطعة، كرتون'),
-                'required': True,
-            }),
-            'name_en': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': _('Example: Kilogram, Meter, Piece, Box'),
-                'dir': 'ltr',
-            }),
-        }
-
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-
-        # تطبيق الصلاحيات
-        if self.user and not self.user.has_perm('base_data.change_unitofmeasure'):
-            for field in self.fields:
-                self.fields[field].disabled = True
-
-    def clean_code(self):
-        """التحقق من عدم تكرار الرمز وتحويله لأحرف كبيرة"""
-        code = self.cleaned_data.get('code')
-        if code:
-            code = code.upper().strip()
-            # التحقق من التكرار
-            qs = UnitOfMeasure.objects.filter(
-                code=code,
-                company=self.instance.company if self.instance.pk else None
-            )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(_('هذا الرمز مستخدم بالفعل'))
-        return code
-
-    def clean_name(self):
-        """التحقق من عدم تكرار الاسم"""
-        name = self.cleaned_data.get('name')
-        if name:
-            name = name.strip()
-            # التحقق من التكرار
-            qs = UnitOfMeasure.objects.filter(
-                name=name,
-                company=self.instance.company if self.instance.pk else None
-            )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(_('هذا الاسم مستخدم بالفعل'))
-        return name
+from ..models import (
+    Warehouse, WarehouseItem, UnitOfMeasure, Item,
+    Branch, User
+)
 
 
 class WarehouseForm(forms.ModelForm):
-    """نموذج المستودع"""
+    """نموذج إنشاء وتعديل المستودع"""
 
     class Meta:
         model = Warehouse
         fields = [
-            'code', 'name', 'branch',
-            'location', 'keeper', 'warehouse_type'
+            'code', 'name', 'name_en', 'warehouse_type', 'branch',
+            'keeper', 'location', 'notes', 'is_active'
         ]
         widgets = {
             'code': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('مثال: WH01, MAIN, BR01'),
-                'required': True,
-                'autofocus': True,
-                'maxlength': '20',
-                'style': 'text-transform: uppercase;',
+                'placeholder': 'كود المستودع'
             }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('مثال: المستودع الرئيسي، مستودع الفرع الأول'),
-                'required': True,
+                'placeholder': 'اسم المستودع'
             }),
-            'branch': forms.Select(attrs={
-                'class': 'form-control form-select',
-                'data-control': 'select2',
-                'data-placeholder': _('اختر الفرع'),
-            }),
-            'location': forms.Textarea(attrs={
+            'name_en': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('العنوان التفصيلي للمستودع'),
-                'rows': 2,
-            }),
-            'keeper': forms.Select(attrs={
-                'class': 'form-control form-select',
-                'data-control': 'select2',
-                'data-placeholder': _('اختر أمين المستودع'),
-                'data-allow-clear': 'true',
+                'placeholder': 'الاسم الإنجليزي'
             }),
             'warehouse_type': forms.Select(attrs={
-                'class': 'form-control form-select',
-                'required': True,
+                'class': 'form-select'
             }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'keeper': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'location': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'موقع المستودع'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'ملاحظات'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            # فلترة الفروع والمستخدمين حسب الشركة
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=company, is_active=True
+            ).order_by('name')
+
+            self.fields['keeper'].queryset = User.objects.filter(
+                company=company, is_active=True
+            ).order_by('first_name', 'last_name')
+
+        # جعل الحقول اختيارية
+        self.fields['branch'].required = False
+        self.fields['keeper'].required = False
+        self.fields['location'].required = False
+        self.fields['notes'].required = False
+        self.fields['code'].required = False
+
+    def clean_code(self):
+        """التحقق من عدم تكرار الكود"""
+        code = self.cleaned_data.get('code')
+        if code:
+            # التحقق من التكرار
+            queryset = Warehouse.objects.filter(
+                company=self.instance.company if self.instance.pk else None,
+                code=code
+            )
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+
+            if queryset.exists():
+                raise ValidationError(_('هذا الكود مستخدم من قبل'))
+
+        return code
+
+
+class UnitOfMeasureForm(forms.ModelForm):
+    """نموذج إنشاء وتعديل وحدة القياس"""
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = ['code', 'name', 'name_en', 'notes', 'is_active']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'كود الوحدة'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'اسم الوحدة'
+            }),
+            'name_en': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'الاسم الإنجليزي'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'ملاحظات'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        # فلترة البيانات حسب الشركة
-        if hasattr(self.instance, 'company') and self.instance.company:
-            company = self.instance.company
-
-            # الفروع
-            branches_qs = Branch.objects.filter(
-                company=company,
-                is_active=True
-            ).order_by('name')
-
-            # فلترة الفروع حسب صلاحيات المستخدم
-            if self.user and not self.user.is_superuser:
-                if hasattr(self.user, 'profile'):
-                    allowed_branches = self.user.profile.allowed_branches.all()
-                    if allowed_branches.exists():
-                        branches_qs = branches_qs.filter(
-                            id__in=allowed_branches.values_list('id', flat=True)
-                        )
-                else:
-                    # فقط فرع المستخدم
-                    if self.user.branch:
-                        branches_qs = branches_qs.filter(id=self.user.branch.id)
-
-            self.fields['branch'].queryset = branches_qs
-
-            # تعيين الفرع الافتراضي
-            if not self.instance.pk and self.user and self.user.branch:
-                self.fields['branch'].initial = self.user.branch
-
-            # أمناء المستودعات
-            keepers_qs = User.objects.filter(
-                company=company,
-                is_active=True
-            ).order_by('first_name', 'last_name')
-
-            # فلترة حسب الصلاحية
-            if self.user and not self.user.is_superuser:
-                keepers_qs = keepers_qs.filter(
-                    groups__permissions__codename='can_manage_warehouse'
-                ).distinct()
-
-            self.fields['keeper'].queryset = keepers_qs
-
-        # تطبيق الصلاحيات
-        self._apply_permissions()
-
-    def _apply_permissions(self):
-        """تطبيق الصلاحيات على الحقول"""
-        if not self.user:
-            return
-
-        # تعطيل جميع الحقول لمن ليس لديه صلاحية التعديل
-        if not self.user.has_perm('base_data.change_warehouse'):
-            for field in self.fields:
-                self.fields[field].disabled = True
-
-        # منع تغيير الفرع لغير المدراء
-        if not self.user.has_perm('base_data.change_warehouse_branch'):
-            self.fields['branch'].disabled = True
+        # جعل بعض الحقول اختيارية
+        self.fields['code'].required = False
+        self.fields['name_en'].required = False
+        self.fields['notes'].required = False
 
     def clean_code(self):
-        """التحقق من عدم تكرار الرمز"""
+        """التحقق من عدم تكرار الكود"""
         code = self.cleaned_data.get('code')
-        if code:
-            code = code.upper().strip()
-            # التحقق من التكرار على مستوى الشركة والفرع
-            branch = self.cleaned_data.get('branch') or self.instance.branch
-            qs = Warehouse.objects.filter(
-                code=code,
-                company=self.instance.company if self.instance.pk else None,
-                branch=branch
+        if code and self.user:
+            # التحقق من التكرار
+            queryset = UnitOfMeasure.objects.filter(
+                company=self.user.company,
+                code=code
             )
             if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    _('هذا الرمز مستخدم بالفعل في نفس الفرع')
-                )
+                queryset = queryset.exclude(pk=self.instance.pk)
+
+            if queryset.exists():
+                raise ValidationError(_('هذا الكود مستخدم من قبل'))
+
         return code
 
-    def clean(self):
-        """التحقق من منطقية البيانات"""
-        cleaned_data = super().clean()
-        warehouse_type = cleaned_data.get('warehouse_type')
-        branch = cleaned_data.get('branch')
 
-        # التحقق من وجود مستودع رئيسي واحد فقط لكل فرع
-        if warehouse_type == 'main' and branch:
-            qs = Warehouse.objects.filter(
-                branch=branch,
-                warehouse_type='main',
-                is_active=True
-            )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError({
-                    'warehouse_type': _('يوجد مستودع رئيسي بالفعل في هذا الفرع')
-                })
+class WarehouseItemForm(forms.ModelForm):
+    """نموذج تعديل رصيد الصنف في المستودع"""
 
-        return cleaned_data
+    class Meta:
+        model = WarehouseItem
+        fields = [
+            'quantity', 'average_cost', 'last_purchase_cost',
+            'last_sale_cost', 'notes'
+        ]
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'average_cost': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'last_purchase_cost': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'last_sale_cost': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'ملاحظات'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # جعل بعض الحقول اختيارية
+        self.fields['last_purchase_cost'].required = False
+        self.fields['last_sale_cost'].required = False
+        self.fields['notes'].required = False
+
+    def clean_quantity(self):
+        """التحقق من صحة الكمية"""
+        quantity = self.cleaned_data.get('quantity')
+        if quantity is not None and quantity < 0:
+            raise ValidationError(_('الكمية لا يمكن أن تكون سالبة'))
+        return quantity
+
+
+class WarehouseFilterForm(forms.Form):
+    """نموذج فلترة المستودعات"""
+
+    WAREHOUSE_TYPE_CHOICES = [
+        ('', 'جميع الأنواع'),
+        ('main', 'مستودع رئيسي'),
+        ('branch', 'مستودع فرع'),
+        ('transit', 'مستودع ترانزيت'),
+        ('damaged', 'مستودع تالف'),
+    ]
+
+    search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'البحث في الكود أو الاسم أو الموقع...',
+            'class': 'form-control'
+        })
+    )
+
+    warehouse_type = forms.ChoiceField(
+        choices=WAREHOUSE_TYPE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    branch = forms.ModelChoiceField(
+        queryset=Branch.objects.none(),
+        required=False,
+        empty_label="جميع الفروع",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    keeper = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        empty_label="جميع الأمناء",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    is_active = forms.NullBooleanField(
+        required=False,
+        widget=forms.Select(
+            choices=[
+                ('', 'الكل'),
+                ('true', 'نشط'),
+                ('false', 'غير نشط')
+            ],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=company, is_active=True
+            ).order_by('name')
+
+            self.fields['keeper'].queryset = User.objects.filter(
+                company=company, is_active=True
+            ).order_by('first_name', 'last_name')
 
 
 class WarehouseTransferForm(forms.Form):
-    """نموذج التحويل بين المستودعات - للاستخدام في العمليات"""
+    """نموذج التحويل بين المستودعات"""
 
     from_warehouse = forms.ModelChoiceField(
-        label=_('من مستودع'),
         queryset=Warehouse.objects.none(),
-        widget=forms.Select(attrs={
-            'class': 'form-control form-select',
-            'data-control': 'select2',
-            'data-placeholder': _('اختر المستودع المصدر'),
-            'required': True,
-        })
+        label=_('من مستودع'),
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
     to_warehouse = forms.ModelChoiceField(
-        label=_('إلى مستودع'),
         queryset=Warehouse.objects.none(),
-        widget=forms.Select(attrs={
-            'class': 'form-control form-select',
-            'data-control': 'select2',
-            'data-placeholder': _('اختر المستودع الهدف'),
-            'required': True,
-        })
+        label=_('إلى مستودع'),
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    transfer_date = forms.DateField(
-        label=_('تاريخ التحويل'),
-        widget=forms.DateInput(attrs={
+    item = forms.ModelChoiceField(
+        queryset=Item.objects.none(),
+        label=_('الصنف'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    quantity = forms.DecimalField(
+        label=_('الكمية'),
+        min_value=Decimal('0.01'),
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'type': 'date',
-            'required': True,
+            'step': '0.01',
+            'min': '0.01'
         })
     )
 
@@ -272,124 +309,180 @@ class WarehouseTransferForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={
             'class': 'form-control',
-            'rows': 2,
-            'placeholder': _('ملاحظات حول التحويل'),
+            'rows': 3,
+            'placeholder': 'ملاحظات على التحويل'
         })
     )
 
-    def __init__(self, company, user=None, *args, **kwargs):
+    transfer_date = forms.DateField(
+        label=_('تاريخ التحويل'),
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        })
+    )
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
         super().__init__(*args, **kwargs)
-        self.company = company
-        self.user = user
 
-        # فلترة المستودعات
-        warehouses = Warehouse.objects.filter(
-            company=company,
-            is_active=True
-        ).order_by('name')
+        if company:
+            # فلترة المستودعات والأصناف حسب الشركة
+            active_warehouses = Warehouse.objects.filter(
+                company=company, is_active=True
+            ).order_by('name')
 
-        # فلترة حسب صلاحيات المستخدم
-        if user and not user.is_superuser:
-            if hasattr(user, 'profile'):
-                allowed_warehouses = user.profile.allowed_warehouses.all()
-                if allowed_warehouses.exists():
-                    warehouses = warehouses.filter(
-                        id__in=allowed_warehouses.values_list('id', flat=True)
-                    )
+            self.fields['from_warehouse'].queryset = active_warehouses
+            self.fields['to_warehouse'].queryset = active_warehouses
 
-        self.fields['from_warehouse'].queryset = warehouses
-        self.fields['to_warehouse'].queryset = warehouses
-
-        # تعيين التاريخ الافتراضي
-        from django.utils import timezone
-        self.fields['transfer_date'].initial = timezone.now().date()
+            self.fields['item'].queryset = Item.objects.filter(
+                company=company, is_active=True
+            ).order_by('name')
 
     def clean(self):
-        """التحقق من صحة التحويل"""
+        """التحقق من صحة البيانات"""
         cleaned_data = super().clean()
         from_warehouse = cleaned_data.get('from_warehouse')
         to_warehouse = cleaned_data.get('to_warehouse')
+        item = cleaned_data.get('item')
+        quantity = cleaned_data.get('quantity')
 
-        # التحقق من عدم التحويل لنفس المستودع
+        # التحقق من عدم تساوي المستودعات
         if from_warehouse and to_warehouse and from_warehouse == to_warehouse:
-            raise ValidationError({
-                'to_warehouse': _('لا يمكن التحويل إلى نفس المستودع')
-            })
+            raise ValidationError(_('لا يمكن التحويل إلى نفس المستودع'))
 
-        # التحقق من صلاحية التحويل بين الفروع
-        if from_warehouse and to_warehouse:
-            if from_warehouse.branch != to_warehouse.branch:
-                if self.user and not self.user.has_perm('inventory.transfer_between_branches'):
+        # التحقق من توفر الكمية في المستودع المصدر
+        if from_warehouse and item and quantity:
+            try:
+                warehouse_item = WarehouseItem.objects.get(
+                    warehouse=from_warehouse,
+                    item=item
+                )
+                if warehouse_item.quantity < quantity:
                     raise ValidationError(
-                        _('ليس لديك صلاحية التحويل بين الفروع المختلفة')
+                        _('الكمية المطلوبة أكبر من المتوفر في المستودع (متوفر: %(available)s)') % {
+                            'available': warehouse_item.quantity
+                        }
                     )
+            except WarehouseItem.DoesNotExist:
+                raise ValidationError(_('الصنف غير موجود في المستودع المصدر'))
 
         return cleaned_data
 
 
-# نماذج إضافية للاستيراد والتصدير
 class WarehouseImportForm(forms.Form):
-    """نموذج استيراد المستودعات من ملف"""
+    """نموذج استيراد بيانات المستودعات"""
 
-    import_file = forms.FileField(
-        label=_('ملف الاستيراد'),
-        widget=forms.FileInput(attrs={
-            'class': 'form-control',
-            'accept': '.xlsx,.xls,.csv',
-            'required': True,
-        }),
-        help_text=_('ملف Excel أو CSV يحتوي على: رمز المستودع، الاسم، الفرع، النوع')
+    IMPORT_TYPE_CHOICES = [
+        ('warehouses', 'المستودعات'),
+        ('inventory', 'الأرصدة'),
+        ('units', 'وحدات القياس'),
+    ]
+
+    import_type = forms.ChoiceField(
+        choices=IMPORT_TYPE_CHOICES,
+        label=_('نوع البيانات'),
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    update_existing = forms.BooleanField(
-        label=_('تحديث المستودعات الموجودة'),
-        required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={
-            'class': 'form-check-input',
-            'role': 'switch',
+    file = forms.FileField(
+        label=_('ملف البيانات'),
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx,.xls,.csv'
         })
     )
 
-    def clean_import_file(self):
-        """التحقق من صحة الملف"""
-        file = self.cleaned_data.get('import_file')
-        if file:
-            # التحقق من حجم الملف
-            if file.size > 2 * 1024 * 1024:  # 2 ميجا
-                raise ValidationError(
-                    _('حجم الملف كبير جداً. الحد الأقصى 2 ميجابايت')
-                )
-
-            # التحقق من نوع الملف
-            ext = file.name.split('.')[-1].lower()
-            if ext not in ['xlsx', 'xls', 'csv']:
-                raise ValidationError(
-                    _('صيغة الملف غير مدعومة. يرجى استخدام Excel أو CSV')
-                )
-
-        return file
-
-
-class UnitConversionImportForm(forms.Form):
-    """نموذج استيراد معدلات التحويل بين الوحدات"""
-
-    import_file = forms.FileField(
-        label=_('ملف معدلات التحويل'),
-        widget=forms.FileInput(attrs={
-            'class': 'form-control',
-            'accept': '.xlsx,.xls,.csv',
-            'required': True,
-        }),
-        help_text=_('ملف يحتوي على: رمز المادة، من وحدة، إلى وحدة، المعامل')
+    update_existing = forms.BooleanField(
+        label=_('تحديث البيانات الموجودة'),
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
 
-    def clean_import_file(self):
+    skip_errors = forms.BooleanField(
+        label=_('تجاهل الأخطاء والمتابعة'),
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+
+    def clean_file(self):
         """التحقق من صحة الملف"""
-        file = self.cleaned_data.get('import_file')
+        file = self.cleaned_data.get('file')
         if file:
-            if file.size > 1 * 1024 * 1024:  # 1 ميجا
-                raise ValidationError(
-                    _('حجم الملف كبير جداً. الحد الأقصى 1 ميجابايت')
-                )
+            # التحقق من نوع الملف
+            if not file.name.lower().endswith(('.xlsx', '.xls', '.csv')):
+                raise ValidationError(_('نوع الملف غير مدعوم. يجب أن يكون Excel أو CSV'))
+
+            # التحقق من حجم الملف (أقل من 5MB)
+            if file.size > 5 * 1024 * 1024:
+                raise ValidationError(_('حجم الملف كبير جداً. يجب أن يكون أقل من 5MB'))
+
         return file
+
+
+class WarehouseQuickAddForm(forms.ModelForm):
+    """نموذج إضافة سريعة للمستودع"""
+
+    class Meta:
+        model = Warehouse
+        fields = ['code', 'name', 'warehouse_type', 'branch']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'كود المستودع'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'اسم المستودع'
+            }),
+            'warehouse_type': forms.Select(attrs={
+                'class': 'form-select form-select-sm'
+            }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select form-select-sm'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=company, is_active=True
+            ).order_by('name')
+
+        # جعل بعض الحقول اختيارية
+        self.fields['code'].required = False
+        self.fields['branch'].required = False
+
+
+class UnitQuickAddForm(forms.ModelForm):
+    """نموذج إضافة سريعة لوحدة القياس"""
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = ['code', 'name', 'name_en']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'كود الوحدة'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'اسم الوحدة'
+            }),
+            'name_en': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'الاسم الإنجليزي'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # جعل بعض الحقول اختيارية
+        self.fields['code'].required = False
+        self.fields['name_en'].required = False
