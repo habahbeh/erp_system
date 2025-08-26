@@ -19,18 +19,17 @@ import json
 
 from ..models import (
     Item, ItemCategory, ItemConversion, ItemComponent, BusinessPartner,
-    Customer, Supplier, ContactInfo, Warehouse, WarehouseItem,
-    UnitOfMeasure, SalesRepresentative, Account, Branch
+    Customer, Supplier, Warehouse, WarehouseItem,
+    UnitOfMeasure
 )
 from ..serializers import (
-    ItemSerializer, ItemDetailSerializer, ItemCategorySerializer,
-    ItemConversionSerializer, ItemComponentSerializer,
-    BusinessPartnerSerializer, BusinessPartnerDetailSerializer,
-    CustomerSerializer, SupplierSerializer, ContactInfoSerializer,
-    WarehouseSerializer, WarehouseDetailSerializer, WarehouseItemSerializer,
-    UnitOfMeasureSerializer, SalesRepresentativeSerializer
+    ItemSerializer, ItemCategorySerializer,
+    BusinessPartnerSerializer,
+    CustomerSerializer, SupplierSerializer,
+    WarehouseSerializer,
+    UnitOfMeasureSerializer
 )
-from ..filters import ItemFilter, BusinessPartnerFilter, WarehouseFilter
+# from ..filters import ItemFilter, BusinessPartnerFilter, WarehouseFilter
 
 
 class BaseDataPermission(permissions.BasePermission):
@@ -198,7 +197,7 @@ class ItemViewSet(BaseDataViewSetMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'name_en', 'code', 'barcode']
     ordering_fields = ['code', 'name', 'sale_price', 'purchase_price', 'created_at']
     ordering = ['code']
-    filterset_class = ItemFilter
+    # filterset_class = ItemFilter
 
     def get_serializer_class(self):
         """اختيار الـ serializer حسب العملية"""
@@ -410,7 +409,7 @@ class BusinessPartnerViewSet(BaseDataViewSetMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'name_en', 'code', 'phone', 'mobile', 'email']
     ordering_fields = ['code', 'name', 'partner_type', 'created_at']
     ordering = ['code']
-    filterset_class = BusinessPartnerFilter
+    # filterset_class = BusinessPartnerFilter
 
     def get_serializer_class(self):
         if self.action in ['retrieve', 'create', 'update', 'partial_update']:
@@ -572,7 +571,7 @@ class WarehouseViewSet(BaseDataViewSetMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'name_en', 'code', 'location']
     ordering_fields = ['code', 'name', 'warehouse_type']
     ordering = ['code']
-    filterset_class = WarehouseFilter
+    # filterset_class = WarehouseFilter
 
     def get_serializer_class(self):
         if self.action in ['retrieve', 'create', 'update', 'partial_update']:

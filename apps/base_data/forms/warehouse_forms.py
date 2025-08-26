@@ -20,8 +20,8 @@ class WarehouseForm(forms.ModelForm):
     class Meta:
         model = Warehouse
         fields = [
-            'code', 'name', 'name_en', 'warehouse_type', 'branch',
-            'keeper', 'location', 'notes', 'is_active'
+            'code', 'name', 'warehouse_type', 'branch',
+            'keeper', 'location', 'is_active'
         ]
         widgets = {
             'code': forms.TextInput(attrs={
@@ -31,10 +31,6 @@ class WarehouseForm(forms.ModelForm):
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'اسم المستودع'
-            }),
-            'name_en': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'الاسم الإنجليزي'
             }),
             'warehouse_type': forms.Select(attrs={
                 'class': 'form-select'
@@ -48,11 +44,6 @@ class WarehouseForm(forms.ModelForm):
             'location': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'موقع المستودع'
-            }),
-            'notes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'ملاحظات'
             }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -103,7 +94,7 @@ class UnitOfMeasureForm(forms.ModelForm):
 
     class Meta:
         model = UnitOfMeasure
-        fields = ['code', 'name', 'name_en', 'notes', 'is_active']
+        fields = ['code', 'name', 'name_en', 'is_active']
         widgets = {
             'code': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -116,11 +107,6 @@ class UnitOfMeasureForm(forms.ModelForm):
             'name_en': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'الاسم الإنجليزي'
-            }),
-            'notes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'ملاحظات'
             }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -159,10 +145,7 @@ class WarehouseItemForm(forms.ModelForm):
 
     class Meta:
         model = WarehouseItem
-        fields = [
-            'quantity', 'average_cost', 'last_purchase_cost',
-            'last_sale_cost', 'notes'
-        ]
+        fields = ['quantity', 'average_cost']
         widgets = {
             'quantity': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -173,22 +156,8 @@ class WarehouseItemForm(forms.ModelForm):
                 'class': 'form-control',
                 'step': '0.01',
                 'min': '0'
-            }),
-            'last_purchase_cost': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'last_sale_cost': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'notes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'ملاحظات'
             })
+
         }
 
     def __init__(self, *args, **kwargs):

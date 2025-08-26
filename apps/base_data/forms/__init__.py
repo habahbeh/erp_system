@@ -9,8 +9,7 @@ from .item_forms import (
     ItemCategoryForm,
     ItemConversionForm,
     ItemComponentForm,
-    ItemQuickAddForm,
-    ItemImportForm
+    ItemQuickAddForm
 )
 
 # نماذج الشركاء التجاريين
@@ -44,7 +43,6 @@ __all__ = [
     'ItemConversionForm',
     'ItemComponentForm',
     'ItemQuickAddForm',
-    'ItemImportForm',
 
     # Partners
     'BusinessPartnerForm',

@@ -15,9 +15,6 @@ from .views import (
 
     # التصنيفات
     CategoryListView, CategoryCreateView, CategoryUpdateView,
-    CategoryDeleteView, CategoryDataTableView, CategoryQuickAddView,
-    CategoryCheckCodeView, CategorySearchAjaxView, CategoryInfoAjaxView,
-    CategoryExportView, CategoryTreeView, CategoryTreeAjaxView,
 
     # إدارة البيانات المرتبطة
     ItemComponentsManageView, ItemConversionsManageView, ItemSubstitutesManageView,
@@ -116,25 +113,25 @@ urlpatterns = [
     path('items/ajax/<int:pk>/info/', ItemInfoAjaxView.as_view(), name='item_info_ajax'),
 
     # ============== التصنيفات (4 مستويات) ==============
-    path('categories/', views.CategoryListView.as_view(), name='category_list'),
-    path('categories/add/', views.CategoryCreateView.as_view(), name='category_add'),
-    path('categories/<int:pk>/', views.CategoryUpdateView.as_view(), name='category_detail'),
-    path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
-    path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='category_delete'),
+    # path('categories/', views.CategoryListView.as_view(), name='category_list'),
+    # path('categories/add/', views.CategoryCreateView.as_view(), name='category_add'),
+    # path('categories/<int:pk>/', views.CategoryUpdateView.as_view(), name='category_detail'),
+    # path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
+    # path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='category_delete'),
 
     # التصنيفات - شجرة التصنيفات
-    path('categories/tree/', views.CategoryTreeView.as_view(), name='category_tree'),
+    # path('categories/tree/', views.CategoryTreeView.as_view(), name='category_tree'),
 
     # التصنيفات - AJAX Views
-    path('categories/datatable/', views.CategoryDataTableView.as_view(), name='category_datatable'),
-    path('categories/quick-add/', views.CategoryQuickAddView.as_view(), name='category_quick_add'),
-    path('categories/check-code/', views.CategoryCheckCodeView.as_view(), name='category_check_code'),
-    path('categories/search/', views.CategorySearchAjaxView.as_view(), name='category_search_ajax'),
-    path('categories/<int:pk>/info/', views.CategoryInfoAjaxView.as_view(), name='category_info_ajax'),
-    path('categories/tree-ajax/', views.CategoryTreeAjaxView.as_view(), name='category_tree_ajax'),
+    # path('categories/datatable/', views.CategoryDataTableView.as_view(), name='category_datatable'),
+    # path('categories/quick-add/', views.CategoryQuickAddView.as_view(), name='category_quick_add'),
+    # path('categories/check-code/', views.CategoryCheckCodeView.as_view(), name='category_check_code'),
+    # path('categories/search/', views.CategorySearchAjaxView.as_view(), name='category_search_ajax'),
+    # path('categories/<int:pk>/info/', views.CategoryInfoAjaxView.as_view(), name='category_info_ajax'),
+    # path('categories/tree-ajax/', views.CategoryTreeAjaxView.as_view(), name='category_tree_ajax'),
 
     # التصنيفات - التصدير
-    path('categories/export/', views.CategoryExportView.as_view(), name='category_export'),
+    # path('categories/export/', views.CategoryExportView.as_view(), name='category_export'),
 
     # ============== الشركاء التجاريين ==============
     path('partners/', BusinessPartnerListView.as_view(), name='partner_list'),

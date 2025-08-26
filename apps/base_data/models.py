@@ -746,3 +746,43 @@ class Supplier(BusinessPartner):
             )
 
     suppliers = SupplierManager()
+
+
+class WarehouseItem(BaseModel):
+    """أرصدة المستودعات"""
+
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.CASCADE,
+        related_name='warehouse_items',
+        verbose_name=_('المستودع')
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='warehouse_items',
+        verbose_name=_('المادة')
+    )
+
+    quantity = models.DecimalField(
+        _('الكمية'),
+        max_digits=12,
+        decimal_places=3,
+        default=0
+    )
+
+    average_cost = models.DecimalField(
+        _('متوسط التكلفة'),
+        max_digits=12,
+        decimal_places=3,
+        default=0
+    )
+
+    class Meta:
+        unique_together = [['warehouse', 'item']]
+        verbose_name = _('رصيد مستودع')
+        verbose_name_plural = _('أرصدة المستودعات')
+
+    def __str__(self):
+        return f"{self.item.name} @ {self.warehouse.name}: {self.quantity}"
