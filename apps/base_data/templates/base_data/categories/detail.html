@@ -1,0 +1,232 @@
+<!-- File: apps/base_data/templates/base_data/categories/detail.html -->
+{% extends 'base_data/base/detail_base.html' %}
+{% load i18n %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:category_list' %}">{% trans "التصنيفات" %}</a>
+</li>
+<li class="breadcrumb-item active">{{ object.name }}</li>
+{% endblock %}
+
+{% block detail_icon %}<i class="fas fa-sitemap me-2"></i>{% endblock %}
+{% block detail_title %}{{ object.name }}{% endblock %}
+
+{% block status_badge %}
+{% if object.is_active %}
+<span class="badge bg-success ms-2">
+    <i class="fas fa-check me-1"></i>{% trans "نشط" %}
+</span>
+{% else %}
+<span class="badge bg-danger ms-2">
+    <i class="fas fa-times me-1"></i>{% trans "غير نشط" %}
+</span>
+{% endif %}
+{% endblock %}
+
+{% block edit_url %}{% url 'base_data:category_update' object.pk %}{% endblock %}
+{% block delete_url %}{% url 'base_data:category_delete' object.pk %}{% endblock %}
+{% block list_url %}{% url 'base_data:category_list' %}{% endblock %}
+{% block confirm_delete_url %}{% url 'base_data:category_delete' object.pk %}{% endblock %}
+
+{% block basic_info %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "رمز التصنيف" %}</div>
+            <div class="detail-value">
+                <code class="bg-light p-2 rounded">{{ object.code }}</code>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "المستوى" %}</div>
+            <div class="detail-value">
+                {% with level_colors="primary,success,warning,info" %}
+                {% with colors=level_colors|split:"," %}
+                <span class="badge bg-{{ colors|get_item:object.level }}">
+                    {% trans "المستوى" %} {{ object.level }}
+                </span>
+                {% endwith %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "اسم التصنيف" %}</div>
+            <div class="detail-value">
+                <h5 class="mb-0">{{ object.name }}</h5>
+                {% if object.name_en %}
+                <small class="text-muted">{{ object.name_en }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if object.parent %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "التصنيف الأب" %}</div>
+            <div class="detail-value">
+                <a href="{{ object.parent.get_absolute_url }}" class="text-decoration-none">
+                    <i class="fas fa-arrow-up me-1"></i>{{ object.parent.name }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if object.description %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الوصف" %}</div>
+            <div class="detail-value">{{ object.description|linebreaks }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if object.notes %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "ملاحظات" %}</div>
+            <div class="detail-value">{{ object.notes|linebreaks }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block statistics %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-chart-pie me-2"></i>{% trans "الإحصائيات" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-12 mb-3">
+                <div class="border-bottom pb-2">
+                    <h4 class="text-primary mb-1">{{ object.items.count }}</h4>
+                    <small class="text-muted">{% trans "إجمالي الأصناف" %}</small>
+                </div>
+            </div>
+            <div class="col-6">
+                <h5 class="text-success mb-1">{{ object.active_items_count }}</h5>
+                <small class="text-muted">{% trans "الأصناف النشطة" %}</small>
+            </div>
+            <div class="col-6">
+                <h5 class="text-warning mb-1">{{ object.children.count }}</h5>
+                <small class="text-muted">{% trans "التصنيفات الفرعية" %}</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_info %}
+<!-- Subcategories -->
+{% if object.children.exists %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-sitemap me-2"></i>{% trans "التصنيفات الفرعية" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for child in object.children.all %}
+            <div class="col-md-6 mb-3">
+                <div class="card border">
+                    <div class="card-body py-2">
+                        <h6 class="card-title mb-1">
+                            <a href="{{ child.get_absolute_url }}" class="text-decoration-none">
+                                <i class="fas fa-folder me-1"></i>{{ child.name }}
+                            </a>
+                            {% if child.is_active %}
+                            <span class="badge bg-success">نشط</span>
+                            {% else %}
+                            <span class="badge bg-danger">غير نشط</span>
+                            {% endif %}
+                        </h6>
+                        <small class="text-muted">
+                            <i class="fas fa-boxes me-1"></i>{{ child.items.count }} {% trans "صنف" %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Items in this category -->
+{% if object.items.exists %}
+<div class="card detail-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-boxes me-2"></i>{% trans "الأصناف في هذا التصنيف" %}
+        </h6>
+        <span class="badge bg-primary">{{ object.items.count }} {% trans "صنف" %}</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الكود" %}</th>
+                        <th>{% trans "الاسم" %}</th>
+                        <th>{% trans "الحالة" %}</th>
+                        <th>{% trans "الإجراءات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in object.items.all|slice:":10" %}
+                    <tr>
+                        <td><code class="small">{{ item.code }}</code></td>
+                        <td>
+                            <a href="{{ item.get_absolute_url }}" class="text-decoration-none">
+                                {{ item.name }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if item.is_active %}
+                            <span class="badge bg-success">نشط</span>
+                            {% else %}
+                            <span class="badge bg-danger">غير نشط</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ item.get_absolute_url }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if object.items.count > 10 %}
+        <div class="text-center">
+            <a href="{% url 'base_data:item_list' %}?category={{ object.id }}" class="btn btn-outline-primary">
+                <i class="fas fa-list me-1"></i>{% trans "عرض جميع الأصناف" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

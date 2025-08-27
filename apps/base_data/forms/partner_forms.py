@@ -1,17 +1,21 @@
 # apps/base_data/forms/partner_forms.py
 """
-Forms الخاصة بالشركاء التجاريين
+Forms الخاصة بالشركاء التجاريين - محدث 100%
 يشمل: BusinessPartner، العملاء، الموردين، الفلاتر، الإضافة السريعة
+Bootstrap 5 + RTL + جميع الحقول من models.py
 """
 
 from django import forms
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 from ..models import BusinessPartner
+from core.models import User
 
 
 class BusinessPartnerForm(forms.ModelForm):
-    """نموذج الشريك التجاري الكامل"""
+    """نموذج الشريك التجاري الكامل - محدث 100%"""
 
     class Meta:
         model = BusinessPartner
@@ -20,21 +24,20 @@ class BusinessPartnerForm(forms.ModelForm):
             'contact_person', 'phone', 'mobile', 'fax', 'email', 'website',
             'address', 'city', 'region', 'tax_number', 'tax_status',
             'commercial_register', 'credit_limit', 'credit_period',
+            'customer_account', 'supplier_account',  # الحسابات المحاسبية المفقودة
             'salesperson', 'discount_percentage', 'customer_category',
             'payment_terms', 'supplier_category', 'rating', 'notes'
         ]
         widgets = {
             'partner_type': forms.Select(attrs={
                 'class': 'form-select',
-                'onchange': 'togglePartnerFields()'
+                'onchange': 'togglePartnerFields()',
+                'required': True
             }),
-            'account_type': forms.Select(attrs={'class': 'form-select'}),
-            'tax_status': forms.Select(attrs={'class': 'form-select'}),
-            'customer_category': forms.Select(attrs={'class': 'form-select'}),
-            'supplier_category': forms.Select(attrs={'class': 'form-select'}),
             'code': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('كود الشريك')
+                'placeholder': _('كود الشريك'),
+                'dir': 'ltr'
             }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -43,7 +46,11 @@ class BusinessPartnerForm(forms.ModelForm):
             }),
             'name_en': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('الاسم بالإنجليزية')
+                'placeholder': _('الاسم بالإنجليزية'),
+                'dir': 'ltr'
+            }),
+            'account_type': forms.Select(attrs={
+                'class': 'form-select'
             }),
             'contact_person': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -51,23 +58,28 @@ class BusinessPartnerForm(forms.ModelForm):
             }),
             'phone': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('رقم الهاتف')
+                'placeholder': _('رقم الهاتف'),
+                'dir': 'ltr'
             }),
             'mobile': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('رقم الموبايل')
+                'placeholder': _('رقم الموبايل'),
+                'dir': 'ltr'
             }),
             'fax': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('رقم الفاكس')
+                'placeholder': _('رقم الفاكس'),
+                'dir': 'ltr'
             }),
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('البريد الإلكتروني')
+                'placeholder': _('البريد الإلكتروني'),
+                'dir': 'ltr'
             }),
             'website': forms.URLInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('الموقع الإلكتروني')
+                'placeholder': _('الموقع الإلكتروني'),
+                'dir': 'ltr'
             }),
             'address': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -84,36 +96,66 @@ class BusinessPartnerForm(forms.ModelForm):
             }),
             'tax_number': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('الرقم الضريبي')
+                'placeholder': _('الرقم الضريبي'),
+                'dir': 'ltr'
+            }),
+            'tax_status': forms.Select(attrs={
+                'class': 'form-select'
             }),
             'commercial_register': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('رقم السجل التجاري')
+                'placeholder': _('رقم السجل التجاري'),
+                'dir': 'ltr'
             }),
             'credit_limit': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'min': '0'
+                'min': '0',
+                'dir': 'ltr'
             }),
             'credit_period': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'min': '0'
+                'min': '0',
+                'dir': 'ltr'
             }),
-            'salesperson': forms.Select(attrs={'class': 'form-select'}),
+            # الحسابات المحاسبية
+            'customer_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر حساب العميل')
+            }),
+            'supplier_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر حساب المورد')
+            }),
+            'salesperson': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر مندوب المبيعات')
+            }),
             'discount_percentage': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
                 'min': '0',
-                'max': '100'
+                'max': '100',
+                'dir': 'ltr'
+            }),
+            'customer_category': forms.Select(attrs={
+                'class': 'form-select'
             }),
             'payment_terms': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': _('شروط الدفع')
             }),
+            'supplier_category': forms.Select(attrs={
+                'class': 'form-select'
+            }),
             'rating': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': 1,
-                'max': 5
+                'max': 5,
+                'dir': 'ltr'
             }),
             'notes': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -141,12 +183,14 @@ class BusinessPartnerForm(forms.ModelForm):
             'commercial_register': _('السجل التجاري'),
             'credit_limit': _('حد الائتمان'),
             'credit_period': _('فترة الائتمان (أيام)'),
+            'customer_account': _('حساب العميل'),
+            'supplier_account': _('حساب المورد'),
             'salesperson': _('مندوب المبيعات'),
             'discount_percentage': _('نسبة الخصم %'),
             'customer_category': _('تصنيف العميل'),
             'payment_terms': _('شروط الدفع'),
             'supplier_category': _('تصنيف المورد'),
-            'rating': _('التقييم'),
+            'rating': _('التقييم (1-5)'),
             'notes': _('ملاحظات'),
         }
 
@@ -156,32 +200,49 @@ class BusinessPartnerForm(forms.ModelForm):
 
         if company:
             # فلترة مندوبي المبيعات حسب الشركة
-            from core.models import User
             self.fields['salesperson'].queryset = User.objects.filter(
                 company=company, is_active=True
-            )
-            self.fields['salesperson'].empty_label = _('اختر مندوب المبيعات')
+            ).order_by('first_name', 'last_name')
+
+            # فلترة الحسابات المحاسبية
+            try:
+                from accounting.models import Account
+                accounts = Account.objects.filter(
+                    company=company, is_active=True
+                ).order_by('code')
+
+                self.fields['customer_account'].queryset = accounts
+                self.fields['supplier_account'].queryset = accounts
+            except ImportError:
+                # في حالة عدم وجود app المحاسبة
+                pass
 
         # تحسين القوائم المنسدلة
         self.fields['partner_type'].empty_label = None
         self.fields['account_type'].empty_label = None
         self.fields['tax_status'].empty_label = None
+        self.fields['customer_category'].empty_label = None
+        self.fields['supplier_category'].empty_label = None
+
+        # جعل الحقول الاختيارية
+        optional_fields = [
+            'code', 'name_en', 'contact_person', 'phone', 'mobile', 'fax',
+            'email', 'website', 'address', 'city', 'region', 'tax_number',
+            'commercial_register', 'customer_account', 'supplier_account',
+            'salesperson', 'payment_terms', 'notes'
+        ]
+        for field in optional_fields:
+            self.fields[field].required = False
 
     def clean_code(self):
         """التحقق من تفرد الكود"""
         code = self.cleaned_data.get('code')
         if code:
-            # التحقق من الكود المكرر في نفس الشركة
-            queryset = BusinessPartner.objects.filter(
-                company=self.instance.company if self.instance.pk else None,
-                code=code
-            )
+            queryset = BusinessPartner.objects.filter(code=code)
             if self.instance.pk:
                 queryset = queryset.exclude(pk=self.instance.pk)
-
             if queryset.exists():
-                raise forms.ValidationError(_('هذا الكود مستخدم من قبل'))
-
+                raise ValidationError(_('هذا الكود مستخدم من قبل'))
         return code
 
     def clean_email(self):
@@ -189,7 +250,25 @@ class BusinessPartnerForm(forms.ModelForm):
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower().strip()
+            try:
+                validate_email(email)
+            except ValidationError:
+                raise ValidationError(_('البريد الإلكتروني غير صحيح'))
         return email
+
+    def clean_rating(self):
+        """التحقق من التقييم"""
+        rating = self.cleaned_data.get('rating')
+        if rating and (rating < 1 or rating > 5):
+            raise ValidationError(_('التقييم يجب أن يكون بين 1 و 5'))
+        return rating
+
+    def clean_discount_percentage(self):
+        """التحقق من نسبة الخصم"""
+        discount = self.cleaned_data.get('discount_percentage')
+        if discount and (discount < 0 or discount > 100):
+            raise ValidationError(_('نسبة الخصم يجب أن تكون بين 0 و 100'))
+        return discount
 
     def clean(self):
         """التحقق من صحة البيانات الإجمالية"""
@@ -198,8 +277,9 @@ class BusinessPartnerForm(forms.ModelForm):
 
         # التحقق من حقول العميل
         if partner_type in ['customer', 'both']:
-            if not cleaned_data.get('salesperson'):
-                # يمكن ترك مندوب المبيعات فارغاً
+            discount = cleaned_data.get('discount_percentage', 0)
+            if discount and discount > 50:
+                # تحذير فقط للخصومات الكبيرة
                 pass
 
         # التحقق من حقول المورد
@@ -212,7 +292,7 @@ class BusinessPartnerForm(forms.ModelForm):
 
 
 class CustomerForm(forms.ModelForm):
-    """نموذج العميل - يركز على حقول العملاء فقط"""
+    """نموذج العميل - محدث بجميع الحقول"""
 
     class Meta:
         model = BusinessPartner
@@ -220,33 +300,113 @@ class CustomerForm(forms.ModelForm):
             'code', 'name', 'name_en', 'account_type', 'contact_person',
             'phone', 'mobile', 'fax', 'email', 'website', 'address',
             'city', 'region', 'tax_number', 'tax_status', 'commercial_register',
-            'credit_limit', 'credit_period', 'salesperson',
-            'discount_percentage', 'customer_category', 'notes'
+            'credit_limit', 'credit_period', 'customer_account',
+            'salesperson', 'discount_percentage', 'customer_category', 'notes'
         ]
         widgets = {
             'account_type': forms.Select(attrs={'class': 'form-select'}),
             'tax_status': forms.Select(attrs={'class': 'form-select'}),
             'customer_category': forms.Select(attrs={'class': 'form-select'}),
-            'salesperson': forms.Select(attrs={'class': 'form-select'}),
-            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('كود العميل')}),
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('اسم العميل')}),
-            'name_en': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الاسم بالإنجليزية')}),
-            'contact_person': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('جهة الاتصال')}),
-            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الهاتف')}),
-            'mobile': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الموبايل')}),
-            'fax': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الفاكس')}),
-            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _('البريد الإلكتروني')}),
-            'website': forms.URLInput(attrs={'class': 'form-control', 'placeholder': _('الموقع الإلكتروني')}),
-            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _('العنوان')}),
-            'city': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('المدينة')}),
-            'region': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('المنطقة')}),
-            'tax_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الرقم الضريبي')}),
-            'commercial_register': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('السجل التجاري')}),
-            'credit_limit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'credit_period': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'discount_percentage': forms.NumberInput(
-                attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _('ملاحظات')}),
+            'customer_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر حساب العميل')
+            }),
+            'salesperson': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر مندوب المبيعات')
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('كود العميل'),
+                'dir': 'ltr'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('اسم العميل'),
+                'required': True
+            }),
+            'name_en': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الاسم بالإنجليزية'),
+                'dir': 'ltr'
+            }),
+            'contact_person': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('جهة الاتصال')
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الهاتف'),
+                'dir': 'ltr'
+            }),
+            'mobile': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الموبايل'),
+                'dir': 'ltr'
+            }),
+            'fax': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الفاكس'),
+                'dir': 'ltr'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('البريد الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'website': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الموقع الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'address': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('العنوان')
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المدينة')
+            }),
+            'region': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المنطقة')
+            }),
+            'tax_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الرقم الضريبي'),
+                'dir': 'ltr'
+            }),
+            'commercial_register': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('السجل التجاري'),
+                'dir': 'ltr'
+            }),
+            'credit_limit': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'dir': 'ltr'
+            }),
+            'credit_period': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'dir': 'ltr'
+            }),
+            'discount_percentage': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'max': '100',
+                'dir': 'ltr'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('ملاحظات')
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -254,11 +414,27 @@ class CustomerForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if company:
-            from core.models import User
             self.fields['salesperson'].queryset = User.objects.filter(
                 company=company, is_active=True
-            )
-            self.fields['salesperson'].empty_label = _('اختر مندوب المبيعات')
+            ).order_by('first_name', 'last_name')
+
+            # الحسابات المحاسبية
+            try:
+                from accounting.models import Account
+                self.fields['customer_account'].queryset = Account.objects.filter(
+                    company=company, is_active=True
+                ).order_by('code')
+            except ImportError:
+                pass
+
+        # جعل الحقول اختيارية
+        optional_fields = [
+            'code', 'name_en', 'contact_person', 'phone', 'mobile', 'fax',
+            'email', 'website', 'address', 'city', 'region', 'tax_number',
+            'commercial_register', 'customer_account', 'salesperson', 'notes'
+        ]
+        for field in optional_fields:
+            self.fields[field].required = False
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -274,7 +450,7 @@ class CustomerForm(forms.ModelForm):
 
 
 class SupplierForm(forms.ModelForm):
-    """نموذج المورد - يركز على حقول الموردين فقط"""
+    """نموذج المورد - محدث بجميع الحقول"""
 
     class Meta:
         model = BusinessPartner
@@ -282,38 +458,141 @@ class SupplierForm(forms.ModelForm):
             'code', 'name', 'name_en', 'account_type', 'contact_person',
             'phone', 'mobile', 'fax', 'email', 'website', 'address',
             'city', 'region', 'tax_number', 'tax_status', 'commercial_register',
-            'credit_limit', 'credit_period', 'payment_terms',
-            'supplier_category', 'rating', 'notes'
+            'credit_limit', 'credit_period', 'supplier_account',
+            'payment_terms', 'supplier_category', 'rating', 'notes'
         ]
         widgets = {
             'account_type': forms.Select(attrs={'class': 'form-select'}),
             'tax_status': forms.Select(attrs={'class': 'form-select'}),
             'supplier_category': forms.Select(attrs={'class': 'form-select'}),
-            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('كود المورد')}),
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('اسم المورد')}),
-            'name_en': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الاسم بالإنجليزية')}),
-            'contact_person': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('جهة الاتصال')}),
-            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الهاتف')}),
-            'mobile': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الموبايل')}),
-            'fax': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الفاكس')}),
-            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _('البريد الإلكتروني')}),
-            'website': forms.URLInput(attrs={'class': 'form-control', 'placeholder': _('الموقع الإلكتروني')}),
-            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _('العنوان')}),
-            'city': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('المدينة')}),
-            'region': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('المنطقة')}),
-            'tax_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الرقم الضريبي')}),
-            'commercial_register': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('السجل التجاري')}),
-            'credit_limit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'credit_period': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'payment_terms': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('شروط الدفع')}),
-            'rating': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 5}),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _('ملاحظات')}),
+            'supplier_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-control': 'select2',
+                'data-placeholder': _('اختر حساب المورد')
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('كود المورد'),
+                'dir': 'ltr'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('اسم المورد'),
+                'required': True
+            }),
+            'name_en': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الاسم بالإنجليزية'),
+                'dir': 'ltr'
+            }),
+            'contact_person': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('جهة الاتصال')
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الهاتف'),
+                'dir': 'ltr'
+            }),
+            'mobile': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الموبايل'),
+                'dir': 'ltr'
+            }),
+            'fax': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الفاكس'),
+                'dir': 'ltr'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('البريد الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'website': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الموقع الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'address': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('العنوان')
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المدينة')
+            }),
+            'region': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المنطقة')
+            }),
+            'tax_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الرقم الضريبي'),
+                'dir': 'ltr'
+            }),
+            'commercial_register': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('السجل التجاري'),
+                'dir': 'ltr'
+            }),
+            'credit_limit': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'dir': 'ltr'
+            }),
+            'credit_period': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'dir': 'ltr'
+            }),
+            'payment_terms': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('شروط الدفع')
+            }),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 5,
+                'dir': 'ltr'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('ملاحظات')
+            }),
         }
         labels = {
             'rating': _('التقييم (1-5)'),
             'payment_terms': _('شروط الدفع'),
             'supplier_category': _('تصنيف المورد'),
+            'supplier_account': _('حساب المورد'),
         }
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            # الحسابات المحاسبية
+            try:
+                from accounting.models import Account
+                self.fields['supplier_account'].queryset = Account.objects.filter(
+                    company=company, is_active=True
+                ).order_by('code')
+            except ImportError:
+                pass
+
+        # جعل الحقول اختيارية
+        optional_fields = [
+            'code', 'name_en', 'contact_person', 'phone', 'mobile', 'fax',
+            'email', 'website', 'address', 'city', 'region', 'tax_number',
+            'commercial_register', 'supplier_account', 'payment_terms', 'notes'
+        ]
+        for field in optional_fields:
+            self.fields[field].required = False
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -331,7 +610,7 @@ class SupplierForm(forms.ModelForm):
         """التحقق من صحة التقييم"""
         rating = self.cleaned_data.get('rating')
         if rating and (rating < 1 or rating > 5):
-            raise forms.ValidationError(_('التقييم يجب أن يكون بين 1 و 5'))
+            raise ValidationError(_('التقييم يجب أن يكون بين 1 و 5'))
         return rating
 
 
@@ -342,66 +621,44 @@ class PartnerQuickAddForm(forms.ModelForm):
         model = BusinessPartner
         fields = ['partner_type', 'code', 'name', 'name_en', 'phone', 'email']
         widgets = {
-            'partner_type': forms.Select(attrs={'class': 'form-select', 'required': True}),
-            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('كود الشريك'), 'required': True}),
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('اسم الشريك'), 'required': True}),
-            'name_en': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('الاسم بالإنجليزية')}),
-            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('رقم الهاتف')}),
-            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _('البريد الإلكتروني')}),
+            'partner_type': forms.Select(attrs={
+                'class': 'form-select form-select-sm',
+                'required': True
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': _('كود الشريك'),
+                'dir': 'ltr'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': _('اسم الشريك'),
+                'required': True
+            }),
+            'name_en': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': _('الاسم بالإنجليزية'),
+                'dir': 'ltr'
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': _('رقم الهاتف'),
+                'dir': 'ltr'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': _('البريد الإلكتروني'),
+                'dir': 'ltr'
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['partner_type'].empty_label = None
-
-
-class PartnerFilterForm(forms.Form):
-    """نموذج فلترة الشركاء"""
-
-    search = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={
-            'placeholder': _('البحث في الكود أو الاسم أو الهاتف...'),
-            'class': 'form-control'
-        }),
-        label=_('البحث السريع')
-    )
-
-    partner_type = forms.ChoiceField(
-        choices=[('', _('كل الأنواع'))] + BusinessPartner.PARTNER_TYPES,
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        label=_('نوع الشريك')
-    )
-
-    account_type = forms.ChoiceField(
-        choices=[('', _('كل أنواع الحسابات'))] + BusinessPartner.ACCOUNT_TYPE_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        label=_('نوع الحساب')
-    )
-
-    city = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={
-            'placeholder': _('المدينة...'),
-            'class': 'form-control'
-        }),
-        label=_('المدينة')
-    )
-
-    is_active = forms.BooleanField(
-        required=False,
-        label=_("النشطة فقط"),
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # إضافة CSS classes للحقول
-        for field_name, field in self.fields.items():
-            if isinstance(field.widget, forms.TextInput):
-                field.widget.attrs.update({'class': 'form-control'})
+        self.fields['code'].required = False
+        self.fields['name_en'].required = False
+        self.fields['phone'].required = False
+        self.fields['email'].required = False
 
 
 class ContactInfoForm(forms.ModelForm):
@@ -414,16 +671,55 @@ class ContactInfoForm(forms.ModelForm):
             'website', 'address', 'city', 'region'
         ]
         widgets = {
-            'contact_person': forms.TextInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
-            'mobile': forms.TextInput(attrs={'class': 'form-control'}),
-            'fax': forms.TextInput(attrs={'class': 'form-control'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'website': forms.URLInput(attrs={'class': 'form-control'}),
-            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'city': forms.TextInput(attrs={'class': 'form-control'}),
-            'region': forms.TextInput(attrs={'class': 'form-control'}),
+            'contact_person': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('اسم جهة الاتصال')
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('رقم الهاتف'),
+                'dir': 'ltr'
+            }),
+            'mobile': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('رقم الموبايل'),
+                'dir': 'ltr'
+            }),
+            'fax': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('رقم الفاكس'),
+                'dir': 'ltr'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('البريد الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'website': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('الموقع الإلكتروني'),
+                'dir': 'ltr'
+            }),
+            'address': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('العنوان الكامل')
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المدينة')
+            }),
+            'region': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('المنطقة')
+            }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # جميع الحقول اختيارية
+        for field in self.fields.values():
+            field.required = False
 
 
 class PartnerImportForm(forms.Form):
@@ -433,25 +729,103 @@ class PartnerImportForm(forms.Form):
         label=_('ملف Excel'),
         widget=forms.FileInput(attrs={
             'class': 'form-control',
-            'accept': '.xlsx,.xls'
+            'accept': '.xlsx,.xls,.csv'
         }),
-        help_text=_('يجب أن يكون الملف بصيغة Excel (.xlsx أو .xls)')
+        help_text=_('يجب أن يكون الملف بصيغة Excel (.xlsx أو .xls) أو CSV')
     )
 
     update_existing = forms.BooleanField(
         required=False,
         label=_('تحديث الموجود'),
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'role': 'switch'
+        }),
         help_text=_('في حالة وجود شريك بنفس الكود، سيتم تحديث بياناته')
+    )
+
+    import_type = forms.ChoiceField(
+        label=_('نوع الاستيراد'),
+        choices=[
+            ('all', _('جميع الشركاء')),
+            ('customers', _('العملاء فقط')),
+            ('suppliers', _('الموردين فقط')),
+        ],
+        initial='all',
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        })
+    )
+
+    validate_data = forms.BooleanField(
+        required=False,
+        label=_('التحقق من البيانات'),
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'role': 'switch'
+        }),
+        help_text=_('التحقق من صحة البيانات قبل الاستيراد')
     )
 
     def clean_file(self):
         file = self.cleaned_data.get('file')
         if file:
-            if not file.name.endswith(('.xlsx', '.xls')):
-                raise forms.ValidationError(_('الملف يجب أن يكون بصيغة Excel'))
+            if not file.name.lower().endswith(('.xlsx', '.xls', '.csv')):
+                raise ValidationError(_('الملف يجب أن يكون بصيغة Excel أو CSV'))
 
-            if file.size > 5 * 1024 * 1024:  # 5MB
-                raise forms.ValidationError(_('حجم الملف يجب أن يكون أقل من 5 ميجابايت'))
+            if file.size > 10 * 1024 * 1024:  # 10MB
+                raise ValidationError(_('حجم الملف يجب أن يكون أقل من 10 ميجابايت'))
 
         return file
+
+
+class PartnerExportForm(forms.Form):
+    """نموذج تصدير الشركاء"""
+
+    export_type = forms.ChoiceField(
+        label=_('نوع التصدير'),
+        choices=[
+            ('all', _('جميع الشركاء')),
+            ('customers', _('العملاء فقط')),
+            ('suppliers', _('الموردين فقط')),
+            ('active', _('النشطين فقط')),
+            ('inactive', _('غير النشطين فقط')),
+        ],
+        initial='all',
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        })
+    )
+
+    export_format = forms.ChoiceField(
+        label=_('صيغة الملف'),
+        choices=[
+            ('xlsx', _('Excel (XLSX)')),
+            ('csv', _('CSV')),
+            ('pdf', _('PDF')),
+        ],
+        initial='xlsx',
+        widget=forms.RadioSelect(attrs={
+            'class': 'form-check-input'
+        })
+    )
+
+    include_contact_info = forms.BooleanField(
+        required=False,
+        label=_('تضمين معلومات الاتصال'),
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        })
+    )
+
+    include_financial_info = forms.BooleanField(
+        required=False,
+        label=_('تضمين المعلومات المالية'),
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        })
+    )

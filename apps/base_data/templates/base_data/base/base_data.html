@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% trans "البيانات الأساسية" %}{% endblock %} | {% trans "نظام الإدارة" %}</title>
+
+    <!-- Bootstrap 5 RTL CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+
+    <!-- DataTables CSS RTL -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-light">
+    {% load i18n %}
+
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'dashboard' %}">
+                <i class="fas fa-database me-2"></i>{% trans "البيانات الأساسية" %}
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if perms.base_data.view_item %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'base_data:item_list' %}">
+                            <i class="fas fa-boxes me-1"></i>{% trans "الأصناف" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if perms.base_data.view_businesspartner %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'base_data:partner_list' %}">
+                            <i class="fas fa-users me-1"></i>{% trans "الشركاء" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if perms.base_data.view_warehouse %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'base_data:warehouse_list' %}">
+                            <i class="fas fa-warehouse me-1"></i>{% trans "المستودعات" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if perms.base_data.view_itemcategory %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'base_data:category_list' %}">
+                            <i class="fas fa-sitemap me-1"></i>{% trans "التصنيفات" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'base_data:reports_index' %}">
+                            <i class="fas fa-chart-bar me-1"></i>{% trans "التقارير" %}
+                        </a>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <span class="navbar-text me-3">
+                            <i class="fas fa-user me-1"></i>{{ user.get_full_name|default:user.username }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <div class="col-12">
+                <!-- Breadcrumbs -->
+                {% block breadcrumbs %}
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'dashboard' %}">
+                                <i class="fas fa-home"></i> {% trans "الرئيسية" %}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'base_data:reports_index' %}">{% trans "البيانات الأساسية" %}</a>
+                        </li>
+                        {% block breadcrumb_items %}{% endblock %}
+                    </ol>
+                </nav>
+                {% endblock %}
+
+                <!-- Messages -->
+                {% include 'base_data/components/messages.html' %}
+
+                <!-- Page Content -->
+                <div class="card shadow-sm">
+                    {% block card_header %}
+                    <div class="card-header bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                {% block page_icon %}{% endblock %}
+                                {% block page_title %}{% endblock %}
+                            </h5>
+                            {% block header_actions %}{% endblock %}
+                        </div>
+                    </div>
+                    {% endblock %}
+
+                    <div class="card-body">
+                        {% block content %}{% endblock %}
+                    </div>
+
+                    {% block card_footer %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner (Hidden by default) -->
+    <div id="loading-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50" style="z-index: 9999;">
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">{% trans "جاري التحميل..." %}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery (Required for DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+    <!-- Base JavaScript -->
+    <script>
+        // RTL configuration for DataTables
+        $.extend(true, $.fn.dataTable.defaults, {
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+            },
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                 '<"row"<"col-sm-12"tr>>' +
+                 '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            columnDefs: [{
+                targets: '_all',
+                className: 'text-center'
+            }]
+        });
+
+        // Show/Hide loading spinner
+        function showLoading() {
+            document.getElementById('loading-overlay').classList.remove('d-none');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('d-none');
+        }
+
+        // Auto-hide alerts after 5 seconds
+        $(document).ready(function() {
+            setTimeout(function() {
+                $('.alert:not(.alert-danger)').fadeOut('slow');
+            }, 5000);
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

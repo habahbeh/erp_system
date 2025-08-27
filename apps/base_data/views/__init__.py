@@ -1,330 +1,209 @@
 # apps/base_data/views/__init__.py
 """
-Views لتطبيق البيانات الأساسية - كامل ومطابق للمتطلبات
-منظمة في ملفات منفصلة لسهولة الصيانة والتطوير
-يشمل: الأصناف، الشركاء التجاريين، المستودعات، وحدات القياس، API
+استيراد جميع Views لسهولة الوصول - محدث 100%
+جميع Views محدثة حسب models.py + Bootstrap 5 + RTL
 """
 
-# ============== Item Views ==============
+# Items Views
 from .item_views import (
-    # Mixins والكلاسات الأساسية
-    BaseItemMixin,
-
-    # الأصناف
     ItemListView,
-    ItemDetailView,
     ItemCreateView,
     ItemUpdateView,
+    ItemDetailView,
     ItemDeleteView,
-
-    # التصنيفات (4 مستويات)
-    CategoryListView,
-    CategoryCreateView,
-    CategoryUpdateView,
-
-    # إدارة البيانات المرتبطة
-    ItemComponentsManageView,
-    ItemConversionsManageView,
-    ItemSubstitutesManageView,
-
-    # التقارير والتصدير
-    ItemReportView,
-    ItemExportView,
-
-    # DataTables AJAX
-    ItemDataTableView,
-
-    # AJAX للنماذج
     ItemQuickAddView,
-    ItemSearchAjaxView,
-    ItemInfoAjaxView,
+    ItemDuplicateView,
+    ItemToggleActiveView,
+    ItemDataTableView,
+    ItemSelectView,
+    ItemStockView,
 )
 
-# ============== Partner Views ==============
+# Partners Views
 from .partner_views import (
-    # Mixins والكلاسات الأساسية
-    BasePartnerMixin,
-
-    # الشركاء التجاريين
     BusinessPartnerListView,
-    BusinessPartnerDetailView,
-    BusinessPartnerCreateView,
-    BusinessPartnerUpdateView,
-    BusinessPartnerDeleteView,
-
-    # العملاء
     CustomerListView,
-    CustomerCreateView,
-    CustomerUpdateView,
-    CustomerDetailView,
-
-    # الموردين
     SupplierListView,
+    BusinessPartnerCreateView,
+    CustomerCreateView,
     SupplierCreateView,
-    SupplierUpdateView,
-    SupplierDetailView,
-
-    # معلومات الاتصال
-    ContactInfoManageView,
-
-    # التقارير والتصدير
-    PartnerReportView,
-    PartnerExportView,
-
-    # DataTables AJAX
-    BusinessPartnerDataTableView,
-    CustomerDataTableView,
-    SupplierDataTableView,
-
-    # AJAX للنماذج
+    BusinessPartnerUpdateView,
+    BusinessPartnerDetailView,
+    BusinessPartnerDeleteView,
     PartnerQuickAddView,
-    PartnerSearchAjaxView,
-    PartnerInfoAjaxView,
+    ContactInfoUpdateView,
+    PartnerToggleActiveView,
+    PartnerDataTableView,
+    PartnerSelectView,
+    CustomerSelectView,
+    SupplierSelectView,
+    PartnerStatementView,
+    PartnerConvertTypeView,
 )
 
-# ============== Warehouse Views ==============
+# Warehouse Views
 from .warehouse_views import (
-    # Mixins والكلاسات الأساسية
-    BaseWarehouseMixin,
-
-    # المستودعات
     WarehouseListView,
-    WarehouseDetailView,
     WarehouseCreateView,
     WarehouseUpdateView,
-    WarehouseDeleteView,
-
-    # أرصدة المستودعات
+    WarehouseDetailView,
     WarehouseInventoryView,
-    WarehouseItemUpdateView,
-
-    # التحويلات بين المستودعات
-    WarehouseTransferListView,
-    WarehouseTransferCreateView,
-
-    # وحدات القياس
+    WarehouseTransferView,
     UnitOfMeasureListView,
     UnitOfMeasureCreateView,
     UnitOfMeasureUpdateView,
-    UnitOfMeasureDeleteView,
+    WarehouseSelectView,
+    UnitSelectView,
+)
 
-    # التقارير والتصدير
-    WarehouseReportView,
-    InventoryReportView,
+# Category Views
+from .category_views import (
+    ItemCategoryListView,
+    ItemCategoryCreateView,
+    ItemCategoryUpdateView,
+    ItemCategoryDetailView,
+    ItemCategoryDeleteView,
+    CategoryQuickAddView,
+    CategorySelectView,
+    CategoryMoveView,
+)
+
+# AJAX Views
+from .ajax_views import (
+    BaseDataTableView,
+    DashboardStatsView,
+    QuickSearchView,
+    BulkActionView,
+    ItemBulkActionView,
+    PartnerBulkActionView,
+    WarehouseBulkActionView,
+    ValidationView,
+    ItemStockCheckView,
+    PartnerBalanceView,
+    NotificationsView,
+)
+
+# Export Views
+from .export_views import (
+    BaseExportView,
+    ItemExportView,
+    PartnerExportView,
     WarehouseExportView,
-
-    # DataTables AJAX
-    WarehouseDataTableView,
-    UnitDataTableView,
-
-    # AJAX للنماذج
-    WarehouseSearchAjaxView,
-    WarehouseInfoAjaxView,
-    UnitSearchAjaxView,
-
-    # Views مساعدة
-    get_warehouses_by_branch_ajax,
-    get_warehouse_items_ajax,
+    StockReportExportView,
+    CustomExportView,
 )
 
-# ============== API Views ==============
-from .api_views import (
-    # Permissions والكلاسات الأساسية
-    BaseDataPermission,
-    BaseDataViewSetMixin,
-
-    # ViewSets للتصنيفات
-    ItemCategoryViewSet,
-
-    # ViewSets للأصناف
-    ItemViewSet,
-
-    # ViewSets للشركاء التجاريين
-    BusinessPartnerViewSet,
-    CustomerViewSet,
-    SupplierViewSet,
-
-    # ViewSets للمستودعات
-    WarehouseViewSet,
-
-    # ViewSets لوحدات القياس
-    UnitOfMeasureViewSet,
-
-    # API Views البحث السريع
-    ItemSearchAPIView,
-    PartnerSearchAPIView,
-    WarehouseSearchAPIView,
-
-    # API Views التحقق من البيانات
-    CheckBarcodeAPIView,
-    CheckCodeAPIView,
-
-    # API Views الإحصائيات
-    StatsAPIView,
-
-    # Function-based API Views
-    get_item_by_barcode,
-    get_warehouses_by_branch,
-    get_item_stock_by_warehouse,
+# Import Views
+from .import_views import (
+    BaseImportView,
+    ItemImportView,
+    PartnerImportView,
+    ImportErrorsView,
+    DownloadSampleView,
 )
 
-# ============== __all__ للتنظيم والاستيراد ==============
+# Report Views
+from .report_views import (
+    ReportsIndexView,
+    ItemsReportView,
+    StockReportView,
+    PartnersReportView,
+    CategoriesReportView,
+    LowStockReportView,
+    ReportChartsView,
+)
+
 __all__ = [
-    # ========== Base Classes ==========
-    'BaseItemMixin',
-    'BasePartnerMixin',
-    'BaseWarehouseMixin',
-    'BaseDataPermission',
-    'BaseDataViewSetMixin',
-
-    # ========== الأصناف ==========
+    # Items
     'ItemListView',
-    'ItemDetailView',
     'ItemCreateView',
     'ItemUpdateView',
+    'ItemDetailView',
     'ItemDeleteView',
-    'ItemDataTableView',
     'ItemQuickAddView',
-    'ItemSearchAjaxView',
-    'ItemInfoAjaxView',
-    'ItemReportView',
-    'ItemExportView',
+    'ItemDuplicateView',
+    'ItemToggleActiveView',
+    'ItemDataTableView',
+    'ItemSelectView',
+    'ItemStockView',
 
-    # ========== التصنيفات ==========
-    'CategoryListView',
-    'CategoryCreateView',
-    'CategoryUpdateView',
-
-    # ========== إدارة البيانات المرتبطة ==========
-    'ItemComponentsManageView',
-    'ItemConversionsManageView',
-    'ItemSubstitutesManageView',
-
-    # ========== الشركاء التجاريين ==========
+    # Partners
     'BusinessPartnerListView',
-    'BusinessPartnerDetailView',
-    'BusinessPartnerCreateView',
-    'BusinessPartnerUpdateView',
-    'BusinessPartnerDeleteView',
-    'BusinessPartnerDataTableView',
-    'PartnerQuickAddView',
-    'PartnerSearchAjaxView',
-    'PartnerInfoAjaxView',
-    'PartnerReportView',
-    'PartnerExportView',
-
-    # ========== العملاء ==========
     'CustomerListView',
-    'CustomerDetailView',
-    'CustomerCreateView',
-    'CustomerUpdateView',
-    'CustomerDataTableView',
-
-    # ========== الموردين ==========
     'SupplierListView',
-    'SupplierDetailView',
+    'BusinessPartnerCreateView',
+    'CustomerCreateView',
     'SupplierCreateView',
-    'SupplierUpdateView',
-    'SupplierDataTableView',
+    'BusinessPartnerUpdateView',
+    'BusinessPartnerDetailView',
+    'BusinessPartnerDeleteView',
+    'PartnerQuickAddView',
+    'ContactInfoUpdateView',
+    'PartnerToggleActiveView',
+    'PartnerDataTableView',
+    'PartnerSelectView',
+    'CustomerSelectView',
+    'SupplierSelectView',
+    'PartnerStatementView',
+    'PartnerConvertTypeView',
 
-    # ========== معلومات الاتصال ==========
-    'ContactInfoManageView',
-
-    # ========== المستودعات ==========
+    # Warehouses
     'WarehouseListView',
-    'WarehouseDetailView',
     'WarehouseCreateView',
     'WarehouseUpdateView',
-    'WarehouseDeleteView',
-    'WarehouseDataTableView',
-    'WarehouseSearchAjaxView',
-    'WarehouseInfoAjaxView',
-    'WarehouseReportView',
-    'WarehouseExportView',
-
-    # ========== أرصدة المستودعات ==========
+    'WarehouseDetailView',
     'WarehouseInventoryView',
-    'WarehouseItemUpdateView',
-    'InventoryReportView',
-
-    # ========== التحويلات بين المستودعات ==========
-    'WarehouseTransferListView',
-    'WarehouseTransferCreateView',
-
-    # ========== وحدات القياس ==========
+    'WarehouseTransferView',
     'UnitOfMeasureListView',
     'UnitOfMeasureCreateView',
     'UnitOfMeasureUpdateView',
-    'UnitOfMeasureDeleteView',
-    'UnitDataTableView',
-    'UnitSearchAjaxView',
+    'WarehouseSelectView',
+    'UnitSelectView',
 
-    # ========== API ViewSets ==========
-    'ItemCategoryViewSet',
-    'ItemViewSet',
-    'BusinessPartnerViewSet',
-    'CustomerViewSet',
-    'SupplierViewSet',
-    'WarehouseViewSet',
-    'UnitOfMeasureViewSet',
+    # Categories
+    'ItemCategoryListView',
+    'ItemCategoryCreateView',
+    'ItemCategoryUpdateView',
+    'ItemCategoryDetailView',
+    'ItemCategoryDeleteView',
+    'CategoryQuickAddView',
+    'CategorySelectView',
+    'CategoryMoveView',
 
-    # ========== API Views البحث ==========
-    'ItemSearchAPIView',
-    'PartnerSearchAPIView',
-    'WarehouseSearchAPIView',
+    # AJAX
+    'BaseDataTableView',
+    'DashboardStatsView',
+    'QuickSearchView',
+    'BulkActionView',
+    'ItemBulkActionView',
+    'PartnerBulkActionView',
+    'WarehouseBulkActionView',
+    'ValidationView',
+    'ItemStockCheckView',
+    'PartnerBalanceView',
+    'NotificationsView',
 
-    # ========== API Views التحقق ==========
-    'CheckBarcodeAPIView',
-    'CheckCodeAPIView',
+    # Export
+    'BaseExportView',
+    'ItemExportView',
+    'PartnerExportView',
+    'WarehouseExportView',
+    'StockReportExportView',
+    'CustomExportView',
 
-    # ========== API Views الإحصائيات ==========
-    'StatsAPIView',
+    # Import
+    'BaseImportView',
+    'ItemImportView',
+    'PartnerImportView',
+    'ImportErrorsView',
+    'DownloadSampleView',
 
-    # ========== Function-based Views ==========
-    'get_item_by_barcode',
-    'get_warehouses_by_branch',
-    'get_warehouses_by_branch_ajax',
-    'get_warehouse_items_ajax',
-    'get_item_stock_by_warehouse',
+    # Reports
+    'ReportsIndexView',
+    'ItemsReportView',
+    'StockReportView',
+    'PartnersReportView',
+    'CategoriesReportView',
+    'LowStockReportView',
+    'ReportChartsView',
 ]
-
-# ============== معلومات إضافية للمطورين ==============
-"""
-تنظيم Views التطبيق:
-
-1. item_views.py:
-   - الأصناف والتصنيفات (4 مستويات)
-   - معدلات التحويل والمكونات والمواد البديلة
-   - التقارير والتصدير والـ DataTables
-   - AJAX Views للبحث والمعلومات السريعة
-
-2. partner_views.py:
-   - الشركاء التجاريين (عملاء، موردين، كلاهما)
-   - معلومات الاتصال والحسابات
-   - التقارير والتصدير المتخصصة
-   - AJAX Views للبحث والتحقق
-
-3. warehouse_views.py:
-   - المستودعات وأنواعها (رئيسي، فرعي، عبور، تالف)
-   - أرصدة المستودعات وإدارة المخزون
-   - التحويلات بين المستودعات
-   - وحدات القياس والتحويلات
-   - تقارير الأرصدة والمخزون
-
-4. api_views.py:
-   - REST API ViewSets كاملة
-   - API للبحث والتحقق من البيانات
-   - إحصائيات ومعلومات النظام
-   - Function-based APIs للوظائف السريعة
-
-المميزات الرئيسية:
-- صلاحيات مفصلة لكل عملية
-- فلترة تلقائية حسب الشركة والفرع  
-- Breadcrumbs للتنقل
-- DataTables مع Server-side processing
-- AJAX للعمليات السريعة
-- تقارير وتصدير Excel/CSV
-- REST API شامل
-- إدارة الأخطاء والرسائل
-- دعم اللغة العربية والإنجليزية
-"""

@@ -1,281 +1,134 @@
 # apps/base_data/urls.py
 """
-URL patterns لتطبيق البيانات الأساسية - كامل ومتكامل
-يشمل: الأصناف، الشركاء التجاريين، المستودعات، وحدات القياس، API
+URLs البيانات الأساسية - محدث 100%
+متطابق مع جميع Views + Bootstrap 5 + RTL + DataTables
 """
 
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import (
-    # ============== من item_views.py ==============
-    # الأصناف
-    ItemListView, ItemDetailView, ItemCreateView, ItemUpdateView, ItemDeleteView,
-    ItemDataTableView, ItemQuickAddView, ItemSearchAjaxView, ItemInfoAjaxView,
-    ItemReportView, ItemExportView,
-
-    # التصنيفات
-    CategoryListView, CategoryCreateView, CategoryUpdateView,
-
-    # إدارة البيانات المرتبطة
-    ItemComponentsManageView, ItemConversionsManageView, ItemSubstitutesManageView,
-
-    # ============== من partner_views.py ==============
-    # الشركاء التجاريين
-    BusinessPartnerListView, BusinessPartnerDetailView, BusinessPartnerCreateView,
-    BusinessPartnerUpdateView, BusinessPartnerDeleteView, BusinessPartnerDataTableView,
-    PartnerQuickAddView, PartnerSearchAjaxView, PartnerInfoAjaxView,
-    PartnerReportView, PartnerExportView,
-
-    # العملاء
-    CustomerListView, CustomerDetailView, CustomerCreateView, CustomerUpdateView,
-    CustomerDataTableView,
-
-    # الموردين
-    SupplierListView, SupplierDetailView, SupplierCreateView, SupplierUpdateView,
-    SupplierDataTableView,
-
-    # معلومات الاتصال
-    ContactInfoManageView,
-
-    # ============== من warehouse_views.py ==============
-    # المستودعات
-    WarehouseListView, WarehouseDetailView, WarehouseCreateView,
-    WarehouseUpdateView, WarehouseDeleteView, WarehouseDataTableView,
-    WarehouseSearchAjaxView, WarehouseInfoAjaxView,
-
-    # أرصدة المستودعات
-    WarehouseInventoryView, WarehouseItemUpdateView,
-
-    # التحويلات بين المستودعات
-    WarehouseTransferListView, WarehouseTransferCreateView,
-
-    # وحدات القياس
-    UnitOfMeasureListView, UnitOfMeasureCreateView, UnitOfMeasureUpdateView,
-    UnitOfMeasureDeleteView, UnitDataTableView, UnitSearchAjaxView,
-
-    # التقارير والتصدير
-    WarehouseReportView, InventoryReportView, WarehouseExportView,
-
-    # Views مساعدة
-    get_warehouses_by_branch_ajax, get_warehouse_items_ajax,
-
-    # ============== من api_views.py ==============
-    # ViewSets
-    ItemCategoryViewSet, ItemViewSet, BusinessPartnerViewSet,
-    CustomerViewSet, SupplierViewSet, WarehouseViewSet, UnitOfMeasureViewSet,
-
-    # API Views البحث
-    ItemSearchAPIView, PartnerSearchAPIView, WarehouseSearchAPIView,
-
-    # API Views التحقق
-    CheckBarcodeAPIView, CheckCodeAPIView,
-
-    # API Views الإحصائيات
-    StatsAPIView,
-
-    # Function-based API Views
-    get_item_by_barcode, get_warehouses_by_branch, get_item_stock_by_warehouse,
-)
+from . import views
 
 app_name = 'base_data'
 
-# ============== إعداد REST API Router ==============
-router = DefaultRouter()
-router.register(r'categories', ItemCategoryViewSet, basename='api-category')
-router.register(r'items', ItemViewSet, basename='api-item')
-router.register(r'partners', BusinessPartnerViewSet, basename='api-partner')
-router.register(r'customers', CustomerViewSet, basename='api-customer')
-router.register(r'suppliers', SupplierViewSet, basename='api-supplier')
-router.register(r'warehouses', WarehouseViewSet, basename='api-warehouse')
-router.register(r'units', UnitOfMeasureViewSet, basename='api-unit')
-
 urlpatterns = [
-    # ============== الأصناف ==============
-    path('items/', ItemListView.as_view(), name='item_list'),
-    path('items/add/', ItemCreateView.as_view(), name='item_add'),
-    path('items/<int:pk>/', ItemDetailView.as_view(), name='item_detail'),
-    path('items/<int:pk>/edit/', ItemUpdateView.as_view(), name='item_edit'),
-    path('items/<int:pk>/delete/', ItemDeleteView.as_view(), name='item_delete'),
+    # === ITEMS URLs === #
+    path('items/', views.ItemListView.as_view(), name='item_list'),
+    path('items/create/', views.ItemCreateView.as_view(), name='item_create'),
+    path('items/<int:pk>/', views.ItemDetailView.as_view(), name='item_detail'),
+    path('items/<int:pk>/edit/', views.ItemUpdateView.as_view(), name='item_update'),
+    path('items/<int:pk>/delete/', views.ItemDeleteView.as_view(), name='item_delete'),
+    path('items/<int:pk>/duplicate/', views.ItemDuplicateView.as_view(), name='item_duplicate'),
+    path('items/<int:pk>/stock/', views.ItemStockView.as_view(), name='item_stock'),
+    path('items/quick-add/', views.ItemQuickAddView.as_view(), name='item_quick_add'),
 
-    # إدارة البيانات المرتبطة بالأصناف
-    path('items/<int:pk>/components/', ItemComponentsManageView.as_view(), name='item_components'),
-    path('items/<int:pk>/conversions/', ItemConversionsManageView.as_view(), name='item_conversions'),
-    path('items/<int:pk>/substitutes/', ItemSubstitutesManageView.as_view(), name='item_substitutes'),
+    # Items AJAX URLs
+    path('ajax/items/datatable/', views.ItemDataTableView.as_view(), name='item_datatable'),
+    path('ajax/items/select/', views.ItemSelectView.as_view(), name='item_select'),
+    path('ajax/items/<int:pk>/toggle-active/', views.ItemToggleActiveView.as_view(), name='item_toggle_active'),
+    path('ajax/items/<int:item_id>/stock-check/', views.ItemStockCheckView.as_view(), name='item_stock_check'),
+    path('ajax/items/bulk-action/', views.ItemBulkActionView.as_view(), name='item_bulk_action'),
 
-    # تقارير وتصدير الأصناف
-    path('items/report/', ItemReportView.as_view(), name='item_report'),
-    path('items/export/', ItemExportView.as_view(), name='item_export'),
+    # === PARTNERS URLs === #
+    # General Partners
+    path('partners/', views.BusinessPartnerListView.as_view(), name='partner_list'),
+    path('partners/create/', views.BusinessPartnerCreateView.as_view(), name='partner_create'),
+    path('partners/<int:pk>/', views.BusinessPartnerDetailView.as_view(), name='partner_detail'),
+    path('partners/<int:pk>/edit/', views.BusinessPartnerUpdateView.as_view(), name='partner_update'),
+    path('partners/<int:pk>/delete/', views.BusinessPartnerDeleteView.as_view(), name='partner_delete'),
+    path('partners/<int:pk>/contact/', views.ContactInfoUpdateView.as_view(), name='partner_contact_update'),
+    path('partners/<int:pk>/statement/', views.PartnerStatementView.as_view(), name='partner_statement'),
+    path('partners/quick-add/', views.PartnerQuickAddView.as_view(), name='partner_quick_add'),
 
-    # DataTables و AJAX للأصناف
-    path('items/datatable/', ItemDataTableView.as_view(), name='item_datatable'),
-    path('items/quick-add/', ItemQuickAddView.as_view(), name='item_quick_add'),
-    path('items/ajax/search/', ItemSearchAjaxView.as_view(), name='item_search_ajax'),
-    path('items/ajax/<int:pk>/info/', ItemInfoAjaxView.as_view(), name='item_info_ajax'),
+    # Customers
+    path('customers/', views.CustomerListView.as_view(), name='customer_list'),
+    path('customers/create/', views.CustomerCreateView.as_view(), name='customer_create'),
 
-    # ============== التصنيفات (4 مستويات) ==============
-    # path('categories/', views.CategoryListView.as_view(), name='category_list'),
-    # path('categories/add/', views.CategoryCreateView.as_view(), name='category_add'),
-    # path('categories/<int:pk>/', views.CategoryUpdateView.as_view(), name='category_detail'),
-    # path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
-    # path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='category_delete'),
+    # Suppliers
+    path('suppliers/', views.SupplierListView.as_view(), name='supplier_list'),
+    path('suppliers/create/', views.SupplierCreateView.as_view(), name='supplier_create'),
 
-    # التصنيفات - شجرة التصنيفات
-    # path('categories/tree/', views.CategoryTreeView.as_view(), name='category_tree'),
+    # Partners AJAX URLs
+    path('ajax/partners/datatable/', views.PartnerDataTableView.as_view(), name='partner_datatable'),
+    path('ajax/partners/select/', views.PartnerSelectView.as_view(), name='partner_select'),
+    path('ajax/customers/select/', views.CustomerSelectView.as_view(), name='customer_select'),
+    path('ajax/suppliers/select/', views.SupplierSelectView.as_view(), name='supplier_select'),
+    path('ajax/partners/<int:pk>/toggle-active/', views.PartnerToggleActiveView.as_view(),
+         name='partner_toggle_active'),
+    path('ajax/partners/<int:pk>/convert-type/', views.PartnerConvertTypeView.as_view(), name='partner_convert_type'),
+    path('ajax/partners/<int:partner_id>/balance/', views.PartnerBalanceView.as_view(), name='partner_balance'),
+    path('ajax/partners/bulk-action/', views.PartnerBulkActionView.as_view(), name='partner_bulk_action'),
 
-    # التصنيفات - AJAX Views
-    # path('categories/datatable/', views.CategoryDataTableView.as_view(), name='category_datatable'),
-    # path('categories/quick-add/', views.CategoryQuickAddView.as_view(), name='category_quick_add'),
-    # path('categories/check-code/', views.CategoryCheckCodeView.as_view(), name='category_check_code'),
-    # path('categories/search/', views.CategorySearchAjaxView.as_view(), name='category_search_ajax'),
-    # path('categories/<int:pk>/info/', views.CategoryInfoAjaxView.as_view(), name='category_info_ajax'),
-    # path('categories/tree-ajax/', views.CategoryTreeAjaxView.as_view(), name='category_tree_ajax'),
+    # === WAREHOUSES URLs === #
+    path('warehouses/', views.WarehouseListView.as_view(), name='warehouse_list'),
+    path('warehouses/create/', views.WarehouseCreateView.as_view(), name='warehouse_create'),
+    path('warehouses/<int:pk>/', views.WarehouseDetailView.as_view(), name='warehouse_detail'),
+    path('warehouses/<int:pk>/edit/', views.WarehouseUpdateView.as_view(), name='warehouse_update'),
+    path('warehouses/<int:pk>/inventory/', views.WarehouseInventoryView.as_view(), name='warehouse_inventory'),
+    path('warehouses/transfer/', views.WarehouseTransferView.as_view(), name='warehouse_transfer'),
 
-    # التصنيفات - التصدير
-    # path('categories/export/', views.CategoryExportView.as_view(), name='category_export'),
+    # Warehouses AJAX URLs
+    path('ajax/warehouses/select/', views.WarehouseSelectView.as_view(), name='warehouse_select'),
+    path('ajax/warehouses/bulk-action/', views.WarehouseBulkActionView.as_view(), name='warehouse_bulk_action'),
 
-    # ============== الشركاء التجاريين ==============
-    path('partners/', BusinessPartnerListView.as_view(), name='partner_list'),
-    path('partners/add/', BusinessPartnerCreateView.as_view(), name='partner_add'),
-    path('partners/<int:pk>/', BusinessPartnerDetailView.as_view(), name='partner_detail'),
-    path('partners/<int:pk>/edit/', BusinessPartnerUpdateView.as_view(), name='partner_edit'),
-    path('partners/<int:pk>/delete/', BusinessPartnerDeleteView.as_view(), name='partner_delete'),
+    # === UNITS URLs === #
+    path('units/', views.UnitOfMeasureListView.as_view(), name='unit_list'),
+    path('units/create/', views.UnitOfMeasureCreateView.as_view(), name='unit_create'),
+    path('units/<int:pk>/edit/', views.UnitOfMeasureUpdateView.as_view(), name='unit_update'),
 
-    # معلومات الاتصال
-    path('partners/<int:pk>/contacts/', ContactInfoManageView.as_view(), name='partner_contact_info'),
+    # Units AJAX URLs
+    path('ajax/units/select/', views.UnitSelectView.as_view(), name='unit_select'),
 
-    # تقارير وتصدير الشركاء
-    path('partners/report/', PartnerReportView.as_view(), name='partner_report'),
-    path('partners/export/', PartnerExportView.as_view(), name='partner_export'),
+    # === CATEGORIES URLs === #
+    path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
+    path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),
+    path('categories/<int:pk>/', views.ItemCategoryDetailView.as_view(), name='category_detail'),
+    path('categories/<int:pk>/edit/', views.ItemCategoryUpdateView.as_view(), name='category_update'),
+    path('categories/<int:pk>/delete/', views.ItemCategoryDeleteView.as_view(), name='category_delete'),
+    path('categories/quick-add/', views.CategoryQuickAddView.as_view(), name='category_quick_add'),
 
-    # DataTables و AJAX للشركاء
-    path('partners/datatable/', BusinessPartnerDataTableView.as_view(), name='partner_datatable'),
-    path('partners/quick-add/', PartnerQuickAddView.as_view(), name='partner_quick_add'),
-    path('partners/ajax/search/', PartnerSearchAjaxView.as_view(), name='partner_search_ajax'),
-    path('partners/ajax/<int:pk>/info/', PartnerInfoAjaxView.as_view(), name='partner_info_ajax'),
+    # Categories AJAX URLs
+    path('ajax/categories/select/', views.CategorySelectView.as_view(), name='category_select'),
+    path('ajax/categories/<int:pk>/move/', views.CategoryMoveView.as_view(), name='category_move'),
 
-    # ============== العملاء ==============
-    path('customers/', CustomerListView.as_view(), name='customer_list'),
-    path('customers/add/', CustomerCreateView.as_view(), name='customer_add'),
-    path('customers/<int:pk>/', CustomerDetailView.as_view(), name='customer_detail'),
-    path('customers/<int:pk>/edit/', CustomerUpdateView.as_view(), name='customer_edit'),
-    path('customers/datatable/', CustomerDataTableView.as_view(), name='customer_datatable'),
+    # === EXPORT URLs === #
+    path('export/items/', views.ItemExportView.as_view(), name='item_export'),
+    path('export/partners/', views.PartnerExportView.as_view(), name='partner_export'),
+    path('export/warehouses/', views.WarehouseExportView.as_view(), name='warehouse_export'),
+    path('export/stock-report/', views.StockReportExportView.as_view(), name='stock_report_export'),
+    path('export/custom/', views.CustomExportView.as_view(), name='custom_export'),
 
-    # ============== الموردين ==============
-    path('suppliers/', SupplierListView.as_view(), name='supplier_list'),
-    path('suppliers/add/', SupplierCreateView.as_view(), name='supplier_add'),
-    path('suppliers/<int:pk>/', SupplierDetailView.as_view(), name='supplier_detail'),
-    path('suppliers/<int:pk>/edit/', SupplierUpdateView.as_view(), name='supplier_edit'),
-    path('suppliers/datatable/', SupplierDataTableView.as_view(), name='supplier_datatable'),
+    # === IMPORT URLs === #
+    path('import/items/', views.ItemImportView.as_view(), name='item_import'),
+    path('import/partners/', views.PartnerImportView.as_view(), name='partner_import'),
+    path('import/errors/', views.ImportErrorsView.as_view(), name='import_errors'),
+    path('import/sample/<str:model_type>/', views.DownloadSampleView.as_view(), name='download_sample'),
 
-    # ============== المستودعات ==============
-    path('warehouses/', WarehouseListView.as_view(), name='warehouse_list'),
-    path('warehouses/add/', WarehouseCreateView.as_view(), name='warehouse_add'),
-    path('warehouses/<int:pk>/', WarehouseDetailView.as_view(), name='warehouse_detail'),
-    path('warehouses/<int:pk>/edit/', WarehouseUpdateView.as_view(), name='warehouse_edit'),
-    path('warehouses/<int:pk>/delete/', WarehouseDeleteView.as_view(), name='warehouse_delete'),
+    # === REPORTS URLs === #
+    path('reports/', views.ReportsIndexView.as_view(), name='reports_index'),
+    path('reports/items/', views.ItemsReportView.as_view(), name='items_report'),
+    path('reports/stock/', views.StockReportView.as_view(), name='stock_report'),
+    path('reports/partners/', views.PartnersReportView.as_view(), name='partners_report'),
+    path('reports/categories/', views.CategoriesReportView.as_view(), name='categories_report'),
+    path('reports/low-stock/', views.LowStockReportView.as_view(), name='low_stock_report'),
 
-    # أرصدة المستودعات
-    path('warehouses/<int:pk>/inventory/', WarehouseInventoryView.as_view(), name='warehouse_inventory'),
-    path('warehouse-items/<int:pk>/edit/', WarehouseItemUpdateView.as_view(), name='warehouse_item_edit'),
+    # Reports Charts AJAX
+    path('ajax/reports/charts/<str:chart_type>/', views.ReportChartsView.as_view(), name='report_charts'),
 
-    # التحويلات بين المستودعات
-    path('warehouse-transfers/', WarehouseTransferListView.as_view(), name='warehouse_transfer_list'),
-    path('warehouse-transfers/add/', WarehouseTransferCreateView.as_view(), name='warehouse_transfer_add'),
-
-    # تقارير وتصدير المستودعات
-    path('warehouses/report/', WarehouseReportView.as_view(), name='warehouse_report'),
-    path('inventory/report/', InventoryReportView.as_view(), name='inventory_report'),
-    path('warehouses/export/', WarehouseExportView.as_view(), name='warehouse_export'),
-
-    # DataTables و AJAX للمستودعات
-    path('warehouses/datatable/', WarehouseDataTableView.as_view(), name='warehouse_datatable'),
-    path('warehouses/ajax/search/', WarehouseSearchAjaxView.as_view(), name='warehouse_search_ajax'),
-    path('warehouses/ajax/<int:pk>/info/', WarehouseInfoAjaxView.as_view(), name='warehouse_info_ajax'),
-    path('warehouses/ajax/by-branch/', get_warehouses_by_branch_ajax, name='warehouses_by_branch_ajax'),
-    path('warehouses/ajax/items/', get_warehouse_items_ajax, name='warehouse_items_ajax'),
-
-    # ============== وحدات القياس ==============
-    path('units/', UnitOfMeasureListView.as_view(), name='unit_list'),
-    path('units/add/', UnitOfMeasureCreateView.as_view(), name='unit_add'),
-    path('units/<int:pk>/edit/', UnitOfMeasureUpdateView.as_view(), name='unit_edit'),
-    path('units/<int:pk>/delete/', UnitOfMeasureDeleteView.as_view(), name='unit_delete'),
-    path('units/datatable/', UnitDataTableView.as_view(), name='unit_datatable'),
-    path('units/ajax/search/', UnitSearchAjaxView.as_view(), name='unit_search_ajax'),
-
-    # ============== API Endpoints للبحث السريع ==============
-    path('ajax/items/search/', ItemSearchAPIView.as_view(), name='ajax_item_search'),
-    path('ajax/partners/search/', PartnerSearchAPIView.as_view(), name='ajax_partner_search'),
-    path('ajax/warehouses/search/', WarehouseSearchAPIView.as_view(), name='ajax_warehouse_search'),
-
-    # ============== API Endpoints للتحقق من البيانات ==============
-    path('ajax/check-barcode/', CheckBarcodeAPIView.as_view(), name='ajax_check_barcode'),
-    path('ajax/check-code/', CheckCodeAPIView.as_view(), name='ajax_check_code'),
-
-    # ============== API Endpoints للإحصائيات ==============
-    path('ajax/stats/', StatsAPIView.as_view(), name='ajax_stats'),
-
-    # ============== Function-based API Endpoints ==============
-    path('ajax/item/by-barcode/', get_item_by_barcode, name='ajax_item_by_barcode'),
-    path('ajax/warehouses/by-branch/', get_warehouses_by_branch, name='ajax_warehouses_by_branch'),
-    path('ajax/item-stock/', get_item_stock_by_warehouse, name='ajax_item_stock'),
-
-    # ============== REST API ==============
-    path('api/v1/', include(router.urls)),
-
-    # REST API إضافية
-    path('api/v1/search/items/', ItemSearchAPIView.as_view(), name='api_search_items'),
-    path('api/v1/search/partners/', PartnerSearchAPIView.as_view(), name='api_search_partners'),
-    path('api/v1/search/warehouses/', WarehouseSearchAPIView.as_view(), name='api_search_warehouses'),
-    path('api/v1/validation/barcode/', CheckBarcodeAPIView.as_view(), name='api_validate_barcode'),
-    path('api/v1/validation/code/', CheckCodeAPIView.as_view(), name='api_validate_code'),
-    path('api/v1/stats/', StatsAPIView.as_view(), name='api_stats'),
-    path('api/v1/item/barcode/', get_item_by_barcode, name='api_item_barcode'),
-    path('api/v1/warehouses/branch/', get_warehouses_by_branch, name='api_warehouses_branch'),
-    path('api/v1/stock/item-warehouse/', get_item_stock_by_warehouse, name='api_stock_item_warehouse'),
+    # === GENERAL AJAX URLs === #
+    path('ajax/dashboard/stats/', views.DashboardStatsView.as_view(), name='dashboard_stats'),
+    path('ajax/quick-search/', views.QuickSearchView.as_view(), name='quick_search'),
+    path('ajax/validation/', views.ValidationView.as_view(), name='validation'),
+    path('ajax/notifications/', views.NotificationsView.as_view(), name='notifications'),
 ]
 
-# ============== معلومات إضافية للمطورين ==============
-"""
-تنظيم URLs:
+# === API-style URLs (اختيارية للمستقبل) === #
+api_patterns = [
+    # RESTful API endpoints (للاستخدام مع JavaScript frameworks)
+    path('api/items/', views.ItemDataTableView.as_view(), name='api_items'),
+    path('api/partners/', views.PartnerDataTableView.as_view(), name='api_partners'),
+    path('api/warehouses/', views.WarehouseSelectView.as_view(), name='api_warehouses'),
+    path('api/categories/', views.CategorySelectView.as_view(), name='api_categories'),
+    path('api/units/', views.UnitSelectView.as_view(), name='api_units'),
+]
 
-1. الأصناف (/items/):
-   - CRUD كامل مع التفاصيل
-   - إدارة المكونات والمعدلات والبدائل
-   - تقارير وتصدير
-   - DataTables و AJAX
-
-2. التصنيفات (/categories/):
-   - دعم 4 مستويات
-   - إدارة الشجرة الهرمية
-
-3. الشركاء (/partners/):
-   - CRUD شامل
-   - إدارة معلومات الاتصال
-   - تخصص للعملاء والموردين
-
-4. المستودعات (/warehouses/):
-   - إدارة شاملة للمستودعات
-   - أرصدة وتحويلات
-   - تقارير المخزون
-
-5. وحدات القياس (/units/):
-   - إدارة بسيطة وفعالة
-
-6. AJAX Endpoints (/ajax/):
-   - بحث سريع
-   - تحقق من البيانات
-   - إحصائيات
-
-7. REST API (/api/v1/):
-   - ViewSets كاملة
-   - endpoints متخصصة
-   - function-based APIs
-
-المميزات:
-- URLs منطقية ومنظمة
-- REST API منفصل ومنظم  
-- AJAX endpoints سهلة الاستخدام
-- تدعم جميع العمليات المطلوبة
-- متوافقة مع جميع الـ Views
-- سهولة الصيانة والتطوير
-"""
+# إضافة API patterns إلى URL الرئيسية (اختياري)
+# urlpatterns += api_patterns

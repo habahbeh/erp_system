@@ -1,0 +1,90 @@
+<!-- File: apps/base_data/templates/base_data/categories/quick_add.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n widget_tweaks %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>{% trans "إضافة تصنيف سريع" %}
+                </h6>
+            </div>
+            <form method="post" id="quick-add-form">
+                <div class="card-body">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                            {{ form.name.label }}
+                        </label>
+                        {{ form.name|add_class:"form-control" }}
+                        {% if form.name.errors %}
+                            <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.parent.id_for_label }}" class="form-label">
+                            {{ form.parent.label }}
+                        </label>
+                        {{ form.parent|add_class:"form-select" }}
+                        {% if form.parent.errors %}
+                            <div class="invalid-feedback d-block">{{ form.parent.errors.0 }}</div>
+                        {% endif %}
+                        <div class="form-text">{% trans "اتركه فارغاً للتصنيف الرئيسي" %}</div>
+                    </div>
+
+                    <div class="form-check">
+                        {{ form.is_active|add_class:"form-check-input" }}
+                        <label for="{{ form.is_active.id_for_label }}" class="form-check-label">
+                            {{ form.is_active.label }}
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'base_data:category_list' %}" class="btn btn-secondary">
+                            {% trans "إلغاء" %}
+                        </a>
+                        <button type="submit" class="btn btn-success" id="submit-btn">
+                            <i class="fas fa-save me-1"></i>{% trans "حفظ" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Auto-generate code from name
+    $('#id_name').on('input', function() {
+        var name = $(this).val();
+        if (name && !$('#id_code').val()) {
+            var code = name.replace(/\s+/g, '_').replace(/[^\w\u0600-\u06FF]/g, '').toUpperCase();
+            if (code.length > 20) code = code.substr(0, 20);
+            $('#id_code').val(code);
+        }
+    });
+
+    // Form submission
+    $('#quick-add-form').on('submit', function() {
+        $('#submit-btn').prop('disabled', true)
+                      .html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الحفظ..." %}');
+        showLoading();
+    });
+});
+</script>
+{% endblock %}
