@@ -1,0 +1,253 @@
+<!-- apps/base_data/templates/base_data/items/quick_add.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n widget_tweaks %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:item_list' %}">{% trans "الأصناف" %}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "إضافة سريعة" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-primary text-white">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-plus-circle me-2"></i>{% trans "إضافة صنف سريعة" %}
+        </h5>
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" aria-label="Close">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form id="quick-add-form" method="post">
+    {% csrf_token %}
+
+    <!-- إشعار -->
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        {% trans "الإضافة السريعة تتضمن المعلومات الأساسية فقط. لإضافة تفاصيل أكثر، استخدم النموذج الكامل." %}
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.code.label }}</label>
+                {{ form.code|add_class:"form-control form-control-sm" }}
+                {% if form.code.errors %}
+                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
+                {% endif %}
+                <div class="form-text">{% trans "اتركه فارغاً للتوليد التلقائي" %}</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label required-field">{{ form.name.label }}</label>
+                {{ form.name|add_class:"form-control form-control-sm" }}
+                {% if form.name.errors %}
+                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.name_en.label }}</label>
+                {{ form.name_en|add_class:"form-control form-control-sm" }}
+                {% if form.name_en.errors %}
+                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label required-field">{{ form.category.label }}</label>
+                <div class="input-group input-group-sm">
+                    {{ form.category|add_class:"form-select form-select-sm" }}
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            onclick="openCategoryQuickAdd()" title="{% trans 'إضافة تصنيف جديد' %}">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                {% if form.category.errors %}
+                    <div class="invalid-feedback d-block">{{ form.category.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label required-field">{{ form.unit.label }}</label>
+                <div class="input-group input-group-sm">
+                    {{ form.unit|add_class:"form-select form-select-sm" }}
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            onclick="openUnitQuickAdd()" title="{% trans 'إضافة وحدة جديدة' %}">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                {% if form.unit.errors %}
+                    <div class="invalid-feedback d-block">{{ form.unit.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <div class="form-check form-switch mt-4">
+                    <input type="checkbox" class="form-check-input" id="add-full-details">
+                    <label class="form-check-label" for="add-full-details">
+                        {% trans "إضافة التفاصيل بعد الحفظ" %}
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- أزرار الإجراءات -->
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeQuickAdd()">
+            <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="openFullForm()">
+            <i class="fas fa-external-link-alt me-1"></i>{% trans "النموذج الكامل" %}
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm" id="save-btn">
+            <i class="fas fa-save me-1"></i>{% trans "حفظ" %}
+        </button>
+    </div>
+</form>
+
+<!-- Loading Spinner -->
+<div id="quick-add-loading" class="text-center d-none">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">{% trans "جاري الحفظ..." %}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تركيز على حقل الاسم
+    $('#id_name').focus();
+
+    // تفعيل Select2 للقوائم المنسدلة
+    $('#id_category, #id_unit').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        dropdownParent: $('#quick-add-form').closest('.modal-content')
+    });
+});
+
+$('#quick-add-form').on('submit', function(e) {
+    e.preventDefault();
+
+    // إظهار التحميل
+    $('#save-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الحفظ..." %}');
+
+    $.ajax({
+        url: '{% url 'base_data:item_quick_add' %}',
+        method: 'POST',
+        data: $(this).serialize(),
+        success: function(response) {
+            if(response.success) {
+                // إشعار النجاح
+                showAlert('success', response.message);
+
+                // إضافة للجدول إذا كان موجود
+                if(typeof table !== 'undefined') {
+                    table.ajax.reload();
+                }
+
+                // إضافة للقائمة المنسدلة إذا كانت موجودة في صفحة أخرى
+                if($('#item-select').length) {
+                    $('#item-select').append(
+                        '<option value="' + response.item.id + '" selected>' +
+                        response.item.code + ' - ' + response.item.name + '</option>'
+                    );
+                }
+
+                // التحقق من إضافة التفاصيل
+                if($('#add-full-details').is(':checked')) {
+                    window.location.href = '{% url 'base_data:item_update' 0 %}'.replace('0', response.item.id);
+                } else {
+                    // إعادة تعيين النموذج للإضافة مرة أخرى
+                    resetForm();
+                }
+            } else {
+                showAlert('danger', response.message);
+                displayErrors(response.errors);
+            }
+        },
+        error: function() {
+            showAlert('danger', '{% trans "حدث خطأ في الاتصال" %}');
+        },
+        complete: function() {
+            $('#save-btn').prop('disabled', false).html('<i class="fas fa-save me-1"></i>{% trans "حفظ" %}');
+        }
+    });
+});
+
+function resetForm() {
+    $('#quick-add-form')[0].reset();
+    $('#quick-add-form .is-invalid').removeClass('is-invalid');
+    $('#quick-add-form .invalid-feedback').remove();
+    $('#id_name').focus();
+}
+
+function displayErrors(errors) {
+    // مسح الأخطاء السابقة
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').remove();
+
+    // عرض الأخطاء الجديدة
+    $.each(errors, function(field, messages) {
+        let $field = $('#id_' + field);
+        $field.addClass('is-invalid');
+        $field.after('<div class="invalid-feedback">' + messages[0] + '</div>');
+    });
+}
+
+function openCategoryQuickAdd() {
+    // فتح modal إضافة تصنيف سريع
+    // يمكن تطويرها لاحقاً
+    alert('{% trans "سيتم تطوير هذه الميزة قريباً" %}');
+}
+
+function openUnitQuickAdd() {
+    // فتح modal إضافة وحدة قياس سريعة
+    // يمكن تطويرها لاحقاً
+    alert('{% trans "سيتم تطوير هذه الميزة قريباً" %}');
+}
+
+function openFullForm() {
+    window.location.href = '{% url 'base_data:item_create' %}';
+}
+
+function closeQuickAdd() {
+    if(window.parent && window.parent.closeModal) {
+        window.parent.closeModal();
+    } else {
+        window.location.href = '{% url 'base_data:item_list' %}';
+    }
+}
+
+function showAlert(type, message) {
+    let alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                   message +
+                   '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                   '</div>';
+    $('#quick-add-form').before(alertHtml);
+
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+</script>
+{% endblock %}

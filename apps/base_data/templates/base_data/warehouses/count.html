@@ -1,0 +1,717 @@
+<!-- apps/base_data/templates/base_data/warehouses/count.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n widget_tweaks %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_list' %}">{% trans "المستودعات" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_detail' warehouse.pk %}">{{ warehouse.name }}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "جرد المخزون" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-primary text-white">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-clipboard-check me-2"></i>
+            {% trans "جرد مخزون المستودع" %}: {{ warehouse.name }}
+        </h5>
+        <div class="btn-group">
+            <a href="{% url 'base_data:warehouse_inventory' warehouse.pk %}" class="btn btn-light btn-sm">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع للمخزون" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="count-form">
+    {% csrf_token %}
+
+    <!-- معلومات الجرد -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "معلومات الجرد" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label required-field">{% trans "نوع الجرد" %}</label>
+                                <select name="count_type" class="form-select" required>
+                                    <option value="full">{% trans "جرد شامل" %}</option>
+                                    <option value="partial">{% trans "جرد جزئي" %}</option>
+                                    <option value="cycle">{% trans "جرد دوري" %}</option>
+                                    <option value="spot">{% trans "جرد عشوائي" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label required-field">{% trans "تاريخ الجرد" %}</label>
+                                <input type="date" name="count_date" class="form-control"
+                                       value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">{% trans "مسؤول الجرد" %}</label>
+                                <select name="responsible_person" class="form-select">
+                                    <option value="">{% trans "اختر المسؤول" %}</option>
+                                    {% if warehouse.keeper %}
+                                    <option value="{{ warehouse.keeper.pk }}" selected>{{ warehouse.keeper.get_full_name }}</option>
+                                    {% endif %}
+                                    {% if warehouse.backup_keeper %}
+                                    <option value="{{ warehouse.backup_keeper.pk }}">{{ warehouse.backup_keeper.get_full_name }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">{% trans "مساعد الجرد" %}</label>
+                                <select name="assistant_person" class="form-select">
+                                    <option value="">{% trans "اختر المساعد" %}</option>
+                                    {% for user in users %}
+                                    <option value="{{ user.pk }}">{{ user.get_full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "ملاحظات الجرد" %}</label>
+                        <textarea name="notes" class="form-control" rows="2"
+                                  placeholder="{% trans 'أسباب الجرد أو ملاحظات خاصة' %}"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- إحصائيات الجرد -->
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>{% trans "إحصائيات الجرد" %}
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <h4 class="text-primary" id="total-items">{{ warehouse_items.count }}</h4>
+                        <small>{% trans "إجمالي الأصناف" %}</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <h5 class="text-success" id="counted-items">0</h5>
+                            <small>{% trans "تم جردها" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-warning" id="remaining-items">{{ warehouse_items.count }}</h5>
+                            <small>{% trans "متبقي" %}</small>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 10px;">
+                        <div class="progress-bar bg-success" id="progress-bar"
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted">نسبة الإنجاز</small>
+                </div>
+            </div>
+
+            <!-- أدوات الجرد -->
+            <div class="card border-success mt-3">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-tools me-2"></i>{% trans "أدوات الجرد" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="scanBarcode()">
+                            <i class="fas fa-barcode me-1"></i>{% trans "مسح الباركود" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="bulkCount()">
+                            <i class="fas fa-list me-1"></i>{% trans "جرد جماعي" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="autoComplete()">
+                            <i class="fas fa-magic me-1"></i>{% trans "إكمال تلقائي" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول الجرد -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-list-check me-2"></i>{% trans "جدول الجرد" %}
+            </h6>
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-primary" onclick="filterItems('all')" id="filter-all">
+                    {% trans "الكل" %} ({{ warehouse_items.count }})
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="filterItems('counted')" id="filter-counted">
+                    {% trans "مجرود" %} (0)
+                </button>
+                <button type="button" class="btn btn-outline-warning" onclick="filterItems('pending')" id="filter-pending">
+                    {% trans "معلق" %} ({{ warehouse_items.count }})
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="filterItems('discrepancy')" id="filter-discrepancy">
+                    {% trans "اختلاف" %} (0)
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0" id="count-table">
+                    <thead class="table-primary">
+                        <tr>
+                            <th width="25%">{% trans "الصنف" %}</th>
+                            <th width="12%" class="text-center">{% trans "الكمية في النظام" %}</th>
+                            <th width="15%" class="text-center">{% trans "الكمية الفعلية" %}</th>
+                            <th width="12%" class="text-center">{% trans "الفرق" %}</th>
+                            <th width="12%" class="text-center">{% trans "التكلفة" %}</th>
+                            <th width="12%" class="text-center">{% trans "قيمة الفرق" %}</th>
+                            <th width="12%" class="text-center">{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="count-items-body">
+                        {% for item in warehouse_items %}
+                        <tr data-item-id="{{ item.item.pk }}" class="count-row pending">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if item.item.image %}
+                                        <img src="{{ item.item.image.url }}" alt="{{ item.item.name }}"
+                                             class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                    {% else %}
+                                        <div class="bg-light border rounded me-2 d-flex align-items-center justify-content-center"
+                                             style="width: 32px; height: 32px;">
+                                            <i class="fas fa-box text-muted"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <strong>{{ item.item.name }}</strong>
+                                        <br><small class="text-muted">{{ item.item.code }}</small>
+                                        {% if item.item.barcode %}
+                                            <br><small class="badge bg-light text-dark">
+                                                <i class="fas fa-barcode me-1"></i>{{ item.item.barcode }}
+                                            </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <input type="hidden" name="items[{{ forloop.counter0 }}][item_id]" value="{{ item.item.pk }}">
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold system-quantity">{{ item.quantity|floatformat:3 }}</span>
+                                <br><small class="text-muted">{{ item.item.unit.name }}</small>
+                                <input type="hidden" name="items[{{ forloop.counter0 }}][system_quantity]" value="{{ item.quantity }}">
+                            </td>
+                            <td class="text-center">
+                                <input type="number" name="items[{{ forloop.counter0 }}][actual_quantity]"
+                                       class="form-control form-control-sm text-center actual-quantity"
+                                       step="0.001" onchange="calculateDifference(this)"
+                                       placeholder="الكمية الفعلية">
+                            </td>
+                            <td class="text-center">
+                                <span class="difference fw-bold">-</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="unit-cost">{{ item.average_cost|floatformat:2 }}</span>
+                                <input type="hidden" name="items[{{ forloop.counter0 }}][unit_cost]" value="{{ item.average_cost }}">
+                            </td>
+                            <td class="text-center">
+                                <span class="difference-value fw-bold">-</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="status-badge badge bg-secondary">{% trans "معلق" %}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ملخص الجرد -->
+        <div class="card-footer bg-light">
+            <div class="row text-center">
+                <div class="col-md-2">
+                    <strong class="text-primary" id="summary-total">{{ warehouse_items.count }}</strong>
+                    <br><small>{% trans "إجمالي" %}</small>
+                </div>
+                <div class="col-md-2">
+                    <strong class="text-success" id="summary-counted">0</strong>
+                    <br><small>{% trans "مجرود" %}</small>
+                </div>
+                <div class="col-md-2">
+                    <strong class="text-info" id="summary-matched">0</strong>
+                    <br><small>{% trans "متطابق" %}</small>
+                </div>
+                <div class="col-md-2">
+                    <strong class="text-warning" id="summary-increase">0</strong>
+                    <br><small>{% trans "زيادة" %}</small>
+                </div>
+                <div class="col-md-2">
+                    <strong class="text-danger" id="summary-decrease">0</strong>
+                    <br><small>{% trans "نقص" %}</small>
+                </div>
+                <div class="col-md-2">
+                    <strong class="text-primary" id="summary-value">0.00</strong>
+                    <br><small>{% trans "قيمة الفروقات" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- أزرار الإجراءات -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" onclick="saveProgress()">
+                        <i class="fas fa-save me-1"></i>{% trans "حفظ التقدم" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="loadProgress()">
+                        <i class="fas fa-folder-open me-1"></i>{% trans "استكمال سابق" %}
+                    </button>
+                </div>
+                <div>
+                    <a href="{% url 'base_data:warehouse_inventory' warehouse.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+                    </a>
+                    <button type="button" class="btn btn-info" onclick="previewCount()">
+                        <i class="fas fa-eye me-1"></i>{% trans "معاينة" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submit-btn">
+                        <i class="fas fa-check me-1"></i>{% trans "إنهاء الجرد" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Modal مسح الباركود -->
+<div class="modal fade" id="barcodeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-barcode me-2"></i>{% trans "مسح الباركود" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "الباركود" %}</label>
+                    <input type="text" id="barcode-input" class="form-control" placeholder="{% trans 'امسح أو اكتب الباركود' %}" autofocus>
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "الكمية" %}</label>
+                    <input type="number" id="barcode-quantity" class="form-control" step="0.001" value="1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="processBarcodeCount()">
+                    <i class="fas fa-check me-1"></i>{% trans "تسجيل" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal معاينة الجرد -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye me-2"></i>{% trans "معاينة نتائج الجرد" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="preview-content">
+                <!-- سيتم ملء المحتوى عبر JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "تعديل" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="confirmCount()">
+                    <i class="fas fa-check me-1"></i>{% trans "تأكيد الجرد" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تفعيل DataTables
+    $('#count-table').DataTable({
+        pageLength: 50,
+        order: [[0, 'asc']],
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
+        columnDefs: [
+            { targets: [1, 2, 3, 4, 5, 6], className: 'text-center' }
+        ]
+    });
+
+    updateCountSummary();
+});
+
+function calculateDifference(input) {
+    let row = $(input).closest('tr');
+    let systemQuantity = parseFloat(row.find('input[name$="[system_quantity]"]').val()) || 0;
+    let actualQuantity = parseFloat($(input).val()) || 0;
+    let unitCost = parseFloat(row.find('input[name$="[unit_cost]"]').val()) || 0;
+
+    let difference = actualQuantity - systemQuantity;
+    let differenceValue = Math.abs(difference) * unitCost;
+
+    // تحديث الفرق
+    row.find('.difference').text(difference.toFixed(3));
+    row.find('.difference-value').text(differenceValue.toFixed(2));
+
+    // تحديث الحالة
+    let statusBadge = row.find('.status-badge');
+    row.removeClass('pending counted matched increase decrease');
+
+    if(actualQuantity === '') {
+        statusBadge.removeClass().addClass('status-badge badge bg-secondary').text('{% trans "معلق" %}');
+        row.addClass('pending');
+    } else if(difference === 0) {
+        statusBadge.removeClass().addClass('status-badge badge bg-success').text('{% trans "متطابق" %}');
+        row.addClass('counted matched');
+    } else if(difference > 0) {
+        statusBadge.removeClass().addClass('status-badge badge bg-info').text('{% trans "زيادة" %}');
+        row.addClass('counted increase');
+    } else {
+        statusBadge.removeClass().addClass('status-badge badge bg-warning').text('{% trans "نقص" %}');
+        row.addClass('counted decrease');
+    }
+
+    updateCountSummary();
+}
+
+function updateCountSummary() {
+    let totalItems = $('.count-row').length;
+    let countedItems = $('.count-row.counted').length;
+    let matchedItems = $('.count-row.matched').length;
+    let increaseItems = $('.count-row.increase').length;
+    let decreaseItems = $('.count-row.decrease').length;
+    let remainingItems = totalItems - countedItems;
+
+    // حساب إجمالي قيمة الفروقات
+    let totalValue = 0;
+    $('.count-row.counted').each(function() {
+        let value = parseFloat($(this).find('.difference-value').text()) || 0;
+        totalValue += value;
+    });
+
+    // تحديث الإحصائيات
+    $('#counted-items').text(countedItems);
+    $('#remaining-items').text(remainingItems);
+    $('#summary-counted').text(countedItems);
+    $('#summary-matched').text(matchedItems);
+    $('#summary-increase').text(increaseItems);
+    $('#summary-decrease').text(decreaseItems);
+    $('#summary-value').text(totalValue.toFixed(2));
+
+    // تحديث شريط التقدم
+    let progress = totalItems > 0 ? (countedItems / totalItems) * 100 : 0;
+    $('#progress-bar').css('width', progress + '%').attr('aria-valuenow', progress);
+
+    // تحديث عدادات الفلاتر
+    $('#filter-counted').html('{% trans "مجرود" %} (' + countedItems + ')');
+    $('#filter-pending').html('{% trans "معلق" %} (' + remainingItems + ')');
+    $('#filter-discrepancy').html('{% trans "اختلاف" %} (' + (increaseItems + decreaseItems) + ')');
+}
+
+function filterItems(filter) {
+    $('.count-row').show();
+    $('.btn-group .btn').removeClass('active');
+
+    switch(filter) {
+        case 'counted':
+            $('.count-row:not(.counted)').hide();
+            $('#filter-counted').addClass('active');
+            break;
+        case 'pending':
+            $('.count-row:not(.pending)').hide();
+            $('#filter-pending').addClass('active');
+            break;
+        case 'discrepancy':
+            $('.count-row.matched').hide();
+            $('.count-row.pending').hide();
+            $('#filter-discrepancy').addClass('active');
+            break;
+        default:
+            $('#filter-all').addClass('active');
+    }
+}
+
+function scanBarcode() {
+    $('#barcodeModal').modal('show');
+    $('#barcode-input').focus();
+}
+
+function processBarcodeCount() {
+    let barcode = $('#barcode-input').val().trim();
+    let quantity = parseFloat($('#barcode-quantity').val()) || 1;
+
+    if(!barcode) {
+        alert('{% trans "يرجى إدخال الباركود" %}');
+        return;
+    }
+
+    // البحث عن الصنف بالباركود
+    let found = false;
+    $('.count-row').each(function() {
+        let row = $(this);
+        let itemBarcode = row.find('.badge:contains("' + barcode + '")').text();
+
+        if(itemBarcode.includes(barcode)) {
+            row.find('.actual-quantity').val(quantity).trigger('change');
+            found = true;
+            return false;
+        }
+    });
+
+    if(found) {
+        $('#barcodeModal').modal('hide');
+        $('#barcode-input').val('');
+        $('#barcode-quantity').val('1');
+    } else {
+        alert('{% trans "لم يتم العثور على صنف بهذا الباركود" %}');
+    }
+}
+
+function bulkCount() {
+    // تطبيق الكمية على جميع الأصناف المرئية
+    let quantity = prompt('{% trans "أدخل الكمية المطلوب تطبيقها على جميع الأصناف المرئية" %}:', '0');
+
+    if(quantity !== null) {
+        $('.count-row:visible .actual-quantity').val(quantity).trigger('change');
+    }
+}
+
+function autoComplete() {
+    // نسخ الكميات من النظام كجرد فعلي للأصناف غير المجردة
+    if(confirm('{% trans "هل تريد نسخ كميات النظام للأصناف غير المجردة؟" %}')) {
+        $('.count-row.pending').each(function() {
+            let systemQuantity = $(this).find('.system-quantity').text();
+            $(this).find('.actual-quantity').val(parseFloat(systemQuantity)).trigger('change');
+        });
+    }
+}
+
+function previewCount() {
+    // التحقق من اكتمال الجرد
+    let pendingCount = $('.count-row.pending').length;
+    if(pendingCount > 0) {
+        if(!confirm(`{% trans "لا يزال هناك" %} ${pendingCount} {% trans "صنف غير مجرود. هل تريد المتابعة؟" %}`)) {
+            return;
+        }
+    }
+
+    // إنشاء معاينة
+    let previewHtml = `
+        <div class="alert alert-primary">
+            <h6>{% trans "ملخص الجرد" %}</h6>
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>{% trans "النوع" %}:</strong> ${$('select[name="count_type"] option:selected').text()}
+                </div>
+                <div class="col-md-3">
+                    <strong>{% trans "التاريخ" %}:</strong> ${$('input[name="count_date"]').val()}
+                </div>
+                <div class="col-md-3">
+                    <strong>{% trans "المسؤول" %}:</strong> ${$('select[name="responsible_person"] option:selected').text() || '{% trans "غير محدد" %}'}
+                </div>
+                <div class="col-md-3">
+                    <strong>{% trans "المستودع" %}:</strong> {{ warehouse.name }}
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-2">
+                <div class="card bg-primary text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-total').text()}</h5>
+                        <small>{% trans "إجمالي" %}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-success text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-counted').text()}</h5>
+                        <small>{% trans "مجرود" %}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-info text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-matched').text()}</h5>
+                        <small>{% trans "متطابق" %}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-warning text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-increase').text()}</h5>
+                        <small>{% trans "زيادة" %}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-danger text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-decrease').text()}</h5>
+                        <small>{% trans "نقص" %}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-dark text-white text-center">
+                    <div class="card-body py-2">
+                        <h5>${$('#summary-value').text()}</h5>
+                        <small>{% trans "قيمة الفروقات" %}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // إضافة جدول الفروقات فقط
+    let discrepancies = $('.count-row:not(.matched)').filter('.counted');
+    if(discrepancies.length > 0) {
+        previewHtml += `
+            <h6>{% trans "الأصناف التي بها فروقات" %}</h6>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الصنف" %}</th>
+                            <th class="text-center">{% trans "في النظام" %}</th>
+                            <th class="text-center">{% trans "الفعلي" %}</th>
+                            <th class="text-center">{% trans "الفرق" %}</th>
+                            <th class="text-center">{% trans "القيمة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        discrepancies.each(function() {
+            let itemName = $(this).find('strong').first().text();
+            let systemQty = $(this).find('.system-quantity').text();
+            let actualQty = $(this).find('.actual-quantity').val();
+            let difference = $(this).find('.difference').text();
+            let value = $(this).find('.difference-value').text();
+
+            previewHtml += `
+                <tr>
+                    <td>${itemName}</td>
+                    <td class="text-center">${systemQty}</td>
+                    <td class="text-center">${parseFloat(actualQty).toFixed(3)}</td>
+                    <td class="text-center ${parseFloat(difference) > 0 ? 'text-success' : 'text-danger'}">${difference}</td>
+                    <td class="text-center">${value}</td>
+                </tr>
+            `;
+        });
+
+        previewHtml += '</tbody></table></div>';
+    } else {
+        previewHtml += '<div class="alert alert-success">{% trans "جميع الأصناف متطابقة!" %}</div>';
+    }
+
+    $('#preview-content').html(previewHtml);
+    $('#previewModal').modal('show');
+}
+
+function confirmCount() {
+    $('#previewModal').modal('hide');
+    $('#count-form').submit();
+}
+
+function saveProgress() {
+    // حفظ التقدم في localStorage
+    let progress = {};
+    $('.count-row').each(function() {
+        let itemId = $(this).data('item-id');
+        let actualQuantity = $(this).find('.actual-quantity').val();
+        if(actualQuantity) {
+            progress[itemId] = actualQuantity;
+        }
+    });
+
+    localStorage.setItem('warehouse_count_{{ warehouse.pk }}', JSON.stringify(progress));
+    alert('{% trans "تم حفظ التقدم بنجاح" %}');
+}
+
+function loadProgress() {
+    let saved = localStorage.getItem('warehouse_count_{{ warehouse.pk }}');
+    if(saved) {
+        let progress = JSON.parse(saved);
+        $('.count-row').each(function() {
+            let itemId = $(this).data('item-id');
+            if(progress[itemId]) {
+                $(this).find('.actual-quantity').val(progress[itemId]).trigger('change');
+            }
+        });
+        alert('{% trans "تم استرجاع التقدم بنجاح" %}');
+    } else {
+        alert('{% trans "لا يوجد تقدم محفوظ" %}');
+    }
+}
+
+// منع الإرسال إذا لم يكتمل الجرد
+$('#count-form').on('submit', function(e) {
+    let pendingCount = $('.count-row.pending').length;
+    if(pendingCount > 0) {
+        if(!confirm(`{% trans "لا يزال هناك" %} ${pendingCount} {% trans "صنف غير مجرود. هل تريد إنهاء الجرد؟" %}`)) {
+            e.preventDefault();
+            return false;
+        }
+    }
+
+    $('#submit-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الإنهاء..." %}');
+
+    // مسح البيانات المحفوظة
+    localStorage.removeItem('warehouse_count_{{ warehouse.pk }}');
+});
+
+// مسح البيانات المحفوظة عند الخروج
+$('#barcode-input').keypress(function(e) {
+    if(e.which == 13) {
+        processBarcodeCount();
+    }
+});
+</script>
+{% endblock %}

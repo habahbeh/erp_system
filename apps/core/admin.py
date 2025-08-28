@@ -1,3 +1,4 @@
+# apps/core/admin.py
 """
 إعدادات لوحة التحكم لتطبيق النواة
 """
@@ -15,19 +16,19 @@ class UserAdmin(BaseUserAdmin):
     # إضافة الحقول الجديدة
     fieldsets = BaseUserAdmin.fieldsets + (
         (_('معلومات إضافية'), {
-            'fields': ('phone', 'employee_id', 'company', 'branch', 'max_discount_percentage')
+            'fields': ('phone', 'company', 'branch', 'max_discount_percentage')
         }),
     )
 
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         (_('معلومات إضافية'), {
-            'fields': ('phone', 'employee_id', 'company', 'branch')
+            'fields': ('phone', 'company', 'branch')
         }),
     )
 
     list_display = ['username', 'email', 'first_name', 'last_name', 'company', 'branch', 'is_active']
     list_filter = BaseUserAdmin.list_filter + ('company', 'branch')
-    search_fields = ['username', 'first_name', 'last_name', 'email', 'phone', 'employee_id']
+    search_fields = ['username', 'first_name', 'last_name', 'email', 'phone']
 
 
 @admin.register(Company)
@@ -110,7 +111,6 @@ class UserProfileAdmin(admin.ModelAdmin):
             'fields': ('max_discount_percentage', 'max_credit_limit')
         }),
         (_('قيود الفروع'), {
-            'fields': ('allowed_branches',),
-            'help_text': _('اتركه فارغاً للسماح بكل الفروع')
+            'fields': ('allowed_branches',)
         }),
     )

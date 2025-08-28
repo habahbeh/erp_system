@@ -1,0 +1,156 @@
+<!-- apps/base_data/templates/base_data/warehouses/partials/warehouse_card.html -->
+{% load i18n humanize %}
+
+<div class="card warehouse-card h-100" data-warehouse-id="{{ warehouse.pk }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            {% if warehouse.warehouse_type == 'main' %}
+                <i class="fas fa-building text-primary me-2"></i>
+            {% elif warehouse.warehouse_type == 'branch' %}
+                <i class="fas fa-store text-success me-2"></i>
+            {% elif warehouse.warehouse_type == 'virtual' %}
+                <i class="fas fa-cloud text-warning me-2"></i>
+            {% else %}
+                <i class="fas fa-warehouse text-info me-2"></i>
+            {% endif %}
+            <div>
+                <h6 class="mb-0">
+                    <a href="{% url 'base_data:warehouse_detail' warehouse.pk %}" class="text-decoration-none">
+                        {{ warehouse.name }}
+                    </a>
+                </h6>
+                <small class="text-muted">{{ warehouse.code|default:"-" }}</small>
+            </div>
+        </div>
+
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                    data-bs-toggle="dropdown">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{% url 'base_data:warehouse_detail' warehouse.pk %}">
+                    <i class="fas fa-eye me-1"></i>{% trans "عرض" %}</a></li>
+                {% if perms.base_data.view_warehouse %}
+                <li><a class="dropdown-item" href="{% url 'base_data:warehouse_inventory' warehouse.pk %}">
+                    <i class="fas fa-boxes me-1"></i>{% trans "المخزون" %}</a></li>
+                <li><a class="dropdown-item" href="{% url 'base_data:warehouse_movements' warehouse.pk %}">
+                    <i class="fas fa-exchange-alt me-1"></i>{% trans "الحركات" %}</a></li>
+                {% endif %}
+                {% if perms.base_data.change_warehouse %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'base_data:warehouse_update' warehouse.pk %}">
+                    <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <!-- الحالة والنوع -->
+        <div class="mb-3">
+            {% if warehouse.is_active %}
+                <span class="badge bg-success me-1">
+                    <i class="fas fa-check-circle me-1"></i>{% trans "نشط" %}
+                </span>
+            {% else %}
+                <span class="badge bg-secondary me-1">
+                    <i class="fas fa-pause-circle me-1"></i>{% trans "غير نشط" %}
+                </span>
+            {% endif %}
+
+            <span class="badge {% if warehouse.warehouse_type == 'main' %}bg-primary{% elif warehouse.warehouse_type == 'branch' %}bg-success{% elif warehouse.warehouse_type == 'virtual' %}bg-warning{% else %}bg-info{% endif %}">
+                {{ warehouse.get_warehouse_type_display }}
+            </span>
+        </div>
+
+        <!-- المعلومات الأساسية -->
+        {% if warehouse.city or warehouse.keeper %}
+        <div class="mb-3">
+            {% if warehouse.city %}
+                <div class="text-muted mb-1">
+                    <i class="fas fa-map-marker-alt me-1"></i>{{ warehouse.city }}
+                    {% if warehouse.region %}, {{ warehouse.region }}{% endif %}
+                </div>
+            {% endif %}
+
+            {% if warehouse.keeper %}
+                <div class="text-muted">
+                    <i class="fas fa-user me-1"></i>{{ warehouse.keeper.get_full_name }}
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- الإحصائيات -->
+        <div class="row text-center">
+            <div class="col-4">
+                <div class="stat-item">
+                    <h5 class="text-primary mb-0">{{ warehouse.items.count|intcomma }}</h5>
+                    <small class="text-muted">{% trans "الأصناف" %}</small>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-item">
+                    <h5 class="text-success mb-0">{{ warehouse.total_quantity|floatformat:0|intcomma|default:"0" }}</h5>
+                    <small class="text-muted">{% trans "الكمية" %}</small>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-item">
+                    <h5 class="text-info mb-0">{{ warehouse.total_value|floatformat:0|intcomma|default:"0" }}</h5>
+                    <small class="text-muted">{% trans "القيمة" %}</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- المواصفات التقنية -->
+        {% if warehouse.capacity or warehouse.climate_controlled %}
+        <hr>
+        <div class="row">
+            {% if warehouse.capacity %}
+            <div class="col-6">
+                <small class="text-muted">{% trans "السعة" %}</small>
+                <div class="fw-bold">{{ warehouse.capacity|floatformat:0 }} {% trans "م³" %}</div>
+            </div>
+            {% endif %}
+
+            {% if warehouse.climate_controlled %}
+            <div class="col-6">
+                <small class="text-muted">{% trans "التحكم بالمناخ" %}</small>
+                <div>
+                    <i class="fas fa-thermometer-half text-info"></i>
+                    <span class="fw-bold text-success">{% trans "مفعل" %}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- التنبيهات -->
+        {% if warehouse.low_stock_alerts > 0 %}
+        <div class="alert alert-warning py-2 mt-3">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            {{ warehouse.low_stock_alerts }} {% trans "تنبيه مخزون منخفض" %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card-footer bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                {% trans "آخر تحديث" %}: {{ warehouse.updated_at|date:"d/m/Y" }}
+            </small>
+            <div class="btn-group btn-group-sm">
+                <a href="{% url 'base_data:warehouse_inventory' warehouse.pk %}"
+                   class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-boxes"></i>
+                </a>
+                <a href="{% url 'base_data:warehouse_movements' warehouse.pk %}"
+                   class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-exchange-alt"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

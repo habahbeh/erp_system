@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
 from django.db import transaction
 from decimal import Decimal
+from django.views import View
 
 from ..models import Warehouse, WarehouseItem, UnitOfMeasure, Item
 from ..forms import (
@@ -22,8 +23,8 @@ from ..forms import (
     WarehouseTransferForm, WarehouseQuickAddForm, UnitQuickAddForm,
     InventoryAdjustmentForm, StockReportForm
 )
-from core.mixins import CompanyMixin, AjaxResponseMixin
-from core.utils import generate_code
+from apps.core.mixins import CompanyMixin, AjaxResponseMixin
+from apps.core.utils import generate_code
 
 
 class WarehouseListView(LoginRequiredMixin, CompanyMixin, ListView):
@@ -67,7 +68,7 @@ class WarehouseListView(LoginRequiredMixin, CompanyMixin, ListView):
             'filter_form': self.filter_form,
             'page_title': _('المستودعات'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('المستودعات'), 'active': True}
             ],
@@ -98,7 +99,7 @@ class WarehouseCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMi
         context.update({
             'page_title': _('إضافة مستودع جديد'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المستودعات'), 'url': reverse('base_data:warehouse_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -147,7 +148,7 @@ class WarehouseUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMi
         context.update({
             'page_title': _('تعديل المستودع: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المستودعات'), 'url': reverse('base_data:warehouse_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -200,7 +201,7 @@ class WarehouseDetailView(LoginRequiredMixin, CompanyMixin, DetailView):
         context.update({
             'page_title': self.object.name,
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المستودعات'), 'url': reverse('base_data:warehouse_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -262,7 +263,7 @@ class WarehouseInventoryView(LoginRequiredMixin, CompanyMixin, ListView):
             'warehouse': self.warehouse,
             'page_title': _('مخزون المستودع: %(name)s') % {'name': self.warehouse.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المستودعات'), 'url': reverse('base_data:warehouse_list')},
                 {'title': self.warehouse.name,
                  'url': reverse('base_data:warehouse_detail', kwargs={'pk': self.warehouse.pk})},
@@ -293,7 +294,7 @@ class WarehouseTransferView(LoginRequiredMixin, PermissionRequiredMixin, Company
         context.update({
             'page_title': _('تحويل بين المستودعات'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المستودعات'), 'url': reverse('base_data:warehouse_list')},
                 {'title': _('التحويلات'), 'active': True}
             ],
@@ -391,7 +392,7 @@ class UnitOfMeasureListView(LoginRequiredMixin, CompanyMixin, ListView):
         context.update({
             'page_title': _('وحدات القياس'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('وحدات القياس'), 'active': True}
             ],
@@ -422,7 +423,7 @@ class UnitOfMeasureCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         context.update({
             'page_title': _('إضافة وحدة قياس جديدة'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('وحدات القياس'), 'url': reverse('base_data:unit_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -468,7 +469,7 @@ class UnitOfMeasureUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         context.update({
             'page_title': _('تعديل وحدة القياس: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('وحدات القياس'), 'url': reverse('base_data:unit_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -489,7 +490,7 @@ class UnitOfMeasureUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
 
 # AJAX Views
-class WarehouseSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class WarehouseSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بحث المستودعات للـ Select2"""
 
     def get(self, request):
@@ -532,7 +533,7 @@ class WarehouseSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
         })
 
 
-class UnitSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class UnitSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بحث وحدات القياس للـ Select2"""
 
     def get(self, request):
@@ -577,4 +578,323 @@ class UnitSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
             'pagination': {
                 'more': start + page_size < total_count
             }
+        })
+
+# إضافة هذه Views في نهاية الملف:
+
+class UnitOfMeasureDetailView(LoginRequiredMixin, CompanyMixin, DetailView):
+    """عرض تفاصيل وحدة القياس"""
+    model = UnitOfMeasure
+    template_name = 'base_data/units/detail.html'
+    context_object_name = 'unit'
+
+    def get_queryset(self):
+        return UnitOfMeasure.objects.filter(
+            company=self.request.user.company
+        ).select_related('created_by', 'updated_by')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إحصائيات الاستخدام
+        stats = {
+            'items_count': Item.objects.filter(unit=self.object, company=self.request.user.company).count(),
+            'conversions_count': ItemConversion.objects.filter(
+                Q(from_unit=self.object) | Q(to_unit=self.object),
+                item__company=self.request.user.company
+            ).count(),
+            'components_count': ItemComponent.objects.filter(
+                unit=self.object,
+                parent_item__company=self.request.user.company
+            ).count(),
+        }
+
+        # الأصناف المرتبطة (أول 10)
+        related_items = Item.objects.filter(
+            unit=self.object,
+            company=self.request.user.company
+        ).select_related('category')[:10]
+
+        context.update({
+            'stats': stats,
+            'related_items': related_items,
+            'can_change': self.request.user.has_perm('base_data.change_unitofmeasure'),
+            'can_delete': self.request.user.has_perm('base_data.delete_unitofmeasure'),
+        })
+        return context
+
+
+class UnitOfMeasureDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
+    """حذف وحدة قياس"""
+    model = UnitOfMeasure
+    template_name = 'base_data/units/delete.html'
+    permission_required = 'base_data.delete_unitofmeasure'
+    success_url = reverse_lazy('base_data:unit_list')
+    context_object_name = 'unit'
+
+    def get_queryset(self):
+        return UnitOfMeasure.objects.filter(company=self.request.user.company)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # فحص الاستخدامات
+        usage_count = {
+            'items': Item.objects.filter(unit=self.object, company=self.request.user.company).count(),
+            'conversions': ItemConversion.objects.filter(
+                Q(from_unit=self.object) | Q(to_unit=self.object),
+                item__company=self.request.user.company
+            ).count(),
+            'components': ItemComponent.objects.filter(
+                unit=self.object,
+                parent_item__company=self.request.user.company
+            ).count(),
+        }
+
+        context.update({
+            'usage_count': usage_count,
+            'can_delete': sum(usage_count.values()) == 0,
+        })
+        return context
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # فحص إمكانية الحذف
+        if Item.objects.filter(unit=self.object, company=request.user.company).exists():
+            messages.error(
+                request,
+                _('لا يمكن حذف وحدة القياس "%(name)s" لأنها مستخدمة في أصناف') % {
+                    'name': self.object.name
+                }
+            )
+            return redirect('base_data:unit_detail', pk=self.object.pk)
+
+        name = self.object.name
+        self.object.delete()
+
+        messages.success(
+            request,
+            _('تم حذف وحدة القياس "%(name)s" بنجاح') % {'name': name}
+        )
+        return redirect(self.success_url)
+
+
+class UnitQuickAddView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, CreateView):
+    """إضافة سريعة لوحدة القياس عبر AJAX"""
+    model = UnitOfMeasure
+    form_class = UnitQuickAddForm
+    template_name = 'base_data/units/quick_add.html'
+    permission_required = 'base_data.add_unitofmeasure'
+
+    def form_valid(self, form):
+        form.instance.company = self.request.user.company
+        form.instance.created_by = self.request.user
+
+        if not form.instance.code:
+            form.instance.code = generate_code('UNIT', self.request.user.company)
+
+        self.object = form.save()
+
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': _('تم إنشاء وحدة القياس بنجاح'),
+                'unit': {
+                    'id': self.object.pk,
+                    'code': self.object.code,
+                    'name': self.object.name,
+                    'name_en': self.object.name_en or '',
+                }
+            })
+
+        messages.success(self.request, _('تم إنشاء وحدة القياس بنجاح'))
+        return redirect('base_data:unit_list')
+
+    def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'message': _('يرجى تصحيح الأخطاء'),
+                'errors': form.errors
+            })
+        return super().form_invalid(form)
+
+
+class UnitToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
+    """تفعيل/إلغاء تفعيل وحدة القياس"""
+    permission_required = 'base_data.change_unitofmeasure'
+
+    def post(self, request, pk):
+        unit = get_object_or_404(UnitOfMeasure, pk=pk, company=request.user.company)
+
+        unit.is_active = not unit.is_active
+        unit.updated_by = request.user
+        unit.save()
+
+        status_text = _('نشط') if unit.is_active else _('غير نشط')
+        message = _('تم تغيير حالة وحدة القياس "%(name)s" إلى %(status)s') % {
+            'name': unit.name,
+            'status': status_text
+        }
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': message,
+                'is_active': unit.is_active,
+                'status_text': status_text
+            })
+
+        messages.success(request, message)
+        return redirect('base_data:unit_list')
+
+
+class UnitDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
+    """بيانات وحدات القياس لـ DataTables"""
+
+    def get(self, request):
+        draw = int(request.GET.get('draw', 0))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '')
+        status = request.GET.get('status', '')
+
+        # بناء الاستعلام
+        queryset = UnitOfMeasure.objects.filter(
+            company=request.user.company
+        ).annotate(
+            items_count=Count('item', filter=Q(item__company=request.user.company))
+        )
+
+        # البحث
+        if search_value:
+            queryset = queryset.filter(
+                Q(code__icontains=search_value) |
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value)
+            )
+
+        # فلتر الحالة
+        if status == '1':
+            queryset = queryset.filter(is_active=True)
+        elif status == '0':
+            queryset = queryset.filter(is_active=False)
+
+        total_count = UnitOfMeasure.objects.filter(company=request.user.company).count()
+        filtered_count = queryset.count()
+
+        # الترتيب والتقسيم
+        queryset = queryset.order_by('name')[start:start + length]
+
+        # تحضير البيانات
+        data = []
+        for unit in queryset:
+            data.append({
+                'id': unit.pk,
+                'code': unit.code or '',
+                'name': unit.name,
+                'name_en': unit.name_en or '',
+                'items_count': unit.items_count,
+                'is_active': unit.is_active,
+                'created_at': unit.created_at.strftime('%Y-%m-%d'),
+                'actions': self._get_actions_html(unit, request)
+            })
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': total_count,
+            'recordsFiltered': filtered_count,
+            'data': data
+        })
+
+    def _get_actions_html(self, unit, request):
+        """HTML أزرار الإجراءات"""
+        actions = []
+
+        if request.user.has_perm('base_data.view_unitofmeasure'):
+            actions.append(f'''
+                <a href="{reverse('base_data:unit_detail', kwargs={'pk': unit.pk})}" 
+                   class="btn btn-sm btn-light-primary" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            ''')
+
+        if request.user.has_perm('base_data.change_unitofmeasure'):
+            actions.append(f'''
+                <a href="{reverse('base_data:unit_update', kwargs={'pk': unit.pk})}" 
+                   class="btn btn-sm btn-light-warning" title="{_('تعديل')}">
+                    <i class="fas fa-edit"></i>
+                </a>
+            ''')
+
+            active_class = 'btn-success' if unit.is_active else 'btn-secondary'
+            active_icon = 'fa-toggle-on' if unit.is_active else 'fa-toggle-off'
+            active_title = _('إلغاء التفعيل') if unit.is_active else _('تفعيل')
+
+            actions.append(f'''
+                <button onclick="toggleUnitStatus({unit.pk})" 
+                        class="btn btn-sm {active_class}" title="{active_title}">
+                    <i class="fas {active_icon}"></i>
+                </button>
+            ''')
+
+        return ''.join(actions)
+
+
+class UnitBulkActionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
+    """إجراءات مجمعة على وحدات القياس"""
+    permission_required = 'base_data.change_unitofmeasure'
+
+    def post(self, request):
+        action = request.POST.get('action')
+        ids = request.POST.getlist('ids')
+
+        if not action or not ids:
+            return JsonResponse({
+                'success': False,
+                'message': _('لم يتم تحديد إجراء أو عناصر')
+            })
+
+        units = UnitOfMeasure.objects.filter(
+            pk__in=ids,
+            company=request.user.company
+        )
+
+        if action == 'activate':
+            units.update(is_active=True, updated_by=request.user)
+            message = _('تم تفعيل %(count)s وحدة قياس') % {'count': len(ids)}
+
+        elif action == 'deactivate':
+            units.update(is_active=False, updated_by=request.user)
+            message = _('تم إلغاء تفعيل %(count)s وحدة قياس') % {'count': len(ids)}
+
+        elif action == 'delete':
+            # فحص الاستخدام قبل الحذف
+            used_units = []
+            for unit in units:
+                if Item.objects.filter(unit=unit, company=request.user.company).exists():
+                    used_units.append(unit.name)
+
+            if used_units:
+                return JsonResponse({
+                    'success': False,
+                    'message': _('لا يمكن حذف الوحدات المستخدمة: %(units)s') % {
+                        'units': ', '.join(used_units)
+                    }
+                })
+
+            count = units.count()
+            units.delete()
+            message = _('تم حذف %(count)s وحدة قياس') % {'count': count}
+
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': _('إجراء غير صحيح')
+            })
+
+        return JsonResponse({
+            'success': True,
+            'message': message
         })

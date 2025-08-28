@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
 from ..models import BusinessPartner
-from core.models import User
+from apps.core.models import User
 
 
 class BusinessPartnerForm(forms.ModelForm):

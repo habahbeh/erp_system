@@ -54,6 +54,12 @@ from .warehouse_views import (
     UnitOfMeasureUpdateView,
     WarehouseSelectView,
     UnitSelectView,
+    UnitOfMeasureDetailView,
+    UnitOfMeasureDeleteView,
+    UnitQuickAddView,
+    UnitToggleActiveView,
+    UnitDataTableView,
+    UnitBulkActionView,
 )
 
 # Category Views
@@ -159,6 +165,12 @@ __all__ = [
     'UnitOfMeasureUpdateView',
     'WarehouseSelectView',
     'UnitSelectView',
+    'UnitOfMeasureDetailView',
+    'UnitOfMeasureDeleteView',
+    'UnitQuickAddView',
+    'UnitToggleActiveView',
+    'UnitDataTableView',
+    'UnitBulkActionView',
 
     # Categories
     'ItemCategoryListView',

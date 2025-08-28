@@ -1,0 +1,412 @@
+<!-- apps/base_data/templates/base_data/partners/delete.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n humanize %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:partner_list' %}">{% trans "الشركاء التجاريون" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:partner_detail' partner.pk %}">{{ partner.name }}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "حذف" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-danger text-white">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {% trans "حذف الشريك" %}: {{ partner.name }}
+        </h5>
+        <div class="btn-group">
+            <a href="{% url 'base_data:partner_detail' partner.pk %}" class="btn btn-light btn-sm">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- معلومات الشريك -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "معلومات الشريك المراد حذفه" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>{% trans "الكود" %}:</strong> {{ partner.code|default:"-" }}</p>
+                        <p><strong>{% trans "الاسم" %}:</strong> {{ partner.name }}</p>
+                        <p><strong>{% trans "نوع الشريك" %}:</strong>
+                            <span class="badge {% if partner.partner_type == 'customer' %}bg-primary{% elif partner.partner_type == 'supplier' %}bg-success{% else %}bg-info{% endif %}">
+                                {{ partner.get_partner_type_display }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>{% trans "الهاتف" %}:</strong> {{ partner.phone|default:"-" }}</p>
+                        <p><strong>{% trans "البريد الإلكتروني" %}:</strong> {{ partner.email|default:"-" }}</p>
+                        <p><strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ partner.created_at|date:"d/m/Y" }}</p>
+                    </div>
+                </div>
+
+                {% if partner.address %}
+                <div class="mt-3">
+                    <p><strong>{% trans "العنوان" %}:</strong></p>
+                    <div class="border rounded p-2 bg-light">
+                        {{ partner.address|linebreaks }}
+                        {% if partner.city %}<span class="badge bg-info">{{ partner.city }}</span>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- فحص الاستخدامات -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-search me-2"></i>{% trans "فحص الاستخدامات" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>{% trans "فواتير المبيعات" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if usage_count.sales_invoices > 0 %}danger{% else %}success{% endif %}">
+                                        {{ usage_count.sales_invoices|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if usage_count.sales_invoices > 0 %}
+                                        <small class="text-danger">{% trans "يجب حذف الفواتير أولاً" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا يوجد فواتير مرتبطة" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{% trans "فواتير المشتريات" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if usage_count.purchase_invoices > 0 %}danger{% else %}success{% endif %}">
+                                        {{ usage_count.purchase_invoices|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if usage_count.purchase_invoices > 0 %}
+                                        <small class="text-danger">{% trans "يجب حذف الفواتير أولاً" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا يوجد فواتير مرتبطة" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{% trans "المعاملات المحاسبية" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if usage_count.transactions > 0 %}danger{% else %}success{% endif %}">
+                                        {{ usage_count.transactions|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if usage_count.transactions > 0 %}
+                                        <small class="text-danger">{% trans "يجب حذف القيود أولاً" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا يوجد قيود مرتبطة" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr class="table-{% if can_delete %}success{% else %}danger{% endif %}">
+                                <td><strong>{% trans "إجمالي الاستخدامات" %}</strong></td>
+                                <td>
+                                    <strong>
+                                        <span class="badge bg-{% if can_delete %}success{% else %}danger{% endif %}">
+                                            {{ usage_count.sales_invoices|add:usage_count.purchase_invoices|add:usage_count.transactions|intcomma }}
+                                        </span>
+                                    </strong>
+                                </td>
+                                <td>
+                                    {% if can_delete %}
+                                        <strong class="text-success">{% trans "يمكن الحذف بأمان" %}</strong>
+                                    {% else %}
+                                        <strong class="text-danger">{% trans "لا يمكن الحذف" %}</strong>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if not can_delete %}
+                <div class="alert alert-danger mt-3">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تحذير!" %}
+                    </h6>
+                    <p class="mb-0">
+                        {% trans "لا يمكن حذف هذا الشريك لأنه مستخدم في معاملات أخرى. يجب حذف جميع المعاملات المرتبطة أولاً أو يمكنك إلغاء تفعيل الشريك بدلاً من حذفه." %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- الرصيد والمعلومات المالية -->
+        {% if partner.credit_limit > 0 or usage_count.transactions > 0 %}
+        <div class="card mb-4">
+            <div class="card-header bg-warning">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-money-bill-wave me-2"></i>{% trans "المعلومات المالية" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>{% trans "حد الائتمان" %}:</strong>
+                            {{ partner.credit_limit|floatformat:2|intcomma }} {% trans "ريال" %}
+                        </p>
+                        <p><strong>{% trans "فترة الائتمان" %}:</strong>
+                            {{ partner.credit_period }} {% trans "يوم" %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>{% trans "الرصيد الحالي" %}:</strong>
+                            <span class="fw-bold text-danger">
+                                <!-- يمكن حساب الرصيد من النظام المحاسبي -->
+                                0.00 {% trans "ريال" %}
+                            </span>
+                        </p>
+                        <p><strong>{% trans "آخر معاملة" %}:</strong>
+                            <span class="text-muted">{% trans "غير محدد" %}</span>
+                        </p>
+                    </div>
+                </div>
+
+                {% if partner.credit_limit > 0 %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>
+                    {% trans "الشريك له حد ائتماني. تأكد من تسوية جميع المعاملات المالية قبل الحذف." %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <!-- تحذيرات -->
+        <div class="card border-danger mb-4">
+            <div class="card-header bg-danger text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تحذير مهم" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">{% trans "انتبه!" %}</h6>
+                    <p class="mb-0">
+                        {% trans "حذف هذا الشريك سيؤدي إلى:" %}
+                    </p>
+                    <ul class="mt-2 mb-0">
+                        <li>{% trans "فقدان جميع بيانات الاتصال" %}</li>
+                        <li>{% trans "فقدان السجل التاريخي للمعاملات" %}</li>
+                        <li>{% trans "تأثير على التقارير والإحصائيات" %}</li>
+                        <li>{% trans "لا يمكن التراجع عن هذا الإجراء" %}</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">{% trans "بديل آمن" %}</h6>
+                    <p class="mb-2">
+                        {% trans "بدلاً من الحذف، يمكنك:" %}
+                    </p>
+                    <ul class="mb-0">
+                        <li>{% trans "إلغاء تفعيل الشريك" %}</li>
+                        <li>{% trans "أرشفة البيانات" %}</li>
+                        <li>{% trans "إضافة ملاحظة بعدم التعامل" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "معلومات إضافية" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "نوع الشريك" %}</span>
+                        <strong>{{ partner.get_partner_type_display }}</strong>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "نوع الحساب" %}</span>
+                        <strong>{{ partner.get_account_type_display }}</strong>
+                    </div>
+                </div>
+                {% if partner.salesperson %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "مندوب المبيعات" %}</span>
+                        <strong>{{ partner.salesperson.get_full_name }}</strong>
+                    </div>
+                </div>
+                {% endif %}
+                <div>
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "تاريخ الإنشاء" %}</span>
+                        <strong>{{ partner.created_at|date:"d/m/Y" }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- بدائل الحذف -->
+        {% if not can_delete %}
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>{% trans "بدائل مقترحة" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'base_data:partner_update' partner.pk %}" class="btn btn-warning btn-sm">
+                        <i class="fas fa-eye-slash me-1"></i>{% trans "إلغاء تفعيل" %}
+                    </a>
+                    <a href="{% url 'base_data:partner_update' partner.pk %}" class="btn btn-info btn-sm">
+                        <i class="fas fa-edit me-1"></i>{% trans "تعديل البيانات" %}
+                    </a>
+                    <a href="{% url 'base_data:partner_statement' partner.pk %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-file-invoice me-1"></i>{% trans "كشف الحساب" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- أزرار الإجراءات -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'base_data:partner_detail' partner.pk %}" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+            </a>
+
+            {% if can_delete %}
+            <form method="post" class="d-inline" id="delete-form">
+                {% csrf_token %}
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}
+                </button>
+            </form>
+            {% else %}
+            <a href="{% url 'base_data:partner_update' partner.pk %}" class="btn btn-warning">
+                <i class="fas fa-eye-slash me-1"></i>{% trans "إلغاء تفعيل بدلاً" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal التأكيد -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تأكيد الحذف النهائي" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-user-slash text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد تماماً؟" %}</h6>
+                <p class="text-center">
+                    {% trans "ستقوم بحذف الشريك" %} <strong>"{{ partner.name }}"</strong> {% trans "نهائياً." %}
+                </p>
+                <p class="text-center text-muted">
+                    {% trans "لا يمكن التراجع عن هذا الإجراء!" %}
+                </p>
+
+                <div class="form-group mt-3">
+                    <label class="form-label">
+                        {% trans "اكتب اسم الشريك للتأكيد" %}: <code>{{ partner.name }}</code>
+                    </label>
+                    <input type="text" class="form-control" id="confirmation-input"
+                           placeholder="{% trans 'اكتب اسم الشريك هنا' %}">
+                </div>
+
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="understand-consequences">
+                    <label class="form-check-label" for="understand-consequences">
+                        {% trans "أفهم أن هذا الإجراء لا يمكن التراجع عنه" %}
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-danger" id="final-delete-btn" disabled>
+                    <i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete() {
+    $('#confirmDeleteModal').modal('show');
+}
+
+// تفعيل زر الحذف عند استيفاء الشروط
+function checkDeleteConditions() {
+    const inputValue = $('#confirmation-input').val().trim();
+    const partnerName = '{{ partner.name }}';
+    const understandChecked = $('#understand-consequences').is(':checked');
+
+    if (inputValue === partnerName && understandChecked) {
+        $('#final-delete-btn').prop('disabled', false);
+    } else {
+        $('#final-delete-btn').prop('disabled', true);
+    }
+}
+
+$('#confirmation-input').on('input', checkDeleteConditions);
+$('#understand-consequences').on('change', checkDeleteConditions);
+
+// تنفيذ الحذف النهائي
+$('#final-delete-btn').on('click', function() {
+    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الحذف..." %}');
+    showLoading();
+    $('#delete-form').submit();
+});
+
+// إعادة تعيين النموذج عند إغلاق المودال
+$('#confirmDeleteModal').on('hidden.bs.modal', function() {
+    $('#confirmation-input').val('');
+    $('#understand-consequences').prop('checked', false);
+    $('#final-delete-btn').prop('disabled', true).html('<i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,352 @@
+<!-- apps/base_data/templates/base_data/units/detail.html -->
+{% extends 'base_data/base/detail_base.html' %}
+{% load i18n %}
+
+{% block detail_icon %}<i class="fas fa-balance-scale me-2"></i>{% endblock %}
+{% block detail_title %}{{ unit.name }}{% endblock %}
+
+{% block status_badge %}
+{% if unit.is_active %}
+<span class="badge bg-success status-badge">{% trans "نشط" %}</span>
+{% else %}
+<span class="badge bg-secondary status-badge">{% trans "غير نشط" %}</span>
+{% endif %}
+{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:unit_list' %}">{% trans "وحدات القياس" %}</a>
+</li>
+<li class="breadcrumb-item active">{{ unit.name }}</li>
+{% endblock %}
+
+{% block edit_url %}{% url 'base_data:unit_update' unit.pk %}{% endblock %}
+{% block delete_url %}{% url 'base_data:unit_delete' unit.pk %}{% endblock %}
+{% block list_url %}{% url 'base_data:unit_list' %}{% endblock %}
+
+{% block change_permission %}base_data.change_unitofmeasure{% endblock %}
+{% block delete_permission %}base_data.delete_unitofmeasure{% endblock %}
+
+{% block basic_info %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الكود" %}</div>
+            <div class="detail-value">
+                {% if unit.code %}
+                    <code class="bg-light px-2 py-1 rounded">{{ unit.code }}</code>
+                {% else %}
+                    <span class="text-muted">{% trans "غير محدد" %}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الاسم" %}</div>
+            <div class="detail-value">
+                <strong>{{ unit.name }}</strong>
+            </div>
+        </div>
+
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الاسم الإنجليزي" %}</div>
+            <div class="detail-value">
+                {% if unit.name_en %}
+                    {{ unit.name_en }}
+                {% else %}
+                    <span class="text-muted">{% trans "غير محدد" %}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الحالة" %}</div>
+            <div class="detail-value">
+                {% if unit.is_active %}
+                    <span class="badge bg-success">
+                        <i class="fas fa-check me-1"></i>{% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-pause me-1"></i>{% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الشركة" %}</div>
+            <div class="detail-value">{{ unit.company.name }}</div>
+        </div>
+
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الفرع" %}</div>
+            <div class="detail-value">
+                {% if unit.branch %}
+                    {{ unit.branch.name }}
+                {% else %}
+                    <span class="text-muted">{% trans "جميع الفروع" %}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block statistics %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-chart-bar me-2"></i>{% trans "إحصائيات الاستخدام" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-4">
+                <div class="border-end">
+                    <h3 class="text-primary mb-1">{{ stats.items_count|default:0 }}</h3>
+                    <p class="text-muted mb-0 small">{% trans "صنف" %}</p>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="border-end">
+                    <h3 class="text-success mb-1">{{ stats.conversions_count|default:0 }}</h3>
+                    <p class="text-muted mb-0 small">{% trans "معدل تحويل" %}</p>
+                </div>
+            </div>
+            <div class="col-4">
+                <h3 class="text-info mb-1">{{ stats.components_count|default:0 }}</h3>
+                <p class="text-muted mb-0 small">{% trans "مكون" %}</p>
+            </div>
+        </div>
+
+        {% if stats.items_count > 0 %}
+        <hr>
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                {% trans "الوحدة مستخدمة بشكل نشط" %}
+            </small>
+            <a href="{% url 'base_data:item_list' %}?unit={{ unit.pk }}"
+               class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-boxes me-1"></i>{% trans "عرض الأصناف" %}
+            </a>
+        </div>
+        {% else %}
+        <hr>
+        <div class="alert alert-warning mb-0">
+            <small>
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                {% trans "الوحدة غير مستخدمة في أي صنف حالياً" %}
+            </small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block related_items %}
+{% if can_change %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-cogs me-2"></i>{% trans "الإجراءات السريعة" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleUnitStatus()">
+                {% if unit.is_active %}
+                    <i class="fas fa-pause me-1"></i>{% trans "إلغاء التفعيل" %}
+                {% else %}
+                    <i class="fas fa-play me-1"></i>{% trans "تفعيل" %}
+                {% endif %}
+            </button>
+
+            <a href="{% url 'base_data:unit_create' %}" class="btn btn-outline-success btn-sm">
+                <i class="fas fa-copy me-1"></i>{% trans "إنشاء وحدة مشابهة" %}
+            </a>
+
+            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
+                <i class="fas fa-download me-1"></i>{% trans "تصدير البيانات" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block related_tables %}
+{% if stats.items_count > 0 %}
+<div class="card detail-card">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-boxes me-2"></i>{% trans "الأصناف المرتبطة" %}
+            <span class="badge bg-primary">{{ stats.items_count }}</span>
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover" id="related-items-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الكود" %}</th>
+                        <th>{% trans "الاسم" %}</th>
+                        <th>{% trans "التصنيف" %}</th>
+                        <th>{% trans "سعر البيع" %}</th>
+                        <th>{% trans "الحالة" %}</th>
+                        <th>{% trans "الإجراءات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in related_items %}
+                    <tr>
+                        <td><code>{{ item.code }}</code></td>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.category.name|default:"-" }}</td>
+                        <td>{{ item.sale_price|default:0 }} {% trans "ر.س" %}</td>
+                        <td>
+                            {% if item.is_active and not item.is_inactive %}
+                                <span class="badge bg-success">{% trans "نشط" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'base_data:item_detail' item.pk %}"
+                               class="btn btn-sm btn-light-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            {% trans "لا توجد أصناف مرتبطة" %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block action_modals %}
+{{ block.super }}
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-download me-2"></i>{% trans "تصدير بيانات الوحدة" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">{% trans "تصدير" %}</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="export-unit" checked>
+                        <label class="form-check-label" for="export-unit">
+                            {% trans "بيانات الوحدة" %}
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="export-items">
+                        <label class="form-check-label" for="export-items">
+                            {% trans "الأصناف المرتبطة" %} ({{ stats.items_count }})
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">{% trans "الصيغة" %}</label>
+                    <select class="form-select" id="export-format">
+                        <option value="excel">Excel (XLSX)</option>
+                        <option value="csv">CSV</option>
+                        <option value="pdf">PDF</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="exportData()">
+                    <i class="fas fa-download me-1"></i>{% trans "تصدير" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block detail_custom_js %}
+// تفعيل/إلغاء تفعيل الوحدة
+function toggleUnitStatus() {
+    if (confirm('{% trans "هل أنت متأكد من تغيير حالة هذه الوحدة؟" %}')) {
+        showLoading();
+        $.ajax({
+            url: '{% url "base_data:unit_toggle_active" unit.pk %}',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                hideLoading();
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert(response.message || '{% trans "حدث خطأ" %}');
+                }
+            },
+            error: function() {
+                hideLoading();
+                alert('{% trans "حدث خطأ في الاتصال" %}');
+            }
+        });
+    }
+}
+
+// تصدير البيانات
+function exportData() {
+    var includeUnit = $('#export-unit').is(':checked');
+    var includeItems = $('#export-items').is(':checked');
+    var format = $('#export-format').val();
+
+    if (!includeUnit && !includeItems) {
+        alert('{% trans "يجب اختيار نوع البيانات للتصدير" %}');
+        return;
+    }
+
+    var params = new URLSearchParams({
+        'unit_id': {{ unit.pk }},
+        'include_unit': includeUnit,
+        'include_items': includeItems,
+        'format': format
+    });
+
+    window.open(`{% url 'base_data:unit_export' %}?${params}`, '_blank');
+    $('#exportModal').modal('hide');
+}
+
+// تهيئة جدول الأصناف المرتبطة
+{% if stats.items_count > 0 %}
+$('#related-items-table').DataTable({
+    pageLength: 5,
+    searching: false,
+    ordering: false,
+    info: false,
+    language: {
+        url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+    }
+});
+{% endif %}
+{% endblock %}

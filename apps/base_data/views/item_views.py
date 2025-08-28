@@ -15,14 +15,15 @@ from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.forms import inlineformset_factory
+from django.views import View
 
 from ..models import Item, ItemCategory, ItemConversion, ItemComponent, WarehouseItem
 from ..forms import (
     ItemForm, ItemFilterForm, ItemQuickAddForm, ItemConversionFormSet,
     ItemComponentFormSet, ItemImportForm
 )
-from core.mixins import CompanyMixin, AjaxResponseMixin
-from core.utils import generate_code
+from apps.core.mixins import CompanyMixin, AjaxResponseMixin
+from apps.core.utils import generate_code
 
 
 class ItemListView(LoginRequiredMixin, CompanyMixin, ListView):
@@ -55,7 +56,7 @@ class ItemListView(LoginRequiredMixin, CompanyMixin, ListView):
             'filter_form': self.filter_form,
             'page_title': _('الأصناف'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('الأصناف'), 'active': True}
             ],
@@ -109,7 +110,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         context.update({
             'page_title': _('إضافة صنف جديد'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -198,7 +199,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         context.update({
             'page_title': _('تعديل الصنف: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -265,7 +266,7 @@ class ItemDetailView(LoginRequiredMixin, CompanyMixin, DetailView):
         context.update({
             'page_title': self.object.name,
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -306,7 +307,7 @@ class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         context.update({
             'page_title': _('حذف الصنف: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': self.object.name, 'url': reverse('base_data:item_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('حذف'), 'active': True}
@@ -432,7 +433,7 @@ class ItemDuplicateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
         context.update({
             'page_title': _('تكرار الصنف: %(name)s') % {'name': original_item.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': original_item.name, 'url': reverse('base_data:item_detail', kwargs={'pk': original_item.pk})},
                 {'title': _('تكرار'), 'active': True}
@@ -456,7 +457,7 @@ class ItemDuplicateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
         return redirect('base_data:item_detail', pk=self.object.pk)
 
 
-class ItemToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class ItemToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """تفعيل/إلغاء تفعيل الصنف"""
     permission_required = 'base_data.change_item'
 
@@ -486,7 +487,7 @@ class ItemToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 
 
 # AJAX Views للـ DataTables
-class ItemDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class ItemDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بيانات الأصناف لـ DataTables"""
 
     def get(self, request):
@@ -590,7 +591,7 @@ class ItemDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
 
 
 # Views للبحث والتحديد
-class ItemSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class ItemSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بحث الأصناف للـ Select2"""
 
     def get(self, request):
@@ -657,7 +658,7 @@ class ItemStockView(LoginRequiredMixin, CompanyMixin, DetailView):
         context.update({
             'page_title': _('مخزون الصنف: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الأصناف'), 'url': reverse('base_data:item_list')},
                 {'title': self.object.name, 'url': reverse('base_data:item_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('المخزون'), 'active': True}

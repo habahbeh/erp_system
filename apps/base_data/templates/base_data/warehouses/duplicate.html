@@ -1,0 +1,229 @@
+<!-- apps/base_data/templates/base_data/warehouses/duplicate.html -->
+{% extends 'base_data/warehouses/create.html' %}
+{% load i18n %}
+
+{% block form_icon %}<i class="fas fa-copy me-2"></i>{% endblock %}
+{% block form_title %}{% trans "تكرار المستودع" %}: {{ original_warehouse.name }}{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_list' %}">{% trans "المستودعات" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_detail' original_warehouse.pk %}">{{ original_warehouse.name }}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "تكرار" %}</li>
+{% endblock %}
+
+{% block back_url %}{% url 'base_data:warehouse_detail' original_warehouse.pk %}{% endblock %}
+{% block cancel_url %}{% url 'base_data:warehouse_detail' original_warehouse.pk %}{% endblock %}
+
+{% block submit_text %}{% trans "إنشاء نسخة" %}{% endblock %}
+
+{% block form_content %}
+<!-- إشعار التكرار -->
+<div class="alert alert-info mb-4">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-info-circle me-3" style="font-size: 1.5rem;"></i>
+        <div>
+            <h6 class="alert-heading mb-1">{% trans "تكرار المستودع" %}</h6>
+            <p class="mb-0">
+                {% trans "سيتم إنشاء نسخة جديدة من المستودع" %} <strong>"{{ original_warehouse.name }}"</strong>
+                {% trans "مع جميع الإعدادات الأساسية. لن يتم نسخ المخزون الموجود." %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- معلومات المستودع الأصلي -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-warehouse me-2"></i>{% trans "المستودع الأصلي" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-1"><strong>{% trans "الكود" %}:</strong> {{ original_warehouse.code|default:"-" }}</p>
+                <p class="mb-1"><strong>{% trans "الاسم" %}:</strong> {{ original_warehouse.name }}</p>
+                <p class="mb-1"><strong>{% trans "النوع" %}:</strong>
+                    <span class="badge {% if original_warehouse.warehouse_type == 'main' %}bg-primary{% elif original_warehouse.warehouse_type == 'branch' %}bg-success{% else %}bg-info{% endif %}">
+                        {{ original_warehouse.get_warehouse_type_display }}
+                    </span>
+                </p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-1"><strong>{% trans "الموقع" %}:</strong> {{ original_warehouse.city|default:"-" }}</p>
+                <p class="mb-1"><strong>{% trans "أمين المستودع" %}:</strong>
+                    {% if original_warehouse.keeper %}
+                        {{ original_warehouse.keeper.get_full_name }}
+                    {% else %}
+                        <span class="text-muted">{% trans "غير محدد" %}</span>
+                    {% endif %}
+                </p>
+                <p class="mb-1"><strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ original_warehouse.created_at|date:"d/m/Y" }}</p>
+            </div>
+        </div>
+
+        {% if original_warehouse.capacity %}
+        <div class="mt-2">
+            <p class="mb-1"><strong>{% trans "السعة" %}:</strong> {{ original_warehouse.capacity|floatformat:0 }} {% trans "متر مكعب" %}</p>
+        </div>
+        {% endif %}
+
+        <div class="mt-2">
+            <a href="{% url 'base_data:warehouse_detail' original_warehouse.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i>{% trans "عرض المستودع الأصلي" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- خيارات التكرار -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-cog me-2"></i>{% trans "خيارات التكرار" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="copy-settings" checked>
+                    <label class="form-check-label" for="copy-settings">
+                        <strong>{% trans "نسخ الإعدادات التقنية" %}</strong>
+                        <br><small class="text-muted">{% trans "السعة، درجة الحرارة، إعدادات الأمان" %}</small>
+                    </label>
+                </div>
+
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="copy-accounts" checked>
+                    <label class="form-check-label" for="copy-accounts">
+                        <strong>{% trans "نسخ الحسابات المحاسبية" %}</strong>
+                        <br><small class="text-muted">{% trans "حساب المخزون ومركز التكلفة" %}</small>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="copy-keepers">
+                    <label class="form-check-label" for="copy-keepers">
+                        <strong>{% trans "نسخ أمناء المستودع" %}</strong>
+                        <br><small class="text-muted">{% trans "الأمين الرئيسي والاحتياطي" %}</small>
+                    </label>
+                </div>
+
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="generate-branch-code" checked>
+                    <label class="form-check-label" for="generate-branch-code">
+                        <strong>{% trans "توليد كود فرع تلقائياً" %}</strong>
+                        <br><small class="text-muted">{% trans "إضافة رقم تسلسلي للكود الأصلي" %}</small>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-warning">
+            <h6 class="alert-heading">
+                <i class="fas fa-exclamation-triangle me-1"></i>{% trans "ملاحظة مهمة" %}
+            </h6>
+            <p class="mb-0">
+                {% trans "لن يتم نسخ المخزون الموجود أو الحركات السابقة. المستودع الجديد سيبدأ بمخزون فارغ." %}
+            </p>
+        </div>
+    </div>
+</div>
+
+{{ block.super }}
+{% endblock %}
+
+{% block form_custom_js %}
+{{ block.super }}
+
+$(document).ready(function() {
+    // إضافة إشعار للكود المكرر
+    if ($('#id_code').val()) {
+        $('#id_code').after('<div class="form-text text-warning"><i class="fas fa-exclamation-triangle me-1"></i>{% trans "سيتم توليد كود جديد تلقائياً" %}</div>');
+
+        // إذا كان تفعيل توليد كود الفرع مفعل، مسح الكود
+        if($('#generate-branch-code').is(':checked')) {
+            $('#id_code').val('');
+        }
+    }
+
+    // إضافة ملاحظة للاسم
+    if ($('#id_name').val().includes('{% trans "نسخة" %}')) {
+        $('#id_name').after('<div class="form-text text-info">{% trans "يمكنك تعديل اسم النسخة الجديدة" %}</div>');
+    }
+
+    // تركيز على حقل الاسم
+    $('#id_name').focus().select();
+
+    // معالجة تفعيل/إلغاء تفعيل خيارات النسخ
+    $('#copy-settings').change(function() {
+        if(!$(this).is(':checked')) {
+            // مسح الإعدادات التقنية
+            $('#id_capacity, #id_max_weight, #id_temperature_min, #id_temperature_max').val('');
+            $('#id_climate_controlled, #id_allow_negative_stock, #id_requires_approval, #id_track_serial_numbers, #id_track_batches').prop('checked', false);
+        }
+    });
+
+    $('#copy-accounts').change(function() {
+        if(!$(this).is(':checked')) {
+            // مسح الحسابات المحاسبية
+            $('#id_inventory_account, #id_cost_center').val('');
+        }
+    });
+
+    $('#copy-keepers').change(function() {
+        if(!$(this).is(':checked')) {
+            // مسح أمناء المستودع
+            $('#id_keeper, #id_backup_keeper').val('');
+        }
+    });
+
+    $('#generate-branch-code').change(function() {
+        if($(this).is(':checked')) {
+            $('#id_code').val('');
+            $('#id_code').next('.form-text').show();
+        } else {
+            $('#id_code').val('{{ original_warehouse.code }}');
+            $('#id_code').next('.form-text').hide();
+        }
+    });
+
+    // تحديث نوع المستودع الافتراضي إلى فرع
+    if($('#id_warehouse_type').val() === 'main') {
+        $('#id_warehouse_type').val('branch');
+
+        // إضافة تنبيه
+        $('.card-body').first().prepend(`
+            <div class="alert alert-success duplicate-info-alert">
+                <i class="fas fa-info-circle me-1"></i>
+                {% trans "تم تغيير نوع المستودع إلى 'فرع' تلقائياً. يمكنك تعديله إذا كنت تريد نوعاً آخر." %}
+            </div>
+        `);
+    }
+});
+
+// إرسال خيارات التكرار مع النموذج
+$('form').on('submit', function() {
+    // إضافة حقول مخفية لخيارات النسخ
+    let copyOptions = {
+        copy_settings: $('#copy-settings').is(':checked'),
+        copy_accounts: $('#copy-accounts').is(':checked'),
+        copy_keepers: $('#copy-keepers').is(':checked'),
+        generate_branch_code: $('#generate-branch-code').is(':checked')
+    };
+
+    $.each(copyOptions, function(key, value) {
+        $('<input>').attr({
+            type: 'hidden',
+            name: key,
+            value: value
+        }).appendTo($(this));
+    });
+});
+{% endblock %}

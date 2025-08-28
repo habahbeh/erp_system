@@ -1,0 +1,188 @@
+<!-- apps/base_data/templates/base_data/items/partials/conversion_formset.html -->
+{% load i18n widget_tweaks %}
+
+<div class="card">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-exchange-alt me-2"></i>{% trans "معدلات التحويل" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div id="conversion-formset">
+            {{ conversion_formset.management_form }}
+
+            {% for form in conversion_formset %}
+            <div class="conversion-form border rounded p-3 mb-3" data-form-idx="{{ forloop.counter0 }}">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{{ form.from_unit.label }}</label>
+                            {{ form.from_unit|add_class:"form-select" }}
+                            {% if form.from_unit.errors %}
+                                <div class="invalid-feedback d-block">{{ form.from_unit.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{{ form.to_unit.label }}</label>
+                            {{ form.to_unit|add_class:"form-select" }}
+                            {% if form.to_unit.errors %}
+                                <div class="invalid-feedback d-block">{{ form.to_unit.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{{ form.factor.label }}</label>
+                            {{ form.factor|add_class:"form-control" }}
+                            {% if form.factor.errors %}
+                                <div class="invalid-feedback d-block">{{ form.factor.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-text">{% trans "1 (من وحدة) = ؟ (إلى وحدة)" %}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-1">
+                        <div class="form-group mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                {{ form.DELETE }}
+                                {% if form.DELETE %}
+                                <button type="button" class="btn btn-danger btn-sm delete-conversion"
+                                        title="{% trans 'حذف' %}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الحقول المخفية -->
+                {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <!-- نموذج فارغ للإضافة -->
+            <div id="empty-conversion-form" class="d-none">
+                <!-- سيتم ملء هذا عبر JavaScript -->
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" class="btn btn-success btn-sm" id="add-conversion">
+                <i class="fas fa-plus me-1"></i>{% trans "إضافة معدل تحويل" %}
+            </button>
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                {% trans "مثال: 1 كيلو = 1000 جرام" %}
+            </small>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    let conversionFormIdx = {{ conversion_formset.forms|length }};
+
+    // إضافة معدل تحويل جديد
+    $('#add-conversion').click(function() {
+        let emptyForm = $('#empty-conversion-form').html();
+        let newForm = emptyForm.replace(/__prefix__/g, conversionFormIdx);
+
+        let formHtml = `
+            <div class="conversion-form border rounded p-3 mb-3" data-form-idx="${conversionFormIdx}">
+                ${newForm}
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{% trans "من وحدة" %}</label>
+                            <select name="conversions-${conversionFormIdx}-from_unit" class="form-select" required>
+                                <option value="">{% trans "اختر الوحدة" %}</option>
+                                {% for unit in units %}
+                                <option value="{{ unit.pk }}">{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{% trans "إلى وحدة" %}</label>
+                            <select name="conversions-${conversionFormIdx}-to_unit" class="form-select" required>
+                                <option value="">{% trans "اختر الوحدة" %}</option>
+                                {% for unit in units %}
+                                <option value="{{ unit.pk }}">{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group mb-3">
+                            <label class="form-label required-field">{% trans "معامل التحويل" %}</label>
+                            <input type="number" name="conversions-${conversionFormIdx}-factor"
+                                   class="form-control" step="0.0001" min="0.0001" required>
+                            <div class="form-text">{% trans "1 (من وحدة) = ؟ (إلى وحدة)" %}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-1">
+                        <div class="form-group mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button type="button" class="btn btn-danger btn-sm delete-conversion"
+                                        title="{% trans 'حذف' %}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" name="conversions-${conversionFormIdx}-id" value="">
+            </div>
+        `;
+
+        $('#conversion-formset').append(formHtml);
+        conversionFormIdx++;
+
+        // تحديث العدد الكلي
+        $('#id_conversions-TOTAL_FORMS').val(conversionFormIdx);
+    });
+
+    // حذف معدل التحويل
+    $(document).on('click', '.delete-conversion', function() {
+        let formDiv = $(this).closest('.conversion-form');
+        let deleteCheckbox = formDiv.find('input[name$="-DELETE"]');
+
+        if (deleteCheckbox.length) {
+            // النموذج موجود في قاعدة البيانات، وضع علامة للحذف
+            deleteCheckbox.prop('checked', true);
+            formDiv.addClass('bg-light text-muted').find('input, select').prop('disabled', true);
+            $(this).removeClass('btn-danger').addClass('btn-secondary').html('<i class="fas fa-undo"></i>');
+            $(this).attr('title', '{% trans "التراجع" %}').removeClass('delete-conversion').addClass('undo-delete-conversion');
+        } else {
+            // نموذج جديد، حذف مباشر
+            formDiv.remove();
+            conversionFormIdx--;
+            $('#id_conversions-TOTAL_FORMS').val(conversionFormIdx);
+        }
+    });
+
+    // التراجع عن الحذف
+    $(document).on('click', '.undo-delete-conversion', function() {
+        let formDiv = $(this).closest('.conversion-form');
+        let deleteCheckbox = formDiv.find('input[name$="-DELETE"]');
+
+        deleteCheckbox.prop('checked', false);
+        formDiv.removeClass('bg-light text-muted').find('input, select').prop('disabled', false);
+        $(this).removeClass('btn-secondary').addClass('btn-danger').html('<i class="fas fa-trash"></i>');
+        $(this).attr('title', '{% trans "حذف" %}').removeClass('undo-delete-conversion').addClass('delete-conversion');
+    });
+});
+</script>

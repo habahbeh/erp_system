@@ -1,0 +1,259 @@
+<!-- File: apps/base_data/templates/base_data/components/form_errors.html -->
+{% load i18n %}
+
+<!-- Non-field errors -->
+{% if form.non_field_errors %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{% trans "خطأ في النموذج:" %}</strong>
+    <ul class="mb-0 mt-2">
+        {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'إغلاق' %}"></button>
+</div>
+{% endif %}
+
+<!-- Formset errors -->
+{% if formset.non_form_errors %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{% trans "أخطاء في البيانات:" %}</strong>
+    <ul class="mb-0 mt-2">
+        {% for error in formset.non_form_errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'إغلاق' %}"></button>
+</div>
+{% endif %}
+
+<!-- Individual field errors (for manual display) -->
+{% if show_field_errors %}
+    {% for field in form %}
+        {% if field.errors %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <strong>{{ field.label }}:</strong>
+                <ul class="mb-0 mt-1">
+                    {% for error in field.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'إغلاق' %}"></button>
+            </div>
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+<!-- JavaScript for dynamic error handling -->
+<script>
+// Show field error inline
+function showFieldError(fieldId, message) {
+    const $field = $('#' + fieldId);
+    const $group = $field.closest('.form-group, .mb-3');
+
+    // Remove existing errors
+    $group.find('.invalid-feedback, .text-danger').remove();
+    $field.removeClass('is-invalid');
+
+    // Add new error
+    $field.addClass('is-invalid');
+    $field.after('<div class="invalid-feedback">' + message + '</div>');
+
+    // Scroll to error
+    $('html, body').animate({
+        scrollTop: $group.offset().top - 100
+    }, 300);
+}
+
+// Clear field error
+function clearFieldError(fieldId) {
+    const $field = $('#' + fieldId);
+    const $group = $field.closest('.form-group, .mb-3');
+
+    $group.find('.invalid-feedback, .text-danger').remove();
+    $field.removeClass('is-invalid');
+}
+
+// Clear all form errors
+function clearFormErrors() {
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback, .text-danger').remove();
+}
+
+// Show form success
+function showFormSuccess(message) {
+    const alertHtml = `
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'إغلاق' %}"></button>
+        </div>
+    `;
+
+    // Insert at top of form or page
+    if ($('.form-errors-container').length) {
+        $('.form-errors-container').html(alertHtml);
+    } else {
+        $('form').prepend(alertHtml);
+    }
+
+    // Auto-hide after 5 seconds
+    setTimeout(function() {
+        $('.alert-success').fadeOut();
+    }, 5000);
+}
+
+// Handle AJAX form errors
+function handleFormErrors(errors) {
+    clearFormErrors();
+
+    if (errors.__all__) {
+        // Non-field errors
+        const alertHtml = `
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>{% trans "خطأ:" %}</strong>
+                <ul class="mb-0 mt-2">
+                    ${errors.__all__.map(error => '<li>' + error + '</li>').join('')}
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'إغلاق' %}"></button>
+            </div>
+        `;
+
+        if ($('.form-errors-container').length) {
+            $('.form-errors-container').html(alertHtml);
+        } else {
+            $('form').prepend(alertHtml);
+        }
+    }
+
+    // Field-specific errors
+    Object.keys(errors).forEach(function(fieldName) {
+        if (fieldName !== '__all__') {
+            const fieldErrors = errors[fieldName];
+            if (fieldErrors && fieldErrors.length > 0) {
+                const fieldId = 'id_' + fieldName;
+                showFieldError(fieldId, fieldErrors[0]);
+            }
+        }
+    });
+
+    // Scroll to first error
+    const $firstError = $('.is-invalid').first();
+    if ($firstError.length) {
+        $('html, body').animate({
+            scrollTop: $firstError.offset().top - 100
+        }, 300);
+    }
+}
+
+// Real-time validation
+function initRealTimeValidation() {
+    $('form').on('blur', 'input, select, textarea', function() {
+        const $field = $(this);
+        const fieldName = $field.attr('name');
+
+        if (!fieldName) return;
+
+        // Clear previous errors
+        clearFieldError($field.attr('id'));
+
+        // Basic validation
+        if ($field.prop('required') && !$field.val()) {
+            showFieldError($field.attr('id'), '{% trans "هذا الحقل مطلوب" %}');
+            return;
+        }
+
+        // Email validation
+        if ($field.attr('type') === 'email' && $field.val()) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test($field.val())) {
+                showFieldError($field.attr('id'), '{% trans "البريد الإلكتروني غير صحيح" %}');
+                return;
+            }
+        }
+
+        // Number validation
+        if ($field.attr('type') === 'number' && $field.val()) {
+            const min = $field.attr('min');
+            const max = $field.attr('max');
+            const value = parseFloat($field.val());
+
+            if (min && value < parseFloat(min)) {
+                showFieldError($field.attr('id'), '{% trans "القيمة أقل من الحد الأدنى" %} (' + min + ')');
+                return;
+            }
+
+            if (max && value > parseFloat(max)) {
+                showFieldError($field.attr('id'), '{% trans "القيمة أكبر من الحد الأقصى" %} (' + max + ')');
+                return;
+            }
+        }
+    });
+}
+
+// Initialize on document ready
+$(document).ready(function() {
+    initRealTimeValidation();
+
+    // Auto-hide alerts after 10 seconds
+    setTimeout(function() {
+        $('.alert:not(.alert-permanent)').fadeOut('slow');
+    }, 10000);
+});
+</script>
+
+<!-- Form Validation Styles -->
+<style>
+.form-control.is-invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.form-select.is-invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.invalid-feedback {
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: #dc3545;
+    display: block;
+}
+
+.was-validated .form-control:invalid,
+.was-validated .form-select:invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.was-validated .form-control:valid,
+.was-validated .form-select:valid {
+    border-color: #198754;
+    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+}
+
+/* Required field indicator */
+.form-label.required::after,
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Error animation */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.field-error {
+    animation: shake 0.5s ease-in-out;
+}
+</style>

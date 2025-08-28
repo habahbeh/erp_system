@@ -1,0 +1,490 @@
+<!-- apps/base_data/templates/base_data/items/detail.html -->
+{% extends 'base_data/base/detail_base.html' %}
+{% load i18n humanize %}
+
+{% block detail_icon %}<i class="fas fa-box me-2"></i>{% endblock %}
+{% block detail_title %}{{ item.name }}{% endblock %}
+
+{% block status_badge %}
+{% if item.is_active and not item.is_inactive %}
+    <span class="badge bg-success status-badge ms-2">{% trans "نشط" %}</span>
+{% else %}
+    <span class="badge bg-secondary status-badge ms-2">{% trans "غير نشط" %}</span>
+{% endif %}
+
+{% if total_stock <= item.minimum_quantity and item.minimum_quantity > 0 %}
+    <span class="badge bg-warning status-badge ms-1">{% trans "مخزون منخفض" %}</span>
+{% endif %}
+{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:item_list' %}">{% trans "الأصناف" %}</a>
+</li>
+<li class="breadcrumb-item active">{{ item.name }}</li>
+{% endblock %}
+
+{% block change_permission %}base_data.change_item{% endblock %}
+{% block add_permission %}base_data.add_item{% endblock %}
+{% block delete_permission %}base_data.delete_item{% endblock %}
+
+{% block edit_url %}{% url 'base_data:item_update' item.pk %}{% endblock %}
+{% block duplicate_url %}{% url 'base_data:item_duplicate' item.pk %}{% endblock %}
+{% block delete_url %}{% url 'base_data:item_delete' item.pk %}{% endblock %}
+{% block list_url %}{% url 'base_data:item_list' %}{% endblock %}
+
+{% block detail_actions %}
+{{ block.super }}
+<a href="{% url 'base_data:item_stock' item.pk %}" class="btn btn-info btn-sm">
+    <i class="fas fa-warehouse me-1"></i>{% trans "المخزون" %}
+</a>
+
+{% if perms.base_data.change_item %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-warning btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-cog me-1"></i>{% trans "إجراءات" %}
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li>
+            <a class="dropdown-item" href="#" onclick="toggleItemStatus({{ item.pk }})">
+                <i class="fas fa-toggle-{% if item.is_active %}off{% else %}on{% endif %} me-1"></i>
+                {% if item.is_active %}{% trans "إلغاء تفعيل" %}{% else %}{% trans "تفعيل" %}{% endif %}
+            </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+            <a class="dropdown-item" href="{% url 'base_data:item_duplicate' item.pk %}">
+                <i class="fas fa-copy me-1"></i>{% trans "تكرار" %}
+            </a>
+        </li>
+    </ul>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block basic_info %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "كود الصنف" %}</div>
+            <div class="detail-value">
+                <code>{{ item.code|default:"-" }}</code>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "اسم الصنف" %}</div>
+            <div class="detail-value"><strong>{{ item.name }}</strong></div>
+        </div>
+    </div>
+</div>
+
+{% if item.name_en %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الاسم بالإنجليزية" %}</div>
+            <div class="detail-value">{{ item.name_en }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "التصنيف" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-light text-dark">
+                    <i class="fas fa-sitemap me-1"></i>{{ item.category.name }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "وحدة القياس" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-info">{{ item.unit.name }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if item.barcode %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الباركود" %}</div>
+            <div class="detail-value">
+                <code>{{ item.barcode }}</code>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if item.manufacturer %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الشركة المصنعة" %}</div>
+            <div class="detail-value">{{ item.manufacturer }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block additional_info %}
+<!-- الأسعار -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-tags me-2"></i>{% trans "الأسعار والضرائب" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "سعر الشراء" %}</div>
+                    <div class="detail-value">
+                        <span class="fw-bold text-primary">
+                            {{ item.purchase_price|floatformat:2|intcomma }} {% trans "ريال" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "سعر البيع" %}</div>
+                    <div class="detail-value">
+                        <span class="fw-bold text-success">
+                            {{ item.sale_price|floatformat:2|intcomma }} {% trans "ريال" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "نسبة الضريبة" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-warning">{{ item.tax_rate }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if item.sale_price and item.purchase_price %}
+        <div class="row">
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "هامش الربح" %}</div>
+                    <div class="detail-value">
+                        {% widthratio item.sale_price|add:item.purchase_price|mul:-1 item.purchase_price 100 as profit_margin %}
+                        <span class="badge bg-{% if profit_margin > 20 %}success{% elif profit_margin > 10 %}warning{% else %}danger{% endif %}">
+                            {{ profit_margin|floatformat:1 }}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- المواصفات -->
+{% if item.specifications or item.weight or item.notes %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-clipboard-list me-2"></i>{% trans "المواصفات والملاحظات" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        {% if item.weight %}
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الوزن" %}</div>
+            <div class="detail-value">{{ item.weight }} {% trans "كجم" %}</div>
+        </div>
+        {% endif %}
+
+        {% if item.specifications %}
+        <div class="detail-row">
+            <div class="detail-label">{% trans "المواصفات" %}</div>
+            <div class="detail-value">
+                <div class="border rounded p-2 bg-light">
+                    {{ item.specifications|linebreaks }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if item.notes %}
+        <div class="detail-row">
+            <div class="detail-label">{% trans "ملاحظات" %}</div>
+            <div class="detail-value">
+                <div class="border rounded p-2 bg-light">
+                    {{ item.notes|linebreaks }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- المخزون -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-warehouse me-2"></i>{% trans "معلومات المخزون" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "إجمالي المخزون" %}</div>
+                    <div class="detail-value">
+                        <span class="fw-bold {% if total_stock > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ total_stock|floatformat:3 }} {{ item.unit.name }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الحد الأدنى" %}</div>
+                    <div class="detail-value">{{ item.minimum_quantity|floatformat:2 }} {{ item.unit.name }}</div>
+                </div>
+            </div>
+            {% if item.maximum_quantity %}
+            <div class="col-md-3">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الحد الأعلى" %}</div>
+                    <div class="detail-value">{{ item.maximum_quantity|floatformat:2 }} {{ item.unit.name }}</div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="col-md-3">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "عدد المستودعات" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-info">{{ warehouse_items.count }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block statistics %}
+<!-- إحصائيات سريعة -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-chart-bar me-2"></i>{% trans "إحصائيات سريعة" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "معدلات التحويل" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-secondary">{{ conversions.count }}</span>
+            </div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">{% trans "المكونات" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-secondary">{{ components.count }}</span>
+            </div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">{% trans "المواد البديلة" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-secondary">{{ item.substitute_items.count }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if item.image %}
+<!-- صورة الصنف -->
+<div class="card detail-card">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-image me-2"></i>{% trans "صورة الصنف" %}
+        </h6>
+    </div>
+    <div class="card-body text-center">
+        <img src="{{ item.image.url }}" alt="{{ item.name }}"
+             class="img-thumbnail" style="max-height: 200px;">
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block related_tables %}
+<!-- معدلات التحويل -->
+{% if conversions %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-exchange-alt me-2"></i>{% trans "معدلات التحويل" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "من وحدة" %}</th>
+                        <th>{% trans "إلى وحدة" %}</th>
+                        <th>{% trans "معامل التحويل" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conversion in conversions %}
+                    <tr>
+                        <td>{{ conversion.from_unit.name }}</td>
+                        <td>{{ conversion.to_unit.name }}</td>
+                        <td>
+                            <span class="badge bg-info">{{ conversion.factor }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- المكونات -->
+{% if components %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-puzzle-piece me-2"></i>{% trans "مكونات الصنف" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "المادة المكونة" %}</th>
+                        <th>{% trans "الكمية" %}</th>
+                        <th>{% trans "الوحدة" %}</th>
+                        <th>{% trans "نسبة الهدر" %}</th>
+                        <th>{% trans "الكمية الفعلية" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for component in components %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'base_data:item_detail' component.component_item.pk %}">
+                                {{ component.component_item.name }}
+                            </a>
+                        </td>
+                        <td>{{ component.quantity }}</td>
+                        <td>{{ component.unit.name }}</td>
+                        <td>
+                            {% if component.waste_percentage > 0 %}
+                                <span class="badge bg-warning">{{ component.waste_percentage }}%</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ component.get_total_quantity }}</strong>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- المخزون في المستودعات -->
+{% if warehouse_items %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-warehouse me-2"></i>{% trans "توزيع المخزون" %}
+        </h6>
+        <a href="{% url 'base_data:item_stock' item.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-external-link-alt me-1"></i>{% trans "عرض التفاصيل" %}
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "المستودع" %}</th>
+                        <th>{% trans "الكمية" %}</th>
+                        <th>{% trans "متوسط التكلفة" %}</th>
+                        <th>{% trans "القيمة الإجمالية" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for warehouse_item in warehouse_items %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'base_data:warehouse_detail' warehouse_item.warehouse.pk %}">
+                                {{ warehouse_item.warehouse.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="{% if warehouse_item.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ warehouse_item.quantity|floatformat:3 }}
+                            </span>
+                        </td>
+                        <td>{{ warehouse_item.average_cost|floatformat:2 }}</td>
+                        <td>
+                            {% widthratio warehouse_item.quantity warehouse_item.average_cost 1 as total_value %}
+                            <strong>{{ total_value|floatformat:2 }}</strong>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block confirm_delete_url %}{% url 'base_data:item_delete' item.pk %}{% endblock %}
+
+{% block detail_custom_js %}
+function toggleItemStatus(itemId) {
+    if(confirm('{% trans "هل أنت متأكد من تغيير حالة هذا الصنف؟" %}')) {
+        $.ajax({
+            url: '{% url 'base_data:item_toggle_active' 0 %}'.replace('0', itemId),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if(response.success) {
+                    location.reload();
+                } else {
+                    alert(response.message || '{% trans "حدث خطأ" %}');
+                }
+            },
+            error: function() {
+                alert('{% trans "حدث خطأ في الاتصال" %}');
+            }
+        });
+    }
+}
+{% endblock %}

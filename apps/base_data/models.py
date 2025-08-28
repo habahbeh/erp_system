@@ -8,7 +8,7 @@ from django.db import models
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
-from core.models import Company, Branch, User
+from apps.core.models import Company, Branch, User
 
 
 class BaseModel(models.Model):

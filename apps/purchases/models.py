@@ -8,10 +8,10 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
-from base_data.models import BaseModel, Supplier, Item, Warehouse
-from accounting.models import Account, Currency, JournalEntry
-from sales.models import PaymentMethod
-from core.models import User, Branch
+from apps.base_data.models import BaseModel, Supplier, Item, Warehouse
+from apps.accounting.models import Account, Currency, JournalEntry
+from apps.sales.models import PaymentMethod
+from apps.core.models import User, Branch
 
 
 class PurchaseInvoice(BaseModel):

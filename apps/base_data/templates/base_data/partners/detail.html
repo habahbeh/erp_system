@@ -1,0 +1,607 @@
+<!-- apps/base_data/templates/base_data/partners/detail.html -->
+{% extends 'base_data/base/detail_base.html' %}
+{% load i18n humanize %}
+
+{% block detail_icon %}
+{% if partner.partner_type == 'customer' %}
+    <i class="fas fa-user-tie me-2"></i>
+{% elif partner.partner_type == 'supplier' %}
+    <i class="fas fa-truck me-2"></i>
+{% else %}
+    <i class="fas fa-handshake me-2"></i>
+{% endif %}
+{% endblock %}
+
+{% block detail_title %}{{ partner.name }}{% endblock %}
+
+{% block status_badge %}
+{% if partner.is_active %}
+    <span class="badge bg-success status-badge ms-2">{% trans "نشط" %}</span>
+{% else %}
+    <span class="badge bg-secondary status-badge ms-2">{% trans "غير نشط" %}</span>
+{% endif %}
+
+<span class="badge {% if partner.partner_type == 'customer' %}bg-primary{% elif partner.partner_type == 'supplier' %}bg-success{% else %}bg-info{% endif %} status-badge ms-1">
+    {{ partner.get_partner_type_display }}
+</span>
+
+{% if partner.account_type == 'credit' %}
+    <span class="badge bg-warning status-badge ms-1">{% trans "ائتماني" %}</span>
+{% else %}
+    <span class="badge bg-light text-dark status-badge ms-1">{% trans "نقدي" %}</span>
+{% endif %}
+{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:partner_list' %}">{% trans "الشركاء التجاريون" %}</a>
+</li>
+<li class="breadcrumb-item active">{{ partner.name }}</li>
+{% endblock %}
+
+{% block change_permission %}base_data.change_businesspartner{% endblock %}
+{% block add_permission %}base_data.add_businesspartner{% endblock %}
+{% block delete_permission %}base_data.delete_businesspartner{% endblock %}
+
+{% block edit_url %}{% url 'base_data:partner_update' partner.pk %}{% endblock %}
+{% block duplicate_url %}#{% endblock %}
+{% block delete_url %}{% url 'base_data:partner_delete' partner.pk %}{% endblock %}
+{% block list_url %}{% url 'base_data:partner_list' %}{% endblock %}
+
+{% block detail_actions %}
+{{ block.super }}
+<a href="{% url 'base_data:partner_statement' partner.pk %}" class="btn btn-info btn-sm">
+    <i class="fas fa-file-invoice me-1"></i>{% trans "كشف الحساب" %}
+</a>
+
+<a href="{% url 'base_data:partner_contact_update' partner.pk %}" class="btn btn-warning btn-sm">
+    <i class="fas fa-address-book me-1"></i>{% trans "تحديث الاتصال" %}
+</a>
+
+{% if perms.base_data.change_businesspartner %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-cog me-1"></i>{% trans "إجراءات" %}
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li>
+            <a class="dropdown-item" href="#" onclick="togglePartnerStatus({{ partner.pk }})">
+                <i class="fas fa-toggle-{% if partner.is_active %}off{% else %}on{% endif %} me-1"></i>
+                {% if partner.is_active %}{% trans "إلغاء تفعيل" %}{% else %}{% trans "تفعيل" %}{% endif %}
+            </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        {% if partner.partner_type != 'both' %}
+        <li>
+            <a class="dropdown-item" href="#" onclick="showConvertTypeModal()">
+                <i class="fas fa-exchange-alt me-1"></i>{% trans "تحويل النوع" %}
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block basic_info %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "كود الشريك" %}</div>
+            <div class="detail-value">
+                <code>{{ partner.code|default:"-" }}</code>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "اسم الشريك" %}</div>
+            <div class="detail-value"><strong>{{ partner.name }}</strong></div>
+        </div>
+    </div>
+</div>
+
+{% if partner.name_en %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "الاسم بالإنجليزية" %}</div>
+            <div class="detail-value">{{ partner.name_en }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "نوع الشريك" %}</div>
+            <div class="detail-value">
+                <span class="badge {% if partner.partner_type == 'customer' %}bg-primary{% elif partner.partner_type == 'supplier' %}bg-success{% else %}bg-info{% endif %}">
+                    {% if partner.partner_type == 'customer' %}
+                        <i class="fas fa-user-tie me-1"></i>
+                    {% elif partner.partner_type == 'supplier' %}
+                        <i class="fas fa-truck me-1"></i>
+                    {% else %}
+                        <i class="fas fa-handshake me-1"></i>
+                    {% endif %}
+                    {{ partner.get_partner_type_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "نوع الحساب" %}</div>
+            <div class="detail-value">
+                <span class="badge {% if partner.account_type == 'credit' %}bg-warning{% else %}bg-light text-dark{% endif %}">
+                    {{ partner.get_account_type_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if partner.contact_person %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "جهة الاتصال" %}</div>
+            <div class="detail-value">
+                <i class="fas fa-user me-1"></i>{{ partner.contact_person }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block additional_info %}
+<!-- معلومات الاتصال -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-address-book me-2"></i>{% trans "معلومات الاتصال" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% if partner.phone %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الهاتف" %}</div>
+                    <div class="detail-value">
+                        <a href="tel:{{ partner.phone }}" class="text-decoration-none">
+                            <i class="fas fa-phone me-1"></i>{{ partner.phone }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if partner.mobile %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الموبايل" %}</div>
+                    <div class="detail-value">
+                        <a href="tel:{{ partner.mobile }}" class="text-decoration-none">
+                            <i class="fas fa-mobile-alt me-1"></i>{{ partner.mobile }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="row">
+            {% if partner.fax %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الفاكس" %}</div>
+                    <div class="detail-value">
+                        <i class="fas fa-fax me-1"></i>{{ partner.fax }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if partner.email %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "البريد الإلكتروني" %}</div>
+                    <div class="detail-value">
+                        <a href="mailto:{{ partner.email }}" class="text-decoration-none">
+                            <i class="fas fa-envelope me-1"></i>{{ partner.email }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if partner.website %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الموقع الإلكتروني" %}</div>
+                    <div class="detail-value">
+                        <a href="{{ partner.website }}" target="_blank" class="text-decoration-none">
+                            <i class="fas fa-globe me-1"></i>{{ partner.website }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if partner.address %}
+        <div class="detail-row">
+            <div class="detail-label">{% trans "العنوان" %}</div>
+            <div class="detail-value">
+                <div class="border rounded p-2 bg-light">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    {{ partner.address|linebreaks }}
+                    {% if partner.city or partner.region %}
+                    <div class="mt-1">
+                        {% if partner.city %}<span class="badge bg-info me-1">{{ partner.city }}</span>{% endif %}
+                        {% if partner.region %}<span class="badge bg-secondary">{{ partner.region }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- المعلومات المالية -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-money-bill-wave me-2"></i>{% trans "المعلومات المالية" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "حد الائتمان" %}</div>
+                    <div class="detail-value">
+                        <span class="fw-bold text-success">
+                            {{ partner.credit_limit|floatformat:2|intcomma }} {% trans "ريال" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "فترة الائتمان" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-info">{{ partner.credit_period }} {% trans "يوم" %}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الرصيد الحالي" %}</div>
+                    <div class="detail-value">
+                        <span class="fw-bold {% if stats.outstanding_balance > 0 %}text-danger{% elif stats.outstanding_balance < 0 %}text-success{% else %}text-muted{% endif %}">
+                            {{ stats.outstanding_balance|floatformat:2|intcomma }} {% trans "ريال" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if partner.partner_type in 'customer,both' and partner.discount_percentage > 0 %}
+        <div class="row">
+            <div class="col-md-4">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "نسبة الخصم" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-warning">{{ partner.discount_percentage }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- المعلومات الضريبية -->
+{% if partner.tax_number or partner.commercial_register %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-file-contract me-2"></i>{% trans "المعلومات الضريبية والقانونية" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% if partner.tax_number %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الرقم الضريبي" %}</div>
+                    <div class="detail-value">
+                        <code>{{ partner.tax_number }}</code>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "الحالة الضريبية" %}</div>
+                    <div class="detail-value">
+                        <span class="badge {% if partner.tax_status == 'taxable' %}bg-warning{% elif partner.tax_status == 'exempt' %}bg-success{% else %}bg-info{% endif %}">
+                            {{ partner.get_tax_status_display }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if partner.commercial_register %}
+        <div class="row">
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "السجل التجاري" %}</div>
+                    <div class="detail-value">
+                        <code>{{ partner.commercial_register }}</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- معلومات إضافية للعملاء -->
+{% if partner.partner_type in 'customer,both' %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-user-tie me-2"></i>{% trans "معلومات العميل" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% if partner.salesperson %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "مندوب المبيعات" %}</div>
+                    <div class="detail-value">
+                        <i class="fas fa-user-tag me-1"></i>{{ partner.salesperson.get_full_name }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if partner.customer_category %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "تصنيف العميل" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-primary">{{ partner.get_customer_category_display }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- معلومات إضافية للموردين -->
+{% if partner.partner_type in 'supplier,both' %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-truck me-2"></i>{% trans "معلومات المورد" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% if partner.supplier_category %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "تصنيف المورد" %}</div>
+                    <div class="detail-value">
+                        <span class="badge bg-success">{{ partner.get_supplier_category_display }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if partner.rating %}
+            <div class="col-md-6">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "التقييم" %}</div>
+                    <div class="detail-value">
+                        <div class="rating-display">
+                            {% for i in "12345" %}
+                                <i class="fas fa-star {% if i|add:0 <= partner.rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                            {% endfor %}
+                            <span class="ms-2">({{ partner.rating }}/5)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if partner.payment_terms %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="detail-row">
+                    <div class="detail-label">{% trans "شروط الدفع" %}</div>
+                    <div class="detail-value">
+                        <div class="border rounded p-2 bg-light">
+                            {{ partner.payment_terms }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- الملاحظات -->
+{% if partner.notes %}
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-sticky-note me-2"></i>{% trans "الملاحظات" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="border rounded p-3 bg-light">
+            {{ partner.notes|linebreaks }}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block statistics %}
+<!-- إحصائيات سريعة -->
+<div class="card detail-card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-chart-bar me-2"></i>{% trans "إحصائيات سريعة" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="detail-row">
+            <div class="detail-label">{% trans "إجمالي المعاملات" %}</div>
+            <div class="detail-value">
+                <span class="badge bg-info">{{ stats.total_transactions|intcomma }}</span>
+            </div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">{% trans "إجمالي المبلغ" %}</div>
+            <div class="detail-value">
+                <strong>{{ stats.total_amount|floatformat:2|intcomma }} {% trans "ريال" %}</strong>
+            </div>
+        </div>
+        {% if stats.last_transaction_date %}
+        <div class="detail-row">
+            <div class="detail-label">{% trans "آخر معاملة" %}</div>
+            <div class="detail-value">
+                <span class="text-muted">{{ stats.last_transaction_date|date:"d/m/Y" }}</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block confirm_delete_url %}{% url 'base_data:partner_delete' partner.pk %}{% endblock %}
+
+<!-- Modal تحويل نوع الشريك -->
+<div class="modal fade" id="convertTypeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exchange-alt me-2"></i>{% trans "تحويل نوع الشريك" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "الشريك الحالي" %}: <strong>{{ partner.name }}</strong></p>
+                <p>{% trans "النوع الحالي" %}:
+                    <span class="badge bg-primary">{{ partner.get_partner_type_display }}</span>
+                </p>
+
+                <div class="form-group mt-3">
+                    <label class="form-label">{% trans "النوع الجديد" %}</label>
+                    <select class="form-select" id="new-partner-type">
+                        {% if partner.partner_type != 'customer' %}
+                        <option value="customer">{% trans "عميل" %}</option>
+                        {% endif %}
+                        {% if partner.partner_type != 'supplier' %}
+                        <option value="supplier">{% trans "مورد" %}</option>
+                        {% endif %}
+                        {% if partner.partner_type != 'both' %}
+                        <option value="both">{% trans "عميل ومورد" %}</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    {% trans "تحويل النوع قد يؤثر على بعض البيانات والتقارير." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="confirmConvertType()">
+                    <i class="fas fa-exchange-alt me-1"></i>{% trans "تحويل" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block detail_custom_js %}
+function togglePartnerStatus(partnerId) {
+    if(confirm('{% trans "هل أنت متأكد من تغيير حالة هذا الشريك؟" %}')) {
+        $.ajax({
+            url: '{% url 'base_data:partner_toggle_active' 0 %}'.replace('0', partnerId),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if(response.success) {
+                    location.reload();
+                } else {
+                    alert(response.message || '{% trans "حدث خطأ" %}');
+                }
+            },
+            error: function() {
+                alert('{% trans "حدث خطأ في الاتصال" %}');
+            }
+        });
+    }
+}
+
+function showConvertTypeModal() {
+    $('#convertTypeModal').modal('show');
+}
+
+function confirmConvertType() {
+    let newType = $('#new-partner-type').val();
+    if(!newType) {
+        alert('{% trans "يرجى اختيار النوع الجديد" %}');
+        return;
+    }
+
+    $.ajax({
+        url: '{% url 'base_data:partner_convert_type' partner.pk %}',
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+        },
+        data: {
+            'new_type': newType
+        },
+        success: function(response) {
+            if(response.success) {
+                $('#convertTypeModal').modal('hide');
+                location.reload();
+            } else {
+                alert(response.message || '{% trans "حدث خطأ" %}');
+            }
+        },
+        error: function() {
+            alert('{% trans "حدث خطأ في الاتصال" %}');
+        }
+    });
+}
+{% endblock %}

@@ -14,14 +14,14 @@ from django.db.models import Q, Count, Sum, F
 from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
 from django.db import transaction
-
+from django.views import View
 from ..models import BusinessPartner, Customer, Supplier
 from ..forms import (
     BusinessPartnerForm, CustomerForm, SupplierForm, BusinessPartnerFilterForm,
     PartnerQuickAddForm, ContactInfoForm, PartnerImportForm, PartnerExportForm
 )
-from core.mixins import CompanyMixin, AjaxResponseMixin
-from core.utils import generate_code
+from apps.core.mixins import CompanyMixin, AjaxResponseMixin
+from apps.core.utils import generate_code
 
 
 class BusinessPartnerListView(LoginRequiredMixin, CompanyMixin, ListView):
@@ -64,7 +64,7 @@ class BusinessPartnerListView(LoginRequiredMixin, CompanyMixin, ListView):
             'filter_form': self.filter_form,
             'page_title': _('الشركاء التجاريون'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('الشركاء التجاريون'), 'active': True}
             ],
@@ -89,7 +89,7 @@ class CustomerListView(BusinessPartnerListView):
         context.update({
             'page_title': _('العملاء'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('العملاء'), 'active': True}
             ],
@@ -110,7 +110,7 @@ class SupplierListView(BusinessPartnerListView):
         context.update({
             'page_title': _('الموردين'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('البيانات الأساسية'), 'url': '#'},
                 {'title': _('الموردين'), 'active': True}
             ],
@@ -136,7 +136,7 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         context.update({
             'page_title': _('إضافة شريك تجاري جديد'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -175,7 +175,7 @@ class CustomerCreateView(BusinessPartnerCreateView):
         context.update({
             'page_title': _('إضافة عميل جديد'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('العملاء'), 'url': reverse('base_data:customer_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -196,7 +196,7 @@ class SupplierCreateView(BusinessPartnerCreateView):
         context.update({
             'page_title': _('إضافة مورد جديد'),
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الموردين'), 'url': reverse('base_data:supplier_list')},
                 {'title': _('إضافة جديد'), 'active': True}
             ],
@@ -227,7 +227,7 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         context.update({
             'page_title': _('تعديل الشريك: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -277,7 +277,7 @@ class BusinessPartnerDetailView(LoginRequiredMixin, CompanyMixin, DetailView):
         context.update({
             'page_title': self.object.name,
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': self.object.name, 'active': True}
             ],
@@ -314,7 +314,7 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
         context.update({
             'page_title': _('حذف الشريك: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': self.object.name, 'url': reverse('base_data:partner_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('حذف'), 'active': True}
@@ -399,7 +399,7 @@ class ContactInfoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Company
         context.update({
             'page_title': _('تحديث معلومات الاتصال: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': self.object.name, 'url': reverse('base_data:partner_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('معلومات الاتصال'), 'active': True}
@@ -420,7 +420,7 @@ class ContactInfoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Company
         return redirect('base_data:partner_detail', pk=self.object.pk)
 
 
-class PartnerToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class PartnerToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """تفعيل/إلغاء تفعيل الشريك"""
     permission_required = 'base_data.change_businesspartner'
 
@@ -450,7 +450,7 @@ class PartnerToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
 
 # AJAX Views للـ DataTables
-class PartnerDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class PartnerDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بيانات الشركاء لـ DataTables"""
 
     def get(self, request):
@@ -568,7 +568,7 @@ class PartnerDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
 
 
 # Views للبحث والتحديد
-class PartnerSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class PartnerSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """بحث الشركاء للـ Select2"""
 
     def get(self, request):
@@ -666,7 +666,7 @@ class PartnerStatementView(LoginRequiredMixin, CompanyMixin, DetailView):
         context.update({
             'page_title': _('كشف حساب: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('dashboard')},
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الشركاء التجاريون'), 'url': reverse('base_data:partner_list')},
                 {'title': self.object.name, 'url': reverse('base_data:partner_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('كشف الحساب'), 'active': True}
@@ -680,7 +680,7 @@ class PartnerStatementView(LoginRequiredMixin, CompanyMixin, DetailView):
         return context
 
 
-class PartnerConvertTypeView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin):
+class PartnerConvertTypeView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
     """تحويل نوع الشريك (عميل إلى مورد أو العكس)"""
     permission_required = 'base_data.change_businesspartner'
 

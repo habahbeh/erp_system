@@ -1,0 +1,609 @@
+<!-- apps/base_data/templates/base_data/reports/low_stock_report.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:reports_index' %}">{% trans "التقارير" %}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "المخزون المنخفض" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-warning text-dark border-bottom">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {% trans "تقرير المخزون المنخفض" %}
+            {% if low_stock_count > 0 %}
+            <span class="badge bg-danger">{{ low_stock_count }}</span>
+            {% endif %}
+        </h5>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-dark btn-sm" onclick="markAllAsReviewed()">
+                <i class="fas fa-check me-1"></i>{% trans "تمت المراجعة" %}
+            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-1"></i>{% trans "تصدير" %}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" onclick="exportLowStock('excel')">
+                        <i class="fas fa-file-excel me-2"></i>Excel
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportLowStock('pdf')">
+                        <i class="fas fa-file-pdf me-2"></i>PDF (طلب شراء)
+                    </a></li>
+                </ul>
+            </div>
+            <button type="button" class="btn btn-info btn-sm" onclick="sendEmailAlert()">
+                <i class="fas fa-envelope me-1"></i>{% trans "تنبيه إيميل" %}
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">
+                <i class="fas fa-sync me-1"></i>{% trans "تحديث" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if low_stock_count == 0 %}
+<!-- No Low Stock Items -->
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-check-circle fa-5x text-success"></i>
+    </div>
+    <h3 class="text-success">{% trans "ممتاز! لا توجد أصناف منخفضة المخزون" %}</h3>
+    <p class="text-muted">{% trans "جميع أصنافك متوفرة بكميات مناسبة" %}</p>
+    <div class="mt-4">
+        <a href="{% url 'base_data:stock_report' %}" class="btn btn-primary">
+            <i class="fas fa-cubes me-2"></i>{% trans "عرض تقرير المخزون الكامل" %}
+        </a>
+        <a href="{% url 'base_data:reports_index' %}" class="btn btn-secondary">
+            <i class="fas fa-chart-bar me-2"></i>{% trans "التقارير الأخرى" %}
+        </a>
+    </div>
+</div>
+
+{% else %}
+<!-- Alert Summary -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-1">{{ critical_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "حرج جداً" %}</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-times-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="opacity-75">{% trans "كمية = صفر" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-1">{{ warning_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "تحذير" %}</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="opacity-75">{% trans "أقل من الحد الأدنى" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-1">{{ total_needed_value|floatformat:0 }}</h4>
+                        <p class="mb-0">{% trans "قيمة التموين المطلوبة" %}</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calculator fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="opacity-75">{% trans "ر.س" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card bg-secondary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-1">{{ affected_categories|default:0 }}</h4>
+                        <p class="mb-0">{% trans "تصنيفات متأثرة" %}</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-sitemap fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="opacity-75">{% trans "من إجمالي" %} {{ total_categories }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Critical Items Alert -->
+{% if critical_items %}
+<div class="alert alert-danger">
+    <h6 class="alert-heading">
+        <i class="fas fa-siren me-2"></i>{% trans "تنبيه عاجل - أصناف نفدت تماماً!" %}
+    </h6>
+    <p class="mb-2">{% trans "الأصناف التالية نفدت تماماً وتحتاج تموين فوري:" %}</p>
+    <div class="row">
+        {% for item in critical_items|slice:":6" %}
+        <div class="col-md-4 mb-1">
+            <small>
+                <i class="fas fa-box me-1"></i>
+                <strong>{{ item.item.name }}</strong>
+                {% if item.warehouse %}({{ item.warehouse.name }}){% endif %}
+            </small>
+        </div>
+        {% endfor %}
+    </div>
+    {% if critical_items|length > 6 %}
+    <small class="text-muted">... {% trans "و" %} {{ critical_items|length|add:"-6" }} {% trans "أصناف أخرى" %}</small>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Low Stock Items Table -->
+<div class="table-responsive">
+    <table class="table table-hover" id="lowStockTable">
+        <thead class="table-warning">
+            <tr>
+                <th width="40">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                    </div>
+                </th>
+                <th>{% trans "الصنف" %}</th>
+                <th>{% trans "المستودع" %}</th>
+                <th>{% trans "الكمية الحالية" %}</th>
+                <th>{% trans "الحد الأدنى" %}</th>
+                <th>{% trans "الكمية المطلوبة" %}</th>
+                <th>{% trans "القيمة المطلوبة" %}</th>
+                <th>{% trans "الأولوية" %}</th>
+                <th>{% trans "آخر حركة" %}</th>
+                <th>{% trans "الإجراءات" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in low_stock_items %}
+            <tr class="{% if item.quantity == 0 %}table-danger{% elif item.priority == 'high' %}table-warning{% endif %}">
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input item-checkbox" type="checkbox"
+                               value="{{ item.pk }}" data-item="{{ item.item.name }}">
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        {% if item.item.image %}
+                        <img src="{{ item.item.image.url }}" alt="{{ item.item.name }}"
+                             class="rounded me-2" width="40" height="40">
+                        {% else %}
+                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center"
+                             style="width: 40px; height: 40px;">
+                            <i class="fas fa-box text-muted"></i>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <strong>{{ item.item.name }}</strong>
+                            <br><small class="text-muted">{{ item.item.code }}</small>
+                            {% if item.item.barcode %}
+                            <br><small class="badge bg-light text-dark">{{ item.item.barcode }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-secondary">{{ item.warehouse.name }}</span>
+                    {% if item.warehouse.keeper %}
+                    <br><small class="text-muted">{{ item.warehouse.keeper.get_full_name }}</small>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if item.quantity == 0 %}
+                        <h5 class="text-danger mb-0">
+                            <i class="fas fa-times me-1"></i>0
+                        </h5>
+                    {% elif item.quantity <= item.item.minimum_quantity|default:0|mul:0.5 %}
+                        <h5 class="text-danger mb-0">{{ item.quantity|floatformat:0 }}</h5>
+                    {% else %}
+                        <h5 class="text-warning mb-0">{{ item.quantity|floatformat:0 }}</h5>
+                    {% endif %}
+                    <small class="text-muted">{{ item.item.unit.name|default:"وحدة" }}</small>
+                </td>
+                <td class="text-center">
+                    {% if item.item.minimum_quantity %}
+                        <span class="badge bg-info">{{ item.item.minimum_quantity|floatformat:0 }}</span>
+                    {% else %}
+                        <span class="text-muted">{% trans "غير محدد" %}</span>
+                        <br><small class="text-danger">{% trans "يحتاج تحديد" %}</small>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <strong class="text-primary">{{ item.needed_quantity|floatformat:0 }}</strong>
+                    <br><small class="text-muted">{{ item.item.unit.name|default:"وحدة" }}</small>
+                </td>
+                <td class="text-end">
+                    <strong class="text-success">{{ item.needed_value|floatformat:2 }} {% trans "ر.س" %}</strong>
+                    {% if item.item.purchase_price %}
+                    <br><small class="text-muted">{{ item.item.purchase_price|floatformat:2 }} × {{ item.needed_quantity|floatformat:0 }}</small>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if item.quantity == 0 %}
+                        <span class="badge bg-danger pulse">
+                            <i class="fas fa-exclamation-circle me-1"></i>{% trans "حرج" %}
+                        </span>
+                    {% elif item.priority == 'high' %}
+                        <span class="badge bg-warning">
+                            <i class="fas fa-exclamation-triangle me-1"></i>{% trans "عالي" %}
+                        </span>
+                    {% elif item.priority == 'medium' %}
+                        <span class="badge bg-info">{% trans "متوسط" %}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{% trans "منخفض" %}</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if item.last_movement_date %}
+                        {{ item.last_movement_date|date:"d/m" }}
+                        <br><small class="text-muted">{{ item.last_movement_date|timesince }} {% trans "مضت" %}</small>
+                    {% else %}
+                        <span class="text-muted">{% trans "لا توجد" %}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group-vertical btn-group-sm">
+                        <button class="btn btn-success btn-sm"
+                                onclick="createPurchaseOrder([{{ item.pk }}])"
+                                title="{% trans 'إنشاء طلب شراء' %}">
+                            <i class="fas fa-shopping-cart"></i>
+                        </button>
+                        <a href="{% url 'base_data:item_detail' item.item.pk %}"
+                           class="btn btn-primary btn-sm"
+                           title="{% trans 'تفاصيل الصنف' %}">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button class="btn btn-warning btn-sm"
+                                onclick="adjustMinimum({{ item.item.pk }}, {{ item.item.minimum_quantity|default:0 }})"
+                                title="{% trans 'تعديل الحد الأدنى' %}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10" class="text-center text-muted py-4">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <br>{% trans "لا توجد أصناف منخفضة المخزون" %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Bulk Actions Bar -->
+<div id="bulkActionsBar" class="alert alert-info d-none mt-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <span>
+            <strong id="selectedCount">0</strong> {% trans "صنف محدد" %}
+        </span>
+        <div class="btn-group">
+            <button class="btn btn-success btn-sm" onclick="createBulkPurchaseOrder()">
+                <i class="fas fa-shopping-cart me-1"></i>{% trans "طلب شراء جماعي" %}
+            </button>
+            <button class="btn btn-info btn-sm" onclick="exportSelectedItems()">
+                <i class="fas fa-file-excel me-1"></i>{% trans "تصدير المحدد" %}
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="clearSelection()">
+                <i class="fas fa-times me-1"></i>{% trans "إلغاء التحديد" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Purchase Order Modal -->
+<div class="modal fade" id="purchaseOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-shopping-cart me-2"></i>{% trans "إنشاء طلب شراء" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="purchaseOrderForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "المورد" %}</label>
+                        <select class="form-select" name="supplier_id" required>
+                            <option value="">{% trans "اختر المورد" %}</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.pk }}">{{ supplier.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "تاريخ الطلب" %}</label>
+                        <input type="date" class="form-control" name="order_date" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "ملاحظات" %}</label>
+                        <textarea class="form-control" name="notes" rows="3"
+                                  placeholder="{% trans 'ملاحظات على طلب الشراء...' %}"></textarea>
+                    </div>
+
+                    <div id="selectedItemsList" class="mb-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "إلغاء" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i>{% trans "إنشاء الطلب" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+.table-danger { background-color: rgba(220, 53, 69, 0.1) !important; }
+.table-warning { background-color: rgba(255, 193, 7, 0.1) !important; }
+
+.btn-group-vertical .btn {
+    margin-bottom: 2px;
+}
+
+.btn-group-vertical .btn:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    $('#lowStockTable').DataTable({
+        pageLength: 25,
+        responsive: true,
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
+        dom: '<"row"<"col-sm-6"l><"col-sm-6"f>><"row"<"col-sm-12"tr>><"row"<"col-sm-5"i><"col-sm-7"p>>',
+        order: [[7, 'desc']], // ترتيب حسب الأولوية
+        columnDefs: [{
+            targets: [0, 9], // checkbox و actions
+            orderable: false
+        }]
+    });
+
+    // Handle item selection
+    $('.item-checkbox').on('change', updateBulkActions);
+    $('#selectAll').on('change', function() {
+        $('.item-checkbox').prop('checked', $(this).prop('checked')).trigger('change');
+    });
+
+    // Set today's date for purchase order
+    $('input[name="order_date"]').val(new Date().toISOString().split('T')[0]);
+});
+
+function updateBulkActions() {
+    const selected = $('.item-checkbox:checked').length;
+    $('#selectedCount').text(selected);
+
+    if (selected > 0) {
+        $('#bulkActionsBar').removeClass('d-none');
+    } else {
+        $('#bulkActionsBar').addClass('d-none');
+    }
+}
+
+function createPurchaseOrder(itemIds) {
+    const selectedItems = [];
+
+    if (Array.isArray(itemIds)) {
+        // Bulk order
+        $('.item-checkbox:checked').each(function() {
+            const itemName = $(this).data('item');
+            selectedItems.push({
+                id: $(this).val(),
+                name: itemName
+            });
+        });
+    } else {
+        // Single item
+        const checkbox = $(`.item-checkbox[value="${itemIds}"]`);
+        selectedItems.push({
+            id: itemIds,
+            name: checkbox.data('item')
+        });
+    }
+
+    if (selectedItems.length === 0) {
+        alert('{% trans "يرجى تحديد الأصناف أولاً" %}');
+        return;
+    }
+
+    // Show selected items in modal
+    let itemsList = '<h6>{% trans "الأصناف المحددة:" %}</h6><ul class="list-group list-group-flush">';
+    selectedItems.forEach(item => {
+        itemsList += `<li class="list-group-item">${item.name}</li>`;
+    });
+    itemsList += '</ul>';
+
+    $('#selectedItemsList').html(itemsList);
+    $('#purchaseOrderModal').modal('show');
+}
+
+function createBulkPurchaseOrder() {
+    createPurchaseOrder([]);
+}
+
+function clearSelection() {
+    $('.item-checkbox, #selectAll').prop('checked', false);
+    updateBulkActions();
+}
+
+function exportLowStock(format) {
+    const params = new URLSearchParams({
+        'export': format,
+        'low_stock_only': 'true'
+    });
+    window.open(`{% url 'base_data:stock_report_export' %}?${params}`, '_blank');
+}
+
+function exportSelectedItems() {
+    const selected = $('.item-checkbox:checked').map(function() {
+        return $(this).val();
+    }).get();
+
+    if (selected.length === 0) {
+        alert('{% trans "يرجى تحديد أصناف أولاً" %}');
+        return;
+    }
+
+    const params = new URLSearchParams({
+        'export': 'excel',
+        'items': selected.join(',')
+    });
+    window.open(`{% url 'base_data:stock_report_export' %}?${params}`, '_blank');
+}
+
+function adjustMinimum(itemId, currentMinimum) {
+    const newMinimum = prompt('{% trans "الحد الأدنى الجديد:" %}', currentMinimum);
+
+    if (newMinimum !== null && newMinimum !== '' && !isNaN(newMinimum)) {
+        $.ajax({
+            url: `{% url 'base_data:item_update' 0 %}`.replace('0', itemId),
+            method: 'POST',
+            data: {
+                'minimum_quantity': newMinimum,
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                alert('{% trans "تم تحديث الحد الأدنى بنجاح" %}');
+                location.reload();
+            },
+            error: function() {
+                alert('{% trans "حدث خطأ في التحديث" %}');
+            }
+        });
+    }
+}
+
+function markAllAsReviewed() {
+    if (confirm('{% trans "هل تريد تسجيل جميع الأصناف كمراجعة؟" %}')) {
+        // يمكن إضافة AJAX call هنا لتحديث حالة المراجعة
+        alert('{% trans "تم تسجيل المراجعة" %}');
+    }
+}
+
+function sendEmailAlert() {
+    if (confirm('{% trans "هل تريد إرسال تنبيه بريد إلكتروني للمسؤولين؟" %}')) {
+        showLoading();
+        $.ajax({
+            url: '{% url "base_data:send_low_stock_alert" %}',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                hideLoading();
+                alert('{% trans "تم إرسال التنبيه بنجاح" %}');
+            },
+            error: function() {
+                hideLoading();
+                alert('{% trans "فشل في إرسال التنبيه" %}');
+            }
+        });
+    }
+}
+
+// Handle purchase order form submission
+$('#purchaseOrderForm').on('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const selectedItems = $('.item-checkbox:checked').map(function() {
+        return $(this).val();
+    }).get();
+
+    formData.append('items', selectedItems.join(','));
+
+    showLoading();
+    $.ajax({
+        url: '/purchases/orders/create-from-low-stock/',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+        },
+        success: function(response) {
+            hideLoading();
+            if (response.success) {
+                $('#purchaseOrderModal').modal('hide');
+                alert('{% trans "تم إنشاء طلب الشراء بنجاح" %}');
+                if (response.order_url) {
+                    window.open(response.order_url, '_blank');
+                }
+            } else {
+                alert(response.message || '{% trans "حدث خطأ في إنشاء الطلب" %}');
+            }
+        },
+        error: function() {
+            hideLoading();
+            alert('{% trans "حدث خطأ في الاتصال" %}');
+        }
+    });
+});
+</script>
+{% endblock %}

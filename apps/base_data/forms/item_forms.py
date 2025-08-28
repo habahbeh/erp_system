@@ -13,7 +13,7 @@ from ..models import (
     Item, ItemCategory, ItemConversion, ItemComponent,
     UnitOfMeasure, Warehouse
 )
-from core.models import User
+from apps.core.models import User
 
 
 class ItemForm(forms.ModelForm):
@@ -503,6 +503,7 @@ ItemConversionFormSet = forms.inlineformset_factory(
 ItemComponentFormSet = forms.inlineformset_factory(
     Item, ItemComponent,
     form=ItemComponentForm,
+    fk_name='parent_item',
     extra=1,
     can_delete=True,
     fields=['component_item', 'quantity', 'unit', 'waste_percentage', 'notes']

@@ -1,3 +1,4 @@
+# apps/core/mixins.py
 """
 Mixins لإعادة الاستخدام
 توفر وظائف مشتركة للـ Views
@@ -95,3 +96,32 @@ class CompanyBranchMixin:
             form.instance.branch = self.request.user.branch
 
         return super().form_valid(form)
+
+
+class CompanyMixin(CompanyBranchMixin):
+    """مايكسين لفلترة البيانات حسب الشركة فقط"""
+
+    def get_queryset(self):
+        """فلترة حسب الشركة فقط"""
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # فلترة حسب الشركة فقط
+        if hasattr(queryset.model, 'company') and user.company:
+            return queryset.filter(company=user.company)
+
+        return queryset
+
+    def form_valid(self, form):
+        """إضافة الشركة تلقائياً"""
+        if hasattr(form.instance, 'company') and not form.instance.company:
+            form.instance.company = self.request.user.company
+
+        return super().form_valid(form)
+
+
+class AjaxResponseMixin:
+    """مايكسين للاستجابة AJAX"""
+
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)

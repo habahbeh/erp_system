@@ -72,10 +72,16 @@ urlpatterns = [
     # === UNITS URLs === #
     path('units/', views.UnitOfMeasureListView.as_view(), name='unit_list'),
     path('units/create/', views.UnitOfMeasureCreateView.as_view(), name='unit_create'),
+    path('units/<int:pk>/', views.UnitOfMeasureDetailView.as_view(), name='unit_detail'),
     path('units/<int:pk>/edit/', views.UnitOfMeasureUpdateView.as_view(), name='unit_update'),
+    path('units/<int:pk>/delete/', views.UnitOfMeasureDeleteView.as_view(), name='unit_delete'),
+    path('units/quick-add/', views.UnitQuickAddView.as_view(), name='unit_quick_add'),
 
     # Units AJAX URLs
+    path('ajax/units/datatable/', views.UnitDataTableView.as_view(), name='unit_datatable'),
     path('ajax/units/select/', views.UnitSelectView.as_view(), name='unit_select'),
+    path('ajax/units/<int:pk>/toggle-active/', views.UnitToggleActiveView.as_view(), name='unit_toggle_active'),
+    path('ajax/units/bulk-action/', views.UnitBulkActionView.as_view(), name='unit_bulk_action'),
 
     # === CATEGORIES URLs === #
     path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),

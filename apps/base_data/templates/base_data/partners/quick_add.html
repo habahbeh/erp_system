@@ -1,0 +1,394 @@
+<!-- apps/base_data/templates/base_data/partners/quick_add.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n widget_tweaks %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:partner_list' %}">{% trans "الشركاء التجاريون" %}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "إضافة سريعة" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-primary text-white">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-user-plus me-2"></i>{% trans "إضافة شريك سريعة" %}
+        </h5>
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" aria-label="Close">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form id="quick-add-form" method="post">
+    {% csrf_token %}
+
+    <!-- إشعار -->
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        {% trans "الإضافة السريعة تتضمن المعلومات الأساسية فقط. لإضافة تفاصيل أكثر، استخدم النموذج الكامل." %}
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label required-field">{{ form.partner_type.label }}</label>
+                {{ form.partner_type|add_class:"form-select form-select-sm" }}
+                {% if form.partner_type.errors %}
+                    <div class="invalid-feedback d-block">{{ form.partner_type.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.code.label }}</label>
+                {{ form.code|add_class:"form-control form-control-sm" }}
+                {% if form.code.errors %}
+                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
+                {% endif %}
+                <div class="form-text">{% trans "اتركه فارغاً للتوليد التلقائي" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label required-field">{{ form.name.label }}</label>
+                {{ form.name|add_class:"form-control form-control-sm" }}
+                {% if form.name.errors %}
+                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.name_en.label }}</label>
+                {{ form.name_en|add_class:"form-control form-control-sm" }}
+                {% if form.name_en.errors %}
+                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.phone.label }}</label>
+                {{ form.phone|add_class:"form-control form-control-sm" }}
+                {% if form.phone.errors %}
+                    <div class="invalid-feedback d-block">{{ form.phone.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">{{ form.email.label }}</label>
+                {{ form.email|add_class:"form-control form-control-sm" }}
+                {% if form.email.errors %}
+                    <div class="invalid-feedback d-block">{{ form.email.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- خيارات سريعة حسب النوع -->
+    <div class="row" id="partner-type-options">
+        <div class="col-md-12">
+            <div class="card border-light">
+                <div class="card-body p-2">
+                    <div class="form-check form-switch" id="add-customer-details" style="display:none;">
+                        <input class="form-check-input" type="checkbox" id="include-customer-info">
+                        <label class="form-check-label" for="include-customer-info">
+                            {% trans "إضافة معلومات العميل (مندوب المبيعات، حد الائتمان)" %}
+                        </label>
+                    </div>
+
+                    <div class="form-check form-switch" id="add-supplier-details" style="display:none;">
+                        <input class="form-check-input" type="checkbox" id="include-supplier-info">
+                        <label class="form-check-label" for="include-supplier-info">
+                            {% trans "إضافة معلومات المورد (تصنيف، شروط دفع)" %}
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- حقول إضافية للعميل -->
+    <div id="customer-quick-fields" class="d-none">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "مندوب المبيعات" %}</label>
+                    <select name="salesperson" class="form-select form-select-sm">
+                        <option value="">{% trans "اختر مندوب المبيعات" %}</option>
+                        <!-- سيتم ملؤها عبر AJAX -->
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "حد الائتمان" %}</label>
+                    <input type="number" name="credit_limit" class="form-control form-control-sm"
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- حقول إضافية للمورد -->
+    <div id="supplier-quick-fields" class="d-none">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "تصنيف المورد" %}</label>
+                    <select name="supplier_category" class="form-select form-select-sm">
+                        <option value="">{% trans "اختر التصنيف" %}</option>
+                        <option value="manufacturer">{% trans "مصنع" %}</option>
+                        <option value="distributor">{% trans "موزع" %}</option>
+                        <option value="importer">{% trans "مستورد" %}</option>
+                        <option value="local">{% trans "محلي" %}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="form-label">{% trans "شروط الدفع" %}</label>
+                    <input type="text" name="payment_terms" class="form-control form-control-sm"
+                           placeholder="{% trans 'مثل: دفع خلال 30 يوم' %}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- خيارات متقدمة -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="add-full-details">
+                <label class="form-check-label" for="add-full-details">
+                    {% trans "إضافة التفاصيل الكاملة بعد الحفظ" %}
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- أزرار الإجراءات -->
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeQuickAdd()">
+            <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="openFullForm()">
+            <i class="fas fa-external-link-alt me-1"></i>{% trans "النموذج الكامل" %}
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm" id="save-btn">
+            <i class="fas fa-save me-1"></i>{% trans "حفظ" %}
+        </button>
+    </div>
+</form>
+
+<!-- Loading Spinner -->
+<div id="quick-add-loading" class="text-center d-none">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">{% trans "جاري الحفظ..." %}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تركيز على حقل الاسم
+    $('#id_name').focus();
+
+    // إظهار/إخفاء الحقول حسب نوع الشريك
+    $('#id_partner_type').change(function() {
+        togglePartnerTypeOptions();
+    });
+
+    // إظهار/إخفاء الحقول الإضافية للعميل
+    $('#include-customer-info').change(function() {
+        if($(this).is(':checked')) {
+            $('#customer-quick-fields').removeClass('d-none');
+            loadSalespersonOptions();
+        } else {
+            $('#customer-quick-fields').addClass('d-none');
+        }
+    });
+
+    // إظهار/إخفاء الحقول الإضافية للمورد
+    $('#include-supplier-info').change(function() {
+        if($(this).is(':checked')) {
+            $('#supplier-quick-fields').removeClass('d-none');
+        } else {
+            $('#supplier-quick-fields').addClass('d-none');
+        }
+    });
+
+    // تطبيق التغيير عند تحميل الصفحة
+    togglePartnerTypeOptions();
+});
+
+function togglePartnerTypeOptions() {
+    let partnerType = $('#id_partner_type').val();
+
+    // إخفاء جميع الخيارات
+    $('#add-customer-details, #add-supplier-details').hide();
+    $('#customer-quick-fields, #supplier-quick-fields').addClass('d-none');
+
+    // إظهار الخيارات المناسبة
+    if(partnerType === 'customer' || partnerType === 'both') {
+        $('#add-customer-details').show();
+    }
+
+    if(partnerType === 'supplier' || partnerType === 'both') {
+        $('#add-supplier-details').show();
+    }
+}
+
+function loadSalespersonOptions() {
+    // تحميل قائمة مندوبي المبيعات عبر AJAX
+    $.ajax({
+        url: '{% url 'base_data:user_select' %}', // يجب إنشاء هذا الـ URL
+        method: 'GET',
+        data: {
+            'role': 'salesperson'
+        },
+        success: function(response) {
+            let select = $('select[name="salesperson"]');
+            select.empty().append('<option value="">{% trans "اختر مندوب المبيعات" %}</option>');
+
+            $.each(response.results, function(index, user) {
+                select.append('<option value="' + user.id + '">' + user.text + '</option>');
+            });
+        }
+    });
+}
+
+$('#quick-add-form').on('submit', function(e) {
+    e.preventDefault();
+
+    // إظهار التحميل
+    $('#save-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الحفظ..." %}');
+
+    // جمع البيانات
+    let formData = $(this).serialize();
+
+    // إضافة البيانات الإضافية للعميل إذا كانت مفعلة
+    if($('#include-customer-info').is(':checked')) {
+        formData += '&include_customer_info=1';
+    }
+
+    // إضافة البيانات الإضافية للمورد إذا كانت مفعلة
+    if($('#include-supplier-info').is(':checked')) {
+        formData += '&include_supplier_info=1';
+    }
+
+    $.ajax({
+        url: '{% url 'base_data:partner_quick_add' %}',
+        method: 'POST',
+        data: formData,
+        success: function(response) {
+            if(response.success) {
+                // إشعار النجاح
+                showAlert('success', response.message);
+
+                // إضافة للجدول إذا كان موجود
+                if(typeof table !== 'undefined') {
+                    table.ajax.reload();
+                }
+
+                // إضافة للقائمة المنسدلة إذا كانت موجودة في صفحة أخرى
+                if($('#partner-select').length) {
+                    $('#partner-select').append(
+                        '<option value="' + response.partner.id + '" selected>' +
+                        response.partner.code + ' - ' + response.partner.name + '</option>'
+                    );
+                }
+
+                // التحقق من إضافة التفاصيل
+                if($('#add-full-details').is(':checked')) {
+                    window.location.href = '{% url 'base_data:partner_update' 0 %}'.replace('0', response.partner.id);
+                } else {
+                    // إعادة تعيين النموذج للإضافة مرة أخرى
+                    resetForm();
+                }
+            } else {
+                showAlert('danger', response.message);
+                displayErrors(response.errors);
+            }
+        },
+        error: function() {
+            showAlert('danger', '{% trans "حدث خطأ في الاتصال" %}');
+        },
+        complete: function() {
+            $('#save-btn').prop('disabled', false).html('<i class="fas fa-save me-1"></i>{% trans "حفظ" %}');
+        }
+    });
+});
+
+function resetForm() {
+    $('#quick-add-form')[0].reset();
+    $('#quick-add-form .is-invalid').removeClass('is-invalid');
+    $('#quick-add-form .invalid-feedback').remove();
+    $('#customer-quick-fields, #supplier-quick-fields').addClass('d-none');
+    $('#add-customer-details, #add-supplier-details').hide();
+    $('#id_name').focus();
+    togglePartnerTypeOptions();
+}
+
+function displayErrors(errors) {
+    // مسح الأخطاء السابقة
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').remove();
+
+    // عرض الأخطاء الجديدة
+    $.each(errors, function(field, messages) {
+        let $field = $('#id_' + field);
+        if(!$field.length) {
+            $field = $('[name="' + field + '"]');
+        }
+        $field.addClass('is-invalid');
+        $field.after('<div class="invalid-feedback">' + messages[0] + '</div>');
+    });
+}
+
+function openFullForm() {
+    let partnerType = $('#id_partner_type').val();
+    let url = '{% url 'base_data:partner_create' %}';
+
+    if(partnerType === 'customer') {
+        url = '{% url 'base_data:customer_create' %}';
+    } else if(partnerType === 'supplier') {
+        url = '{% url 'base_data:supplier_create' %}';
+    }
+
+    window.location.href = url;
+}
+
+function closeQuickAdd() {
+    if(window.parent && window.parent.closeModal) {
+        window.parent.closeModal();
+    } else {
+        window.location.href = '{% url 'base_data:partner_list' %}';
+    }
+}
+
+function showAlert(type, message) {
+    let alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                   message +
+                   '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                   '</div>';
+    $('#quick-add-form').before(alertHtml);
+
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+</script>
+{% endblock %}

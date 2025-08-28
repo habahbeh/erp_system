@@ -1,0 +1,88 @@
+<!-- apps/base_data/templates/base_data/items/duplicate.html -->
+{% extends 'base_data/items/create.html' %}
+{% load i18n %}
+
+{% block form_icon %}<i class="fas fa-copy me-2"></i>{% endblock %}
+{% block form_title %}{% trans "تكرار الصنف" %}: {{ original_item.name }}{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:item_list' %}">{% trans "الأصناف" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:item_detail' original_item.pk %}">{{ original_item.name }}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "تكرار" %}</li>
+{% endblock %}
+
+{% block back_url %}{% url 'base_data:item_detail' original_item.pk %}{% endblock %}
+{% block cancel_url %}{% url 'base_data:item_detail' original_item.pk %}{% endblock %}
+
+{% block submit_text %}{% trans "إنشاء نسخة" %}{% endblock %}
+
+{% block form_content %}
+<!-- إشعار التكرار -->
+<div class="alert alert-info mb-4">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-info-circle me-3" style="font-size: 1.5rem;"></i>
+        <div>
+            <h6 class="alert-heading mb-1">{% trans "تكرار الصنف" %}</h6>
+            <p class="mb-0">
+                {% trans "سيتم إنشاء نسخة جديدة من الصنف" %} <strong>"{{ original_item.name }}"</strong>
+                {% trans "مع جميع المعلومات الأساسية. يمكنك تعديل البيانات قبل الحفظ." %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- معلومات الصنف الأصلي -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-box me-2"></i>{% trans "الصنف الأصلي" %}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-1"><strong>{% trans "الكود" %}:</strong> {{ original_item.code|default:"-" }}</p>
+                <p class="mb-1"><strong>{% trans "الاسم" %}:</strong> {{ original_item.name }}</p>
+                <p class="mb-1"><strong>{% trans "التصنيف" %}:</strong> {{ original_item.category.name }}</p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-1"><strong>{% trans "الوحدة" %}:</strong> {{ original_item.unit.name }}</p>
+                <p class="mb-1"><strong>{% trans "سعر البيع" %}:</strong> {{ original_item.sale_price }} {% trans "ريال" %}</p>
+                <p class="mb-1"><strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ original_item.created_at|date:"d/m/Y" }}</p>
+            </div>
+        </div>
+
+        <div class="mt-2">
+            <a href="{% url 'base_data:item_detail' original_item.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i>{% trans "عرض الصنف الأصلي" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+{{ block.super }}
+{% endblock %}
+
+{% block form_custom_js %}
+{{ block.super }}
+
+// إضافة إشعار للكود المكرر
+$(document).ready(function() {
+    if ($('#id_code').val()) {
+        $('#id_code').after('<div class="form-text text-warning"><i class="fas fa-exclamation-triangle me-1"></i>{% trans "سيتم توليد كود جديد تلقائياً" %}</div>');
+        $('#id_code').val(''); // مسح الكود ليتم توليد كود جديد
+    }
+
+    // إضافة ملاحظة للاسم
+    if ($('#id_name').val().includes('{% trans "نسخة" %}')) {
+        $('#id_name').after('<div class="form-text text-info">{% trans "يمكنك تعديل اسم النسخة الجديدة" %}</div>');
+    }
+
+    // تركيز على حقل الاسم
+    $('#id_name').focus().select();
+});
+{% endblock %}

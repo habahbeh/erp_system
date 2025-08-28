@@ -1,0 +1,210 @@
+<!-- apps/base_data/templates/base_data/units/list.html -->
+{% extends 'base_data/base/list_base.html' %}
+{% load i18n %}
+
+{% block list_icon %}<i class="fas fa-balance-scale me-2"></i>{% endblock %}
+{% block list_title %}{% trans "وحدات القياس" %}{% endblock %}
+{% block total_count %}({{ stats.total }} {% trans "وحدة" %}){% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">{% trans "وحدات القياس" %}</li>
+{% endblock %}
+
+{% block add_url %}{% url 'base_data:unit_create' %}{% endblock %}
+{% block import_url %}#{% endblock %}
+{% block export_excel_url %}{% url 'base_data:unit_export' %}{% endblock %}
+{% block export_csv_url %}{% url 'base_data:unit_export' %}{% endblock %}
+
+{% block datatable_url %}{% url 'base_data:unit_datatable' %}{% endblock %}
+{% block bulk_action_url %}{% url 'base_data:unit_bulk_action' %}{% endblock %}
+
+{% block filters %}
+<div class="card-header bg-light border-bottom">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">{% trans "بحث" %}</label>
+            <input type="text" class="form-control form-control-sm" id="search-input"
+                   placeholder="{% trans 'اسم الوحدة أو الكود...' %}"
+                   value="{{ search }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">{% trans "الحالة" %}</label>
+            <select class="form-select form-select-sm" id="status-filter">
+                <option value="">{% trans "جميع الحالات" %}</option>
+                <option value="1">{% trans "نشط فقط" %}</option>
+                <option value="0">{% trans "غير نشط فقط" %}</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button type="button" class="btn btn-primary btn-sm" id="apply-filters">
+                <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="clear-filters">
+                <i class="fas fa-times me-1"></i>{% trans "مسح" %}
+            </button>
+        </div>
+        <div class="col-md-2 text-end">
+            <small class="text-muted">
+                {% trans "النشط" %}: {{ stats.active }} / {{ stats.total }}
+            </small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block table_headers %}
+<tr>
+    <th width="40">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="select-all">
+        </div>
+    </th>
+    <th>{% trans "الكود" %}</th>
+    <th>{% trans "الاسم" %}</th>
+    <th>{% trans "الاسم الإنجليزي" %}</th>
+    <th>{% trans "عدد الأصناف" %}</th>
+    <th>{% trans "الحالة" %}</th>
+    <th>{% trans "تاريخ الإنشاء" %}</th>
+    <th width="120">{% trans "الإجراءات" %}</th>
+</tr>
+{% endblock %}
+
+{% block datatable_columns %}
+{
+    data: null,
+    orderable: false,
+    className: 'text-center',
+    render: function(data, type, row) {
+        return `<div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${row.id}">
+                </div>`;
+    }
+},
+{ data: 'code', name: 'code' },
+{ data: 'name', name: 'name' },
+{ data: 'name_en', name: 'name_en' },
+{
+    data: 'items_count',
+    name: 'items_count',
+    className: 'text-center',
+    orderable: false
+},
+{
+    data: 'is_active',
+    name: 'is_active',
+    className: 'text-center',
+    render: function(data, type, row) {
+        if (data) {
+            return '<span class="badge bg-success">{% trans "نشط" %}</span>';
+        } else {
+            return '<span class="badge bg-secondary">{% trans "غير نشط" %}</span>';
+        }
+    }
+},
+{
+    data: 'created_at',
+    name: 'created_at',
+    className: 'text-center'
+},
+{
+    data: 'actions',
+    name: 'actions',
+    orderable: false,
+    className: 'text-center'
+}
+{% endblock %}
+
+{% block filter_data %}
+// إضافة بيانات الفلتر
+d.search = $('#search-input').val();
+d.status = $('#status-filter').val();
+{% endblock %}
+
+{% block clear_filters %}
+$('#search-input').val('');
+$('#status-filter').val('');
+{% endblock %}
+
+{% block custom_js %}
+// تفعيل/إلغاء تفعيل الوحدة
+function toggleUnitStatus(unitId) {
+    if (confirm('{% trans "هل أنت متأكد من تغيير حالة هذه الوحدة؟" %}')) {
+        showLoading();
+        $.ajax({
+            url: `{% url 'base_data:unit_toggle_active' 0 %}`.replace('0', unitId),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                hideLoading();
+                if (response.success) {
+                    table.ajax.reload();
+                    // عرض رسالة نجاح
+                    $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                      response.message +
+                      '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                      '</div>').prependTo('.card-body').delay(3000).fadeOut();
+                } else {
+                    alert(response.message || '{% trans "حدث خطأ" %}');
+                }
+            },
+            error: function() {
+                hideLoading();
+                alert('{% trans "حدث خطأ في الاتصال" %}');
+            }
+        });
+    }
+}
+
+// إضافة سريعة
+$('#quick-add-btn').on('click', function() {
+    $('#quickAddModal').modal('show');
+});
+{% endblock %}
+
+{% block extra_content %}
+<!-- Quick Add Modal -->
+<div class="modal fade" id="quickAddModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>{% trans "إضافة وحدة قياس سريعة" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="quickAddForm" method="post" action="{% url 'base_data:unit_quick_add' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required-field">{% trans "اسم الوحدة" %}</label>
+                        <input type="text" class="form-control" name="name" required
+                               placeholder="{% trans 'مثل: قطعة، كيلو، متر...' %}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "الكود" %}</label>
+                            <input type="text" class="form-control" name="code"
+                                   placeholder="{% trans 'اختياري' %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                            <input type="text" class="form-control" name="name_en"
+                                   placeholder="{% trans 'اختياري' %}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "إلغاء" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>{% trans "حفظ" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

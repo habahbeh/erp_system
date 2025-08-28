@@ -1,0 +1,548 @@
+<!-- apps/base_data/templates/base_data/warehouses/delete.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n humanize %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_list' %}">{% trans "المستودعات" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:warehouse_detail' warehouse.pk %}">{{ warehouse.name }}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "حذف" %}</li>
+{% endblock %}
+
+{% block card_header %}
+<div class="card-header bg-danger text-white">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {% trans "حذف المستودع" %}: {{ warehouse.name }}
+        </h5>
+        <div class="btn-group">
+            <a href="{% url 'base_data:warehouse_detail' warehouse.pk %}" class="btn btn-light btn-sm">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- معلومات المستودع -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "معلومات المستودع المراد حذفه" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>{% trans "الكود" %}:</strong> {{ warehouse.code|default:"-" }}</p>
+                        <p><strong>{% trans "الاسم" %}:</strong> {{ warehouse.name }}</p>
+                        <p><strong>{% trans "النوع" %}:</strong>
+                            <span class="badge {% if warehouse.warehouse_type == 'main' %}bg-primary{% elif warehouse.warehouse_type == 'branch' %}bg-success{% elif warehouse.warehouse_type == 'virtual' %}bg-warning{% else %}bg-info{% endif %}">
+                                {{ warehouse.get_warehouse_type_display }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>{% trans "الموقع" %}:</strong> {{ warehouse.city|default:"-" }}</p>
+                        <p><strong>{% trans "أمين المستودع" %}:</strong>
+                            {% if warehouse.keeper %}
+                                {{ warehouse.keeper.get_full_name }}
+                            {% else %}
+                                <span class="text-muted">{% trans "غير محدد" %}</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ warehouse.created_at|date:"d/m/Y" }}</p>
+                    </div>
+                </div>
+
+                {% if warehouse.address %}
+                <div class="mt-3">
+                    <p><strong>{% trans "العنوان" %}:</strong></p>
+                    <div class="border rounded p-2 bg-light">
+                        {{ warehouse.address|linebreaks }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- فحص المحتويات -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-search me-2"></i>{% trans "فحص محتويات المستودع" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>{% trans "الأصناف المخزنة" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if warehouse_content.items_count > 0 %}danger{% else %}success{% endif %}">
+                                        {{ warehouse_content.items_count|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if warehouse_content.items_count > 0 %}
+                                        <small class="text-danger">{% trans "يحتوي على أصناف" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "فارغ من الأصناف" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{% trans "إجمالي الكمية" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if warehouse_content.total_quantity > 0 %}danger{% else %}success{% endif %}">
+                                        {{ warehouse_content.total_quantity|floatformat:3|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if warehouse_content.total_quantity > 0 %}
+                                        <small class="text-danger">{% trans "يحتوي على مخزون" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا يحتوي على مخزون" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{% trans "القيمة الإجمالية" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if warehouse_content.total_value > 0 %}danger{% else %}success{% endif %}">
+                                        {{ warehouse_content.total_value|floatformat:2|intcomma }} {% trans "ريال" %}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if warehouse_content.total_value > 0 %}
+                                        <small class="text-danger">{% trans "له قيمة مالية" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا توجد قيمة مالية" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{% trans "الحركات المسجلة" %}</td>
+                                <td>
+                                    <span class="badge bg-{% if warehouse_content.movements_count > 0 %}warning{% else %}success{% endif %}">
+                                        {{ warehouse_content.movements_count|intcomma }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if warehouse_content.movements_count > 0 %}
+                                        <small class="text-warning">{% trans "له تاريخ حركات" %}</small>
+                                    {% else %}
+                                        <small class="text-success">{% trans "لا توجد حركات" %}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr class="table-{% if can_delete %}success{% else %}danger{% endif %}">
+                                <td><strong>{% trans "حالة الحذف" %}</strong></td>
+                                <td>
+                                    <strong>
+                                        <span class="badge bg-{% if can_delete %}success{% else %}danger{% endif %}">
+                                            {% if can_delete %}{% trans "يمكن الحذف" %}{% else %}{% trans "لا يمكن الحذف" %}{% endif %}
+                                        </span>
+                                    </strong>
+                                </td>
+                                <td>
+                                    {% if can_delete %}
+                                        <strong class="text-success">{% trans "آمن للحذف" %}</strong>
+                                    {% else %}
+                                        <strong class="text-danger">{% trans "غير آمن للحذف" %}</strong>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if not can_delete %}
+                <div class="alert alert-danger mt-3">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تحذير!" %}
+                    </h6>
+                    <p class="mb-0">
+                        {% trans "لا يمكن حذف هذا المستودع لأنه يحتوي على أصناف أو له تاريخ حركات. يجب:" %}
+                    </p>
+                    <ul class="mt-2 mb-0">
+                        <li>{% trans "نقل جميع الأصناف إلى مستودع آخر أولاً" %}</li>
+                        <li>{% trans "أو يمكنك إلغاء تفعيل المستودع بدلاً من حذفه" %}</li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- تفاصيل الأصناف المخزنة -->
+        {% if warehouse_content.items_count > 0 %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-boxes me-2"></i>{% trans "الأصناف المخزنة" %}
+                    <span class="badge bg-danger ms-2">{{ warehouse_content.items_count }}</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "الصنف" %}</th>
+                                <th class="text-center">{% trans "الكمية" %}</th>
+                                <th class="text-center">{% trans "التكلفة المتوسطة" %}</th>
+                                <th class="text-center">{% trans "القيمة" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in warehouse_items|slice:":10" %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'base_data:item_detail' item.item.pk %}" class="text-decoration-none">
+                                        <strong>{{ item.item.name }}</strong>
+                                    </a>
+                                    <br><small class="text-muted">{{ item.item.code }}</small>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold {% if item.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {{ item.quantity|floatformat:3 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">{{ item.average_cost|floatformat:2 }}</td>
+                                <td class="text-center">
+                                    <strong>{{ item.quantity|mul:item.average_cost|floatformat:2|intcomma }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+
+                            {% if warehouse_content.items_count > 10 %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    ... {% trans "و" %} {{ warehouse_content.items_count|add:-10 }} {% trans "صنف آخر" %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <a href="{% url 'base_data:warehouse_inventory' warehouse.pk %}" class="btn btn-info btn-sm">
+                        <i class="fas fa-external-link-alt me-1"></i>{% trans "عرض جميع الأصناف" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <!-- تحذيرات -->
+        <div class="card border-danger mb-4">
+            <div class="card-header bg-danger text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تحذير مهم" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">{% trans "انتبه!" %}</h6>
+                    <p class="mb-0">
+                        {% trans "حذف هذا المستودع سيؤدي إلى:" %}
+                    </p>
+                    <ul class="mt-2 mb-0">
+                        <li>{% trans "فقدان جميع بيانات المخزون" %}</li>
+                        <li>{% trans "حذف سجل الحركات التاريخي" %}</li>
+                        <li>{% trans "تأثير على التقارير والإحصائيات" %}</li>
+                        <li>{% trans "لا يمكن التراجع عن هذا الإجراء" %}</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">{% trans "بديل آمن" %}</h6>
+                    <p class="mb-2">
+                        {% trans "بدلاً من الحذف، يمكنك:" %}
+                    </p>
+                    <ul class="mb-0">
+                        <li>{% trans "إلغاء تفعيل المستودع" %}</li>
+                        <li>{% trans "نقل المحتويات لمستودع آخر" %}</li>
+                        <li>{% trans "أرشفة البيانات" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "معلومات إضافية" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "النوع" %}</span>
+                        <strong>{{ warehouse.get_warehouse_type_display }}</strong>
+                    </div>
+                </div>
+                {% if warehouse.capacity %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "السعة" %}</span>
+                        <strong>{{ warehouse.capacity|floatformat:0 }} {% trans "متر مكعب" %}</strong>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "تاريخ الإنشاء" %}</span>
+                        <strong>{{ warehouse.created_at|date:"d/m/Y" }}</strong>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "آخر تحديث" %}</span>
+                        <strong>{{ warehouse.updated_at|date:"d/m/Y" }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- بدائل الحذف -->
+        {% if not can_delete %}
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>{% trans "بدائل مقترحة" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-warning btn-sm" onclick="showTransferModal()">
+                        <i class="fas fa-exchange-alt me-1"></i>{% trans "نقل المحتويات" %}
+                    </button>
+                    <a href="{% url 'base_data:warehouse_update' warehouse.pk %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-eye-slash me-1"></i>{% trans "إلغاء تفعيل" %}
+                    </a>
+                    <a href="{% url 'base_data:warehouse_inventory' warehouse.pk %}" class="btn btn-info btn-sm">
+                        <i class="fas fa-boxes me-1"></i>{% trans "عرض المخزون" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- أزرار الإجراءات -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'base_data:warehouse_detail' warehouse.pk %}" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+            </a>
+
+            {% if can_delete %}
+            <form method="post" class="d-inline" id="delete-form">
+                {% csrf_token %}
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}
+                </button>
+            </form>
+            {% else %}
+            <button type="button" class="btn btn-warning" onclick="showTransferModal()">
+                <i class="fas fa-exchange-alt me-1"></i>{% trans "نقل المحتويات أولاً" %}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal التأكيد -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تأكيد الحذف النهائي" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-warehouse text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد تماماً؟" %}</h6>
+                <p class="text-center">
+                    {% trans "ستقوم بحذف المستودع" %} <strong>"{{ warehouse.name }}"</strong> {% trans "نهائياً." %}
+                </p>
+                <p class="text-center text-muted">
+                    {% trans "لا يمكن التراجع عن هذا الإجراء!" %}
+                </p>
+
+                <div class="form-group mt-3">
+                    <label class="form-label">
+                        {% trans "اكتب اسم المستودع للتأكيد" %}: <code>{{ warehouse.name }}</code>
+                    </label>
+                    <input type="text" class="form-control" id="confirmation-input"
+                           placeholder="{% trans 'اكتب اسم المستودع هنا' %}">
+                </div>
+
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="understand-consequences">
+                    <label class="form-check-label" for="understand-consequences">
+                        {% trans "أفهم أن هذا الإجراء سيحذف جميع البيانات نهائياً" %}
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-danger" id="final-delete-btn" disabled>
+                    <i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal نقل المحتويات -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exchange-alt me-2"></i>{% trans "نقل محتويات المستودع" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transfer-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="from_warehouse" value="{{ warehouse.pk }}">
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {% trans "سيتم نقل جميع الأصناف من هذا المستودع إلى المستودع المحدد" %}
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label required-field">{% trans "إلى مستودع" %}</label>
+                        <select class="form-select" name="to_warehouse" required>
+                            <option value="">{% trans "اختر المستودع المستهدف" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "ملاحظات" %}</label>
+                        <textarea name="notes" class="form-control" rows="3"
+                                  placeholder="{% trans 'سبب النقل أو ملاحظات أخرى' %}"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "إلغاء" %}
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmTransfer()">
+                    <i class="fas fa-exchange-alt me-1"></i>{% trans "نقل المحتويات" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete() {
+    $('#confirmDeleteModal').modal('show');
+}
+
+// تفعيل زر الحذف عند استيفاء الشروط
+function checkDeleteConditions() {
+    const inputValue = $('#confirmation-input').val().trim();
+    const warehouseName = '{{ warehouse.name }}';
+    const understandChecked = $('#understand-consequences').is(':checked');
+
+    if (inputValue === warehouseName && understandChecked) {
+        $('#final-delete-btn').prop('disabled', false);
+    } else {
+        $('#final-delete-btn').prop('disabled', true);
+    }
+}
+
+$('#confirmation-input').on('input', checkDeleteConditions);
+$('#understand-consequences').on('change', checkDeleteConditions);
+
+// تنفيذ الحذف النهائي
+$('#final-delete-btn').on('click', function() {
+    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الحذف..." %}');
+    showLoading();
+    $('#delete-form').submit();
+});
+
+// إعادة تعيين النموذج عند إغلاق المودال
+$('#confirmDeleteModal').on('hidden.bs.modal', function() {
+    $('#confirmation-input').val('');
+    $('#understand-consequences').prop('checked', false);
+    $('#final-delete-btn').prop('disabled', true).html('<i class="fas fa-trash me-1"></i>{% trans "حذف نهائياً" %}');
+});
+
+function showTransferModal() {
+    $('#transferModal').modal('show');
+    loadWarehouseOptions();
+}
+
+function loadWarehouseOptions() {
+    $.ajax({
+        url: '{% url 'base_data:warehouse_select' %}',
+        method: 'GET',
+        success: function(response) {
+            let select = $('select[name="to_warehouse"]');
+            select.empty().append('<option value="">{% trans "اختر المستودع المستهدف" %}</option>');
+
+            $.each(response.results, function(index, warehouse) {
+                if(warehouse.id != {{ warehouse.pk }}) {
+                    select.append('<option value="' + warehouse.id + '">' + warehouse.text + '</option>');
+                }
+            });
+        }
+    });
+}
+
+function confirmTransfer() {
+    if(!$('select[name="to_warehouse"]').val()) {
+        alert('{% trans "يرجى اختيار المستودع المستهدف" %}');
+        return;
+    }
+
+    if(confirm('{% trans "هل أنت متأكد من نقل جميع المحتويات؟" %}')) {
+        $.ajax({
+            url: '{% url 'base_data:warehouse_transfer_inventory' %}',
+            method: 'POST',
+            data: $('#transfer-form').serialize(),
+            success: function(response) {
+                if(response.success) {
+                    $('#transferModal').modal('hide');
+                    // إعادة تحميل الصفحة لإظهار التحديث
+                    location.reload();
+                } else {
+                    alert(response.message || '{% trans "حدث خطأ" %}');
+                }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

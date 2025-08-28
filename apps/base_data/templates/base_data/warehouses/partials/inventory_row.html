@@ -1,0 +1,110 @@
+<!-- apps/base_data/templates/base_data/warehouses/partials/inventory_row.html -->
+{% load i18n humanize %}
+
+<tr class="inventory-row" data-item-id="{{ item.item.pk }}">
+    <td>
+        <div class="form-check">
+            <input class="form-check-input row-checkbox" type="checkbox" value="{{ item.item.pk }}">
+        </div>
+    </td>
+
+    <td>
+        <div class="d-flex align-items-center">
+            {% if item.item.image %}
+                <img src="{{ item.item.image.url }}" alt="{{ item.item.name }}"
+                     class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+            {% else %}
+                <div class="bg-light border rounded me-2 d-flex align-items-center justify-content-center"
+                     style="width: 32px; height: 32px;">
+                    <i class="fas fa-box text-muted"></i>
+                </div>
+            {% endif %}
+            <div>
+                <strong>
+                    <a href="{% url 'base_data:item_detail' item.item.pk %}" class="text-decoration-none">
+                        {{ item.item.name }}
+                    </a>
+                </strong>
+                <br><small class="text-muted">{{ item.item.code }}</small>
+                {% if item.item.barcode %}
+                    <br><small class="badge bg-light text-dark">
+                        <i class="fas fa-barcode me-1"></i>{{ item.item.barcode }}
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </td>
+
+    <td class="text-center">
+        <span class="fw-bold {% if item.quantity > 0 %}text-success{% elif item.quantity < 0 %}text-danger{% else %}text-muted{% endif %}">
+            {{ item.quantity|floatformat:3 }}
+        </span>
+        <br><small class="text-muted">{{ item.item.unit.name }}</small>
+    </td>
+
+    <td class="text-center">
+        <span class="fw-bold">{{ item.average_cost|floatformat:2 }}</span>
+        <br><small class="text-muted">{% trans "ريال" %}</small>
+    </td>
+
+    <td class="text-center">
+        {% widthratio item.quantity item.average_cost 1 as total_value %}
+        <span class="fw-bold text-primary">{{ total_value|floatformat:2|intcomma }}</span>
+        <br><small class="text-muted">{% trans "ريال" %}</small>
+    </td>
+
+    <td class="text-center">
+        <span class="badge bg-secondary">{{ item.item.minimum_quantity|floatformat:2 }}</span>
+    </td>
+
+    <td class="text-center">
+        {% if item.quantity <= 0 %}
+            <span class="badge bg-danger">
+                <i class="fas fa-exclamation-triangle me-1"></i>{% trans "نفذ" %}
+            </span>
+        {% elif item.quantity <= item.item.minimum_quantity and item.item.minimum_quantity > 0 %}
+            <span class="badge bg-warning">
+                <i class="fas fa-exclamation me-1"></i>{% trans "منخفض" %}
+            </span>
+        {% else %}
+            <span class="badge bg-success">
+                <i class="fas fa-check me-1"></i>{% trans "متوفر" %}
+            </span>
+        {% endif %}
+
+        {% if item.quantity < 0 %}
+            <br><span class="badge bg-danger">
+                <i class="fas fa-minus me-1"></i>{% trans "سالب" %}
+            </span>
+        {% endif %}
+    </td>
+
+    <td class="text-center">
+        {% if item.last_movement_date %}
+            <span class="text-muted">{{ item.last_movement_date|date:"d/m/Y" }}</span>
+        {% else %}
+            <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+
+    <td class="text-center">
+        <div class="btn-group btn-group-sm">
+            <a href="{% url 'base_data:item_stock' item.item.pk %}"
+               class="btn btn-light btn-sm" title="{% trans 'تفاصيل المخزون' %}">
+                <i class="fas fa-eye"></i>
+            </a>
+            {% if perms.base_data.change_warehouse %}
+            <button type="button" class="btn btn-warning btn-sm"
+                    onclick="adjustItemStock({{ item.item.pk }}, {{ item.quantity }})"
+                    title="{% trans 'تسوية الكمية' %}">
+                <i class="fas fa-edit"></i>
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-info btn-sm"
+                    onclick="showItemMovements({{ item.item.pk }})"
+                    title="{% trans 'الحركات' %}">
+                <i class="fas fa-history"></i>
+            </button>
+        </div>
+    </td>
+</tr>

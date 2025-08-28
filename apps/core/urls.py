@@ -1,3 +1,4 @@
+# apps/core/urls.py
 """
 URLs لتطبيق النواة
 """

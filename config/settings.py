@@ -12,7 +12,7 @@ import sys
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
+# sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 
 # Security
@@ -28,14 +28,14 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',
-    'base_data',
-    'accounting',
-    'sales',
-    'purchases',
-    'inventory',
-    'hr',
-    'reports',
+    'apps.core',
+    'apps.base_data',
+    'apps.accounting',
+    'apps.sales',
+    'apps.purchases',
+    'apps.inventory',
+    'apps.hr',
+    'apps.reports',
     'rest_framework',
 ]
 
@@ -58,7 +58,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'core.middleware.CurrentBranchMiddleware',
+    'apps.core.middleware.CurrentBranchMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -120,7 +120,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.i18n',
-                'core.context_processors.system_settings',
+                'apps.core.context_processors.system_settings',
             ],
         },
     },

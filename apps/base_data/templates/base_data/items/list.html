@@ -1,0 +1,160 @@
+<!-- apps/base_data/templates/base_data/items/list.html -->
+{% extends 'base_data/base/list_base.html' %}
+{% load i18n %}
+
+{% block list_icon %}<i class="fas fa-boxes me-2"></i>{% endblock %}
+{% block list_title %}{% trans "الأصناف" %}{% endblock %}
+{% block total_count %}({{ total_items }} {% trans "صنف" %}){% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">{% trans "الأصناف" %}</li>
+{% endblock %}
+
+{% block add_url %}{% url 'base_data:item_create' %}{% endblock %}
+{% block import_url %}{% url 'base_data:item_import' %}{% endblock %}
+{% block export_excel_url %}{% url 'base_data:item_export' %}{% endblock %}
+{% block export_csv_url %}{% url 'base_data:item_export' %}{% endblock %}
+
+{% block filters %}
+<div class="card-header bg-light border-bottom">
+    <form method="get" id="filter-form">
+        <div class="row g-3">
+            <div class="col-md-3">
+                {{ filter_form.search.label_tag }}
+                {{ filter_form.search }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.category.label_tag }}
+                {{ filter_form.category }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.unit.label_tag }}
+                {{ filter_form.unit }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.is_active.label_tag }}
+                {{ filter_form.is_active }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.stock_status.label_tag }}
+                {{ filter_form.stock_status }}
+            </div>
+            <div class="col-md-1">
+                <label>&nbsp;</label>
+                <div>
+                    <button type="button" class="btn btn-primary btn-sm" id="apply-filters">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="clear-filters">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block table_headers %}
+<tr>
+    <th width="40">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="select-all">
+        </div>
+    </th>
+    <th>{% trans "الكود" %}</th>
+    <th>{% trans "اسم الصنف" %}</th>
+    <th>{% trans "التصنيف" %}</th>
+    <th>{% trans "الوحدة" %}</th>
+    <th>{% trans "سعر البيع" %}</th>
+    <th>{% trans "المخزون" %}</th>
+    <th>{% trans "الحالة" %}</th>
+    <th width="150">{% trans "الإجراءات" %}</th>
+</tr>
+{% endblock %}
+
+{% block datatable_url %}{% url 'base_data:item_datatable' %}{% endblock %}
+
+{% block datatable_columns %}
+{ data: 'checkbox', orderable: false, searchable: false, render: function(data, type, row) {
+    return '<div class="form-check"><input class="form-check-input" type="checkbox" value="' + row.id + '"></div>';
+}},
+{ data: 'code', name: 'code' },
+{ data: 'name', name: 'name' },
+{ data: 'category', name: 'category__name' },
+{ data: 'unit', name: 'unit__name' },
+{ data: 'sale_price', name: 'sale_price', render: function(data, type, row) {
+    return parseFloat(data).toLocaleString('ar-SA', {style: 'currency', currency: 'SAR'});
+}},
+{ data: 'stock', name: 'stock', render: function(data, type, row) {
+    let stockClass = data > 0 ? 'text-success' : 'text-danger';
+    return '<span class="' + stockClass + '">' + data + '</span>';
+}},
+{ data: 'is_active', name: 'is_active', render: function(data, type, row) {
+    if(data) {
+        return '<span class="badge bg-success">{% trans "نشط" %}</span>';
+    } else {
+        return '<span class="badge bg-secondary">{% trans "غير نشط" %}</span>';
+    }
+}},
+{ data: 'actions', orderable: false, searchable: false }
+{% endblock %}
+
+{% block bulk_action_url %}{% url 'base_data:item_bulk_action' %}{% endblock %}
+
+{% block filter_data %}
+// إرسال بيانات الفلاتر
+d.search = $('#id_search').val();
+d.category = $('#id_category').val();
+d.unit = $('#id_unit').val();
+d.is_active = $('#id_is_active').val();
+d.stock_status = $('#id_stock_status').val();
+d.manufacturer = $('#id_manufacturer').val();
+{% endblock %}
+
+{% block clear_filters %}
+$('#filter-form')[0].reset();
+$('#id_is_active').val('1'); // إعادة تعيين القيمة الافتراضية
+{% endblock %}
+
+{% block custom_js %}
+// تفعيل/إلغاء تفعيل الصنف
+function toggleItemStatus(itemId) {
+    if(confirm('{% trans "هل أنت متأكد من تغيير حالة هذا الصنف؟" %}')) {
+        $.ajax({
+            url: '{% url 'base_data:item_toggle_active' 0 %}'.replace('0', itemId),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if(response.success) {
+                    table.ajax.reload();
+                    showAlert('success', response.message);
+                } else {
+                    showAlert('danger', response.message);
+                }
+            }
+        });
+    }
+}
+
+// عرض التنبيهات
+function showAlert(type, message) {
+    let alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                   message +
+                   '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                   '</div>';
+    $('.card-body').prepend(alertHtml);
+
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+
+// إضافة أزرار سريعة
+$('.card-header .btn-group').append(
+    '<button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#quickAddModal">' +
+    '<i class="fas fa-plus-circle me-1"></i>{% trans "إضافة سريعة" %}</button>'
+);
+{% endblock %}

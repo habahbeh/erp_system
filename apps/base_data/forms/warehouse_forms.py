@@ -12,7 +12,7 @@ from decimal import Decimal
 from ..models import (
     Warehouse, WarehouseItem, UnitOfMeasure, Item
 )
-from core.models import Branch, User
+from apps.core.models import Branch, User
 
 
 class WarehouseForm(forms.ModelForm):

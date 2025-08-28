@@ -12,7 +12,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 
 from ..models import Item, ItemCategory, BusinessPartner, Warehouse, UnitOfMeasure
-from core.models import Branch, User
+from apps.core.models import Branch, User
 
 
 class BaseFilterForm(forms.Form):

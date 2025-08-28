@@ -1,0 +1,384 @@
+<!-- File: apps/base_data/templates/base_data/components/pagination.html -->
+{% load i18n %}
+
+{% if is_paginated %}
+<nav aria-label="{% trans 'التنقل بين الصفحات' %}" class="d-flex justify-content-between align-items-center mt-4">
+
+    <!-- Page Information -->
+    <div class="pagination-info">
+        <small class="text-muted">
+            {% trans "عرض" %}
+            <strong>{{ page_obj.start_index }}</strong>
+            {% trans "إلى" %}
+            <strong>{{ page_obj.end_index }}</strong>
+            {% trans "من أصل" %}
+            <strong>{{ paginator.count }}</strong>
+            {% trans "عنصر" %}
+        </small>
+    </div>
+
+    <!-- Pagination Links -->
+    <ul class="pagination pagination-sm mb-0">
+
+        <!-- First Page -->
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page=1"
+                   title="{% trans 'الصفحة الأولى' %}">
+                    <i class="fas fa-angle-double-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <i class="fas fa-angle-double-right"></i>
+                </span>
+            </li>
+        {% endif %}
+
+        <!-- Previous Page -->
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ page_obj.previous_page_number }}"
+                   title="{% trans 'الصفحة السابقة' %}">
+                    <i class="fas fa-angle-right"></i>
+                    <span class="d-none d-sm-inline ms-1">{% trans "السابق" %}</span>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <i class="fas fa-angle-right"></i>
+                    <span class="d-none d-sm-inline ms-1">{% trans "السابق" %}</span>
+                </span>
+            </li>
+        {% endif %}
+
+        <!-- Page Numbers -->
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active" aria-current="page">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ num }}">
+                        {{ num }}
+                    </a>
+                </li>
+            {% elif num == 1 and page_obj.number > 4 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page=1">1</a>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+            {% elif num == paginator.num_pages and page_obj.number < paginator.num_pages|add:'-3' %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ paginator.num_pages }}">
+                        {{ paginator.num_pages }}
+                    </a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        <!-- Next Page -->
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ page_obj.next_page_number }}"
+                   title="{% trans 'الصفحة التالية' %}">
+                    <span class="d-none d-sm-inline me-1">{% trans "التالي" %}</span>
+                    <i class="fas fa-angle-left"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <span class="d-none d-sm-inline me-1">{% trans "التالي" %}</span>
+                    <i class="fas fa-angle-left"></i>
+                </span>
+            </li>
+        {% endif %}
+
+        <!-- Last Page -->
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ paginator.num_pages }}"
+                   title="{% trans 'الصفحة الأخيرة' %}">
+                    <i class="fas fa-angle-double-left"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <i class="fas fa-angle-double-left"></i>
+                </span>
+            </li>
+        {% endif %}
+    </ul>
+
+    <!-- Page Size Selector -->
+    <div class="page-size-selector">
+        <form method="get" class="d-flex align-items-center">
+            <!-- Preserve existing GET parameters -->
+            {% for key, value in request.GET.items %}
+                {% if key != 'page' and key != 'page_size' %}
+                    <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endif %}
+            {% endfor %}
+
+            <label for="page-size" class="form-label me-2 mb-0 text-nowrap">
+                <small>{% trans "عرض" %}:</small>
+            </label>
+            <select name="page_size" id="page-size" class="form-select form-select-sm"
+                    onchange="this.form.submit()" style="width: auto;">
+                <option value="10" {% if request.GET.page_size == '10' %}selected{% endif %}>10</option>
+                <option value="25" {% if request.GET.page_size == '25' or not request.GET.page_size %}selected{% endif %}>25</option>
+                <option value="50" {% if request.GET.page_size == '50' %}selected{% endif %}>50</option>
+                <option value="100" {% if request.GET.page_size == '100' %}selected{% endif %}>100</option>
+            </select>
+        </form>
+    </div>
+</nav>
+
+<!-- Mobile-friendly pagination -->
+<nav class="d-md-none mt-3" aria-label="{% trans 'التنقل المبسط' %}">
+    <div class="row">
+        <div class="col-6">
+            {% if page_obj.has_previous %}
+                <a href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ page_obj.previous_page_number }}"
+                   class="btn btn-outline-primary btn-sm w-100">
+                    <i class="fas fa-angle-right me-1"></i>{% trans "السابق" %}
+                </a>
+            {% else %}
+                <button class="btn btn-outline-secondary btn-sm w-100" disabled>
+                    <i class="fas fa-angle-right me-1"></i>{% trans "السابق" %}
+                </button>
+            {% endif %}
+        </div>
+        <div class="col-6">
+            {% if page_obj.has_next %}
+                <a href="?{% if request.GET.items %}{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}{% endif %}page={{ page_obj.next_page_number }}"
+                   class="btn btn-outline-primary btn-sm w-100">
+                    {% trans "التالي" %}<i class="fas fa-angle-left ms-1"></i>
+                </a>
+            {% else %}
+                <button class="btn btn-outline-secondary btn-sm w-100" disabled>
+                    {% trans "التالي" %}<i class="fas fa-angle-left ms-1"></i>
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="text-center mt-2">
+        <small class="text-muted">
+            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ paginator.num_pages }}
+            ({{ paginator.count }} {% trans "عنصر" %})
+        </small>
+    </div>
+</nav>
+
+<!-- Quick page jump -->
+{% if paginator.num_pages > 10 %}
+<div class="mt-3 text-center">
+    <form method="get" class="d-inline-flex align-items-center">
+        {% for key, value in request.GET.items %}
+            {% if key != 'page' %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endif %}
+        {% endfor %}
+
+        <label for="quick-page" class="form-label me-2 mb-0">
+            <small>{% trans "الانتقال إلى صفحة" %}:</small>
+        </label>
+        <input type="number" name="page" id="quick-page"
+               class="form-control form-control-sm me-2"
+               style="width: 80px;"
+               min="1" max="{{ paginator.num_pages }}"
+               placeholder="{{ page_obj.number }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm">
+            {% trans "انتقال" %}
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% endif %}
+
+<!-- Pagination JavaScript -->
+<script>
+$(document).ready(function() {
+    // Enhanced page size change with loading
+    $('#page-size').on('change', function() {
+        showLoading('{% trans "جاري تحديث العرض..." %}');
+    });
+
+    // Quick page jump validation
+    $('#quick-page').on('input', function() {
+        const value = parseInt($(this).val());
+        const max = parseInt($(this).attr('max'));
+        const min = parseInt($(this).attr('min'));
+
+        if (value > max) {
+            $(this).val(max);
+        } else if (value < min) {
+            $(this).val(min);
+        }
+    });
+
+    // Keyboard navigation
+    $(document).on('keydown', function(e) {
+        // Only if no input is focused
+        if (!$('input, textarea, select').is(':focus')) {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                // Previous page (right arrow in RTL)
+                const $prevLink = $('.pagination .page-item:not(.disabled) a[title*="السابق"]');
+                if ($prevLink.length) {
+                    window.location.href = $prevLink.attr('href');
+                }
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                // Next page (left arrow in RTL)
+                const $nextLink = $('.pagination .page-item:not(.disabled) a[title*="التالي"]');
+                if ($nextLink.length) {
+                    window.location.href = $nextLink.attr('href');
+                }
+            }
+        }
+    });
+
+    // Add loading to pagination links
+    $('.pagination a, .btn[href]').on('click', function() {
+        showLoading('{% trans "جاري تحميل الصفحة..." %}');
+    });
+});
+</script>
+
+<!-- Pagination Styles -->
+<style>
+.pagination {
+    direction: rtl;
+}
+
+.pagination .page-link {
+    border-radius: 0.375rem;
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.pagination .page-link:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+    color: #495057;
+    transform: translateY(-1px);
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.25);
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    background-color: #fff;
+    border-color: #dee2e6;
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.pagination-info {
+    font-size: 0.875rem;
+}
+
+.page-size-selector .form-select {
+    min-width: 70px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .pagination .page-item {
+        margin: 2px;
+    }
+
+    .pagination .page-link {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .pagination-info {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .page-size-selector {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    nav[aria-label="التنقل بين الصفحات"] {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* Animation for page transitions */
+.page-transition-enter {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.page-transition-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.page-transition-exit {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.page-transition-exit-active {
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Quick page jump styling */
+#quick-page {
+    text-align: center;
+}
+
+#quick-page:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Enhanced hover effects */
+.pagination .page-link:not(.disabled):hover {
+    z-index: 2;
+}
+
+.pagination .page-item:first-child .page-link {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+}
+
+.pagination .page-item:last-child .page-link {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+}
+</style>

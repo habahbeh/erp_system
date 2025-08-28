@@ -1,0 +1,483 @@
+<!-- File: apps/base_data/templates/base_data/import_export/import_errors.html -->
+{% extends 'base_data/base/base_data.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "أخطاء الاستيراد" %}{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:reports_index' %}">{% trans "البيانات الأساسية" %}</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{% url 'base_data:import_errors' %}">{% trans "الاستيراد" %}</a>
+</li>
+<li class="breadcrumb-item active">{% trans "الأخطاء" %}</li>
+{% endblock %}
+
+{% block page_icon %}<i class="fas fa-exclamation-triangle me-2 text-danger"></i>{% endblock %}
+{% block page_title %}{% trans "أخطاء الاستيراد" %}{% endblock %}
+
+{% block header_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-success btn-sm" onclick="retryImport()">
+        <i class="fas fa-redo me-1"></i>{% trans "إعادة المحاولة" %}
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" onclick="downloadErrorReport()">
+        <i class="fas fa-download me-1"></i>{% trans "تحميل تقرير الأخطاء" %}
+    </button>
+    <a href="{% url 'base_data:reports_index' %}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">{{ import_summary.successful_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "تم بنجاح" %}</p>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">{{ import_summary.error_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "فشل" %}</p>
+                    </div>
+                    <i class="fas fa-times-circle fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">{{ import_summary.warning_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "تحذيرات" %}</p>
+                    </div>
+                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">{{ import_summary.total_count|default:0 }}</h4>
+                        <p class="mb-0">{% trans "إجمالي الصفوف" %}</p>
+                    </div>
+                    <i class="fas fa-list fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Information -->
+{% if import_session %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Error Details -->
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bug me-2"></i>{% trans "تفاصيل الأخطاء" %}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if errors %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="errors-table">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th width="80">{% trans "الصف" %}</th>
+                                    <th width="150">{% trans "الحقل" %}</th>
+                                    <th>{% trans "القيمة" %}</th>
+                                    <th>{% trans "الخطأ" %}</th>
+                                    <th width="120">{% trans "المستوى" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for error in errors %}
+                                <tr class="{% if error.level == 'error' %}table-danger{% elif error.level == 'warning' %}table-warning{% else %}table-info{% endif %}">
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">{{ error.row_number }}</span>
+                                    </td>
+                                    <td>
+                                        <code class="small">{{ error.field_name }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small">{{ error.field_value|truncatechars:30 }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="error-message">
+                                            {{ error.message }}
+                                        </div>
+                                        {% if error.suggestion %}
+                                            <small class="text-muted d-block">
+                                                <i class="fas fa-lightbulb me-1"></i>{{ error.suggestion }}
+                                            </small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if error.level == 'error' %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times me-1"></i>{% trans "خطأ" %}
+                                            </span>
+                                        {% elif error.level == 'warning' %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>{% trans "تحذير" %}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-info-circle me-1"></i>{% trans "معلومة" %}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination for errors -->
+                    {% if errors.has_other_pages %}
+                    <div class="card-footer">
+                        {% include 'base_data/components/pagination.html' with page_obj=errors %}
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5>{% trans "لا توجد أخطاء!" %}</h5>
+                        <p class="text-muted">{% trans "تم استيراد جميع البيانات بنجاح" %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Import Session Info -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "معلومات الاستيراد" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-0">
+                    <div class="col-4 text-muted">{% trans "الملف:" %}</div>
+                    <div class="col-8">{{ import_session.filename|default:"-" }}</div>
+                </div>
+                <hr>
+                <div class="row g-0">
+                    <div class="col-4 text-muted">{% trans "النوع:" %}</div>
+                    <div class="col-8">{{ import_session.import_type|default:"-" }}</div>
+                </div>
+                <hr>
+                <div class="row g-0">
+                    <div class="col-4 text-muted">{% trans "التاريخ:" %}</div>
+                    <div class="col-8">{{ import_session.created_at|date:"d/m/Y H:i" }}</div>
+                </div>
+                <hr>
+                <div class="row g-0">
+                    <div class="col-4 text-muted">{% trans "المستخدم:" %}</div>
+                    <div class="col-8">{{ import_session.created_by.get_full_name|default:import_session.created_by.username }}</div>
+                </div>
+                <hr>
+                <div class="row g-0">
+                    <div class="col-4 text-muted">{% trans "الحالة:" %}</div>
+                    <div class="col-8">
+                        {% if import_session.status == 'completed' %}
+                            <span class="badge bg-success">{% trans "مكتمل" %}</span>
+                        {% elif import_session.status == 'failed' %}
+                            <span class="badge bg-danger">{% trans "فشل" %}</span>
+                        {% elif import_session.status == 'processing' %}
+                            <span class="badge bg-warning">{% trans "قيد المعالجة" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ import_session.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Common Errors Help -->
+        <div class="card mt-4">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-question-circle me-2"></i>{% trans "الأخطاء الشائعة" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="help-accordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#help1">
+                                {% trans "أخطاء التنسيق" %}
+                            </button>
+                        </h2>
+                        <div id="help1" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من أن الملف بصيغة Excel أو CSV" %}</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من وجود رؤوس الأعمدة في الصف الأول" %}</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من عدم وجود صفوف فارغة" %}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#help2">
+                                {% trans "أخطاء البيانات" %}
+                            </button>
+                        </h2>
+                        <div id="help2" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من وجود التصنيفات قبل استيراد الأصناف" %}</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من عدم تكرار الأكواد" %}</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من صحة أنواع البيانات" %}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#help3">
+                                {% trans "حلول مقترحة" %}
+                            </button>
+                        </h2>
+                        <div id="help3" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-download text-primary me-2"></i>
+                                        <a href="{% url 'base_data:download_sample' 'items' %}">{% trans "تحميل ملف عينة للأصناف" %}</a>
+                                    </li>
+                                    <li><i class="fas fa-download text-primary me-2"></i>
+                                        <a href="{% url 'base_data:download_sample' 'partners' %}">{% trans "تحميل ملف عينة للشركاء" %}</a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-cogs me-2"></i>{% trans "الإجراءات" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-success" onclick="retryImport()">
+                        <i class="fas fa-redo me-1"></i>{% trans "إعادة الاستيراد" %}
+                    </button>
+
+                    <button type="button" class="btn btn-primary" onclick="downloadErrorReport()">
+                        <i class="fas fa-file-excel me-1"></i>{% trans "تحميل تقرير الأخطاء" %}
+                    </button>
+
+                    <a href="{% url 'base_data:item_import' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-upload me-1"></i>{% trans "استيراد جديد" %}
+                    </a>
+
+                    <button type="button" class="btn btn-outline-danger" onclick="clearImportSession()">
+                        <i class="fas fa-trash me-1"></i>{% trans "مسح الجلسة" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- No import session -->
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-4x text-muted mb-4"></i>
+            <h3>{% trans "لا توجد عملية استيراد" %}</h3>
+            <p class="text-muted mb-4">{% trans "لم يتم العثور على عملية استيراد سابقة" %}</p>
+            <a href="{% url 'base_data:item_import' %}" class="btn btn-primary">
+                <i class="fas fa-upload me-1"></i>{% trans "بدء استيراد جديد" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.error-message {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.table-responsive {
+    max-height: 600px;
+}
+
+#errors-table tbody tr {
+    border-left: 4px solid transparent;
+}
+
+#errors-table tbody tr.table-danger {
+    border-left-color: #dc3545;
+}
+
+#errors-table tbody tr.table-warning {
+    border-left-color: #ffc107;
+}
+
+#errors-table tbody tr.table-info {
+    border-left-color: #0dcaf0;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+}
+
+.card .row.g-0 {
+    margin-bottom: 0.5rem;
+}
+
+.card .row.g-0:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize DataTable for errors
+    if ($('#errors-table tbody tr').length > 0) {
+        $('#errors-table').DataTable({
+            pageLength: 25,
+            order: [[0, 'asc']],
+            columnDefs: [
+                {
+                    targets: [0, 4],
+                    orderable: false
+                }
+            ],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+            }
+        });
+    }
+
+    // Filter errors by level
+    $('.error-filter').on('click', function() {
+        const level = $(this).data('level');
+        const $table = $('#errors-table');
+
+        if (level === 'all') {
+            $table.find('tbody tr').show();
+        } else {
+            $table.find('tbody tr').hide();
+            $table.find('tbody tr.table-' + level).show();
+        }
+
+        $('.error-filter').removeClass('active');
+        $(this).addClass('active');
+    });
+});
+
+function retryImport() {
+    if (confirm('{% trans "هل تريد إعادة محاولة الاستيراد؟" %}')) {
+        showLoading('{% trans "جاري إعادة المعالجة..." %}');
+
+        $.post('{% url "base_data:import_errors" %}', {
+            'action': 'retry',
+            'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+        })
+        .done(function(response) {
+            hideLoading();
+            if (response.success) {
+                showAlert('{% trans "تم بدء عملية إعادة الاستيراد" %}', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showAlert(response.message || '{% trans "خطأ في إعادة الاستيراد" %}', 'error');
+            }
+        })
+        .fail(function() {
+            hideLoading();
+            showAlert('{% trans "خطأ في الاتصال" %}', 'error');
+        });
+    }
+}
+
+function downloadErrorReport() {
+    showLoading('{% trans "جاري تحضير التقرير..." %}');
+
+    window.location.href = '{% url "base_data:import_errors" %}?download=1';
+
+    setTimeout(hideLoading, 2000);
+}
+
+function clearImportSession() {
+    if (confirm('{% trans "هل تريد مسح جلسة الاستيراد الحالية؟ سيتم فقدان جميع البيانات." %}')) {
+        showLoading('{% trans "جاري المسح..." %}');
+
+        $.post('{% url "base_data:import_errors" %}', {
+            'action': 'clear',
+            'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+        })
+        .done(function(response) {
+            hideLoading();
+            if (response.success) {
+                showAlert('{% trans "تم مسح جلسة الاستيراد" %}', 'success');
+                setTimeout(() => window.location.href = '{% url "base_data:reports_index" %}', 1000);
+            } else {
+                showAlert(response.message || '{% trans "خطأ في المسح" %}', 'error');
+            }
+        })
+        .fail(function() {
+            hideLoading();
+            showAlert('{% trans "خطأ في الاتصال" %}', 'error');
+        });
+    }
+}
+
+// Auto-refresh if import is still processing
+{% if import_session.status == 'processing' %}
+setInterval(function() {
+    $.get(window.location.href + '?check_status=1')
+    .done(function(response) {
+        if (response.status !== 'processing') {
+            location.reload();
+        }
+    });
+}, 5000);
+{% endif %}
+</script>
+{% endblock %}
