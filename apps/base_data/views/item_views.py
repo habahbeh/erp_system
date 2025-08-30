@@ -487,108 +487,178 @@ class ItemToggleActiveView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 
 
 # AJAX Views للـ DataTables
-class ItemDataTableView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):
-    """بيانات الأصناف لـ DataTables"""
+# تحديث ItemDataTableView في item_views.py
+
+class ItemDataTableView(LoginRequiredMixin, CompanyMixin, View):
+    """بيانات الأصناف لـ DataTables - إصلاح 403 error"""
+
+    def dispatch(self, request, *args, **kwargs):
+        # التأكد من Authentication أولاً
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+
+        # التحقق من الصلاحيات
+        if not request.user.has_perm('base_data.view_item'):
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+
+        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        draw = int(request.GET.get('draw', 0))
-        start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 25))
-        search_value = request.GET.get('search[value]', '')
-        order_column = int(request.GET.get('order[0][column]', 0))
-        order_dir = request.GET.get('order[0][dir]', 'asc')
+        try:
+            # معاملات DataTable
+            draw = int(request.GET.get('draw', 1))
+            start = int(request.GET.get('start', 0))
+            length = int(request.GET.get('length', 25))
+            search_value = request.GET.get('search[value]', '').strip()
 
-        # الأعمدة
-        columns = ['code', 'name', 'category__name', 'unit__name', 'sale_price', 'is_active', 'created_at']
-        order_column_name = columns[order_column] if order_column < len(columns) else 'created_at'
+            # معاملات الترتيب
+            order_column = int(request.GET.get('order[0][column]', 1))
+            order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        if order_dir == 'desc':
-            order_column_name = f'-{order_column_name}'
+            # الأعمدة (تطابق template)
+            columns = ['', 'code', 'name', 'category__name', 'unit__name', 'sale_price', '', 'is_active', '']
 
-        # بناء الاستعلام
-        queryset = Item.objects.filter(
-            company=request.user.company
-        ).select_related('category', 'unit')
+            # تحديد عمود الترتيب
+            if 1 <= order_column < len(columns) and columns[order_column]:
+                order_field = columns[order_column]
+                if order_dir == 'desc':
+                    order_field = f'-{order_field}'
+            else:
+                order_field = '-created_at'
 
-        # البحث
-        if search_value:
-            queryset = queryset.filter(
-                Q(code__icontains=search_value) |
-                Q(name__icontains=search_value) |
-                Q(category__name__icontains=search_value) |
-                Q(unit__name__icontains=search_value)
-            )
+            # الاستعلام الأساسي
+            queryset = Item.objects.filter(
+                company=request.user.company
+            ).select_related('category', 'unit')
 
-        # العدد الكلي
-        total_count = Item.objects.filter(company=request.user.company).count()
-        filtered_count = queryset.count()
+            # تطبيق الفلاتر من النموذج
+            search = request.GET.get('search', '')
+            category = request.GET.get('category', '')
+            unit = request.GET.get('unit', '')
+            is_active = request.GET.get('is_active', '')
+            stock_status = request.GET.get('stock_status', '')
 
-        # الترتيب والتقسيم
-        queryset = queryset.order_by(order_column_name)[start:start + length]
+            if search:
+                queryset = queryset.filter(
+                    Q(code__icontains=search) |
+                    Q(name__icontains=search) |
+                    Q(barcode__icontains=search)
+                )
 
-        # تحضير البيانات
-        data = []
-        for item in queryset:
-            data.append({
-                'id': item.pk,
-                'code': item.code or '',
-                'name': item.name,
-                'category': item.category.name if item.category else '',
-                'unit': item.unit.name if item.unit else '',
-                'sale_price': float(item.sale_price) if item.sale_price else 0,
-                'is_active': item.is_active,
-                'created_at': item.created_at.strftime('%Y-%m-%d'),
-                'actions': self._get_actions_html(item, request)
+            if category:
+                queryset = queryset.filter(category_id=category)
+
+            if unit:
+                queryset = queryset.filter(unit_id=unit)
+
+            if is_active:
+                if is_active == '1':
+                    queryset = queryset.filter(is_active=True, is_inactive=False)
+                elif is_active == '0':
+                    queryset = queryset.filter(Q(is_active=False) | Q(is_inactive=True))
+
+            # البحث العام
+            if search_value:
+                queryset = queryset.filter(
+                    Q(code__icontains=search_value) |
+                    Q(name__icontains=search_value) |
+                    Q(category__name__icontains=search_value) |
+                    Q(unit__name__icontains=search_value)
+                )
+
+            # العد قبل التقسيم
+            total_count = Item.objects.filter(company=request.user.company).count()
+            filtered_count = queryset.count()
+
+            # الترتيب والتقسيم
+            queryset = queryset.order_by(order_field)[start:start + length]
+
+            # تحضير البيانات
+            data = []
+            for item in queryset:
+                # حساب المخزون
+                stock_total = item.warehouse_items.aggregate(
+                    total=Sum('quantity')
+                ).get('total') or 0
+
+                data.append({
+                    'id': item.pk,
+                    'checkbox': '',  # سيتم ملؤه بـ JavaScript
+                    'code': item.code or '',
+                    'name': item.name,
+                    'category': item.category.name if item.category else '',
+                    'unit': item.unit.name if item.unit else '',
+                    'sale_price': str(item.sale_price) if item.sale_price else '0.00',
+                    'stock': str(stock_total),
+                    'is_active': item.is_active and not item.is_inactive,
+                    'actions': self._get_action_buttons(item, request)
+                })
+
+            return JsonResponse({
+                'draw': draw,
+                'recordsTotal': total_count,
+                'recordsFiltered': filtered_count,
+                'data': data
             })
 
-        return JsonResponse({
-            'draw': draw,
-            'recordsTotal': total_count,
-            'recordsFiltered': filtered_count,
-            'data': data
-        })
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'ItemDataTableView error: {str(e)}', exc_info=True)
 
-    def _get_actions_html(self, item, request):
-        """HTML أزرار الإجراءات"""
-        actions = []
+            return JsonResponse({
+                'draw': int(request.GET.get('draw', 1)),
+                'recordsTotal': 0,
+                'recordsFiltered': 0,
+                'data': [],
+                'error': str(e)
+            }, status=500)
 
+    def _get_action_buttons(self, item, request):
+        """إنشاء أزرار الإجراءات"""
+        buttons = []
+
+        # عرض
         if request.user.has_perm('base_data.view_item'):
-            actions.append(f'''
+            buttons.append(f'''
                 <a href="{reverse('base_data:item_detail', kwargs={'pk': item.pk})}" 
-                   class="btn btn-sm btn-light-primary" title="{_('عرض')}">
+                   class="btn btn-sm btn-outline-primary" title="عرض">
                     <i class="fas fa-eye"></i>
                 </a>
             ''')
 
+        # تعديل
         if request.user.has_perm('base_data.change_item'):
-            actions.append(f'''
+            buttons.append(f'''
                 <a href="{reverse('base_data:item_update', kwargs={'pk': item.pk})}" 
-                   class="btn btn-sm btn-light-warning" title="{_('تعديل')}">
+                   class="btn btn-sm btn-outline-warning" title="تعديل">
                     <i class="fas fa-edit"></i>
                 </a>
             ''')
 
-            active_class = 'btn-success' if item.is_active else 'btn-secondary'
-            active_icon = 'fa-toggle-on' if item.is_active else 'fa-toggle-off'
-            active_title = _('إلغاء التفعيل') if item.is_active else _('تفعيل')
+            # تفعيل/إلغاء تفعيل
+            is_active = item.is_active and not item.is_inactive
+            toggle_class = 'success' if is_active else 'secondary'
+            toggle_title = 'إلغاء التفعيل' if is_active else 'تفعيل'
 
-            actions.append(f'''
+            buttons.append(f'''
                 <button onclick="toggleItemStatus({item.pk})" 
-                        class="btn btn-sm {active_class}" title="{active_title}">
-                    <i class="fas {active_icon}"></i>
+                        class="btn btn-sm btn-outline-{toggle_class}" title="{toggle_title}">
+                    <i class="fas fa-toggle-{'on' if is_active else 'off'}"></i>
                 </button>
             ''')
 
+        # حذف
         if request.user.has_perm('base_data.delete_item'):
-            actions.append(f'''
+            buttons.append(f'''
                 <a href="{reverse('base_data:item_delete', kwargs={'pk': item.pk})}" 
-                   class="btn btn-sm btn-light-danger" title="{_('حذف')}">
+                   class="btn btn-sm btn-outline-danger" title="حذف"
+                   onclick="return confirm('هل أنت متأكد من الحذف؟')">
                     <i class="fas fa-trash"></i>
                 </a>
             ''')
 
-        return ''.join(actions)
-
+        return ' '.join(buttons)
 
 # Views للبحث والتحديد
 class ItemSelectView(LoginRequiredMixin, CompanyMixin, AjaxResponseMixin, View):

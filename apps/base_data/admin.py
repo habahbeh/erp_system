@@ -7,7 +7,7 @@ Admin interface للبيانات الأساسية
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, F
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
@@ -44,13 +44,13 @@ class UnitOfMeasureAdmin(admin.ModelAdmin):
 
     def activate_units(self, request, queryset):
         updated = queryset.update(is_active=True)
-        self.message_user(request, f'تم تفعيل {updated} وحدة قياس')
+        self.message_user(request, 'تم تفعيل {} وحدة قياس'.format(updated))
 
     activate_units.short_description = _('تفعيل الوحدات المحددة')
 
     def deactivate_units(self, request, queryset):
         updated = queryset.update(is_active=False)
-        self.message_user(request, f'تم إلغاء تفعيل {updated} وحدة قياس')
+        self.message_user(request, 'تم إلغاء تفعيل {} وحدة قياس'.format(updated))
 
     deactivate_units.short_description = _('إلغاء تفعيل الوحدات المحددة')
 
@@ -157,10 +157,11 @@ class ItemAdmin(admin.ModelAdmin):
             margin = obj.sale_price - obj.purchase_price
             percentage = (margin / obj.purchase_price) * 100 if obj.purchase_price > 0 else 0
             color = 'success' if percentage >= 20 else 'warning' if percentage >= 10 else 'danger'
+
             return format_html(
-                '<span class="badge bg-{}">{:.1f}%</span>',
-                color, percentage
-            )
+                '<span class="badge bg-{}">{}</span>',
+                color, round(percentage, 1)
+            ) + '%'
         return '-'
 
     profit_margin.short_description = _('هامش الربح')
@@ -186,11 +187,11 @@ class ItemAdmin(admin.ModelAdmin):
         duplicated = 0
         for item in queryset:
             item.pk = None
-            item.code = f"{item.code}_COPY"
+            item.code = "{}_COPY".format(item.code)
             item.barcode = None
             item.save()
             duplicated += 1
-        self.message_user(request, f'تم تكرار {duplicated} صنف')
+        self.message_user(request, 'تم تكرار {} صنف'.format(duplicated))
 
     duplicate_items.short_description = _('تكرار الأصناف المحددة')
 
@@ -227,9 +228,9 @@ class WarehouseAdmin(admin.ModelAdmin):
 
     def total_value(self, obj):
         total = obj.warehouse_items.aggregate(
-            total=Sum('quantity') * Sum('average_cost')
+            total=Sum(F('quantity') * F('average_cost'))
         )['total'] or 0
-        return f'{total:,.0f} ر.س'
+        return '{:,.0f} د.أ'.format(total)
 
     total_value.short_description = _('إجمالي القيمة')
 
@@ -322,7 +323,7 @@ class BusinessPartnerAdmin(admin.ModelAdmin):
 
     def convert_to_both(self, request, queryset):
         updated = queryset.update(partner_type='both')
-        self.message_user(request, f'تم تحويل {updated} شريك إلى عميل ومورد')
+        self.message_user(request, 'تم تحويل {} شريك إلى عميل ومورد'.format(updated))
 
     convert_to_both.short_description = _('تحويل إلى عميل ومورد')
 
@@ -356,7 +357,7 @@ class WarehouseItemAdmin(admin.ModelAdmin):
 
     def total_value(self, obj):
         total = obj.quantity * obj.average_cost
-        return f'{total:,.2f} ر.س'
+        return '{:,.2f} د.أ'.format(total)
 
     total_value.short_description = _('إجمالي القيمة')
 
@@ -374,7 +375,7 @@ class WarehouseItemAdmin(admin.ModelAdmin):
 
     def zero_stock(self, request, queryset):
         updated = queryset.update(quantity=0)
-        self.message_user(request, f'تم تصفير {updated} رصيد')
+        self.message_user(request, 'تم تصفير {} رصيد'.format(updated))
 
     zero_stock.short_description = _('تصفير المخزون')
 

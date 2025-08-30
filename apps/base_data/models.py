@@ -9,6 +9,7 @@ from django.core.validators import RegexValidator, MinValueValidator, MaxValueVa
 from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
 from apps.core.models import Company, Branch, User
+from django.utils import timezone
 
 
 class BaseModel(models.Model):
@@ -127,6 +128,15 @@ class ItemCategory(BaseModel):
         editable=False
     )
 
+    cost_of_goods_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='category_cogs',
+        verbose_name=_('حساب تكلفة البضاعة المباعة')
+    )
+
     class Meta:
         verbose_name = _('تصنيف الأصناف')
         verbose_name_plural = _('تصنيفات الأصناف')
@@ -213,7 +223,7 @@ class Item(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='sales_items',
+        related_name='item_sales',
         verbose_name=_('حساب المبيعات')
     )
 
@@ -222,7 +232,7 @@ class Item(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='purchase_items',
+        related_name='item_purchases',
         verbose_name=_('حساب المشتريات')
     )
 
@@ -231,7 +241,7 @@ class Item(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='inventory_items',
+        related_name='item_inventory',
         verbose_name=_('حساب المخزون')
     )
 
@@ -311,7 +321,7 @@ class Item(BaseModel):
         unique_together = [['company', 'code']]
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return "{} - {}".format(self.code, self.name)
 
 
 class ItemConversion(BaseModel):

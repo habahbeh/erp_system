@@ -128,6 +128,58 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+
+    // إعداد CSRF Token لجميع طلبات AJAX
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (!this.crossDomain && !(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
+            // استخدم أفضل طريقة متاحة للحصول على CSRF token
+            var csrftoken = $('[name=csrfmiddlewaretoken]').val() ||
+                           $('meta[name=csrf-token]').attr('content') ||
+                           getCookie('csrftoken');
+
+            if (csrftoken) {
+                xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            }
+        }
+    }
+});
+
+// دالة للحصول على Cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// إضافة معالج خطأ عام لـ DataTables
+$(document).ajaxError(function(event, xhr, settings) {
+    if (xhr.status === 403) {
+        console.error('CSRF Error - URL:', settings.url);
+        console.error('CSRF Token:', $('[name=csrfmiddlewaretoken]').val());
+
+        // محاولة إعادة تحميل الصفحة مرة واحدة
+        if (!window.csrfRetryAttempted) {
+            window.csrfRetryAttempted = true;
+            location.reload();
+        }
+    }
+});
+
+// التأكد من وجود CSRF token في بيانات DataTable
+if (typeof table !== 'undefined' && table.ajax) {
+    table.ajax.reload(); // إعادة تحميل إذا كان الجدول موجود بالفعل
+}
+
     // Initialize DataTable
     var table = $('#data-table').DataTable({
         ajax: {
