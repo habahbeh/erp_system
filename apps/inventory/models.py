@@ -8,7 +8,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-from apps.base_data.models import BaseModel, Item, Warehouse, Customer, Supplier
+from apps.core.models import BaseModel, Item, Warehouse, Customer, Supplier
 from apps.accounting.models import Account, JournalEntry
 from apps.core.models import User
 

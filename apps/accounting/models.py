@@ -1,81 +1,14 @@
 # apps/accounting/models.py
 """
-نماذج المحاسبة
-يحتوي على: دليل الحسابات، العملات، القيود، السندات
+نماذج المحاسبة - الإصدار المُصحح
+يحتوي على: دليل الحسابات، القيود، السندات
 """
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-from apps.base_data.models import BaseModel
-
-
-class Currency(BaseModel):
-    """العملات"""
-
-    code = models.CharField(
-        _('رمز العملة'),
-        max_length=3,
-        unique=True,
-        help_text=_('مثال: JOD, USD, EUR')
-    )
-
-    name = models.CharField(
-        _('اسم العملة'),
-        max_length=50
-    )
-
-    name_en = models.CharField(
-        _('الاسم بالإنجليزية'),
-        max_length=50,
-        blank=True
-    )
-
-    symbol = models.CharField(
-        _('الرمز'),
-        max_length=5,
-        help_text=_('مثال: د.أ, $, €')
-    )
-
-    exchange_rate = models.DecimalField(
-        _('سعر الصرف'),
-        max_digits=12,
-        decimal_places=6,
-        default=1,
-        validators=[MinValueValidator(Decimal('0.000001'))],
-        help_text=_('سعر الصرف مقابل العملة الأساسية')
-    )
-
-    is_base = models.BooleanField(
-        _('العملة الأساسية'),
-        default=False,
-        help_text=_('عملة أساسية واحدة فقط لكل شركة')
-    )
-
-    decimal_places = models.IntegerField(
-        _('عدد الخانات العشرية'),
-        default=2,
-        validators=[MinValueValidator(0)]
-    )
-
-    class Meta:
-        verbose_name = _('عملة')
-        verbose_name_plural = _('العملات')
-        unique_together = [['company', 'code']]
-
-    def save(self, *args, **kwargs):
-        """التأكد من وجود عملة أساسية واحدة فقط"""
-        if self.is_base:
-            Currency.objects.filter(
-                company=self.company,
-                is_base=True
-            ).exclude(pk=self.pk).update(is_base=False)
-            self.exchange_rate = 1
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.name} ({self.code})"
+from apps.core.models import BaseModel
 
 
 class AccountType(models.Model):
@@ -89,30 +22,13 @@ class AccountType(models.Model):
         ('expenses', _('المصروفات')),
     ]
 
-    code = models.CharField(
-        _('الرمز'),
-        max_length=20,
-        unique=True
-    )
-
-    name = models.CharField(
-        _('الاسم'),
-        max_length=50
-    )
-
-    type_category = models.CharField(
-        _('التصنيف'),
-        max_length=20,
-        choices=ACCOUNT_TYPES
-    )
-
+    code = models.CharField(_('الرمز'), max_length=20, unique=True)
+    name = models.CharField(_('الاسم'), max_length=50)
+    type_category = models.CharField(_('التصنيف'), max_length=20, choices=ACCOUNT_TYPES)
     normal_balance = models.CharField(
         _('الرصيد الطبيعي'),
         max_length=10,
-        choices=[
-            ('debit', _('مدين')),
-            ('credit', _('دائن')),
-        ]
+        choices=[('debit', _('مدين')), ('credit', _('دائن'))]
     )
 
     class Meta:
@@ -133,102 +49,35 @@ class Account(BaseModel):
     ]
 
     # معلومات أساسية
-    code = models.CharField(
-        _('رمز الحساب'),
-        max_length=20
-    )
-
-    name = models.CharField(
-        _('اسم الحساب'),
-        max_length=200
-    )
-
-    name_en = models.CharField(
-        _('الاسم اللاتيني'),
-        max_length=200,
-        blank=True
-    )
+    code = models.CharField(_('رمز الحساب'), max_length=20)
+    name = models.CharField(_('اسم الحساب'), max_length=200)
+    name_en = models.CharField(_('الاسم اللاتيني'), max_length=200, blank=True)
 
     # التصنيف والتسلسل
-    account_type = models.ForeignKey(
-        AccountType,
-        on_delete=models.PROTECT,
-        verbose_name=_('نوع الحساب')
-    )
-
-    parent = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='children',
-        verbose_name=_('الحساب الأب')
-    )
+    account_type = models.ForeignKey(AccountType, on_delete=models.PROTECT, verbose_name=_('نوع الحساب'))
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name=_('الحساب الأب'))
 
     # الإعدادات
-    currency = models.ForeignKey(
-        Currency,
-        on_delete=models.PROTECT,
-        verbose_name=_('العملة الافتراضية')
-    )
-
-    nature = models.CharField(
-        _('جهة الحساب'),
-        max_length=10,
-        choices=ACCOUNT_NATURE,
-        default='both'
-    )
+    currency = models.ForeignKey('core.Currency', on_delete=models.PROTECT, verbose_name=_('العملة الافتراضية'))
+    nature = models.CharField(_('جهة الحساب'), max_length=10, choices=ACCOUNT_NATURE, default='both')
 
     # معلومات إضافية
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
-    )
+    notes = models.TextField(_('ملاحظات'), blank=True)
 
     # الحالة
-    is_suspended = models.BooleanField(
-        _('موقوف'),
-        default=False,
-        help_text=_('الحساب الموقوف لا يمكن استخدامه في القيود الجديدة')
-    )
+    is_suspended = models.BooleanField(_('موقوف'), default=False)
 
     # خصائص الحساب
-    is_cash_account = models.BooleanField(
-        _('حساب نقدي'),
-        default=False
-    )
-
-    is_bank_account = models.BooleanField(
-        _('حساب بنكي'),
-        default=False
-    )
-
-    accept_entries = models.BooleanField(
-        _('يقبل القيود'),
-        default=True,
-        help_text=_('الحسابات الرئيسية قد لا تقبل قيود مباشرة')
-    )
+    is_cash_account = models.BooleanField(_('حساب نقدي'), default=False)
+    is_bank_account = models.BooleanField(_('حساب بنكي'), default=False)
+    accept_entries = models.BooleanField(_('يقبل القيود'), default=True)
 
     # المستوى (محسوب تلقائياً)
-    level = models.IntegerField(
-        _('المستوى'),
-        default=1,
-        editable=False
-    )
+    level = models.IntegerField(_('المستوى'), default=1, editable=False)
 
     # الرصيد الافتتاحي
-    opening_balance = models.DecimalField(
-        _('الرصيد الافتتاحي'),
-        max_digits=15,
-        decimal_places=3,
-        default=0
-    )
-
-    opening_balance_date = models.DateField(
-        _('تاريخ الرصيد الافتتاحي'),
-        null=True,
-        blank=True
-    )
+    opening_balance = models.DecimalField(_('الرصيد الافتتاحي'), max_digits=15, decimal_places=3, default=0)
+    opening_balance_date = models.DateField(_('تاريخ الرصيد الافتتاحي'), null=True, blank=True)
 
     class Meta:
         verbose_name = _('حساب')
@@ -237,26 +86,20 @@ class Account(BaseModel):
         ordering = ['code']
 
     def save(self, *args, **kwargs):
-        """حساب المستوى تلقائياً"""
         if self.parent:
             self.level = self.parent.level + 1
-            # وراثة نوع الحساب من الأب
             if not self.account_type_id:
                 self.account_type = self.parent.account_type
         else:
             self.level = 1
-
         super().save(*args, **kwargs)
 
     def get_full_name(self):
-        """الاسم الكامل مع التسلسل"""
         if self.parent:
             return f"{self.parent.get_full_name()} / {self.name}"
         return self.name
 
     def get_balance(self, date=None):
-        """حساب الرصيد حتى تاريخ معين"""
-        # سيتم تطويرها مع نموذج القيود
         return self.opening_balance
 
     def __str__(self):
@@ -266,28 +109,11 @@ class Account(BaseModel):
 class FiscalYear(BaseModel):
     """السنة المالية"""
 
-    name = models.CharField(
-        _('اسم السنة المالية'),
-        max_length=100
-    )
-
-    code = models.CharField(
-        _('الرمز'),
-        max_length=20
-    )
-
-    start_date = models.DateField(
-        _('تاريخ البداية')
-    )
-
-    end_date = models.DateField(
-        _('تاريخ النهاية')
-    )
-
-    is_closed = models.BooleanField(
-        _('مقفلة'),
-        default=False
-    )
+    name = models.CharField(_('اسم السنة المالية'), max_length=100)
+    code = models.CharField(_('الرمز'), max_length=20)
+    start_date = models.DateField(_('تاريخ البداية'))
+    end_date = models.DateField(_('تاريخ النهاية'))
+    is_closed = models.BooleanField(_('مقفلة'), default=False)
 
     class Meta:
         verbose_name = _('سنة مالية')
@@ -302,35 +128,12 @@ class FiscalYear(BaseModel):
 class AccountingPeriod(BaseModel):
     """الفترة المحاسبية"""
 
-    fiscal_year = models.ForeignKey(
-        FiscalYear,
-        on_delete=models.CASCADE,
-        related_name='periods',
-        verbose_name=_('السنة المالية')
-    )
-
-    name = models.CharField(
-        _('اسم الفترة'),
-        max_length=50
-    )
-
-    start_date = models.DateField(
-        _('تاريخ البداية')
-    )
-
-    end_date = models.DateField(
-        _('تاريخ النهاية')
-    )
-
-    is_closed = models.BooleanField(
-        _('مقفلة'),
-        default=False
-    )
-
-    is_adjustment = models.BooleanField(
-        _('فترة تسويات'),
-        default=False
-    )
+    fiscal_year = models.ForeignKey(FiscalYear, on_delete=models.CASCADE, related_name='periods', verbose_name=_('السنة المالية'))
+    name = models.CharField(_('اسم الفترة'), max_length=50)
+    start_date = models.DateField(_('تاريخ البداية'))
+    end_date = models.DateField(_('تاريخ النهاية'))
+    is_closed = models.BooleanField(_('مقفلة'), default=False)
+    is_adjustment = models.BooleanField(_('فترة تسويات'), default=False)
 
     class Meta:
         verbose_name = _('فترة محاسبية')
@@ -339,7 +142,6 @@ class AccountingPeriod(BaseModel):
 
     def __str__(self):
         return f"{self.fiscal_year.name} - {self.name}"
-
 
 
 class JournalEntry(BaseModel):
@@ -353,87 +155,26 @@ class JournalEntry(BaseModel):
     ]
 
     # معلومات أساسية
-    number = models.CharField(
-        _('رقم القيد'),
-        max_length=50,
-        editable=False
-    )
-
-    date = models.DateField(
-        _('التاريخ')
-    )
-
-    fiscal_year = models.ForeignKey(
-        FiscalYear,
-        on_delete=models.PROTECT,
-        verbose_name=_('السنة المالية')
-    )
-
-    period = models.ForeignKey(
-        AccountingPeriod,
-        on_delete=models.PROTECT,
-        verbose_name=_('الفترة المحاسبية')
-    )
-
-    entry_type = models.CharField(
-        _('نوع القيد'),
-        max_length=20,
-        choices=ENTRY_TYPES,
-        default='normal'
-    )
+    number = models.CharField(_('رقم القيد'), max_length=50, editable=False)
+    date = models.DateField(_('التاريخ'))
+    fiscal_year = models.ForeignKey(FiscalYear, on_delete=models.PROTECT, verbose_name=_('السنة المالية'))
+    period = models.ForeignKey(AccountingPeriod, on_delete=models.PROTECT, verbose_name=_('الفترة المحاسبية'))
+    entry_type = models.CharField(_('نوع القيد'), max_length=20, choices=ENTRY_TYPES, default='normal')
 
     # البيان والوصف
-    description = models.TextField(
-        _('البيان')
-    )
-
-    reference = models.CharField(
-        _('المرجع'),
-        max_length=100,
-        blank=True,
-        help_text=_('رقم الفاتورة أو المستند')
-    )
+    description = models.TextField(_('البيان'))
+    reference = models.CharField(_('المرجع'), max_length=100, blank=True)
 
     # الحالة
-    is_posted = models.BooleanField(
-        _('مرحل'),
-        default=False
-    )
-
-    posted_date = models.DateTimeField(
-        _('تاريخ الترحيل'),
-        null=True,
-        blank=True
-    )
-
-    posted_by = models.ForeignKey(
-        'core.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='posted_entries',
-        verbose_name=_('رحل بواسطة')
-    )
+    is_posted = models.BooleanField(_('مرحل'), default=False)
+    posted_date = models.DateTimeField(_('تاريخ الترحيل'), null=True, blank=True)
+    posted_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='posted_entries', verbose_name=_('رحل بواسطة'))
 
     # الإلغاء
-    is_reversed = models.BooleanField(
-        _('ملغي'),
-        default=False
-    )
+    is_reversed = models.BooleanField(_('ملغي'), default=False)
+    reversed_entry = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='reversing_entries', verbose_name=_('القيد العكسي'))
 
-    reversed_entry = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='reversing_entries',
-        verbose_name=_('القيد العكسي')
-    )
-
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
-    )
+    notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
         verbose_name = _('قيد يومية')
@@ -442,9 +183,7 @@ class JournalEntry(BaseModel):
         ordering = ['-date', '-number']
 
     def save(self, *args, **kwargs):
-        """توليد رقم القيد تلقائياً"""
         if not self.number:
-            # سنة-شهر-تسلسل
             year_month = self.date.strftime('%Y%m')
             last_entry = JournalEntry.objects.filter(
                 company=self.company,
@@ -459,7 +198,6 @@ class JournalEntry(BaseModel):
 
             self.number = f"JE{year_month}{new_number:04d}"
 
-        # تحديد الفترة المحاسبية تلقائياً
         if not self.period_id:
             self.period = AccountingPeriod.objects.get(
                 fiscal_year=self.fiscal_year,
@@ -470,19 +208,12 @@ class JournalEntry(BaseModel):
         super().save(*args, **kwargs)
 
     def get_total_debit(self):
-        """مجموع المدين"""
-        return self.lines.aggregate(
-            total=models.Sum('debit_amount')
-        )['total'] or 0
+        return self.lines.aggregate(total=models.Sum('debit_amount'))['total'] or 0
 
     def get_total_credit(self):
-        """مجموع الدائن"""
-        return self.lines.aggregate(
-            total=models.Sum('credit_amount')
-        )['total'] or 0
+        return self.lines.aggregate(total=models.Sum('credit_amount'))['total'] or 0
 
     def is_balanced(self):
-        """هل القيد متوازن؟"""
         return self.get_total_debit() == self.get_total_credit()
 
     def __str__(self):
@@ -492,96 +223,38 @@ class JournalEntry(BaseModel):
 class JournalEntryLine(models.Model):
     """سطور القيد"""
 
-    entry = models.ForeignKey(
-        JournalEntry,
-        on_delete=models.CASCADE,
-        related_name='lines',
-        verbose_name=_('القيد')
-    )
-
-    account = models.ForeignKey(
-        Account,
-        on_delete=models.PROTECT,
-        verbose_name=_('الحساب')
-    )
-
-    description = models.CharField(
-        _('البيان'),
-        max_length=500,
-        blank=True
-    )
+    entry = models.ForeignKey(JournalEntry, on_delete=models.CASCADE, related_name='lines', verbose_name=_('القيد'))
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name=_('الحساب'))
+    description = models.CharField(_('البيان'), max_length=500, blank=True)
 
     # المبالغ
-    debit_amount = models.DecimalField(
-        _('مدين'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        validators=[MinValueValidator(0)]
-    )
-
-    credit_amount = models.DecimalField(
-        _('دائن'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        validators=[MinValueValidator(0)]
-    )
+    debit_amount = models.DecimalField(_('مدين'), max_digits=15, decimal_places=3, default=0, validators=[MinValueValidator(0)])
+    credit_amount = models.DecimalField(_('دائن'), max_digits=15, decimal_places=3, default=0, validators=[MinValueValidator(0)])
 
     # العملة
-    currency = models.ForeignKey(
-        Currency,
-        on_delete=models.PROTECT,
-        verbose_name=_('العملة')
-    )
-
-    exchange_rate = models.DecimalField(
-        _('سعر الصرف'),
-        max_digits=12,
-        decimal_places=6,
-        default=1
-    )
+    currency = models.ForeignKey('core.Currency', on_delete=models.PROTECT, verbose_name=_('العملة'))
+    exchange_rate = models.DecimalField(_('سعر الصرف'), max_digits=12, decimal_places=6, default=1)
 
     # مراكز التكلفة (اختياري)
-    cost_center = models.ForeignKey(
-        'CostCenter',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('مركز التكلفة')
-    )
+    cost_center = models.ForeignKey('CostCenter', on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('مركز التكلفة'))
 
     # المعلومات الإضافية
     partner_type = models.CharField(
         _('نوع الشريك'),
         max_length=20,
-        choices=[
-            ('customer', _('عميل')),
-            ('supplier', _('مورد')),
-            ('employee', _('موظف')),
-            ('other', _('أخرى')),
-        ],
+        choices=[('customer', _('عميل')), ('supplier', _('مورد')), ('employee', _('موظف')), ('other', _('أخرى'))],
         blank=True
     )
-
-    partner_id = models.IntegerField(
-        _('معرف الشريك'),
-        null=True,
-        blank=True
-    )
+    partner_id = models.IntegerField(_('معرف الشريك'), null=True, blank=True)
 
     class Meta:
         verbose_name = _('سطر قيد')
         verbose_name_plural = _('سطور القيود')
 
     def clean(self):
-        """التحقق من صحة البيانات"""
         from django.core.exceptions import ValidationError
-
-        # التأكد من أن المبلغ في جهة واحدة فقط
         if self.debit_amount > 0 and self.credit_amount > 0:
             raise ValidationError(_('لا يمكن أن يكون المبلغ مدين ودائن في نفس الوقت'))
-
         if self.debit_amount == 0 and self.credit_amount == 0:
             raise ValidationError(_('يجب إدخال مبلغ مدين أو دائن'))
 
@@ -592,136 +265,42 @@ class JournalEntryLine(models.Model):
 class PaymentVoucher(BaseModel):
     """سند الصرف"""
 
-    PAYMENT_METHODS = [
-        ('cash', _('نقدي')),
-        ('check', _('شيك')),
-        ('transfer', _('حوالة')),
-        ('credit_card', _('بطاقة ائتمان')),
-    ]
+    PAYMENT_METHODS = [('cash', _('نقدي')), ('check', _('شيك')), ('transfer', _('حوالة')), ('credit_card', _('بطاقة ائتمان'))]
 
-    # معلومات أساسية
-    number = models.CharField(
-        _('رقم السند'),
-        max_length=50,
-        editable=False
-    )
-
-    date = models.DateField(
-        _('التاريخ')
-    )
+    number = models.CharField(_('رقم السند'), max_length=50, editable=False)
+    date = models.DateField(_('التاريخ'))
 
     # المستفيد
-    beneficiary_name = models.CharField(
-        _('اسم المستفيد'),
-        max_length=200
-    )
-
-    beneficiary_type = models.CharField(
-        _('نوع المستفيد'),
-        max_length=20,
-        choices=[
-            ('supplier', _('مورد')),
-            ('employee', _('موظف')),
-            ('other', _('أخرى')),
-        ]
-    )
-
-    beneficiary_id = models.IntegerField(
-        _('معرف المستفيد'),
-        null=True,
-        blank=True
-    )
+    beneficiary_name = models.CharField(_('اسم المستفيد'), max_length=200)
+    beneficiary_type = models.CharField(_('نوع المستفيد'), max_length=20, choices=[('supplier', _('مورد')), ('employee', _('موظف')), ('other', _('أخرى'))])
+    beneficiary_id = models.IntegerField(_('معرف المستفيد'), null=True, blank=True)
 
     # التفاصيل المالية
-    amount = models.DecimalField(
-        _('المبلغ'),
-        max_digits=15,
-        decimal_places=3,
-        validators=[MinValueValidator(0)]
-    )
-
-    currency = models.ForeignKey(
-        Currency,
-        on_delete=models.PROTECT,
-        verbose_name=_('العملة')
-    )
-
-    exchange_rate = models.DecimalField(
-        _('سعر الصرف'),
-        max_digits=12,
-        decimal_places=6,
-        default=1
-    )
+    amount = models.DecimalField(_('المبلغ'), max_digits=15, decimal_places=3, validators=[MinValueValidator(0)])
+    currency = models.ForeignKey('core.Currency', on_delete=models.PROTECT, verbose_name=_('العملة'))
+    exchange_rate = models.DecimalField(_('سعر الصرف'), max_digits=12, decimal_places=6, default=1)
 
     # طريقة الدفع
-    payment_method = models.CharField(
-        _('طريقة الدفع'),
-        max_length=20,
-        choices=PAYMENT_METHODS,
-        default='cash'
-    )
+    payment_method = models.CharField(_('طريقة الدفع'), max_length=20, choices=PAYMENT_METHODS, default='cash')
 
     # الحسابات
-    cash_account = models.ForeignKey(
-        Account,
-        on_delete=models.PROTECT,
-        related_name='payment_vouchers',
-        verbose_name=_('حساب الصندوق/البنك'),
-        limit_choices_to={'is_cash_account': True}
-    )
-
-    expense_account = models.ForeignKey(
-        Account,
-        on_delete=models.PROTECT,
-        related_name='expense_vouchers',
-        verbose_name=_('حساب المصروف'),
-        null=True,
-        blank=True
-    )
+    cash_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='payment_vouchers', verbose_name=_('حساب الصندوق/البنك'))
+    expense_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='expense_vouchers', verbose_name=_('حساب المصروف'), null=True, blank=True)
 
     # البيان
-    description = models.TextField(
-        _('البيان')
-    )
+    description = models.TextField(_('البيان'))
 
     # معلومات الشيك
-    check_number = models.CharField(
-        _('رقم الشيك'),
-        max_length=50,
-        blank=True
-    )
-
-    check_date = models.DateField(
-        _('تاريخ الشيك'),
-        null=True,
-        blank=True
-    )
-
-    bank_name = models.CharField(
-        _('اسم البنك'),
-        max_length=100,
-        blank=True
-    )
+    check_number = models.CharField(_('رقم الشيك'), max_length=50, blank=True)
+    check_date = models.DateField(_('تاريخ الشيك'), null=True, blank=True)
+    bank_name = models.CharField(_('اسم البنك'), max_length=100, blank=True)
 
     # القيد المحاسبي
-    journal_entry = models.OneToOneField(
-        JournalEntry,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('القيد المحاسبي')
-    )
+    journal_entry = models.OneToOneField(JournalEntry, on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('القيد المحاسبي'))
 
     # الحالة
-    is_posted = models.BooleanField(
-        _('مرحل'),
-        default=False
-    )
-
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
-    )
+    is_posted = models.BooleanField(_('مرحل'), default=False)
+    notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
         verbose_name = _('سند صرف')
@@ -730,7 +309,6 @@ class PaymentVoucher(BaseModel):
         ordering = ['-date', '-number']
 
     def save(self, *args, **kwargs):
-        """توليد رقم السند تلقائياً"""
         if not self.number:
             year_month = self.date.strftime('%Y%m')
             last_voucher = PaymentVoucher.objects.filter(
@@ -755,135 +333,42 @@ class PaymentVoucher(BaseModel):
 class ReceiptVoucher(BaseModel):
     """سند القبض"""
 
-    RECEIPT_METHODS = [
-        ('cash', _('نقدي')),
-        ('check', _('شيك')),
-        ('transfer', _('حوالة')),
-        ('credit_card', _('بطاقة ائتمان')),
-    ]
+    RECEIPT_METHODS = [('cash', _('نقدي')), ('check', _('شيك')), ('transfer', _('حوالة')), ('credit_card', _('بطاقة ائتمان'))]
 
-    # معلومات أساسية
-    number = models.CharField(
-        _('رقم السند'),
-        max_length=50,
-        editable=False
-    )
-
-    date = models.DateField(
-        _('التاريخ')
-    )
+    number = models.CharField(_('رقم السند'), max_length=50, editable=False)
+    date = models.DateField(_('التاريخ'))
 
     # المستلم من
-    received_from = models.CharField(
-        _('مستلم من'),
-        max_length=200
-    )
-
-    payer_type = models.CharField(
-        _('نوع الدافع'),
-        max_length=20,
-        choices=[
-            ('customer', _('عميل')),
-            ('other', _('أخرى')),
-        ]
-    )
-
-    payer_id = models.IntegerField(
-        _('معرف الدافع'),
-        null=True,
-        blank=True
-    )
+    received_from = models.CharField(_('مستلم من'), max_length=200)
+    payer_type = models.CharField(_('نوع الدافع'), max_length=20, choices=[('customer', _('عميل')), ('other', _('أخرى'))])
+    payer_id = models.IntegerField(_('معرف الدافع'), null=True, blank=True)
 
     # التفاصيل المالية
-    amount = models.DecimalField(
-        _('المبلغ'),
-        max_digits=15,
-        decimal_places=3,
-        validators=[MinValueValidator(0)]
-    )
-
-    currency = models.ForeignKey(
-        Currency,
-        on_delete=models.PROTECT,
-        verbose_name=_('العملة')
-    )
-
-    exchange_rate = models.DecimalField(
-        _('سعر الصرف'),
-        max_digits=12,
-        decimal_places=6,
-        default=1
-    )
+    amount = models.DecimalField(_('المبلغ'), max_digits=15, decimal_places=3, validators=[MinValueValidator(0)])
+    currency = models.ForeignKey('core.Currency', on_delete=models.PROTECT, verbose_name=_('العملة'))
+    exchange_rate = models.DecimalField(_('سعر الصرف'), max_digits=12, decimal_places=6, default=1)
 
     # طريقة القبض
-    receipt_method = models.CharField(
-        _('طريقة القبض'),
-        max_length=20,
-        choices=RECEIPT_METHODS,
-        default='cash'
-    )
+    receipt_method = models.CharField(_('طريقة القبض'), max_length=20, choices=RECEIPT_METHODS, default='cash')
 
     # الحسابات
-    cash_account = models.ForeignKey(
-        Account,
-        on_delete=models.PROTECT,
-        related_name='receipt_vouchers',
-        verbose_name=_('حساب الصندوق/البنك'),
-        limit_choices_to={'is_cash_account': True}
-    )
-
-    income_account = models.ForeignKey(
-        Account,
-        on_delete=models.PROTECT,
-        related_name='income_vouchers',
-        verbose_name=_('حساب الإيراد'),
-        null=True,
-        blank=True
-    )
+    cash_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='receipt_vouchers', verbose_name=_('حساب الصندوق/البنك'))
+    income_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='income_vouchers', verbose_name=_('حساب الإيراد'), null=True, blank=True)
 
     # البيان
-    description = models.TextField(
-        _('البيان')
-    )
+    description = models.TextField(_('البيان'))
 
     # معلومات الشيك
-    check_number = models.CharField(
-        _('رقم الشيك'),
-        max_length=50,
-        blank=True
-    )
-
-    check_date = models.DateField(
-        _('تاريخ الشيك'),
-        null=True,
-        blank=True
-    )
-
-    bank_name = models.CharField(
-        _('اسم البنك'),
-        max_length=100,
-        blank=True
-    )
+    check_number = models.CharField(_('رقم الشيك'), max_length=50, blank=True)
+    check_date = models.DateField(_('تاريخ الشيك'), null=True, blank=True)
+    bank_name = models.CharField(_('اسم البنك'), max_length=100, blank=True)
 
     # القيد المحاسبي
-    journal_entry = models.OneToOneField(
-        JournalEntry,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('القيد المحاسبي')
-    )
+    journal_entry = models.OneToOneField(JournalEntry, on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('القيد المحاسبي'))
 
     # الحالة
-    is_posted = models.BooleanField(
-        _('مرحل'),
-        default=False
-    )
-
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
-    )
+    is_posted = models.BooleanField(_('مرحل'), default=False)
+    notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
         verbose_name = _('سند قبض')
@@ -892,7 +377,6 @@ class ReceiptVoucher(BaseModel):
         ordering = ['-date', '-number']
 
     def save(self, *args, **kwargs):
-        """توليد رقم السند تلقائياً"""
         if not self.number:
             year_month = self.date.strftime('%Y%m')
             last_voucher = ReceiptVoucher.objects.filter(
@@ -917,32 +401,10 @@ class ReceiptVoucher(BaseModel):
 class CostCenter(BaseModel):
     """مراكز التكلفة"""
 
-    code = models.CharField(
-        _('الرمز'),
-        max_length=20
-    )
-
-    name = models.CharField(
-        _('الاسم'),
-        max_length=100
-    )
-
-    parent = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='children',
-        verbose_name=_('المركز الأب')
-    )
-
-    manager = models.ForeignKey(
-        'core.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('المسؤول')
-    )
+    code = models.CharField(_('الرمز'), max_length=20)
+    name = models.CharField(_('الاسم'), max_length=100)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name=_('المركز الأب'))
+    manager = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('المسؤول'))
 
     class Meta:
         verbose_name = _('مركز تكلفة')

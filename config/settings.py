@@ -29,12 +29,11 @@ DJANGO_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.core',
-    'apps.base_data',
     'apps.accounting',
-    'apps.sales',
-    'apps.purchases',
-    'apps.inventory',
-    'apps.hr',
+    # 'apps.sales',
+    # 'apps.purchases',
+    # 'apps.inventory',
+    # 'apps.hr',
     'apps.reports',
     'rest_framework',
     'widget_tweaks',
@@ -190,12 +189,7 @@ LOGGING = {
             'handlers': ['file'],
             'level': 'INFO',
             'propagate': True,
-        },
-        'apps.base_data': {
-            'handlers': ['file', 'console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
+        }
     },
 }
 
