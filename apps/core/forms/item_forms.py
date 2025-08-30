@@ -6,7 +6,8 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
-from ..models import Item, ItemCategory, Brand, UnitOfMeasure, Warehouse, Currency, ItemVariant, ItemVariantAttributeValue
+from ..models import Item, ItemCategory, Brand, UnitOfMeasure, Warehouse, Currency, ItemVariant, \
+    ItemVariantAttributeValue
 from django.forms import inlineformset_factory
 
 
@@ -51,16 +52,13 @@ class ItemForm(forms.ModelForm):
             'unit_of_measure': forms.Select(attrs={'class': 'form-select'}),
             'currency': forms.Select(attrs={'class': 'form-select'}),
             'default_warehouse': forms.Select(attrs={'class': 'form-select'}),
-            'purchase_price': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.0001',
-                'min': '0'
-            }),
-            'sale_price': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.0001',
-                'min': '0'
-            }),
+
+            # الحسابات المحاسبية
+            'sales_account': forms.Select(attrs={'class': 'form-select'}),
+            'purchase_account': forms.Select(attrs={'class': 'form-select'}),
+            'inventory_account': forms.Select(attrs={'class': 'form-select'}),
+            'cost_of_goods_account': forms.Select(attrs={'class': 'form-select'}),
+
             'tax_rate': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
@@ -120,12 +118,6 @@ class ItemForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3
             }),
-
-            'sales_account': forms.Select(attrs={'class': 'form-select'}),
-            'purchase_account': forms.Select(attrs={'class': 'form-select'}),
-            'inventory_account': forms.Select(attrs={'class': 'form-select'}),
-            'cost_of_goods_account': forms.Select(attrs={'class': 'form-select'}),
-
         }
 
     def __init__(self, *args, **kwargs):
@@ -135,13 +127,23 @@ class ItemForm(forms.ModelForm):
         if self.request:
             company = self.request.current_company
 
-            from apps.accounting.models import Account
-            accounts_queryset = Account.objects.filter(company=company, is_active=True)
+            try:
+                from apps.accounting.models import Account
+                accounts_queryset = Account.objects.filter(company=company, is_active=True)
 
-            self.fields['sales_account'].queryset = accounts_queryset.filter(account_type__type_category='revenue')
-            self.fields['purchase_account'].queryset = accounts_queryset.filter(account_type__type_category='expenses')
-            self.fields['inventory_account'].queryset = accounts_queryset.filter(account_type__type_category='assets')
-            self.fields['cost_of_goods_account'].queryset = accounts_queryset.filter(account_type__type_category='expenses')
+                self.fields['sales_account'].queryset = accounts_queryset.filter(account_type__type_category='revenue')
+                self.fields['purchase_account'].queryset = accounts_queryset.filter(
+                    account_type__type_category='expenses')
+                self.fields['inventory_account'].queryset = accounts_queryset.filter(
+                    account_type__type_category='assets')
+                self.fields['cost_of_goods_account'].queryset = accounts_queryset.filter(
+                    account_type__type_category='expenses')
+            except ImportError:
+                # في حالة عدم وجود تطبيق المحاسبة
+                self.fields['sales_account'].queryset = self.fields['sales_account'].queryset.none()
+                self.fields['purchase_account'].queryset = self.fields['purchase_account'].queryset.none()
+                self.fields['inventory_account'].queryset = self.fields['inventory_account'].queryset.none()
+                self.fields['cost_of_goods_account'].queryset = self.fields['cost_of_goods_account'].queryset.none()
 
             # فلترة الخيارات حسب الشركة
             self.fields['category'].queryset = ItemCategory.objects.filter(
@@ -162,6 +164,10 @@ class ItemForm(forms.ModelForm):
         self.fields['brand'].required = False
         self.fields['default_warehouse'].required = False
         self.fields['code'].required = False
+        self.fields['sales_account'].required = False
+        self.fields['purchase_account'].required = False
+        self.fields['inventory_account'].required = False
+        self.fields['cost_of_goods_account'].required = False
 
     def clean_barcode(self):
         """التحقق من عدم تكرار الباركود"""
@@ -184,16 +190,6 @@ class ItemForm(forms.ModelForm):
             if queryset.exists():
                 raise ValidationError(_('هذا الـ SKU مستخدم مسبقاً'))
         return sku
-
-    def clean(self):
-        cleaned_data = super().clean()
-        purchase_price = cleaned_data.get('purchase_price', 0)
-        sale_price = cleaned_data.get('sale_price', 0)
-
-        if sale_price > 0 and purchase_price > sale_price:
-            raise ValidationError(_('سعر البيع لا يمكن أن يكون أقل من سعر الشراء'))
-
-        return cleaned_data
 
 
 class ItemCategoryForm(forms.ModelForm):

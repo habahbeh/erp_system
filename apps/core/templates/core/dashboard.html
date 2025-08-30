@@ -10,14 +10,23 @@
     <div class="row mb-4">
         <div class="col-12">
             <h1 class="h3 text-gray-800">{% trans "لوحة التحكم" %}</h1>
-            <p class="text-muted">{% trans "مرحباً" %} {{ user.get_full_name|default:user.username }}، {% trans "مرحباً بك في نظام ERP" %}</p>
+            <p class="text-muted">
+                {% trans "مرحباً" %} {{ user.get_full_name|default:user.username }}،
+                {% trans "مرحباً بك في نظام ERP" %}
+                {% if current_company %}
+                    - {{ current_company.name }}
+                {% endif %}
+                {% if current_branch %}
+                    ({{ current_branch.name }})
+                {% endif %}
+            </p>
         </div>
     </div>
 
     <!-- الوحدات الرئيسية -->
     <div class="row g-4">
         <!-- البيانات الأساسية -->
-        {% if perms.base_data or user.is_superuser %}
+        {% if perms.core.view_item or perms.core.view_businesspartner or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-primary text-white">
                 <div class="card-body text-center p-4">
@@ -25,9 +34,9 @@
                         <i class="fas fa-database fa-3x"></i>
                     </div>
                     <h5 class="card-title">{% trans "البيانات الأساسية" %}</h5>
-                    <p class="card-text small">{% trans "إدارة العملاء والموردين والأصناف" %}</p>
-                    {% if perms.base_data.view_customer or perms.base_data.view_supplier or perms.base_data.view_item or user.is_superuser %}
-                        <a href="{% url 'base_data:customer_list' %}" class="btn btn-light btn-sm stretched-link">
+                    <p class="card-text small">{% trans "إدارة الشركاء التجاريين والأصناف" %}</p>
+                    {% if perms.core.view_item or user.is_superuser %}
+                        <a href="{% url 'core:item_list' %}" class="btn btn-light btn-sm stretched-link">
                             {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
                         </a>
                     {% else %}
@@ -39,7 +48,6 @@
         {% endif %}
 
         <!-- المشتريات -->
-        {% if perms.purchases or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-success text-white">
                 <div class="card-body text-center p-4">
@@ -48,20 +56,15 @@
                     </div>
                     <h5 class="card-title">{% trans "المشتريات" %}</h5>
                     <p class="card-text small">{% trans "أوامر الشراء وفواتير الموردين" %}</p>
-                    {% if perms.purchases.view_purchaseorder or perms.purchases.view_purchaseinvoice or user.is_superuser %}
-                    <a href="#" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="#" onclick="showComingSoon('{% trans "المشتريات" %}')" class="btn btn-light btn-sm stretched-link">
+                        {% trans "قريباً" %} <i class="fas fa-clock ms-1"></i>
                     </a>
-                    {% else %}
-                    <span class="badge bg-secondary">{% trans "ليس لديك صلاحية" %}</span>
-                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <!-- المخازن -->
-        {% if perms.inventory or user.is_superuser %}
+        {% if perms.core.view_warehouse or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-info text-white">
                 <div class="card-body text-center p-4">
@@ -69,8 +72,9 @@
                         <i class="fas fa-warehouse fa-3x"></i>
                     </div>
                     <h5 class="card-title">{% trans "المخازن" %}</h5>
-                    <p class="card-text small">{% trans "حركة المخزون والجرد" %}</p>
-                    {% if perms.inventory.view_stockmovement or perms.inventory.view_warehouse or user.is_superuser %}
+                    <p class="card-text small">{% trans "إدارة المستودعات والمخزون" %}</p>
+                    {% if perms.core.view_warehouse or user.is_superuser %}
+{#                    <a href="{% url 'core:warehouse_list' %}" class="btn btn-light btn-sm stretched-link">#}
                     <a href="#" class="btn btn-light btn-sm stretched-link">
                         {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
                     </a>
@@ -83,7 +87,6 @@
         {% endif %}
 
         <!-- المبيعات -->
-        {% if perms.sales or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-warning text-white">
                 <div class="card-body text-center p-4">
@@ -92,20 +95,15 @@
                     </div>
                     <h5 class="card-title">{% trans "المبيعات" %}</h5>
                     <p class="card-text small">{% trans "الفواتير وعروض الأسعار" %}</p>
-                    {% if perms.sales.view_salesinvoice or perms.sales.view_quotation or user.is_superuser %}
-                    <a href="#" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="#" onclick="showComingSoon('{% trans "المبيعات" %}')" class="btn btn-light btn-sm stretched-link">
+                        {% trans "قريباً" %} <i class="fas fa-clock ms-1"></i>
                     </a>
-                    {% else %}
-                    <span class="badge bg-secondary">{% trans "ليس لديك صلاحية" %}</span>
-                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <!-- الحسابات -->
-        {% if perms.accounting or user.is_superuser %}
+        {% if perms.accounting.view_journalentry or perms.accounting.view_account or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-danger text-white">
                 <div class="card-body text-center p-4">
@@ -114,20 +112,15 @@
                     </div>
                     <h5 class="card-title">{% trans "الحسابات" %}</h5>
                     <p class="card-text small">{% trans "القيود والقوائم المالية" %}</p>
-                    {% if perms.accounting.view_journalentry or perms.accounting.view_account or user.is_superuser %}
-                    <a href="#" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="#" onclick="showComingSoon('{% trans "المحاسبة" %}')" class="btn btn-light btn-sm stretched-link">
+                        {% trans "قريباً" %} <i class="fas fa-clock ms-1"></i>
                     </a>
-                    {% else %}
-                    <span class="badge bg-secondary">{% trans "ليس لديك صلاحية" %}</span>
-                    {% endif %}
                 </div>
             </div>
         </div>
         {% endif %}
 
         <!-- التقارير -->
-        {% if perms.reports or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-secondary text-white">
                 <div class="card-body text-center p-4">
@@ -136,20 +129,14 @@
                     </div>
                     <h5 class="card-title">{% trans "التقارير" %}</h5>
                     <p class="card-text small">{% trans "تقارير وإحصائيات شاملة" %}</p>
-                    {% if perms.reports.view_sales_report or perms.reports.view_inventory_report or user.is_superuser %}
-                    <a href="#" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="#" onclick="showComingSoon('{% trans "التقارير" %}')" class="btn btn-light btn-sm stretched-link">
+                        {% trans "قريباً" %} <i class="fas fa-clock ms-1"></i>
                     </a>
-                    {% else %}
-                    <span class="badge bg-secondary">{% trans "ليس لديك صلاحية" %}</span>
-                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <!-- الموارد البشرية -->
-        {% if perms.hr or user.is_superuser %}
         <div class="col-xl-3 col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 bg-gradient-purple text-white">
                 <div class="card-body text-center p-4">
@@ -158,17 +145,12 @@
                     </div>
                     <h5 class="card-title">{% trans "الموارد البشرية" %}</h5>
                     <p class="card-text small">{% trans "شؤون الموظفين والرواتب" %}</p>
-                    {% if perms.hr.view_employee or perms.hr.view_payroll or user.is_superuser %}
-                    <a href="#" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="#" onclick="showComingSoon('{% trans "الموارد البشرية" %}')" class="btn btn-light btn-sm stretched-link">
+                        {% trans "قريباً" %} <i class="fas fa-clock ms-1"></i>
                     </a>
-                    {% else %}
-                    <span class="badge bg-secondary">{% trans "ليس لديك صلاحية" %}</span>
-                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <!-- الإعدادات -->
         {% if perms.core.change_company or perms.core.change_user or user.is_superuser %}
@@ -180,8 +162,8 @@
                     </div>
                     <h5 class="card-title">{% trans "إدارة النظام" %}</h5>
                     <p class="card-text small">{% trans "المستخدمين والصلاحيات" %}</p>
-                    <a href="{% url 'admin:index' %}" class="btn btn-light btn-sm stretched-link">
-                        {% trans "دخول" %} <i class="fas fa-arrow-left ms-1"></i>
+                    <a href="{% url 'admin:index' %}" class="btn btn-light btn-sm stretched-link" target="_blank">
+                        {% trans "دخول" %} <i class="fas fa-external-link-alt ms-1"></i>
                     </a>
                 </div>
             </div>
@@ -190,97 +172,160 @@
     </div>
 
     <!-- إحصائيات سريعة -->
-    {% if perms.reports or user.is_superuser %}
     <div class="row mt-5">
         <div class="col-12">
             <h4 class="mb-3">{% trans "إحصائيات سريعة" %}</h4>
         </div>
 
-        {% if perms.sales.view_salesinvoice or user.is_superuser %}
+        <!-- إجمالي الأصناف -->
+        {% if perms.core.view_item or user.is_superuser %}
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h6 class="text-uppercase text-muted mb-2">{% trans "مبيعات اليوم" %}</h6>
-                            <span class="h4 mb-0">0.00</span>
-                            <span class="text-muted ms-1">{% trans "د.أ" %}</span>
-                        </div>
-                        <div class="col-auto">
-                            <div class="icon icon-shape bg-primary text-white rounded-circle shadow">
-                                <i class="fas fa-chart-line"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if perms.sales.view_salesinvoice or user.is_superuser %}
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h6 class="text-uppercase text-muted mb-2">{% trans "عدد الفواتير" %}</h6>
-                            <span class="h4 mb-0">0</span>
-                            <span class="text-muted ms-1">{% trans "فاتورة" %}</span>
-                        </div>
-                        <div class="col-auto">
-                            <div class="icon icon-shape bg-success text-white rounded-circle shadow">
-                                <i class="fas fa-file-invoice"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if perms.base_data.view_customer or user.is_superuser %}
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h6 class="text-uppercase text-muted mb-2">{% trans "العملاء الجدد" %}</h6>
-                            <span class="h4 mb-0">0</span>
-                            <span class="text-muted ms-1">{% trans "عميل" %}</span>
-                        </div>
-                        <div class="col-auto">
-                            <div class="icon icon-shape bg-info text-white rounded-circle shadow">
-                                <i class="fas fa-user-plus"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if perms.inventory.view_stockmovement or user.is_superuser %}
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h6 class="text-uppercase text-muted mb-2">{% trans "أصناف نفذت" %}</h6>
-                            <span class="h4 mb-0">0</span>
+                            <h6 class="text-uppercase text-muted mb-2">{% trans "إجمالي الأصناف" %}</h6>
+                            <span class="h4 mb-0">{{ items_count|default:0 }}</span>
                             <span class="text-muted ms-1">{% trans "صنف" %}</span>
                         </div>
                         <div class="col-auto">
-                            <div class="icon icon-shape bg-warning text-white rounded-circle shadow">
-                                <i class="fas fa-exclamation-triangle"></i>
+                            <div class="icon icon-shape bg-primary text-white rounded-circle shadow">
+                                <i class="fas fa-boxes"></i>
                             </div>
                         </div>
+                    </div>
+                    <div class="mt-2">
+                        <a href="{% url 'core:item_list' %}" class="btn btn-sm btn-outline-primary">
+                            {% trans "عرض الأصناف" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- الشركاء التجاريون -->
+        {% if perms.core.view_businesspartner or user.is_superuser %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="text-uppercase text-muted mb-2">{% trans "الشركاء التجاريون" %}</h6>
+                            <span class="h4 mb-0">{{ partners_count|default:0 }}</span>
+                            <span class="text-muted ms-1">{% trans "شريك" %}</span>
+                        </div>
+                        <div class="col-auto">
+                            <div class="icon icon-shape bg-success text-white rounded-circle shadow">
+                                <i class="fas fa-handshake"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+{#                        <a href="{% url 'core:partner_list' %}" class="btn btn-sm btn-outline-success">#}
+                        <a href="#" class="btn btn-sm btn-outline-success">
+                            {% trans "عرض الشركاء" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- التصنيفات -->
+        {% if perms.core.view_itemcategory or user.is_superuser %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="text-uppercase text-muted mb-2">{% trans "تصنيفات الأصناف" %}</h6>
+                            <span class="h4 mb-0">{{ categories_count|default:0 }}</span>
+                            <span class="text-muted ms-1">{% trans "تصنيف" %}</span>
+                        </div>
+                        <div class="col-auto">
+                            <div class="icon icon-shape bg-info text-white rounded-circle shadow">
+                                <i class="fas fa-tags"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+{#                        <a href="{% url 'core:category_list' %}" class="btn btn-sm btn-outline-info">#}
+                        <a href="#" class="btn btn-sm btn-outline-info">
+                            {% trans "عرض التصنيفات" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- المستودعات -->
+        {% if perms.core.view_warehouse or user.is_superuser %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="text-uppercase text-muted mb-2">{% trans "المستودعات" %}</h6>
+                            <span class="h4 mb-0">{{ warehouses_count|default:0 }}</span>
+                            <span class="text-muted ms-1">{% trans "مستودع" %}</span>
+                        </div>
+                        <div class="col-auto">
+                            <div class="icon icon-shape bg-warning text-white rounded-circle shadow">
+                                <i class="fas fa-warehouse"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+{#                        <a href="{% url 'core:warehouse_list' %}" class="btn btn-sm btn-outline-warning">#}
+                        <a href="#" class="btn btn-sm btn-outline-warning">
+                            {% trans "عرض المستودعات" %}
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
         {% endif %}
     </div>
-    {% endif %}
+
+    <!-- أنشطة حديثة -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-clock"></i> {% trans "أحدث الأنشطة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if recent_items %}
+                    <div class="list-group list-group-flush">
+                        {% for item in recent_items %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center border-0">
+                            <div>
+                                <h6 class="mb-1">{% trans "تم إضافة الصنف" %}: {{ item.name }}</h6>
+                                <small class="text-muted">
+                                    {% trans "التصنيف" %}: {{ item.category.name|default:"غير محدد" }} -
+                                    {% trans "تاريخ الإضافة" %}: {{ item.created_at|date:"d/m/Y H:i" }}
+                                </small>
+                            </div>
+                            <a href="{% url 'core:item_detail' item.pk %}" class="btn btn-sm btn-outline-primary">
+                                {% trans "عرض" %}
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">{% trans "لا توجد أنشطة حديثة" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -323,10 +368,32 @@
 
     /* تأثير hover للبطاقات */
     .card {
-        transition: transform 0.2s;
+        transition: transform 0.2s ease-in-out;
     }
     .card:hover {
         transform: translateY(-5px);
     }
+
+    .list-group-item {
+        transition: background-color 0.2s;
+    }
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// إظهار رسالة "قريباً" للوحدات غير المكتملة
+function showComingSoon(moduleName) {
+    alert('وحدة ' + moduleName + ' قيد التطوير وستكون متاحة قريباً!\n\nالوحدات المتاحة حالياً:\n• البيانات الأساسية\n• إدارة المستودعات\n• إدارة النظام');
+}
+
+// تحديث الإحصائيات كل دقيقتين
+setInterval(function() {
+    // يمكن إضافة AJAX call لتحديث الإحصائيات
+    console.log('تحديث الإحصائيات...');
+}, 120000);
+</script>
 {% endblock %}
