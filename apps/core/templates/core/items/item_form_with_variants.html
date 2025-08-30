@@ -1,0 +1,125 @@
+{# apps/core/templates/core/items/item_form_with_variants.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- معلومات الصنف الأساسية -->
+        {% include 'core/items/partials/item_basic_form.html' %}
+        
+        <!-- متغيرات الصنف -->
+        <div class="card shadow-sm mb-4" id="variants-section" style="display: none;">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-layer-group"></i> {% trans "متغيرات الصنف" %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="variant-formset">
+                    {{ variant_formset.management_form }}
+                    {% for form in variant_formset %}
+                        <div class="variant-form border rounded p-3 mb-3">
+                            {% for field in form %}
+                                {% if not field.is_hidden %}
+                                <div class="mb-2">
+                                    <label class="form-label form-label-sm">{{ field.label }}</label>
+                                    {{ field|add_class:"form-control form-control-sm" }}
+                                    {% if field.errors %}
+                                        <div class="invalid-feedback d-block">{{ field.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                    {{ field }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <button type="button" id="add-variant" class="btn btn-outline-success btn-sm">
+                    <i class="fas fa-plus"></i> {% trans "إضافة متغير" %}
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ cancel_url }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> {{ submit_text }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hasVariantsCheckbox = document.getElementById('id_has_variants');
+    const variantsSection = document.getElementById('variants-section');
+    
+    // إظهار/إخفاء قسم المتغيرات
+    function toggleVariantsSection() {
+        if (hasVariantsCheckbox.checked) {
+            variantsSection.style.display = 'block';
+        } else {
+            variantsSection.style.display = 'none';
+        }
+    }
+    
+    hasVariantsCheckbox.addEventListener('change', toggleVariantsSection);
+    toggleVariantsSection(); // Initial check
+    
+    // إضافة متغير جديد
+    document.getElementById('add-variant').addEventListener('click', function() {
+        const formsetDiv = document.getElementById('variant-formset');
+        const totalForms = document.getElementById('id_itemvariant_set-TOTAL_FORMS');
+        const formNum = parseInt(totalForms.value);
+        
+        // نسخ آخر نموذج وتحديث الأرقام
+        const lastForm = document.querySelector('.variant-form:last-child');
+        const newForm = lastForm.cloneNode(true);
+        
+        // تحديث أسماء الحقول
+        const inputs = newForm.querySelectorAll('input, select, textarea');
+        inputs.forEach(function(input) {
+            const name = input.name.replace(/-\d+-/, '-' + formNum + '-');
+            const id = input.id.replace(/-\d+-/, '-' + formNum + '-');
+            input.name = name;
+            input.id = id;
+            input.value = '';
+        });
+        
+        formsetDiv.appendChild(newForm);
+        totalForms.value = formNum + 1;
+    });
+});
+</script>
+{% endblock %}

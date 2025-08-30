@@ -1,12 +1,13 @@
+# apps/core/views/base_views.py
 """
-Views الأساسية لتطبيق النواة
+Views الأساسية - Dashboard والتنقل
 """
 
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils.translation import gettext as _
-from .models import Branch
+from ..models import Branch
 
 
 @login_required

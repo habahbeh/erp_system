@@ -142,7 +142,7 @@ class BusinessPartnerAdmin(admin.ModelAdmin):
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'category', 'unit_of_measure', 'sale_price', 'company']
+    list_display = ['name', 'code', 'category', 'unit_of_measure', 'company']
     list_filter = ['company', 'category', 'brand', 'currency', 'has_variants', 'is_active']
     search_fields = ['name', 'code', 'name_en', 'sku', 'barcode']
     # raw_id_fields = ['category', 'brand', 'unit_of_measure', 'currency', 'default_warehouse']
@@ -155,7 +155,7 @@ class ItemAdmin(admin.ModelAdmin):
             'fields': ('category', 'brand', 'unit_of_measure', 'currency', 'default_warehouse')
         }),
         (_('الأسعار'), {
-            'fields': ('purchase_price', 'sale_price', 'tax_rate')
+            'fields': ('tax_rate',)
         }),
         (_('الوصف'), {
             'fields': ('short_description', 'description', 'features')

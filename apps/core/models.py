@@ -492,8 +492,8 @@ class Item(BaseModel):
     )
 
     # الأسعار والضرائب
-    purchase_price = models.DecimalField(_('سعر الشراء'), max_digits=12, decimal_places=4, default=0)
-    sale_price = models.DecimalField(_('سعر البيع'), max_digits=12, decimal_places=4, default=0)
+    # purchase_price = models.DecimalField(_('سعر الشراء'), max_digits=12, decimal_places=4, default=0)
+    # sale_price = models.DecimalField(_('سعر البيع'), max_digits=12, decimal_places=4, default=0)
     tax_rate = models.DecimalField(_('نسبة الضريبة %'), max_digits=5, decimal_places=2, default=16.0)
 
     # الوصف والمواصفات
@@ -532,6 +532,39 @@ class Item(BaseModel):
         help_text=_('حقول إضافية حسب احتياجات العمل')
     )
 
+    sales_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_items',
+        verbose_name=_('حساب المبيعات')
+    )
+    purchase_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_items',
+        verbose_name=_('حساب المشتريات')
+    )
+    inventory_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_items',
+        verbose_name=_('حساب المخزون')
+    )
+    cost_of_goods_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cogs_items',
+        verbose_name=_('حساب تكلفة البضاعة المباعة')
+    )
+
     class Meta:
         verbose_name = _('صنف')
         verbose_name_plural = _('الأصناف')
@@ -555,6 +588,8 @@ class Item(BaseModel):
                 new_number = 1
         else:
             new_number = 1
+
+        return f"{prefix}{new_number:06d}"
 
 
 class VariantAttribute(BaseModel):

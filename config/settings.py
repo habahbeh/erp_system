@@ -37,6 +37,7 @@ DJANGO_APPS = [
     'apps.reports',
     'rest_framework',
     'widget_tweaks',
+    'django_filters',
 ]
 
 THIRD_PARTY_APPS = [

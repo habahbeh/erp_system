@@ -1,0 +1,384 @@
+{# apps/core/templates/core/items/item_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ item.name }}</h1>
+            {% if item.name_en %}
+                <p class="text-muted mb-1">{{ item.name_en }}</p>
+            {% endif %}
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary fs-6">{{ item.code }}</span>
+                {% if item.barcode %}
+                    <span class="badge bg-secondary fs-6">{{ item.barcode }}</span>
+                {% endif %}
+                {% if item.sku %}
+                    <span class="badge bg-info fs-6">SKU: {{ item.sku }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:item_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "التصنيف" %}</h6>
+                            {% if item.category %}
+                                <p class="mb-0">
+                                    <span class="badge bg-secondary fs-6">{{ item.category.name }}</span>
+                                </p>
+                            {% else %}
+                                <p class="text-muted mb-0">{% trans "غير محدد" %}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "العلامة التجارية" %}</h6>
+                            {% if item.brand %}
+                                <p class="mb-0">{{ item.brand.name }}</p>
+                            {% else %}
+                                <p class="text-muted mb-0">{% trans "غير محدد" %}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "وحدة القياس" %}</h6>
+                            <p class="mb-0">{{ item.unit_of_measure.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "العملة" %}</h6>
+                            <p class="mb-0">{{ item.currency.name }} ({{ item.currency.symbol }})</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المستودع الافتراضي" %}</h6>
+                            {% if item.default_warehouse %}
+                                <p class="mb-0">{{ item.default_warehouse.name }}</p>
+                            {% else %}
+                                <p class="text-muted mb-0">{% trans "غير محدد" %}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            {% if item.is_active %}
+                                <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{% trans "غير نشط" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الأسعار والضرائب -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-dollar-sign"></i> {% trans "الأسعار والضرائب" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "سعر الشراء" %}</h6>
+                            <h5 class="mb-0 text-primary">
+                                {{ item.purchase_price|floatformat:2 }} {{ item.currency.symbol }}
+                            </h5>
+                        </div>
+
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "سعر البيع" %}</h6>
+                            <h5 class="mb-0 text-success">
+                                {{ item.sale_price|floatformat:2 }} {{ item.currency.symbol }}
+                            </h5>
+                        </div>
+
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "نسبة الضريبة" %}</h6>
+                            <h5 class="mb-0 text-warning">{{ item.tax_rate }}%</h5>
+                        </div>
+
+                        {% if item.purchase_price > 0 and item.sale_price > 0 %}
+                        <div class="col-12">
+                            {% widthratio item.sale_price item.purchase_price 100 as profit_margin %}
+                            <div class="alert alert-info">
+                                <strong>{% trans "هامش الربح" %}:</strong>
+                                {{ profit_margin|floatformat:1 }}%
+                                ({{ item.sale_price|sub:item.purchase_price|floatformat:2 }} {{ item.currency.symbol }})
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- الوصف -->
+            {% if item.short_description or item.description %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-file-alt"></i> {% trans "الوصف والتفاصيل" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if item.short_description %}
+                    <div class="mb-3">
+                        <h6 class="text-muted">{% trans "وصف مختصر" %}</h6>
+                        <p class="mb-0">{{ item.short_description }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if item.description %}
+                    <div>
+                        <h6 class="text-muted">{% trans "الوصف التفصيلي" %}</h6>
+                        <p class="mb-0">{{ item.description|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- معلومات التصنيع -->
+            {% if item.manufacturer or item.model_number %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-industry"></i> {% trans "معلومات التصنيع" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% if item.manufacturer %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الشركة المصنعة" %}</h6>
+                            <p class="mb-0">{{ item.manufacturer }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if item.model_number %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم الموديل" %}</h6>
+                            <p class="mb-0">{{ item.model_number }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- الملاحظات -->
+            {% if item.notes or item.additional_notes %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sticky-note"></i> {% trans "الملاحظات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if item.notes %}
+                    <div class="mb-3">
+                        <h6 class="text-muted">{% trans "ملاحظات عامة" %}</h6>
+                        <p class="mb-0">{{ item.notes|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if item.additional_notes %}
+                    <div>
+                        <h6 class="text-muted">{% trans "ملاحظات إضافية" %}</h6>
+                        <p class="mb-0">{{ item.additional_notes|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- الصورة -->
+            {% if item.image %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-image"></i> {% trans "صورة الصنف" %}
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ item.image.url }}" class="img-fluid rounded" alt="{{ item.name }}">
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- إعدادات إضافية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-cogs"></i> {% trans "إعدادات إضافية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{% trans "له متغيرات" %}</span>
+                        {% if item.has_variants %}
+                            <span class="badge bg-success">{% trans "نعم" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{% trans "لا" %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- الأبعاد الفيزيائية -->
+            {% if item.weight or item.length or item.width or item.height %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-ruler-combined"></i> {% trans "الأبعاد الفيزيائية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if item.weight %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{% trans "الوزن" %}</span>
+                        <strong>{{ item.weight }} {% trans "كغ" %}</strong>
+                    </div>
+                    {% endif %}
+
+                    {% if item.length %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{% trans "الطول" %}</span>
+                        <strong>{{ item.length }} {% trans "سم" %}</strong>
+                    </div>
+                    {% endif %}
+
+                    {% if item.width %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{% trans "العرض" %}</span>
+                        <strong>{{ item.width }} {% trans "سم" %}</strong>
+                    </div>
+                    {% endif %}
+
+                    {% if item.height %}
+                    <div class="d-flex justify-content-between align-items-center mb-0">
+                        <span>{% trans "الارتفاع" %}</span>
+                        <strong>{{ item.height }} {% trans "سم" %}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- المرفقات -->
+            {% if item.attachment %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-paperclip"></i> {% trans "المرفقات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <a href="{{ item.attachment.url }}" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="fas fa-download"></i>
+                        {% if item.attachment_name %}
+                            {{ item.attachment_name }}
+                        {% else %}
+                            {% trans "تحميل المرفق" %}
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ item.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ item.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if item.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشئ بواسطة" %}:</strong> {{ item.created_by.get_full_name|default:item.created_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Print functionality
+function printItem() {
+    window.print();
+}
+
+// Add print styles
+document.addEventListener('DOMContentLoaded', function() {
+    var style = document.createElement('style');
+    style.textContent = `
+        @media print {
+            .btn, .breadcrumb, nav { display: none !important; }
+            .card { border: 1px solid #ddd !important; }
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}
