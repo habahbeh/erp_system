@@ -271,7 +271,7 @@ def item_autocomplete(request):
         results.append({
             'id': item.id,
             'text': f"{item.code} - {item.name}",
-            'price': float(item.sale_price),
+            # 'price': float(item.sale_price),
             'unit': item.unit_of_measure.name,
             'currency': item.currency.symbol
         })

@@ -77,7 +77,7 @@ class ItemFilter(django_filters.FilterSet):
         model = Item
         fields = [
             'search', 'category', 'brand', 'unit_of_measure',
-            'currency', 'default_warehouse', 'price_range',
+            'currency', 'default_warehouse',
             'has_variants', 'is_active'
         ]
 
