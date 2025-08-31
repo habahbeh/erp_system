@@ -39,16 +39,17 @@ urlpatterns = [
     #
     # # الأصناف
     path('items/', views.ItemListView.as_view(), name='item_list'),
+    path('items/<int:pk>/', views.ItemDetailView.as_view(), name='item_detail'),
     path('items/create/', views.ItemCreateView.as_view(), name='item_create'),
     path('items/<int:pk>/update/', views.ItemUpdateView.as_view(), name='item_update'),
     path('items/<int:pk>/delete/', views.ItemDeleteView.as_view(), name='item_delete'),
 
     #
     # # تصنيفات الأصناف
-    # path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
-    # path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),
-    # path('categories/<int:pk>/update/', views.ItemCategoryUpdateView.as_view(), name='category_update'),
-    # path('categories/<int:pk>/delete/', views.ItemCategoryDeleteView.as_view(), name='category_delete'),
+    path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
+    path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),
+    path('categories/<int:pk>/update/', views.ItemCategoryUpdateView.as_view(), name='category_update'),
+    path('categories/<int:pk>/delete/', views.ItemCategoryDeleteView.as_view(), name='category_delete'),
     #
     # # العلامات التجارية
     # path('brands/', views.BrandListView.as_view(), name='brand_list'),

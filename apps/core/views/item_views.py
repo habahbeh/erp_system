@@ -9,7 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView,  TemplateView
 from django.db.models import Q
 from django_filters.views import FilterView
 
@@ -20,48 +20,19 @@ from ..decorators import branch_required, permission_required_with_message
 from ..filters import ItemFilter, ItemCategoryFilter
 
 
-class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, FilterView):
-    """قائمة الأصناف"""
-    model = Item
+class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, TemplateView):
+    """قائمة الأصناف مع DataTable"""
     template_name = 'core/items/item_list.html'
-    context_object_name = 'items'
     permission_required = 'core.view_item'
-    paginate_by = 25
-    filterset_class = ItemFilter
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('إدارة الأصناف'),
             'can_add': self.request.user.has_perm('core.add_item'),
-            'can_change': self.request.user.has_perm('core.change_item'),
-            'can_delete': self.request.user.has_perm('core.delete_item'),
-            'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الأصناف'), 'url': ''}
-            ],
-            'search_placeholder': _('البحث في الأصناف...'),
             'add_url': reverse('core:item_create'),
         })
         return context
-
-    def get_queryset(self):
-        """فلترة الأصناف حسب الشركة"""
-        queryset = super().get_queryset()
-
-        # البحث السريع
-        search = self.request.GET.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) |
-                Q(name_en__icontains=search) |
-                Q(code__icontains=search) |
-                Q(sku__icontains=search) |
-                Q(barcode__icontains=search)
-            )
-
-        return queryset.select_related('category', 'brand', 'unit_of_measure', 'currency')
-
 
 class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, CreateView):
     """إضافة صنف جديد"""
@@ -379,77 +350,3 @@ class ItemCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Compan
                 _('لا يمكن حذف هذا التصنيف لوجود بيانات مرتبطة به')
             )
             return redirect('core:category_list')
-
-
-def item_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable"""
-    # معاملات DataTable
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 25))
-    search_value = request.GET.get('search[value]', '')
-
-    # الحصول على البيانات
-    queryset = Item.objects.filter(company=request.current_company)
-
-    # البحث
-    if search_value:
-        from django.db.models import Q
-        queryset = queryset.filter(
-            Q(name__icontains=search_value) |
-            Q(code__icontains=search_value) |
-            Q(barcode__icontains=search_value) |
-            Q(sku__icontains=search_value)
-        )
-
-    # العدد الكلي قبل الفلترة
-    records_total = Item.objects.filter(company=request.current_company).count()
-    records_filtered = queryset.count()
-
-    # الترتيب
-    order_column = int(request.GET.get('order[0][column]', 0))
-    order_dir = request.GET.get('order[0][dir]', 'asc')
-
-    columns = ['code', 'name', 'category__name', 'brand__name', 'sale_price', 'unit_of_measure__name', 'is_active']
-    if order_column < len(columns):
-        order_field = columns[order_column]
-        if order_dir == 'desc':
-            order_field = '-' + order_field
-        queryset = queryset.order_by(order_field)
-
-    # التقسيم
-    queryset = queryset.select_related('category', 'brand', 'unit_of_measure', 'currency')[start:start + length]
-
-    # تحويل البيانات
-    data = []
-    for item in queryset:
-        row = [
-            f'<code>{item.code}</code>' + (
-                f'<br><small class="text-muted">{item.barcode}</small>' if item.barcode else ''),
-            f'<strong>{item.name}</strong>' + (
-                f'<br><small class="text-muted">{item.name_en}</small>' if item.name_en else ''),
-            f'<span class="badge bg-secondary">{item.category.name}</span>' if item.category else '<span class="text-muted">-</span>',
-            item.brand.name if item.brand else '<span class="text-muted">-</span>',
-            f'<strong>{item.sale_price:.2f}</strong> <small class="text-muted">{item.currency.symbol}</small>',
-            item.unit_of_measure.name,
-            '<span class="badge bg-success">نشط</span>' if item.is_active else '<span class="badge bg-secondary">غير نشط</span>',
-            f'''<div class="btn-group btn-group-sm">
-                <a href="/items/{item.pk}/" class="btn btn-outline-info" title="عرض">
-                    <i class="fas fa-eye"></i>
-                </a>
-                <a href="/items/{item.pk}/update/" class="btn btn-outline-warning" title="تعديل">
-                    <i class="fas fa-edit"></i>
-                </a>
-                <a href="/items/{item.pk}/delete/" class="btn btn-outline-danger" title="حذف">
-                    <i class="fas fa-trash"></i>
-                </a>
-            </div>'''
-        ]
-        data.append(row)
-
-    return JsonResponse({
-        'draw': draw,
-        'recordsTotal': records_total,
-        'recordsFiltered': records_filtered,
-        'data': data
-    })

@@ -3,6 +3,13 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
@@ -35,25 +42,67 @@
         {% endif %}
     </div>
 
-    <!-- Items Table -->
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "التصنيف" %}</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">{% trans "جميع التصنيفات" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "العلامة التجارية" %}</label>
+                        <select class="form-select" id="brandFilter">
+                            <option value="">{% trans "جميع العلامات" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover" id="itemsTable">
-                    <thead class="table-light">
+                <table class="table table-hover table-striped" id="itemsTable" style="width: 100%">
+                    <thead class="table-dark">
                         <tr>
                             <th>{% trans "الكود" %}</th>
                             <th>{% trans "اسم الصنف" %}</th>
                             <th>{% trans "التصنيف" %}</th>
                             <th>{% trans "العلامة التجارية" %}</th>
-                            <th>{% trans "سعر البيع" %}</th>
                             <th>{% trans "وحدة القياس" %}</th>
                             <th>{% trans "الحالة" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- سيتم ملؤها بواسطة DataTable -->
+                        <!-- DataTable will populate -->
                     </tbody>
                 </table>
             </div>
@@ -63,22 +112,114 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    $('#itemsTable').DataTable({
+    // Initialize DataTable
+    var table = $('#itemsTable').DataTable({
         "processing": true,
         "serverSide": true,
-        "ajax": "{% url 'core:item_datatable_ajax' %}",
+        "ajax": {
+            "url": "{% url 'core:item_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                // إضافة الفلاتر المخصصة
+                d.category = $('#categoryFilter').val();
+                d.brand = $('#brandFilter').val();
+                d.status = $('#statusFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "code"},
+            {"data": 1, "name": "name"},
+            {"data": 2, "name": "category__name"},
+            {"data": 3, "name": "brand__name"},
+            {"data": 4, "name": "unit_of_measure__name"},
+            {"data": 5, "name": "is_active"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
         "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "{% trans 'الكل' %}"]],
         "responsive": true,
         "language": {
-            "url": "https://cdn.datatables.net/plug-ins/1.11.5/i18n/ar.json"
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
         },
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Disable sorting on Actions column
+        "dom": 'Bfrtip',
+        "buttons": [
+            {
+                extend: 'pageLength',
+                className: 'btn btn-outline-secondary btn-sm'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}',
+                className: 'btn btn-outline-success btn-sm'
+            },
+            {
+                extend: 'pdf',
+                text: '<i class="fas fa-file-pdf"></i> {% trans "تصدير PDF" %}',
+                className: 'btn btn-outline-danger btn-sm'
+            }
         ],
-        "order": [[ 0, "asc" ]] // Default sort by code
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [5, 6] }
+        ],
+        "drawCallback": function(settings) {
+            // تفعيل tooltips
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
     });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#categoryFilter, #brandFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#categoryFilter, #brandFilter, #statusFilter').val('').trigger('change');
+    });
+
+    // تحميل خيارات الفلاتر
+    loadFilterOptions();
 });
+
+function loadFilterOptions() {
+    // تحميل التصنيفات
+    $.get('{% url "core:item_datatable_ajax" %}?get_categories=1', function(data) {
+        var categorySelect = $('#categoryFilter');
+        categorySelect.empty().append('<option value="">{% trans "جميع التصنيفات" %}</option>');
+        if (data.categories) {
+            $.each(data.categories, function(i, category) {
+                categorySelect.append('<option value="' + category.id + '">' + category.name + '</option>');
+            });
+        }
+    });
+
+    // تحميل العلامات التجارية
+    $.get('{% url "core:item_datatable_ajax" %}?get_brands=1', function(data) {
+        var brandSelect = $('#brandFilter');
+        brandSelect.empty().append('<option value="">{% trans "جميع العلامات" %}</option>');
+        if (data.brands) {
+            $.each(data.brands, function(i, brand) {
+                brandSelect.append('<option value="' + brand.id + '">' + brand.name + '</option>');
+            });
+        }
+    });
+}
+
+// تحديث الجدول كل 30 ثانية
+setInterval(function() {
+    $('#itemsTable').DataTable().ajax.reload(null, false);
+}, 30000);
 </script>
 {% endblock %}

@@ -18,18 +18,73 @@ from ..decorators import permission_required_with_message
 @permission_required_with_message('core.view_item')
 @require_http_methods(["GET"])
 def item_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable الأصناف"""
+    """Ajax endpoint للـ DataTable مع تشخيص المشاكل"""
     try:
+        # تشخيص المشاكل
+        debug_info = {
+            'user': str(request.user),
+            'is_authenticated': request.user.is_authenticated,
+            'current_company': str(getattr(request, 'current_company', 'None')),
+            'has_permission': request.user.has_perm('core.view_item'),
+        }
+
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                # استخدم أول شركة متاحة للتجريب
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معالجة طلبات تحميل خيارات الفلاتر
+        if request.GET.get('get_categories'):
+            categories = ItemCategory.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).values('id', 'name').order_by('name')
+            return JsonResponse({'categories': list(categories)})
+
+        if request.GET.get('get_brands'):
+            brands = Brand.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).values('id', 'name').order_by('name')
+            return JsonResponse({'brands': list(brands)})
+
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
         start = int(request.GET.get('start', 0))
         length = int(request.GET.get('length', 25))
         search_value = request.GET.get('search[value]', '').strip()
 
-        # الحصول على البيانات المفلترة حسب الشركة
-        queryset = Item.objects.filter(
-            company=request.current_company
-        ).select_related('category', 'brand', 'unit_of_measure', 'currency')
+        # فلاتر مخصصة
+        category_filter = request.GET.get('category', '')
+        brand_filter = request.GET.get('brand', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات - تجريب بدون فلترة الشركة أولاً
+        if request.current_company:
+            queryset = Item.objects.filter(company=request.current_company)
+        else:
+            # للتجريب - جلب جميع الأصناف
+            queryset = Item.objects.all()
+
+        queryset = queryset.select_related('category', 'brand', 'unit_of_measure', 'currency')
+
+        debug_info['queryset_count'] = queryset.count()
+        debug_info['company_filter'] = str(request.current_company)
+
+        # تطبيق الفلاتر المخصصة
+        if category_filter:
+            queryset = queryset.filter(category_id=category_filter)
+
+        if brand_filter:
+            queryset = queryset.filter(brand_id=brand_filter)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
 
         # البحث العام
         if search_value:
@@ -42,15 +97,22 @@ def item_datatable_ajax(request):
                 Q(short_description__icontains=search_value)
             )
 
-        # العدد الكلي قبل وبعد الفلترة
-        records_total = Item.objects.filter(company=request.current_company).count()
+        # العدد الكلي
+        if request.current_company:
+            records_total = Item.objects.filter(company=request.current_company).count()
+        else:
+            records_total = Item.objects.count()
+
         records_filtered = queryset.count()
+
+        debug_info['records_total'] = records_total
+        debug_info['records_filtered'] = records_filtered
 
         # الترتيب
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['code', 'name', 'category__name', 'brand__name', 'sale_price', 'unit_of_measure__name', 'is_active']
+        columns = ['code', 'name', 'category__name', 'brand__name', 'unit_of_measure__name', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
@@ -71,12 +133,12 @@ def item_datatable_ajax(request):
             can_delete = request.user.has_perm('core.delete_item')
 
             # تكوين أزرار الإجراءات
-            actions = f'<div class="btn-group btn-group-sm" role="group">'
+            actions = '<div class="btn-group btn-group-sm" role="group">'
 
             # زر العرض
             actions += f'''
                 <a href="{reverse('core:item_detail', kwargs={'pk': item.pk})}" 
-                   class="btn btn-outline-info" title="{_('عرض')}">
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
                     <i class="fas fa-eye"></i>
                 </a>
             '''
@@ -85,7 +147,7 @@ def item_datatable_ajax(request):
             if can_change:
                 actions += f'''
                     <a href="{reverse('core:item_update', kwargs={'pk': item.pk})}" 
-                       class="btn btn-outline-warning" title="{_('تعديل')}">
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
                         <i class="fas fa-edit"></i>
                     </a>
                 '''
@@ -94,7 +156,8 @@ def item_datatable_ajax(request):
             if can_delete:
                 actions += f'''
                     <a href="{reverse('core:item_delete', kwargs={'pk': item.pk})}" 
-                       class="btn btn-outline-danger" title="{_('حذف')}">
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا الصنف؟')}')">
                         <i class="fas fa-trash"></i>
                     </a>
                 '''
@@ -104,29 +167,28 @@ def item_datatable_ajax(request):
             # تجميع صف البيانات
             row = [
                 # الكود والباركود
-                f'<code class="text-primary">{item.code}</code>' +
-                (f'<br><small class="text-muted">{item.barcode}</small>' if item.barcode else ''),
+                f'<div><code class="text-primary fw-bold">{item.code}</code>' +
+                (
+                    f'<br><small class="text-muted"><i class="fas fa-barcode"></i> {item.barcode}</small>' if item.barcode else '') + '</div>',
 
                 # اسم الصنف
-                f'<strong>{item.name}</strong>' +
-                (f'<br><small class="text-muted">{item.name_en}</small>' if item.name_en else ''),
+                f'<div><strong class="text-dark">{item.name}</strong>' +
+                (f'<br><small class="text-muted">{item.name_en}</small>' if item.name_en else '') + '</div>',
 
                 # التصنيف
-                f'<span class="badge bg-secondary">{item.category.name}</span>' if item.category
+                f'<span class="badge bg-secondary fs-6">{item.category.name}</span>' if item.category
                 else '<span class="text-muted">-</span>',
 
                 # العلامة التجارية
-                item.brand.name if item.brand else '<span class="text-muted">-</span>',
-
-                # السعر
-                f'<strong class="text-success">{item.sale_price:.2f}</strong> <small class="text-muted">{item.currency.symbol}</small>',
+                f'<span class="text-dark">{item.brand.name}</span>' if item.brand
+                else '<span class="text-muted">-</span>',
 
                 # وحدة القياس
-                item.unit_of_measure.name,
+                f'<span class="badge bg-light text-dark">{item.unit_of_measure.name}</span>',
 
                 # الحالة
-                '<span class="badge bg-success">نشط</span>' if item.is_active
-                else '<span class="badge bg-secondary">غير نشط</span>',
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if item.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
 
                 # الإجراءات
                 actions
@@ -134,20 +196,23 @@ def item_datatable_ajax(request):
 
             data.append(row)
 
-        # الاستجابة
+        # الاستجابة مع معلومات التشخيص
         response = {
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'debug': debug_info  # إضافة معلومات التشخيص
         }
 
         return JsonResponse(response)
 
     except Exception as e:
+        import traceback
         return JsonResponse({
             'error': str(e),
-            'draw': draw,
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
             'recordsTotal': 0,
             'recordsFiltered': 0,
             'data': []
