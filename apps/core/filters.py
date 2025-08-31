@@ -56,14 +56,6 @@ class ItemFilter(django_filters.FilterSet):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    price_range = django_filters.RangeFilter(
-        field_name='sale_price',
-        label=_('نطاق السعر'),
-        widget=django_filters.widgets.RangeWidget(attrs={
-            'class': 'form-control',
-            'placeholder': _('من - إلى')
-        })
-    )
 
     has_variants = django_filters.BooleanFilter(
         label=_('له متغيرات'),

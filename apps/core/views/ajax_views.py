@@ -10,7 +10,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner
+from ..models import Item, BusinessPartner, ItemCategory, Brand
 from ..decorators import permission_required_with_message
 
 
@@ -297,8 +297,6 @@ def get_item_details(request, item_id):
             'name_en': item.name_en,
             'barcode': item.barcode,
             'sku': item.sku,
-            'purchase_price': float(item.purchase_price),
-            'sale_price': float(item.sale_price),
             'tax_rate': float(item.tax_rate),
             'unit': item.unit_of_measure.name,
             'currency_symbol': item.currency.symbol,
@@ -312,7 +310,6 @@ def get_item_details(request, item_id):
 
     except Item.DoesNotExist:
         return JsonResponse({'error': _('الصنف غير موجود')}, status=404)
-
 
 @login_required
 def check_barcode(request):
