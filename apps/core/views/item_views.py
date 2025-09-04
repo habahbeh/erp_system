@@ -15,12 +15,12 @@ from django_filters.views import FilterView
 
 from ..models import Item, ItemCategory, Brand, UnitOfMeasure
 from ..forms.item_forms import ItemForm, ItemCategoryForm, ItemVariantFormSet
-from ..mixins import CompanyBranchMixin, AuditLogMixin
+from ..mixins import CompanyMixin, AuditLogMixin
 from ..decorators import branch_required, permission_required_with_message
 from ..filters import ItemFilter, ItemCategoryFilter
 
 
-class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, TemplateView):
+class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """قائمة الأصناف مع DataTable"""
     template_name = 'core/items/item_list.html'
     permission_required = 'core.view_item'
@@ -34,7 +34,7 @@ class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMix
         })
         return context
 
-class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, CreateView):
+class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
     """إضافة صنف جديد"""
     model = Item
     form_class = ItemForm
@@ -93,7 +93,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
         return super().form_invalid(form)
 
 
-class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, UpdateView):
+class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
     """تعديل صنف"""
     model = Item
     form_class = ItemForm
@@ -135,7 +135,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
         return super().form_invalid(form)
 
 
-class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, DetailView):
+class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
     """تفاصيل الصنف"""
     model = Item
     template_name = 'core/items/item_detail.html'
@@ -159,7 +159,7 @@ class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
         return context
 
 
-class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, DeleteView):
+class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, DeleteView):
     """حذف صنف"""
     model = Item
     template_name = 'core/items/item_confirm_delete.html'
@@ -201,7 +201,7 @@ class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
 
 # ===== تصنيفات الأصناف =====
 
-class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, FilterView):
+class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FilterView):
     """قائمة تصنيفات الأصناف"""
     model = ItemCategory
     template_name = 'core/items/category_list.html'
@@ -240,7 +240,7 @@ class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyB
         return queryset.select_related('parent').order_by('level', 'name')
 
 
-class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin,
                              CreateView):
     """إضافة تصنيف جديد"""
     model = ItemCategory
@@ -277,7 +277,7 @@ class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         return response
 
 
-class ItemCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+class ItemCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin,
                              UpdateView):
     """تعديل تصنيف"""
     model = ItemCategory
@@ -315,7 +315,7 @@ class ItemCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         return response
 
 
-class ItemCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+class ItemCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin,
                              DeleteView):
     """حذف تصنيف"""
     model = ItemCategory

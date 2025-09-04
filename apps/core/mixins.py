@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from .models import AuditLog
 import json
+from django.forms import ModelForm
 
 
 class AuditLogMixin:
@@ -35,7 +36,6 @@ class AuditLogMixin:
             old_values=old_values,
             new_values=new_values,
             ip_address=self.get_client_ip(),
-            # user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
 
     def form_valid(self, form):
@@ -109,8 +109,42 @@ class AuditLogMixin:
 
         return response
 
+
+class CompanyMixin:
+    """مايكسين للموديلات التي تحتاج company فقط (مثل الأصناف)"""
+
+    def get_queryset(self):
+        """فلترة حسب الشركة فقط"""
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if hasattr(queryset.model, 'company'):
+            if hasattr(user, 'company') and user.company:
+                return queryset.filter(company=user.company)
+            else:
+                # استخدام أول شركة متاحة
+                from .models import Company
+                company = Company.objects.first()
+                if company:
+                    return queryset.filter(company=company)
+
+        return queryset
+
+    def form_valid(self, form):
+        """إضافة الشركة تلقائياً - بدون branch"""
+        # التحقق من أن الـ form هو ModelForm
+        if (isinstance(form, ModelForm) and
+            hasattr(form._meta.model, 'company') and
+            not getattr(form.instance, 'company', None)):
+            from .models import Company
+            company = Company.objects.first()
+            form.instance.company = company
+
+        return super().form_valid(form)
+
+
 class CompanyBranchMixin:
-    """فلترة حسب الشركة والفرع"""
+    """فلترة حسب الشركة والفرع - للمستندات فقط"""
 
     def get_queryset(self):
         """فلترة القائمة حسب شركة وفرع المستخدم"""
@@ -121,54 +155,28 @@ class CompanyBranchMixin:
         if hasattr(queryset.model, 'company') and user.company:
             queryset = queryset.filter(company=user.company)
 
-        # فلترة حسب الفرع
+        # فلترة حسب الفرع - فقط للموديلات التي لها branch
         if hasattr(queryset.model, 'branch') and user.branch:
-            # إذا لم يكن لديه صلاحية عرض كل الفروع
-            if not user.custom_permissions.filter(
-                    code='view_all_branches'
-            ).exists():
+            if not user.custom_permissions.filter(code='view_all_branches').exists():
                 queryset = queryset.filter(branch=user.branch)
 
         return queryset
 
     def form_valid(self, form):
-        # التحقق من وجود company field في الـ model (وليس form.instance)
-        if hasattr(form._meta.model, 'company') and not getattr(form.instance, 'company', None):
-            from .models import Company
-            company = Company.objects.first()
-            form.instance.company = company
+        """إضافة الشركة والفرع للمستندات"""
+        # التحقق من أن الـ form هو ModelForm قبل الوصول إلى _meta
+        if isinstance(form, ModelForm):
+            # الشركة
+            if hasattr(form._meta.model, 'company') and not getattr(form.instance, 'company', None):
+                from .models import Company
+                company = Company.objects.first()
+                form.instance.company = company
 
-        if hasattr(form._meta.model, 'branch') and not getattr(form.instance, 'branch', None):
-            current_branch = getattr(self.request, 'current_branch', None)
-            if current_branch:
-                form.instance.branch = current_branch
-
-        return super().form_valid(form)
-
-
-class CompanyMixin(CompanyBranchMixin):
-    """مايكسين لفلترة البيانات حسب الشركة فقط"""
-
-    def get_queryset(self):
-        """فلترة حسب الشركة فقط"""
-        queryset = super().get_queryset()
-        user = self.request.user
-
-        # فلترة حسب الشركة فقط
-        if hasattr(queryset.model, 'company') and user.company:
-            return queryset.filter(company=user.company)
-
-        return queryset
-
-    def form_valid(self, form):
-        """إضافة الشركة والفرع تلقائياً"""
-        if hasattr(form.instance, 'company') and not form.instance.company:
-            # استخدام current_company بدلاً من user.company
-            form.instance.company = getattr(self.request, 'current_company', None) or self.request.user.company
-
-        if hasattr(form.instance, 'branch') and not form.instance.branch:
-            # استخدام current_branch بدلاً من user.branch
-            form.instance.branch = getattr(self.request, 'current_branch', None) or self.request.user.branch
+            # الفرع - فقط للموديلات التي تحتاجه
+            if hasattr(form._meta.model, 'branch') and not getattr(form.instance, 'branch', None):
+                current_branch = getattr(self.request, 'current_branch', None)
+                if current_branch:
+                    form.instance.branch = current_branch
 
         return super().form_valid(form)
 

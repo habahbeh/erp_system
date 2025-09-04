@@ -12,15 +12,23 @@ from django.urls import reverse
 
 
 class BaseModel(models.Model):
-    """النموذج الأساسي الموحد"""
+    """النموذج الأساسي الموحد - للأصناف والبيانات الأساسية"""
 
     company = models.ForeignKey('core.Company', on_delete=models.CASCADE, verbose_name=_('الشركة'))
-    branch = models.ForeignKey('core.Branch', on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('الفرع'))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ الإنشاء'))
     updated_at = models.DateTimeField(auto_now=True, verbose_name=_('تاريخ التعديل'))
     created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='%(class)s_created',
                                    verbose_name=_('أنشأ بواسطة'))
     is_active = models.BooleanField(default=True, verbose_name=_('نشط'))
+
+    class Meta:
+        abstract = True
+
+
+class DocumentBaseModel(BaseModel):
+    """النموذج الأساسي للمستندات والفواتير - يحتاج فرع"""
+
+    branch = models.ForeignKey('core.Branch', on_delete=models.PROTECT, verbose_name=_('الفرع'))
 
     class Meta:
         abstract = True
@@ -275,7 +283,7 @@ class NumberingSequence(BaseModel):
     class Meta:
         verbose_name = _('تسلسل ترقيم')
         verbose_name_plural = _('تسلسلات الترقيم')
-        unique_together = [['company', 'branch', 'document_type']]
+        unique_together = [['company', 'document_type']]
 
     def get_next_number(self):
         """الحصول على الرقم التالي"""
