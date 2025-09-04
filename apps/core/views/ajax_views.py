@@ -10,9 +10,11 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, ItemCategory, Brand
+from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse
 from ..decorators import permission_required_with_message
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 @login_required
 @permission_required_with_message('core.view_item')
@@ -530,6 +532,205 @@ def partner_datatable_ajax(request):
 
                 # الحالة
                 f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if partner.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+
+# أضف هذا في نهاية ملف apps/core/views/ajax_views.py
+
+@login_required
+@permission_required_with_message('core.view_warehouse')
+@require_http_methods(["GET"])
+def warehouse_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable للمستودعات"""
+    try:
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معالجة طلبات تحميل خيارات الفلاتر
+        if request.GET.get('get_managers'):
+            managers = User.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).values('id', 'first_name', 'last_name').order_by('first_name', 'last_name')
+
+            # تنسيق البيانات
+            managers_data = []
+            for manager in managers:
+                full_name = f"{manager['first_name']} {manager['last_name']}".strip()
+                if not full_name:
+                    full_name = f"مستخدم {manager['id']}"
+                managers_data.append({
+                    'id': manager['id'],
+                    'name': full_name
+                })
+
+            return JsonResponse({'managers': managers_data})
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        manager_filter = request.GET.get('manager', '')
+        is_main_filter = request.GET.get('is_main', '')
+        allow_negative_filter = request.GET.get('allow_negative', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات
+        if request.current_company:
+            queryset = Warehouse.objects.filter(company=request.current_company)
+        else:
+            queryset = Warehouse.objects.all()
+
+        queryset = queryset.select_related('manager')
+
+        # تطبيق الفلاتر المخصصة
+        if manager_filter:
+            queryset = queryset.filter(manager_id=manager_filter)
+
+        if is_main_filter:
+            is_main = is_main_filter == '1'
+            queryset = queryset.filter(is_main=is_main)
+
+        if allow_negative_filter:
+            allow_negative = allow_negative_filter == '1'
+            queryset = queryset.filter(allow_negative_stock=allow_negative)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value) |
+                Q(code__icontains=search_value) |
+                Q(address__icontains=search_value) |
+                Q(phone__icontains=search_value)
+            )
+
+        # العدد الكلي
+        if request.current_company:
+            records_total = Warehouse.objects.filter(company=request.current_company).count()
+        else:
+            records_total = Warehouse.objects.count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['code', 'name', 'manager__first_name', 'is_main', 'allow_negative_stock', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('name')
+
+        # التقسيم للصفحات
+        warehouses = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for warehouse in warehouses:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_warehouse')
+            can_delete = request.user.has_perm('core.delete_warehouse')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:warehouse_detail', kwargs={'pk': warehouse.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:warehouse_update', kwargs={'pk': warehouse.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                    <a href="{reverse('core:warehouse_delete', kwargs={'pk': warehouse.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا المستودع؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تجميع صف البيانات
+            row = [
+                # الكود
+                f'<code class="text-primary fw-bold">{warehouse.code}</code>',
+
+                # اسم المستودع
+                f'<div><strong class="text-dark">{warehouse.name}</strong>' +
+                (f'<br><small class="text-muted">{warehouse.name_en}</small>' if warehouse.name_en else '') + '</div>',
+
+                # المدير
+                f'<span class="text-dark">{warehouse.manager.get_full_name()}</span>' if warehouse.manager
+                else '<span class="text-muted">-</span>',
+
+                # مستودع رئيسي
+                f'<span class="badge bg-warning"><i class="fas fa-star"></i> {_("رئيسي")}</span>' if warehouse.is_main
+                else f'<span class="badge bg-secondary">{_("فرعي")}</span>',
+
+                # السماح بالسالب
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نعم")}</span>' if warehouse.allow_negative_stock
+                else f'<span class="badge bg-danger"><i class="fas fa-times"></i> {_("لا")}</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if warehouse.is_active
                 else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
 
                 # الإجراءات

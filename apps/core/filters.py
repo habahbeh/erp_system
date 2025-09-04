@@ -7,6 +7,7 @@ import django_filters
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User
+from .models import Warehouse
 
 
 class ItemFilter(django_filters.FilterSet):
@@ -394,3 +395,161 @@ class BusinessPartnerFilter(django_filters.FilterSet):
         elif value is False:
             return queryset.filter(credit_limit=0)
         return queryset
+
+
+class WarehouseFilter(django_filters.FilterSet):
+    """فلتر المستودعات"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في اسم المستودع...'),
+        })
+    )
+
+    manager = django_filters.ModelChoiceFilter(
+        queryset=User.objects.none(),
+        label=_('المدير'),
+        empty_label=_('جميع المدراء'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    is_main = django_filters.BooleanFilter(
+        label=_('مستودع رئيسي'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('رئيسي')), (False, _('فرعي'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    allow_negative_stock = django_filters.BooleanFilter(
+        label=_('يسمح بالرصيد السالب'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    class Meta:
+        model = Warehouse
+        fields = ['search', 'manager', 'is_main', 'allow_negative_stock', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if self.request and hasattr(self.request, 'current_company'):
+            company = self.request.current_company
+
+            # فلترة المدراء حسب الشركة
+            self.filters['manager'].queryset = User.objects.filter(
+                company=company, is_active=True
+            ).order_by('first_name', 'last_name')
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(name_en__icontains=value) |
+                Q(code__icontains=value) |
+                Q(address__icontains=value) |
+                Q(phone__icontains=value)
+            ).distinct()
+        return queryset
+
+# أضف هذا في نهاية ملف apps/core/filters.py
+
+class BrandFilter(django_filters.FilterSet):
+    """فلتر العلامات التجارية"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في اسم العلامة...'),
+        })
+    )
+
+    country = django_filters.CharFilter(
+        field_name='country',
+        lookup_expr='icontains',
+        label=_('بلد المنشأ'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('بلد المنشأ')
+        })
+    )
+
+    has_logo = django_filters.BooleanFilter(
+        method='filter_has_logo',
+        label=_('له شعار'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    has_website = django_filters.BooleanFilter(
+        method='filter_has_website',
+        label=_('له موقع إلكتروني'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    class Meta:
+        model = Brand
+        fields = ['search', 'country', 'has_logo', 'has_website', 'is_active']
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(name_en__icontains=value) |
+                Q(description__icontains=value) |
+                Q(country__icontains=value) |
+                Q(website__icontains=value)
+            ).distinct()
+        return queryset
+
+    def filter_has_logo(self, queryset, name, value):
+        """فلترة حسب وجود شعار"""
+        if value is True:
+            return queryset.exclude(logo__exact='')
+        elif value is False:
+            return queryset.filter(logo__exact='')
+        return queryset
+
+    def filter_has_website(self, queryset, name, value):
+        """فلترة حسب وجود موقع إلكتروني"""
+        if value is True:
+            return queryset.exclude(website__exact='')
+        elif value is False:
+            return queryset.filter(website__exact='')
+        return queryset
+
+__all__ = ['ItemFilter', 'ItemCategoryFilter', 'BrandFilter', 'UnitOfMeasureFilter', 'BusinessPartnerFilter', 'WarehouseFilter', 'BrandFilter']

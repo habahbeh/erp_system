@@ -33,13 +33,18 @@ urlpatterns = [
     path('partners/<int:pk>/update/', views.BusinessPartnerUpdateView.as_view(), name='partner_update'),
     path('partners/<int:pk>/delete/', views.BusinessPartnerDeleteView.as_view(), name='partner_delete'),
 
+    # المستودعات
+    path('warehouses/', views.WarehouseListView.as_view(), name='warehouse_list'),
+    path('warehouses/<int:pk>/', views.WarehouseDetailView.as_view(), name='warehouse_detail'),
+    path('warehouses/create/', views.WarehouseCreateView.as_view(), name='warehouse_create'),
+    path('warehouses/<int:pk>/update/', views.WarehouseUpdateView.as_view(), name='warehouse_update'),
+    path('warehouses/<int:pk>/delete/', views.WarehouseDeleteView.as_view(), name='warehouse_delete'),
+
     # Ajax endpoints
     path('ajax/items/datatable/', views.item_datatable_ajax, name='item_datatable_ajax'),
     path('ajax/partners/datatable/', views.partner_datatable_ajax, name='partner_datatable_ajax'),
+    path('ajax/warehouses/datatable/', views.warehouse_datatable_ajax, name='warehouse_datatable_ajax'),
 ]
-
-
-
 
 
 
