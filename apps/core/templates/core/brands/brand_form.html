@@ -1,0 +1,264 @@
+{# apps/core/templates/core/brands/brand_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل بيانات العلامة التجارية" %}
+                {% else %}
+                    {% trans "إضافة علامة تجارية جديدة للشركة" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- المعلومات الأساسية -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "اسم العلامة التجارية" %}</label>
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                                {{ form.name_en|add_class:"form-control" }}
+                                {% if form.name_en.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "بلد المنشأ" %}</label>
+                                {{ form.country|add_class:"form-control" }}
+                                {% if form.country.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.country.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الموقع الإلكتروني" %}</label>
+                                {{ form.website|add_class:"form-control" }}
+                                {% if form.website.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.website.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "وصف العلامة التجارية" %}</label>
+                                {{ form.description|add_class:"form-control" }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "شعار العلامة التجارية" %}</label>
+                                {{ form.logo|add_class:"form-control" }}
+                                {% if form.logo.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.logo.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "يُفضل أن يكون الشعار بصيغة PNG أو JPG وبحجم لا يتجاوز 2MB" %}
+                                </small>
+                                {% if is_update and form.instance.logo %}
+                                    <div class="mt-2">
+                                        <img src="{{ form.instance.logo.url }}" alt="{{ form.instance.name }}" 
+                                             class="img-thumbnail" style="max-width: 150px; max-height: 150px;">
+                                        <p class="small text-muted mt-1">{% trans "الشعار الحالي" %}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات إضافية للتعديل -->
+                {% if is_update and form.instance %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ form.instance.created_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ form.instance.updated_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            {% if form.instance.created_by %}
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "أنشئ بواسطة" %}</small>
+                                <strong>{{ form.instance.created_by.get_full_name|default:form.instance.created_by.username }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- إحصائيات العلامة التجارية -->
+                {% if is_update %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-chart-bar"></i> {% trans "إحصائيات العلامة" %}
+                        </h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <h5 class="text-primary mb-0">0</h5>
+                        <small class="text-muted">{% trans "إجمالي الأصناف" %}</small>
+                        <hr>
+                        <small class="text-muted">{% trans "إحصائيات الأصناف قيد التطوير" %}</small>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- نصائح -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-lightbulb text-warning"></i> {% trans "نصائح" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "استخدم أسماء واضحة ومفهومة" %}
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "أضف الشعار لسهولة التعرف على العلامة" %}
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "تأكد من صحة رابط الموقع الإلكتروني" %}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Preview uploaded logo
+document.getElementById('id_logo').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.createElement('img');
+            preview.src = e.target.result;
+            preview.className = 'img-thumbnail mt-2';
+            preview.style.maxWidth = '150px';
+            preview.style.maxHeight = '150px';
+            
+            // Remove existing preview
+            const existingPreview = document.querySelector('.logo-preview');
+            if (existingPreview) {
+                existingPreview.remove();
+            }
+            
+            // Add new preview
+            const container = document.createElement('div');
+            container.className = 'logo-preview';
+            container.appendChild(preview);
+            
+            const label = document.createElement('p');
+            label.className = 'small text-muted mt-1';
+            label.textContent = '{% trans "معاينة الشعار" %}';
+            container.appendChild(label);
+            
+            e.target.parentNode.appendChild(container);
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+{% endblock %}

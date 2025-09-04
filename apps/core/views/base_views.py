@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils.translation import gettext as _
-from ..models import Branch, Item, BusinessPartner, ItemCategory, Warehouse
+from ..models import Branch, Item, BusinessPartner, ItemCategory, Warehouse, Brand, UnitOfMeasure, Currency
 
 
 @login_required
@@ -41,6 +41,19 @@ def dashboard(request):
         # إحصائيات المستودعات
         if request.user.has_perm('core.view_warehouse'):
             context['warehouses_count'] = Warehouse.objects.filter(company=company).count()
+
+        # إحصائيات العلامات التجارية
+        if request.user.has_perm('core.view_brand'):
+            context['brands_count'] = Brand.objects.filter(company=company).count()
+
+        # إحصائيات وحدات القياس - أضف هذا
+        if request.user.has_perm('core.view_unitofmeasure'):
+            context['units_count'] = UnitOfMeasure.objects.filter(company=company).count()
+
+        # إحصائيات العملات - أضف هذا
+        if request.user.has_perm('core.view_currency'):
+            context['currencies_count'] = Currency.objects.filter(is_active=True).count()
+            context['base_currency'] = Currency.objects.filter(is_base=True).first()
 
     return render(request, 'core/dashboard.html', context)
 

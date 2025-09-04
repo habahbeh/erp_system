@@ -1,0 +1,251 @@
+{# apps/core/templates/core/brands/brand_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ brand.name }}</h1>
+            {% if brand.name_en %}
+                <p class="text-muted mb-1">{{ brand.name_en }}</p>
+            {% endif %}
+            <div class="d-flex align-items-center gap-3">
+                {% if brand.country %}
+                    <span class="badge bg-primary fs-6">
+                        <i class="fas fa-globe"></i> {{ brand.country }}
+                    </span>
+                {% endif %}
+                {% if brand.website %}
+                    <a href="{{ brand.website }}" target="_blank" class="badge bg-info text-decoration-none fs-6">
+                        <i class="fas fa-external-link-alt"></i> {% trans "الموقع الإلكتروني" %}
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:brand_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم العلامة التجارية" %}</h6>
+                            <p class="mb-0">{{ brand.name }}</p>
+                            {% if brand.name_en %}
+                                <small class="text-muted">{{ brand.name_en }}</small>
+                            {% endif %}
+                        </div>
+
+                        {% if brand.country %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "بلد المنشأ" %}</h6>
+                            <p class="mb-0">
+                                <i class="fas fa-globe text-primary"></i> {{ brand.country }}
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        {% if brand.website %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الموقع الإلكتروني" %}</h6>
+                            <p class="mb-0">
+                                <a href="{{ brand.website }}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-external-link-alt"></i> {{ brand.website }}
+                                </a>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            {% if brand.is_active %}
+                                <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{% trans "غير نشط" %}</span>
+                            {% endif %}
+                        </div>
+
+                        {% if brand.logo %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "شعار العلامة التجارية" %}</h6>
+                            <div class="text-center">
+                                <img src="{{ brand.logo.url }}" alt="{{ brand.name }}" 
+                                     class="img-fluid border rounded shadow-sm" 
+                                     style="max-width: 300px; max-height: 200px;">
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- الوصف -->
+            {% if brand.description %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-align-left"></i> {% trans "وصف العلامة التجارية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ brand.description|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- الأصناف المرتبطة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-boxes"></i> {% trans "الأصناف المرتبطة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if items_count > 0 %}
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>{% trans "عدد الأصناف المرتبطة بهذه العلامة" %}</span>
+                            <span class="badge bg-primary fs-6">{{ items_count }}</span>
+                        </div>
+                        <hr>
+                        <a href="{% url 'core:item_list' %}?brand={{ brand.pk }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye"></i> {% trans "عرض الأصناف" %}
+                        </a>
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="fas fa-inbox fa-2x mb-2"></i>
+                            <p class="mb-0">{% trans "لا توجد أصناف مرتبطة بهذه العلامة التجارية بعد" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- إحصائيات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-0">{{ items_count|default:0 }}</h5>
+                            <small class="text-muted">{% trans "إجمالي الأصناف" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h5 class="text-success mb-0">0</h5>
+                                <small class="text-muted">{% trans "أصناف نشطة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-warning mb-0">0</h5>
+                            <small class="text-muted">{% trans "أصناف غير نشطة" %}</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted">{% trans "إحصائيات تفصيلية قيد التطوير" %}</small>
+                </div>
+            </div>
+
+            <!-- الروابط السريعة -->
+            {% if brand.website %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-link"></i> {% trans "روابط سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <a href="{{ brand.website }}" target="_blank" class="btn btn-outline-primary w-100 mb-2">
+                        <i class="fas fa-external-link-alt"></i> {% trans "زيارة الموقع الرسمي" %}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ brand.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ brand.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if brand.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشئ بواسطة" %}:</strong> {{ brand.created_by.get_full_name|default:brand.created_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.875em;
+    }
+    
+    .img-fluid {
+        transition: transform 0.3s ease;
+    }
+    
+    .img-fluid:hover {
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}

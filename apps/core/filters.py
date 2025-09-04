@@ -6,7 +6,7 @@ Django Filters للبحث والتصفية
 import django_filters
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User
+from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User, UnitOfMeasure, Currency
 from .models import Warehouse
 
 
@@ -552,4 +552,95 @@ class BrandFilter(django_filters.FilterSet):
             return queryset.filter(website__exact='')
         return queryset
 
-__all__ = ['ItemFilter', 'ItemCategoryFilter', 'BrandFilter', 'UnitOfMeasureFilter', 'BusinessPartnerFilter', 'WarehouseFilter', 'BrandFilter']
+class UnitOfMeasureFilter(django_filters.FilterSet):
+    """فلتر وحدات القياس"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في الاسم أو الرمز...'),
+        })
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = ['search', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(name_en__icontains=value) |
+                Q(code__icontains=value)
+            ).distinct()
+        return queryset
+
+
+class CurrencyFilter(django_filters.FilterSet):
+    """فلتر العملات"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في الاسم أو الرمز...'),
+        })
+    )
+
+    is_base = django_filters.BooleanFilter(
+        label=_('العملة الأساسية'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('أساسية')), (False, _('عادية'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    class Meta:
+        model = Currency
+        fields = ['search', 'is_base', 'is_active']
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(name_en__icontains=value) |
+                Q(code__icontains=value) |
+                Q(symbol__icontains=value)
+            ).distinct()
+        return queryset
+
+__all__ = [
+    'ItemFilter',
+    'ItemCategoryFilter',
+    'BrandFilter',
+    'UnitOfMeasureFilter',
+    'BusinessPartnerFilter',
+    'WarehouseFilter'
+]

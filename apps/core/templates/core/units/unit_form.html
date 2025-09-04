@@ -1,0 +1,224 @@
+{# apps/core/templates/core/units/unit_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل بيانات وحدة القياس" %}
+                {% else %}
+                    {% trans "إضافة وحدة قياس جديدة للشركة" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- المعلومات الأساسية -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info-circle"></i> {% trans "معلومات وحدة القياس" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "رمز الوحدة" %}</label>
+                                {{ form.code|add_class:"form-control" }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "مثال: KG, M, L, PCS" %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "اسم الوحدة" %}</label>
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                                {{ form.name_en|add_class:"form-control" }}
+                                {% if form.name_en.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات إضافية للتعديل -->
+                {% if is_update and form.instance %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ form.instance.created_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ form.instance.updated_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            {% if form.instance.created_by %}
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "أنشئ بواسطة" %}</small>
+                                <strong>{{ form.instance.created_by.get_full_name|default:form.instance.created_by.username }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- أمثلة وحدات القياس -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-lightbulb"></i> {% trans "أمثلة وحدات القياس" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <strong>{% trans "الوزن:" %}</strong><br>
+                                KG - كيلوجرام<br>
+                                G - جرام<br>
+                                TON - طن
+                            </div>
+                            <div class="col-6">
+                                <strong>{% trans "الطول:" %}</strong><br>
+                                M - متر<br>
+                                CM - سنتيمتر<br>
+                                MM - ميليمتر
+                            </div>
+                            <div class="col-6">
+                                <strong>{% trans "الحجم:" %}</strong><br>
+                                L - لتر<br>
+                                ML - ميليلتر<br>
+                                M3 - متر مكعب
+                            </div>
+                            <div class="col-6">
+                                <strong>{% trans "العدد:" %}</strong><br>
+                                PCS - قطعة<br>
+                                BOX - صندوق<br>
+                                SET - مجموعة
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- نصائح -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info-circle text-info"></i> {% trans "نصائح" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "استخدم رموزاً قصيرة ومفهومة" %}
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "تأكد من عدم تكرار الرموز" %}
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "استخدم الرموز المعيارية العالمية" %}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Auto-uppercase code field
+document.getElementById('id_code').addEventListener('input', function(e) {
+    this.value = this.value.toUpperCase();
+});
+</script>
+{% endblock %}

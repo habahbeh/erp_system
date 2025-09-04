@@ -40,10 +40,35 @@ urlpatterns = [
     path('warehouses/<int:pk>/update/', views.WarehouseUpdateView.as_view(), name='warehouse_update'),
     path('warehouses/<int:pk>/delete/', views.WarehouseDeleteView.as_view(), name='warehouse_delete'),
 
+    # العلامات التجارية
+    path('brands/', views.BrandListView.as_view(), name='brand_list'),
+    path('brands/<int:pk>/', views.BrandDetailView.as_view(), name='brand_detail'),
+    path('brands/create/', views.BrandCreateView.as_view(), name='brand_create'),
+    path('brands/<int:pk>/update/', views.BrandUpdateView.as_view(), name='brand_update'),
+    path('brands/<int:pk>/delete/', views.BrandDeleteView.as_view(), name='brand_delete'),
+
+    # وحدات القياس
+    path('units/', views.UnitOfMeasureListView.as_view(), name='unit_list'),
+    path('units/<int:pk>/', views.UnitOfMeasureDetailView.as_view(), name='unit_detail'),
+    path('units/create/', views.UnitOfMeasureCreateView.as_view(), name='unit_create'),
+    path('units/<int:pk>/update/', views.UnitOfMeasureUpdateView.as_view(), name='unit_update'),
+    path('units/<int:pk>/delete/', views.UnitOfMeasureDeleteView.as_view(), name='unit_delete'),
+
+    # العملات
+    path('currencies/', views.CurrencyListView.as_view(), name='currency_list'),
+    path('currencies/<int:pk>/', views.CurrencyDetailView.as_view(), name='currency_detail'),
+    path('currencies/create/', views.CurrencyCreateView.as_view(), name='currency_create'),
+    path('currencies/<int:pk>/update/', views.CurrencyUpdateView.as_view(), name='currency_update'),
+    path('currencies/<int:pk>/delete/', views.CurrencyDeleteView.as_view(), name='currency_delete'),
+
     # Ajax endpoints
     path('ajax/items/datatable/', views.item_datatable_ajax, name='item_datatable_ajax'),
     path('ajax/partners/datatable/', views.partner_datatable_ajax, name='partner_datatable_ajax'),
     path('ajax/warehouses/datatable/', views.warehouse_datatable_ajax, name='warehouse_datatable_ajax'),
+    path('ajax/brands/datatable/', views.brand_datatable_ajax, name='brand_datatable_ajax'),
+    path('ajax/units/datatable/', views.unit_datatable_ajax, name='unit_datatable_ajax'),
+    path('ajax/currencies/datatable/', views.currency_datatable_ajax, name='currency_datatable_ajax'),
+
 ]
 
 

@@ -1,0 +1,257 @@
+{# apps/core/templates/core/currencies/currency_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ currency.name }}</h1>
+            {% if currency.name_en %}
+                <p class="text-muted mb-1">{{ currency.name_en }}</p>
+            {% endif %}
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary fs-6">
+                    <i class="fas fa-code"></i> {{ currency.code }}
+                </span>
+                <span class="badge bg-info fs-6">
+                    <i class="fas fa-coins"></i> {{ currency.symbol }}
+                </span>
+                {% if currency.is_base %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-star"></i> {% trans "العملة الأساسية" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete and not currency.is_base %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:currency_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-coins"></i> {% trans "معلومات العملة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رمز العملة" %}</h6>
+                            <p class="mb-0">
+                                <code class="bg-light px-3 py-2 rounded fs-5 text-primary fw-bold">{{ currency.code }}</code>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رمز العملة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-5 px-3 py-2">{{ currency.symbol }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم العملة" %}</h6>
+                            <p class="mb-0 fs-5">{{ currency.name }}</p>
+                            {% if currency.name_en %}
+                                <small class="text-muted">{{ currency.name_en }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "سعر الصرف" %}</h6>
+                            <p class="mb-0">
+                                {% if currency.is_base %}
+                                    <span class="fs-4 text-success fw-bold">1.0000</span>
+                                    <small class="text-muted d-block">{% trans "العملة الأساسية" %}</small>
+                                {% else %}
+                                    <span class="fs-4 text-primary fw-bold">{{ currency.exchange_rate|floatformat:4 }}</span>
+                                    <small class="text-muted d-block">{% trans "مقابل العملة الأساسية" %}</small>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع العملة" %}</h6>
+                            {% if currency.is_base %}
+                                <span class="badge bg-success fs-6">
+                                    <i class="fas fa-star"></i> {% trans "العملة الأساسية" %}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{% trans "عملة عادية" %}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            {% if currency.is_active %}
+                                <span class="badge bg-success fs-6">
+                                    <i class="fas fa-check"></i> {% trans "نشطة" %}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">
+                                    <i class="fas fa-times"></i> {% trans "غير نشطة" %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- البيانات المرتبطة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-link"></i> {% trans "البيانات المرتبطة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                <div>
+                                    <h6 class="mb-0">{% trans "الأصناف" %}</h6>
+                                    <small class="text-muted">{% trans "عدد الأصناف بهذه العملة" %}</small>
+                                </div>
+                                <span class="badge bg-primary fs-6">{{ items_count|default:0 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                <div>
+                                    <h6 class="mb-0">{% trans "الشركات" %}</h6>
+                                    <small class="text-muted">{% trans "الشركات التي تستخدم هذه العملة" %}</small>
+                                </div>
+                                <span class="badge bg-success fs-6">{{ companies_count|default:0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if items_count > 0 or companies_count > 0 %}
+                        <hr>
+                        <div class="d-flex gap-2">
+                            {% if items_count > 0 %}
+                                <a href="{% url 'core:item_list' %}?currency={{ currency.pk }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-boxes"></i> {% trans "عرض الأصناف" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- إحصائيات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-0">{{ items_count|default:0 }}</h5>
+                            <small class="text-muted">{% trans "إجمالي الأصناف" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h5 class="text-success mb-0">{{ companies_count|default:0 }}</h5>
+                                <small class="text-muted">{% trans "الشركات المرتبطة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            {% if currency.is_base %}
+                                <h5 class="text-warning mb-0"><i class="fas fa-star"></i></h5>
+                                <small class="text-muted">{% trans "عملة أساسية" %}</small>
+                            {% else %}
+                                <h5 class="text-info mb-0">{{ currency.exchange_rate|floatformat:4 }}</h5>
+                                <small class="text-muted">{% trans "سعر الصرف" %}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted">{% trans "إحصائيات تفصيلية قيد التطوير" %}</small>
+                </div>
+            </div>
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ currency.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ currency.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if currency.is_base %}
+                    <div class="alert alert-success mt-2 py-2">
+                        <small>
+                            <i class="fas fa-star"></i>
+                            {% trans "هذه هي العملة الأساسية للنظام" %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.875em;
+    }
+    
+    .fs-4 {
+        font-size: 1.5rem !important;
+    }
+    
+    .fs-5 {
+        font-size: 1.25rem !important;
+    }
+</style>
+{% endblock %}
