@@ -181,15 +181,57 @@ class ItemForm(forms.ModelForm):
         return barcode
 
     def clean_sku(self):
-        """التحقق من عدم تكرار SKU"""
-        sku = self.cleaned_data.get('sku')
+        """التحقق من عدم تكرار SKU - سيتم التحقق الكامل في clean()"""
+        return self.cleaned_data.get('sku')
+
+    def clean(self):
+        """التحقق الشامل من عدم تكرار القيم"""
+        cleaned_data = super().clean()
+
+        # الحصول على الشركة الحالية من الـ request
+        if hasattr(self, 'request') and hasattr(self.request, 'current_company'):
+            company = self.request.current_company
+        else:
+            from .models import Company
+            company = Company.objects.first()
+
+        if not company:
+            raise ValidationError(_('لم يتم تحديد الشركة'))
+
+        # التحقق من SKU
+        sku = cleaned_data.get('sku')
         if sku:
-            queryset = Item.objects.filter(sku=sku)
+            queryset = Item.objects.filter(company=company, sku=sku)
             if self.instance.pk:
                 queryset = queryset.exclude(pk=self.instance.pk)
             if queryset.exists():
-                raise ValidationError(_('هذا الـ SKU مستخدم مسبقاً'))
-        return sku
+                raise ValidationError({
+                    'sku': _('هذا الـ SKU موجود مسبقاً في هذه الشركة')
+                })
+
+        # التحقق من الكود
+        code = cleaned_data.get('code')
+        if code:
+            queryset = Item.objects.filter(company=company, code=code)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise ValidationError({
+                    'code': _('هذا الكود موجود مسبقاً في هذه الشركة')
+                })
+
+        # التحقق من الباركود
+        barcode = cleaned_data.get('barcode')
+        if barcode:
+            queryset = Item.objects.filter(company=company, barcode=barcode)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise ValidationError({
+                    'barcode': _('هذا الباركود موجود مسبقاً في هذه الشركة')
+                })
+
+        return cleaned_data
 
 
 class ItemCategoryForm(forms.ModelForm):

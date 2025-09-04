@@ -72,7 +72,10 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
         variant_formset = context['variant_formset']
 
         if form.is_valid() and variant_formset.is_valid():
-            self.object = form.save()
+            # لا تستدعي form.save() مباشرة، بل استدعي super() ليتم تشغيل الـ mixin
+            response = super().form_valid(form)  # هذا سيشغل الـ mixin ويضيف الشركة
+
+            # الآن احفظ المتغيرات
             variant_formset.instance = self.object
             variant_formset.save()
 
@@ -80,7 +83,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchM
                 self.request,
                 _('تم إضافة الصنف "%(name)s" مع متغيراته بنجاح') % {'name': self.object.name}
             )
-            return super().form_valid(form)
+            return response
         else:
             return self.render_to_response(self.get_context_data(form=form))
 

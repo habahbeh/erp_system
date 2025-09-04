@@ -55,8 +55,21 @@ class AuditLogMixin:
                     old_values[field.name] = str(value)
                 elif isinstance(value, Decimal):
                     old_values[field.name] = float(value)
+                # التعامل مع ملفات Django (ImageField, FileField)
+                elif hasattr(value, 'name') and hasattr(value, '_file'):
+                    try:
+                        old_values[field.name] = value.name if value else None
+                    except ValueError:
+                        # الملف غير موجود
+                        old_values[field.name] = None
+                # التعامل مع القيم التي لا يمكن تحويلها إلى JSON
                 else:
-                    old_values[field.name] = value
+                    try:
+                        import json
+                        json.dumps(value)  # اختبار إمكانية التحويل
+                        old_values[field.name] = value
+                    except (TypeError, ValueError):
+                        old_values[field.name] = str(value)  # تحويل إلى نص
             action = 'UPDATE'
         else:
             old_values = None
@@ -75,14 +88,26 @@ class AuditLogMixin:
                 new_values[field.name] = str(value)
             elif isinstance(value, Decimal):
                 new_values[field.name] = float(value)
+            # التعامل مع ملفات Django (ImageField, FileField)
+            elif hasattr(value, 'name') and hasattr(value, '_file'):
+                try:
+                    new_values[field.name] = value.name if value else None
+                except ValueError:
+                    # الملف غير موجود
+                    new_values[field.name] = None
+            # التعامل مع القيم التي لا يمكن تحويلها إلى JSON
             else:
-                new_values[field.name] = value
+                try:
+                    import json
+                    json.dumps(value)  # اختبار إمكانية التحويل
+                    new_values[field.name] = value
+                except (TypeError, ValueError):
+                    new_values[field.name] = str(value)  # تحويل إلى نص
 
         # تسجيل العملية
         self.log_action(action, self.object, old_values, new_values)
 
         return response
-
 
 class CompanyBranchMixin:
     """فلترة حسب الشركة والفرع"""
@@ -107,12 +132,16 @@ class CompanyBranchMixin:
         return queryset
 
     def form_valid(self, form):
-        """إضافة الشركة والفرع تلقائياً"""
-        if hasattr(form.instance, 'company') and not form.instance.company:
-            form.instance.company = self.request.user.company
+        # التحقق من وجود company field في الـ model (وليس form.instance)
+        if hasattr(form._meta.model, 'company') and not getattr(form.instance, 'company', None):
+            from .models import Company
+            company = Company.objects.first()
+            form.instance.company = company
 
-        if hasattr(form.instance, 'branch') and not form.instance.branch:
-            form.instance.branch = self.request.user.branch
+        if hasattr(form._meta.model, 'branch') and not getattr(form.instance, 'branch', None):
+            current_branch = getattr(self.request, 'current_branch', None)
+            if current_branch:
+                form.instance.branch = current_branch
 
         return super().form_valid(form)
 
@@ -132,9 +161,14 @@ class CompanyMixin(CompanyBranchMixin):
         return queryset
 
     def form_valid(self, form):
-        """إضافة الشركة تلقائياً"""
+        """إضافة الشركة والفرع تلقائياً"""
         if hasattr(form.instance, 'company') and not form.instance.company:
-            form.instance.company = self.request.user.company
+            # استخدام current_company بدلاً من user.company
+            form.instance.company = getattr(self.request, 'current_company', None) or self.request.user.company
+
+        if hasattr(form.instance, 'branch') and not form.instance.branch:
+            # استخدام current_branch بدلاً من user.branch
+            form.instance.branch = getattr(self.request, 'current_branch', None) or self.request.user.branch
 
         return super().form_valid(form)
 
