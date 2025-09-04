@@ -1,69 +1,102 @@
 # apps/core/decorators.py
 """
-ديكوريترز مخصصة للصلاحيات والتحقق
-توفر طرق سهلة للتحقق من الصلاحيات
+Decorators مخصصة للتطبيق
 """
 
 from functools import wraps
-from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect
 from django.utils.translation import gettext as _
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseForbidden
 
 
 def branch_required(view_func):
-    """التأكد من وجود فرع محدد للمستخدم"""
+    """التأكد من وجود فرع للمستخدم"""
 
     @wraps(view_func)
-    @login_required
-    def wrapper(request, *args, **kwargs):
-        if not request.current_branch:
-            messages.error(request, _('يجب تحديد الفرع أولاً'))
+    def _wrapped_view(request, *args, **kwargs):
+        if not hasattr(request, 'current_branch') or not request.current_branch:
+            messages.error(request, _('يجب اختيار فرع للمتابعة'))
             return redirect('core:dashboard')
         return view_func(request, *args, **kwargs)
 
-    return wrapper
+    return _wrapped_view
+
+
+def company_required(view_func):
+    """التأكد من وجود شركة للمستخدم"""
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not hasattr(request, 'current_company') or not request.current_company:
+            messages.error(request, _('يجب اختيار شركة للمتابعة'))
+            return redirect('core:dashboard')
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
 
 
 def permission_required_with_message(perm, message=None):
-    """فحص الصلاحية مع رسالة مخصصة"""
+    """
+    صلاحية مطلوبة مع رسالة خطأ مخصصة
+    """
 
     def decorator(view_func):
         @wraps(view_func)
         @login_required
-        def wrapper(request, *args, **kwargs):
-            if request.user.has_perm(perm) or request.user.is_superuser:
-                return view_func(request, *args, **kwargs)
+        def _wrapped_view(request, *args, **kwargs):
+            if not request.user.has_perm(perm):
+                error_message = message or _('ليس لديك صلاحية للوصول لهذه الصفحة')
 
-            error_message = message or _('ليس لديك صلاحية للوصول لهذه الصفحة')
-            messages.error(request, error_message)
-            return redirect('core:dashboard')
+                # للطلبات AJAX
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return HttpResponseForbidden(error_message)
 
-        return wrapper
+                messages.error(request, error_message)
+                return redirect('core:dashboard')
 
-    return decorator
-
-
-def max_discount_required(discount_field='discount_percentage'):
-    """التحقق من حد الخصم المسموح"""
-
-    def decorator(view_func):
-        @wraps(view_func)
-        @login_required
-        def wrapper(request, *args, **kwargs):
-            if request.method == 'POST':
-                discount = float(request.POST.get(discount_field, 0))
-                if not request.user.can_approve_discount(discount):
-                    messages.error(
-                        request,
-                        _('الخصم المطلوب (%(discount)s%%) يتجاوز الحد المسموح لك (%(max)s%%)') % {
-                            'discount': discount,
-                            'max': request.user.profile.max_discount_percentage
-                        }
-                    )
-                    return redirect(request.path)
             return view_func(request, *args, **kwargs)
 
-        return wrapper
+        return _wrapped_view
 
     return decorator
+
+
+def ajax_login_required(view_func):
+    """تسجيل دخول مطلوب للطلبات AJAX"""
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return HttpResponseForbidden(_('تسجيل الدخول مطلوب'))
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
+
+
+def superuser_required(view_func):
+    """مطلوب صلاحيات مدير نظام"""
+
+    @wraps(view_func)
+    @login_required
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            messages.error(request, _('هذا القسم مخصص لمديري النظام فقط'))
+            return redirect('core:dashboard')
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
+
+
+def check_user_branch_access(view_func):
+    """التحقق من صلاحية الوصول للفرع"""
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        # تنفيذ منطق التحقق من الفرع هنا
+        # يمكن تخصيصه حسب احتياجات المشروع
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view

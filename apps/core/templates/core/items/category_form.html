@@ -1,0 +1,192 @@
+{# apps/core/templates/core/items/category_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل بيانات التصنيف" %}
+                {% else %}
+                    {% trans "إضافة تصنيف جديد للأصناف" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-tags"></i> {% trans "معلومات التصنيف" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "التصنيف الأب" %}</label>
+                                {{ form.parent|add_class:"form-select" }}
+                                {% if form.parent.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.parent.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "اختر التصنيف الأب أو اتركه فارغاً للتصنيف الرئيسي" %}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "رمز التصنيف" %}</label>
+                                {{ form.code|add_class:"form-control" }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "رمز فريد للتصنيف" %}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "اسم التصنيف" %}</label>
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                                {{ form.name_en|add_class:"form-control" }}
+                                {% if form.name_en.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الوصف" %}</label>
+                                {{ form.description|add_class:"form-control" }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- معلومات إضافية للتعديل -->
+                        {% if is_update and form.instance %}
+                        <div class="row g-3 mt-3 pt-3 border-top">
+                            <div class="col-md-4 text-center">
+                                <small class="text-muted d-block">{% trans "المستوى الحالي" %}</small>
+                                <span class="badge bg-info fs-6">
+                                    {% trans "المستوى" %} {{ form.instance.level }}
+                                </span>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ form.instance.created_at|date:"d/m/Y" }}</strong>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ form.instance.updated_at|date:"d/m/Y" }}</strong>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="alert alert-info mt-4" role="alert">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "معلومات مهمة" %}
+                    </h6>
+                    <p class="mb-2">{% trans "نظام التصنيفات يدعم 4 مستويات كحد أقصى:" %}</p>
+                    <ul class="mb-0">
+                        <li><strong>{% trans "المستوى 1" %}:</strong> {% trans "التصنيفات الرئيسية" %} ({% trans "مثال: إلكترونيات" %})</li>
+                        <li><strong>{% trans "المستوى 2" %}:</strong> {% trans "تصنيفات فرعية" %} ({% trans "مثال: هواتف ذكية" %})</li>
+                        <li><strong>{% trans "المستوى 3" %}:</strong> {% trans "تصنيفات فرعية متقدمة" %} ({% trans "مثال: هواتف آندرويد" %})</li>
+                        <li><strong>{% trans "المستوى 4" %}:</strong> {% trans "أدق التصنيفات" %} ({% trans "مثال: سامسونغ جالاكسي" %})</li>
+                    </ul>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Auto-generate code based on name
+document.getElementById('id_name').addEventListener('blur', function() {
+    var codeField = document.getElementById('id_code');
+    if (!codeField.value) {
+        var name = this.value.trim();
+        if (name) {
+            // Simple code generation
+            var code = name.replace(/\s+/g, '-').toUpperCase().substring(0, 10);
+            codeField.value = code;
+        }
+    }
+});
+
+// Update level info when parent changes
+document.getElementById('id_parent').addEventListener('change', function() {
+    var parentId = this.value;
+    if (parentId) {
+        // يمكن إضافة AJAX call للحصول على معلومات الأب
+        console.log('تم اختيار تصنيف أب:', parentId);
+    }
+});
+</script>
+{% endblock %}

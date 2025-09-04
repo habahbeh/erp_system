@@ -187,6 +187,26 @@ class User(AbstractUser):
     def __str__(self):
         return self.get_full_name() or self.username
 
+    def can_access_branch(self, branch):
+        """التحقق من إمكانية الوصول للفرع"""
+        # إذا كان superuser
+        if self.is_superuser:
+            return True
+
+        # إذا كان من نفس الشركة
+        if self.company == branch.company:
+            return True
+
+        # التحقق من الصلاحيات المخصصة
+        if hasattr(self, 'profile'):
+            allowed_branches = self.profile.allowed_branches.all()
+            if allowed_branches.exists():
+                return branch in allowed_branches
+            # إذا لم يحدد فروع معينة = يصل لكل فروع الشركة
+            return True
+
+        return False
+
 
 class UserProfile(models.Model):
     """إعدادات إضافية للمستخدم"""
@@ -462,6 +482,31 @@ class BusinessPartner(BaseModel):
 
     def is_supplier(self):
         return self.partner_type in ['supplier', 'both']
+
+    def generate_code(self):
+        """توليد كود الشريك التجاري"""
+        if self.partner_type == 'customer':
+            prefix = 'CUS'
+        elif self.partner_type == 'supplier':
+            prefix = 'SUP'
+        else:  # both
+            prefix = 'PAR'
+
+        last_partner = BusinessPartner.objects.filter(
+            company=self.company,
+            code__startswith=prefix
+        ).order_by('-id').first()
+
+        if last_partner:
+            try:
+                last_number = int(last_partner.code[3:])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+
+        return f"{prefix}{new_number:06d}"
 
 
 class Item(BaseModel):

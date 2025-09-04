@@ -1,0 +1,199 @@
+{# apps/core/templates/core/items/category_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة تصنيفات الأصناف - 4 مستويات" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{{ add_url }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة تصنيف جديد" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" 
+                           placeholder="{% trans 'البحث في اسم التصنيف...' %}" 
+                           value="{{ request.GET.search }}">
+                </div>
+                <div class="col-md-2">
+                    <select name="level" class="form-select">
+                        <option value="">{% trans "كل المستويات" %}</option>
+                        <option value="1" {% if request.GET.level == '1' %}selected{% endif %}>{% trans "المستوى 1" %}</option>
+                        <option value="2" {% if request.GET.level == '2' %}selected{% endif %}>{% trans "المستوى 2" %}</option>
+                        <option value="3" {% if request.GET.level == '3' %}selected{% endif %}>{% trans "المستوى 3" %}</option>
+                        <option value="4" {% if request.GET.level == '4' %}selected{% endif %}>{% trans "المستوى 4" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="btn-group" role="group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> {% trans "بحث" %}
+                        </button>
+                        <a href="{% url 'core:category_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Categories List -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if categories %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>{% trans "التصنيف" %}</th>
+                                <th>{% trans "الكود" %}</th>
+                                <th>{% trans "المستوى" %}</th>
+                                <th>{% trans "التصنيف الأب" %}</th>
+                                <th>{% trans "الحالة" %}</th>
+                                <th class="text-center">{% trans "الإجراءات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if category.level > 1 %}
+                                            <span class="text-muted me-2">
+                                                {% for i in ""|ljust:category.level|add:"-1" %}└{% endfor %}
+                                            </span>
+                                        {% endif %}
+                                        <div>
+                                            <strong>{{ category.name }}</strong>
+                                            {% if category.name_en %}
+                                                <br><small class="text-muted">{{ category.name_en }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <code class="text-primary">{{ category.code }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info fs-6">
+                                        {% trans "المستوى" %} {{ category.level }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if category.parent %}
+                                        {{ category.parent.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if category.is_active %}
+                                        <span class="badge bg-success">{% trans "نشط" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        {% if can_change %}
+                                        <a href="{% url 'core:category_update' category.pk %}" 
+                                           class="btn btn-outline-warning" title="{% trans 'تعديل' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if can_delete %}
+                                        <a href="{% url 'core:category_delete' category.pk %}" 
+                                           class="btn btn-outline-danger" title="{% trans 'حذف' %}"
+                                           onclick="return confirm('{% trans 'هل أنت متأكد من حذف هذا التصنيف؟' %}')">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                <nav aria-label="الصفحات" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.level %}&level={{ request.GET.level }}{% endif %}">{% trans "الأولى" %}</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.level %}&level={{ request.GET.level }}{% endif %}">{% trans "السابقة" %}</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}</span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.level %}&level={{ request.GET.level }}{% endif %}">{% trans "التالية" %}</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.level %}&level={{ request.GET.level }}{% endif %}">{% trans "الأخيرة" %}</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد تصنيفات" %}</h5>
+                    <p class="text-muted">{% trans "ابدأ بإضافة تصنيف جديد" %}</p>
+                    {% if can_add %}
+                    <a href="{{ add_url }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "إضافة تصنيف جديد" %}
+                    </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

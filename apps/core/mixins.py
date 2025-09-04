@@ -35,17 +35,28 @@ class AuditLogMixin:
             old_values=old_values,
             new_values=new_values,
             ip_address=self.get_client_ip(),
-            user_agent=self.request.META.get('HTTP_USER_AGENT', '')
+            # user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
 
     def form_valid(self, form):
         """تسجيل عند حفظ النموذج"""
+        import datetime
+        from decimal import Decimal
+
         # حفظ القيم القديمة قبل التعديل
         if self.object and self.object.pk:
-            old_values = {
-                field.name: getattr(self.object, field.name)
-                for field in self.object._meta.fields
-            }
+            old_values = {}
+            for field in self.object._meta.fields:
+                value = getattr(self.object, field.name)
+                # تحويل الـ objects إلى أرقام هوية
+                if hasattr(value, 'pk'):
+                    old_values[field.name] = value.pk
+                elif isinstance(value, (datetime.datetime, datetime.date)):
+                    old_values[field.name] = str(value)
+                elif isinstance(value, Decimal):
+                    old_values[field.name] = float(value)
+                else:
+                    old_values[field.name] = value
             action = 'UPDATE'
         else:
             old_values = None
@@ -54,10 +65,18 @@ class AuditLogMixin:
         response = super().form_valid(form)
 
         # حفظ القيم الجديدة
-        new_values = {
-            field.name: getattr(self.object, field.name)
-            for field in self.object._meta.fields
-        }
+        new_values = {}
+        for field in self.object._meta.fields:
+            value = getattr(self.object, field.name)
+            # تحويل الـ objects إلى أرقام هوية
+            if hasattr(value, 'pk'):
+                new_values[field.name] = value.pk
+            elif isinstance(value, (datetime.datetime, datetime.date)):
+                new_values[field.name] = str(value)
+            elif isinstance(value, Decimal):
+                new_values[field.name] = float(value)
+            else:
+                new_values[field.name] = value
 
         # تسجيل العملية
         self.log_action(action, self.object, old_values, new_values)
@@ -81,7 +100,7 @@ class CompanyBranchMixin:
         if hasattr(queryset.model, 'branch') and user.branch:
             # إذا لم يكن لديه صلاحية عرض كل الفروع
             if not user.custom_permissions.filter(
-                    permission_type='view_all_branches'
+                    code='view_all_branches'
             ).exists():
                 queryset = queryset.filter(branch=user.branch)
 

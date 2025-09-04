@@ -6,7 +6,7 @@ Django Filters للبحث والتصفية
 import django_filters
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse
+from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User
 
 
 class ItemFilter(django_filters.FilterSet):
@@ -268,4 +268,129 @@ class UnitOfMeasureFilter(django_filters.FilterSet):
                 Q(name_en__icontains=value) |
                 Q(code__icontains=value)
             ).distinct()
+        return queryset
+
+
+class BusinessPartnerFilter(django_filters.FilterSet):
+    """فلتر الشركاء التجاريين"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في الاسم، الكود، الهاتف، البريد...'),
+        })
+    )
+
+    partner_type = django_filters.ChoiceFilter(
+        choices=BusinessPartner.PARTNER_TYPES,
+        label=_('نوع الشريك'),
+        empty_label=_('جميع الأنواع'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    account_type = django_filters.ChoiceFilter(
+        choices=BusinessPartner.ACCOUNT_TYPE_CHOICES,
+        label=_('نوع الحساب'),
+        empty_label=_('جميع الأنواع'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    sales_representative = django_filters.ModelChoiceFilter(
+        queryset=User.objects.none(),
+        label=_('المندوب'),
+        empty_label=_('جميع المندوبين'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    tax_status = django_filters.ChoiceFilter(
+        choices=BusinessPartner.TAX_STATUS_CHOICES,
+        label=_('الحالة الضريبية'),
+        empty_label=_('جميع الحالات'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    city = django_filters.CharFilter(
+        field_name='city',
+        lookup_expr='icontains',
+        label=_('المدينة'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('المدينة')
+        })
+    )
+
+    region = django_filters.CharFilter(
+        field_name='region',
+        lookup_expr='icontains',
+        label=_('المنطقة'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('المنطقة')
+        })
+    )
+
+    has_credit_limit = django_filters.BooleanFilter(
+        method='filter_has_credit_limit',
+        label=_('له حد ائتمان'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    class Meta:
+        model = BusinessPartner
+        fields = [
+            'search', 'partner_type', 'account_type', 'sales_representative',
+            'tax_status', 'city', 'region', 'has_credit_limit', 'is_active'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if self.request and hasattr(self.request, 'current_company'):
+            company = self.request.current_company
+
+            # فلترة المندوبين حسب الشركة
+            self.filters['sales_representative'].queryset = User.objects.filter(
+                company=company, is_active=True
+            ).order_by('first_name', 'last_name')
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(name_en__icontains=value) |
+                Q(code__icontains=value) |
+                Q(contact_person__icontains=value) |
+                Q(phone__icontains=value) |
+                Q(mobile__icontains=value) |
+                Q(email__icontains=value) |
+                Q(tax_number__icontains=value) |
+                Q(commercial_register__icontains=value) |
+                Q(address__icontains=value) |
+                Q(city__icontains=value) |
+                Q(region__icontains=value)
+            ).distinct()
+        return queryset
+
+    def filter_has_credit_limit(self, queryset, name, value):
+        """فلترة حسب وجود حد ائتمان"""
+        if value is True:
+            return queryset.filter(credit_limit__gt=0)
+        elif value is False:
+            return queryset.filter(credit_limit=0)
         return queryset

@@ -8,8 +8,11 @@ from .item_views import (
     ItemListView, ItemCreateView, ItemUpdateView, ItemDeleteView, ItemDetailView,
     ItemCategoryListView, ItemCategoryCreateView, ItemCategoryUpdateView, ItemCategoryDeleteView
 )
-from .ajax_views import item_datatable_ajax
-# from .ajax_views import item_datatable_ajax, partner_autocomplete, item_autocomplete, get_item_details, check_barcode
+from .partner_views import (
+    BusinessPartnerListView, BusinessPartnerCreateView, BusinessPartnerUpdateView,
+    BusinessPartnerDeleteView, BusinessPartnerDetailView
+)
+from .ajax_views import item_datatable_ajax, partner_datatable_ajax
 
 __all__ = [
     # Base Views
@@ -26,10 +29,13 @@ __all__ = [
     'ItemCategoryCreateView',
     'ItemCategoryUpdateView',
     'ItemCategoryDeleteView',
+    # Partner Views
+    'BusinessPartnerListView',
+    'BusinessPartnerCreateView',
+    'BusinessPartnerUpdateView',
+    'BusinessPartnerDeleteView',
+    'BusinessPartnerDetailView',
     # Ajax Views
     'item_datatable_ajax',
-    'partner_autocomplete',
-    'item_autocomplete',
-    'get_item_details',
-    'check_barcode',
+    'partner_datatable_ajax',
 ]

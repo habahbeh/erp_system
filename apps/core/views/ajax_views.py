@@ -338,3 +338,222 @@ def check_barcode(request):
         'available': is_available,
         'message': _('الباركود متاح') if is_available else _('الباركود مستخدم مسبقاً')
     })
+
+
+
+
+"""
+Ajax Views للشركاء التجاريين
+"""
+
+@login_required
+@permission_required_with_message('core.view_businesspartner')
+@require_http_methods(["GET"])
+def partner_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable للشركاء التجاريين"""
+    try:
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معالجة طلبات تحميل خيارات الفلاتر
+        if request.GET.get('get_representatives'):
+            representatives = User.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).values('id', 'first_name', 'last_name').order_by('first_name', 'last_name')
+
+            # تنسيق البيانات
+            reps_data = []
+            for rep in representatives:
+                full_name = f"{rep['first_name']} {rep['last_name']}".strip()
+                if not full_name:
+                    full_name = f"مستخدم {rep['id']}"
+                reps_data.append({
+                    'id': rep['id'],
+                    'name': full_name
+                })
+
+            return JsonResponse({'representatives': reps_data})
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        partner_type_filter = request.GET.get('partner_type', '')
+        account_type_filter = request.GET.get('account_type', '')
+        representative_filter = request.GET.get('representative', '')
+        tax_status_filter = request.GET.get('tax_status', '')
+        city_filter = request.GET.get('city', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات
+        if request.current_company:
+            queryset = BusinessPartner.objects.filter(company=request.current_company)
+        else:
+            queryset = BusinessPartner.objects.all()
+
+        queryset = queryset.select_related('sales_representative')
+
+        # تطبيق الفلاتر المخصصة
+        if partner_type_filter:
+            queryset = queryset.filter(partner_type=partner_type_filter)
+
+        if account_type_filter:
+            queryset = queryset.filter(account_type=account_type_filter)
+
+        if representative_filter:
+            queryset = queryset.filter(sales_representative_id=representative_filter)
+
+        if tax_status_filter:
+            queryset = queryset.filter(tax_status=tax_status_filter)
+
+        if city_filter:
+            queryset = queryset.filter(city__icontains=city_filter)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value) |
+                Q(code__icontains=search_value) |
+                Q(contact_person__icontains=search_value) |
+                Q(phone__icontains=search_value) |
+                Q(mobile__icontains=search_value) |
+                Q(email__icontains=search_value) |
+                Q(tax_number__icontains=search_value) |
+                Q(address__icontains=search_value) |
+                Q(city__icontains=search_value) |
+                Q(region__icontains=search_value)
+            )
+
+        # العدد الكلي
+        if request.current_company:
+            records_total = BusinessPartner.objects.filter(company=request.current_company).count()
+        else:
+            records_total = BusinessPartner.objects.count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['code', 'name', 'partner_type', 'account_type', 'sales_representative__first_name', 'phone',
+                   'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('name')
+
+        # التقسيم للصفحات
+        partners = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for partner in partners:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_businesspartner')
+            can_delete = request.user.has_perm('core.delete_businesspartner')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:partner_detail', kwargs={'pk': partner.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:partner_update', kwargs={'pk': partner.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                    <a href="{reverse('core:partner_delete', kwargs={'pk': partner.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا الشريك؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تجميع صف البيانات
+            row = [
+                # الكود
+                f'<code class="text-primary fw-bold">{partner.code}</code>',
+
+                # اسم الشريك
+                f'<div><strong class="text-dark">{partner.name}</strong>' +
+                (f'<br><small class="text-muted">{partner.name_en}</small>' if partner.name_en else '') + '</div>',
+
+                # نوع الشريك
+                f'<span class="badge bg-primary fs-6">{partner.get_partner_type_display()}</span>',
+
+                # نوع الحساب
+                f'<span class="badge bg-secondary fs-6">{partner.get_account_type_display()}</span>',
+
+                # المندوب
+                f'<span class="text-dark">{partner.sales_representative.get_full_name()}</span>' if partner.sales_representative
+                else '<span class="text-muted">-</span>',
+
+                # الهاتف
+                f'<div>' +
+                (f'<div><i class="fas fa-phone"></i> {partner.phone}</div>' if partner.phone else '') +
+                (f'<div><i class="fas fa-mobile-alt"></i> {partner.mobile}</div>' if partner.mobile else '') +
+                '</div>' if partner.phone or partner.mobile else '<span class="text-muted">-</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if partner.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
