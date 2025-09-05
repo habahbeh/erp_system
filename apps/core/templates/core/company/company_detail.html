@@ -1,0 +1,240 @@
+{# templates/core/company/company_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ company.name }}</h1>
+            {% if company.name_en %}
+                <p class="text-muted mb-1">{{ company.name_en }}</p>
+            {% endif %}
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary fs-6">
+                    <i class="fas fa-building"></i> {% trans "الشركة الأساسية" %}
+                </span>
+                {% if company.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشطة" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times"></i> {% trans "غير نشطة" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل البيانات" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم الشركة" %}</h6>
+                            <p class="mb-0">{{ company.name }}</p>
+                            {% if company.name_en %}
+                                <small class="text-muted">{{ company.name_en }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الرقم الضريبي" %}</h6>
+                            <p class="mb-0">
+                                <code class="bg-light text-primary">{{ company.tax_number }}</code>
+                            </p>
+                        </div>
+
+                        {% if company.commercial_register %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "السجل التجاري" %}</h6>
+                            <p class="mb-0">{{ company.commercial_register }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الهاتف" %}</h6>
+                            <p class="mb-0">
+                                <i class="fas fa-phone"></i> {{ company.phone }}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "البريد الإلكتروني" %}</h6>
+                            <p class="mb-0">
+                                <i class="fas fa-envelope"></i> 
+                                <a href="mailto:{{ company.email }}" class="text-decoration-none">{{ company.email }}</a>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المدينة - الدولة" %}</h6>
+                            <p class="mb-0">
+                                <i class="fas fa-map-marker-alt"></i> {{ company.city }}, {{ company.country }}
+                            </p>
+                        </div>
+
+                        {% if company.logo %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "شعار الشركة" %}</h6>
+                            <div class="text-center">
+                                <img src="{{ company.logo.url }}" alt="{{ company.name }}" 
+                                     class="img-fluid border rounded shadow-sm" 
+                                     style="max-width: 200px; max-height: 150px;">
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- العنوان -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-map-marker-alt"></i> {% trans "العنوان" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ company.address|linebreaks }}</p>
+                </div>
+            </div>
+
+            <!-- الإعدادات المالية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-money-bill-wave"></i> {% trans "الإعدادات المالية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "العملة الأساسية" %}</h6>
+                            <span class="badge bg-info fs-6">
+                                {{ company.base_currency.symbol }} - {{ company.base_currency.name }}
+                            </span>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "نسبة الضريبة الافتراضية" %}</h6>
+                            <span class="badge bg-warning text-dark fs-6">{{ company.default_tax_rate }}%</span>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-1">{% trans "بداية السنة المالية" %}</h6>
+                            <span class="badge bg-secondary fs-6">
+                                {{ company.fiscal_year_start_day }} {{ company.get_fiscal_year_start_month_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- إحصائيات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الشركة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-6">
+                            <h5 class="text-primary mb-0">{{ stats.branches_count }}</h5>
+                            <small class="text-muted">{% trans "الفروع" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-success mb-0">{{ stats.users_count }}</h5>
+                            <small class="text-muted">{% trans "المستخدمين" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-info mb-0">{{ stats.warehouses_count }}</h5>
+                            <small class="text-muted">{% trans "المستودعات" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-warning mb-0">{{ stats.items_count }}</h5>
+                            <small class="text-muted">{% trans "الأصناف" %}</small>
+                        </div>
+                        <div class="col-12">
+                            <hr>
+                            <h5 class="text-secondary mb-0">{{ stats.partners_count }}</h5>
+                            <small class="text-muted">{% trans "الشركاء التجاريون" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ company.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ company.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <strong>{% trans "معرف الشركة" %}:</strong> <code>{{ company.id }}</code>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.875em;
+    }
+    
+    .img-fluid {
+        transition: transform 0.3s ease;
+    }
+    
+    .img-fluid:hover {
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,562 @@
+{# templates/core/variants/attribute_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل خاصية المتغير وقيمها" %}
+                {% else %}
+                    {% trans "إضافة خاصية جديدة مع قيمها للمتغيرات" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate id="attributeForm">
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- المعلومات الأساسية للخاصية -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-tag"></i> {% trans "معلومات الخاصية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "اسم الخاصية" %}</label>
+                                {{ form.attribute_form.name }}
+                                {% if form.attribute_form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.attribute_form.name.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.attribute_form.name.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                                {{ form.attribute_form.name_en }}
+                                {% if form.attribute_form.name_en.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.attribute_form.name_en.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "اسم العرض" %}</label>
+                                {{ form.attribute_form.display_name }}
+                                {% if form.attribute_form.display_name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.attribute_form.display_name.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.attribute_form.display_name.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "ترتيب العرض" %}</label>
+                                {{ form.attribute_form.sort_order }}
+                                {% if form.attribute_form.sort_order.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.attribute_form.sort_order.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.attribute_form.sort_order.help_text }}</small>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    {{ form.attribute_form.is_required }}
+                                    <label class="form-check-label" for="{{ form.attribute_form.is_required.id_for_label }}">
+                                        {{ form.attribute_form.is_required.label }}
+                                    </label>
+                                    {% if form.attribute_form.is_required.errors %}
+                                        <div class="invalid-feedback d-block">{{ form.attribute_form.is_required.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="form-text text-muted d-block">{{ form.attribute_form.is_required.help_text }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- قيم الخاصية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-list"></i> {% trans "قيم الخاصية" %}
+                        </h6>
+                        <button type="button" class="btn btn-light btn-sm" id="addValueBtn">
+                            <i class="fas fa-plus"></i> {% trans "إضافة قيمة" %}
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info border-0" role="alert">
+                            <small>
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "أضف القيم المختلفة لهذه الخاصية. مثال: للون أضف (أحمر، أزرق، أخضر)" %}
+                            </small>
+                        </div>
+
+                        <!-- Formset Management -->
+                        {{ form.values_formset.management_form }}
+
+                        <div id="valuesContainer">
+                            {% for value_form in form.values_formset %}
+                                <div class="value-form-row border rounded p-3 mb-3 bg-light">
+                                    {# إضافة جميع الحقول المخفية المطلوبة للـ formset #}
+                                    {% for hidden in value_form.hidden_fields %}
+                                        {{ hidden }}
+                                    {% endfor %}
+
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col-md-3">
+                                            <label class="form-label small">{% trans "القيمة" %}</label>
+                                            {{ value_form.value|add_class:"form-control form-control-sm" }}
+                                            {% if value_form.value.errors %}
+                                                <div class="invalid-feedback d-block small">{{ value_form.value.errors.0 }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label small">{% trans "القيمة الإنجليزية" %}</label>
+                                            {{ value_form.value_en|add_class:"form-control form-control-sm" }}
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label small">{% trans "قيمة العرض" %}</label>
+                                            {{ value_form.display_value|add_class:"form-control form-control-sm" }}
+                                        </div>
+
+                                        <div class="col-md-2">
+                                            <label class="form-label small">{% trans "الترتيب" %}</label>
+                                            {{ value_form.sort_order|add_class:"form-control form-control-sm" }}
+                                        </div>
+
+                                        <div class="col-md-1">
+                                            <label class="form-label small">&nbsp;</label>
+                                            <div>
+                                                {% if value_form.instance.pk %}
+                                                    {# للعناصر الموجودة - زر حذف مع checkbox للـ DELETE #}
+                                                    <div class="d-none">{{ value_form.DELETE }}</div>
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger btn-sm delete-value-btn"
+                                                            title="{% trans 'حذف' %}">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                {% else %}
+                                                    {# للعناصر الجديدة - زر إزالة من DOM #}
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger btn-sm remove-value-btn"
+                                                            title="{% trans 'إزالة' %}">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Empty form template -->
+                        <div id="emptyValueForm" style="display: none;">
+                            <div class="value-form-row border rounded p-3 mb-3 bg-light">
+                                {# Hidden fields للنماذج الجديدة #}
+                                <input type="hidden" name="values-__prefix__-id" value="">
+
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-3">
+                                        <label class="form-label small">{% trans "القيمة" %}</label>
+                                        <input type="text" name="values-__prefix__-value"
+                                               class="form-control form-control-sm" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small">{% trans "القيمة الإنجليزية" %}</label>
+                                        <input type="text" name="values-__prefix__-value_en"
+                                               class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small">{% trans "قيمة العرض" %}</label>
+                                        <input type="text" name="values-__prefix__-display_value"
+                                               class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">{% trans "الترتيب" %}</label>
+                                        <input type="number" name="values-__prefix__-sort_order"
+                                               class="form-control form-control-sm" value="0">
+                                    </div>
+                                    <div class="col-md-1">
+                                        <label class="form-label small">&nbsp;</label>
+                                        <div>
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-value-btn"
+                                                    title="{% trans 'إزالة' %}">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات النظام -->
+                {% if is_update and attribute %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ attribute.created_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ attribute.updated_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            {% if attribute.created_by %}
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "أنشأ بواسطة" %}</small>
+                                <strong>{{ attribute.created_by.get_full_name|default:attribute.created_by.username }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- أمثلة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-lightbulb text-warning"></i> {% trans "أمثلة على الخصائص" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-3">
+                                <strong>{% trans "اللون" %}</strong><br>
+                                <small class="text-muted">{% trans "أحمر، أزرق، أخضر، أسود" %}</small>
+                            </li>
+                            <li class="mb-3">
+                                <strong>{% trans "الحجم" %}</strong><br>
+                                <small class="text-muted">{% trans "صغير، متوسط، كبير، كبير جداً" %}</small>
+                            </li>
+                            <li class="mb-3">
+                                <strong>{% trans "المادة" %}</strong><br>
+                                <small class="text-muted">{% trans "قطن، بوليستر، حرير، كتان" %}</small>
+                            </li>
+                            <li class="mb-0">
+                                <strong>{% trans "النوع" %}</strong><br>
+                                <small class="text-muted">{% trans "عادي، مُحسّن، متميز" %}</small>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Formset management
+document.addEventListener('DOMContentLoaded', function() {
+    const totalFormsInput = document.querySelector('#id_values-TOTAL_FORMS');
+    if (!totalFormsInput) {
+        console.error('TOTAL_FORMS input not found');
+        return;
+    }
+
+    let formCount = parseInt(totalFormsInput.value);
+    const container = document.getElementById('valuesContainer');
+    const emptyForm = document.getElementById('emptyValueForm');
+    const addBtn = document.getElementById('addValueBtn');
+
+    console.log('Initial form count:', formCount);
+
+    // إذا لم تكن هناك نماذج أولية، أضف واحد تلقائياً
+    if (formCount === 0) {
+        addValueForm();
+    }
+
+    // Add new value form
+    function addValueForm() {
+        console.log('Adding new form, current count:', formCount);
+
+        let newFormHtml = emptyForm.innerHTML;
+        newFormHtml = newFormHtml.replace(/__prefix__/g, formCount);
+
+        container.insertAdjacentHTML('beforeend', newFormHtml);
+        formCount++;
+        totalFormsInput.value = formCount;
+
+        console.log('New form count:', formCount);
+
+        // ربط event listeners للنموذج الجديد فقط
+        const newForm = container.lastElementChild;
+        attachEventListeners(newForm);
+    }
+
+    // ربط الزر بالدالة
+    addBtn.addEventListener('click', addValueForm);
+
+    // دالة لربط event listeners بنموذج واحد
+    function attachEventListeners(formElement) {
+        // ربط أزرار الحذف
+        const removeBtn = formElement.querySelector('.remove-value-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', removeForm);
+        }
+
+        const deleteBtn = formElement.querySelector('.delete-value-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', markForDeletion);
+        }
+    }
+
+    // Remove value form (for new forms)
+    function removeForm(e) {
+        e.preventDefault();
+        console.log('Removing form');
+
+        const formRow = e.target.closest('.value-form-row');
+
+        // التأكد من أن هناك نموذج واحد على الأقل
+        const remainingForms = container.querySelectorAll('.value-form-row');
+        if (remainingForms.length <= 1) {
+            alert('{% trans "يجب الاحتفاظ بقيمة واحدة على الأقل" %}');
+            return;
+        }
+
+        formRow.remove();
+
+        // إعادة حساب العدد
+        const newRemainingForms = container.querySelectorAll('.value-form-row');
+        formCount = newRemainingForms.length;
+        totalFormsInput.value = formCount;
+
+        // إعادة ترقيم
+        reindexForms();
+
+        console.log('Forms after removal:', formCount);
+    }
+
+    // Mark for deletion (for existing forms)
+    function markForDeletion(e) {
+        e.preventDefault();
+        console.log('Marking for deletion');
+
+        const formRow = e.target.closest('.value-form-row');
+        const deleteCheckbox = formRow.querySelector('input[name$="-DELETE"]');
+
+        if (deleteCheckbox) {
+            deleteCheckbox.checked = true;
+            formRow.style.opacity = '0.5';
+            formRow.style.textDecoration = 'line-through';
+            formRow.classList.add('bg-danger', 'bg-opacity-10');
+
+            const btn = e.target.closest('button');
+            btn.innerHTML = '<i class="fas fa-undo"></i>';
+            btn.classList.remove('btn-outline-danger');
+            btn.classList.add('btn-outline-success');
+            btn.title = 'استعادة';
+
+            // تغيير event listener
+            btn.removeEventListener('click', markForDeletion);
+            btn.addEventListener('click', restoreForm);
+        }
+    }
+
+    // Restore form from deletion
+    function restoreForm(e) {
+        e.preventDefault();
+        console.log('Restoring form');
+
+        const formRow = e.target.closest('.value-form-row');
+        const deleteCheckbox = formRow.querySelector('input[name$="-DELETE"]');
+
+        if (deleteCheckbox) {
+            deleteCheckbox.checked = false;
+            formRow.style.opacity = '1';
+            formRow.style.textDecoration = 'none';
+            formRow.classList.remove('bg-danger', 'bg-opacity-10');
+
+            const btn = e.target.closest('button');
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-outline-danger');
+            btn.title = 'حذف';
+
+            // تغيير event listener
+            btn.removeEventListener('click', restoreForm);
+            btn.addEventListener('click', markForDeletion);
+        }
+    }
+
+    function reindexForms() {
+        console.log('Reindexing forms');
+
+        const forms = container.querySelectorAll('.value-form-row');
+
+        forms.forEach((form, index) => {
+            const inputs = form.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.name && input.name.includes('values-') && !input.name.includes('__prefix__')) {
+                    const oldName = input.name;
+                    input.name = input.name.replace(/values-\d+-/g, `values-${index}-`);
+                    console.log(`Renamed ${oldName} to ${input.name}`);
+
+                    if (input.id) {
+                        input.id = input.id.replace(/values-\d+-/g, `values-${index}-`);
+                    }
+                }
+            });
+
+            // تحديث labels أيضاً
+            const labels = form.querySelectorAll('label');
+            labels.forEach(label => {
+                if (label.getAttribute('for')) {
+                    const oldFor = label.getAttribute('for');
+                    if (oldFor.includes('values-')) {
+                        label.setAttribute('for',
+                            oldFor.replace(/values-\d+-/g, `values-${index}-`)
+                        );
+                    }
+                }
+            });
+        });
+
+        console.log('Total forms after reindex:', forms.length);
+    }
+
+    // دالة لربط جميع event listeners للنماذج الموجودة
+    function initializeExistingForms() {
+        const existingForms = container.querySelectorAll('.value-form-row');
+        existingForms.forEach(form => {
+            attachEventListeners(form);
+        });
+    }
+
+    // تشغيل الربط للنماذج الموجودة عند تحميل الصفحة
+    initializeExistingForms();
+
+    // تنظيف قبل الإرسال
+    const form = document.getElementById('attributeForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submitting...');
+
+            // حذف الـ empty form template
+            const emptyFormElement = document.getElementById('emptyValueForm');
+            if (emptyFormElement) {
+                emptyFormElement.remove();
+            }
+
+            // التحقق من وجود قيم صالحة
+            const validForms = [];
+            const allForms = container.querySelectorAll('.value-form-row');
+
+            allForms.forEach(formRow => {
+                const valueInput = formRow.querySelector('input[name$="-value"]');
+                const deleteCheckbox = formRow.querySelector('input[name$="-DELETE"]');
+
+                if (valueInput && valueInput.value.trim() &&
+                    (!deleteCheckbox || !deleteCheckbox.checked)) {
+                    validForms.push(formRow);
+                }
+            });
+
+            if (validForms.length === 0) {
+                e.preventDefault();
+                alert('{% trans "يجب إضافة قيمة واحدة على الأقل للخاصية" %}');
+                return false;
+            }
+
+            // التأكد من الترقيم الصحيح
+            reindexForms();
+
+            // حساب العدد النهائي
+            const activeForms = container.querySelectorAll('.value-form-row');
+            totalFormsInput.value = activeForms.length;
+
+            console.log('Final total forms:', activeForms.length);
+            console.log('Valid forms:', validForms.length);
+
+            // طباعة البيانات المرسلة
+            const formData = new FormData(form);
+            for (let [key, value] of formData.entries()) {
+                if (key.includes('values-')) {
+                    console.log(key + ': ' + value);
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

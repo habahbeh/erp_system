@@ -1,0 +1,198 @@
+{# templates/core/variants/attribute_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة خصائص متغيرات الأصناف (مثل: اللون، الحجم، النوع)" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{{ add_url }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة خاصية جديدة" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- معلومات عامة -->
+    <div class="alert alert-info border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h6 class="alert-heading mb-1">{% trans "ما هي خصائص المتغيرات؟" %}</h6>
+                <p class="mb-0 small">
+                    {% trans "خصائص المتغيرات تسمح لك بإنشاء أصناف متعددة للمنتج الواحد. مثل: قميص بألوان مختلفة أو أحجام مختلفة." %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع الخاصية" %}</label>
+                        <select class="form-select" id="isRequiredFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "إجباري" %}</option>
+                            <option value="0">{% trans "اختياري" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="attributesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "اسم الخاصية" %}</th>
+                            <th>{% trans "اسم العرض" %}</th>
+                            <th>{% trans "عدد القيم" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th>{% trans "الترتيب" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    var table = $('#attributesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:variant_attribute_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.is_required = $('#isRequiredFilter').val();
+                d.status = $('#statusFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "name"},
+            {"data": 1, "name": "display_name"},
+            {"data": 2, "name": "values_count"},
+            {"data": 3, "name": "is_required"},
+            {"data": 4, "name": "sort_order"},
+            {"data": 5, "name": "is_active"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[4, "asc"], [0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "{% trans 'الكل' %}"]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "dom": 'Bfrtip',
+        "buttons": [
+            {
+                extend: 'pageLength',
+                className: 'btn btn-outline-secondary btn-sm'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}',
+                className: 'btn btn-outline-success btn-sm'
+            }
+        ],
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [2, 3, 4, 5, 6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
+    });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#isRequiredFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#isRequiredFilter, #statusFilter').val('');
+        table.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

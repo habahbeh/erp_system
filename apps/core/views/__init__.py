@@ -16,17 +16,10 @@ from .warehouse_views import (
     WarehouseListView, WarehouseCreateView, WarehouseUpdateView,
     WarehouseDeleteView, WarehouseDetailView
 )
-
-from .ajax_views import (
-    item_datatable_ajax, partner_datatable_ajax, warehouse_datatable_ajax,
-    brand_datatable_ajax, unit_datatable_ajax, currency_datatable_ajax
-)
-
 from .brand_views import (
     BrandListView, BrandCreateView, BrandUpdateView,
     BrandDeleteView, BrandDetailView
 )
-
 from .unit_views import (
     UnitOfMeasureListView, UnitOfMeasureCreateView, UnitOfMeasureUpdateView,
     UnitOfMeasureDeleteView, UnitOfMeasureDetailView
@@ -34,6 +27,26 @@ from .unit_views import (
 from .currency_views import (
     CurrencyListView, CurrencyCreateView, CurrencyUpdateView,
     CurrencyDeleteView, CurrencyDetailView
+)
+from .company_views import (
+    CompanyDetailView, CompanyUpdateView
+)
+from .branch_views import (  # إضافة جديد
+    BranchListView, BranchCreateView, BranchUpdateView,
+    BranchDeleteView, BranchDetailView
+)
+from .numbering_views import (  # إضافة جديد
+    NumberingSequenceListView, NumberingSequenceUpdateView
+)
+from .ajax_views import (
+    item_datatable_ajax, partner_datatable_ajax, warehouse_datatable_ajax,
+    brand_datatable_ajax, unit_datatable_ajax, currency_datatable_ajax,
+    branch_datatable_ajax , variant_attribute_datatable_ajax # إضافة جديد
+)
+
+from .variant_views import (  # إضافة جديد
+    VariantAttributeListView, VariantAttributeCreateView, VariantAttributeUpdateView,
+    VariantAttributeDeleteView, VariantAttributeDetailView
 )
 
 __all__ = [
@@ -81,6 +94,25 @@ __all__ = [
     'CurrencyUpdateView',
     'CurrencyDeleteView',
     'CurrencyDetailView',
+    # Company Views
+    'CompanyDetailView',
+    'CompanyUpdateView',
+    # Branch Views - إضافة جديد
+    'BranchListView',
+    'BranchCreateView',
+    'BranchUpdateView',
+    'BranchDeleteView',
+    'BranchDetailView',
+    # Numbering Views - إضافة جديد
+    'NumberingSequenceListView',
+    'NumberingSequenceUpdateView',
+    # Variant Views - إضافة جديد
+    'VariantAttributeListView',
+    'VariantAttributeCreateView',
+    'VariantAttributeUpdateView',
+    'VariantAttributeDeleteView',
+    'VariantAttributeDetailView',
+
     # Ajax Views
     'item_datatable_ajax',
     'partner_datatable_ajax',
@@ -88,4 +120,7 @@ __all__ = [
     'brand_datatable_ajax',
     'unit_datatable_ajax',
     'currency_datatable_ajax',
+    'branch_datatable_ajax',  # إضافة جديد
+    'variant_attribute_datatable_ajax',  # إضافة جديد
+
 ]

@@ -91,6 +91,16 @@ class Company(models.Model):
         verbose_name = _('شركة')
         verbose_name_plural = _('الشركات')
 
+    def get_fiscal_year_start_month_display(self):
+        """إرجاع اسم الشهر بدلاً من رقمه"""
+        month_names = {
+            1: _('يناير'), 2: _('فبراير'), 3: _('مارس'),
+            4: _('أبريل'), 5: _('مايو'), 6: _('يونيو'),
+            7: _('يوليو'), 8: _('أغسطس'), 9: _('سبتمبر'),
+            10: _('أكتوبر'), 11: _('نوفمبر'), 12: _('ديسمبر')
+        }
+        return month_names.get(self.fiscal_year_start_month, str(self.fiscal_year_start_month))
+
     def __str__(self):
         return self.name
 
@@ -309,6 +319,25 @@ class NumberingSequence(BaseModel):
         self.save()
 
         return number
+
+    def get_preview_number(self):
+        """الحصول على معاينة للرقم التالي بدون تغيير العداد"""
+        import datetime
+
+        parts = [self.prefix] if self.prefix else []
+
+        if self.include_year:
+            parts.append(str(datetime.date.today().year))
+
+        if self.include_month:
+            parts.append(f"{datetime.date.today().month:02d}")
+
+        parts.append(str(self.next_number).zfill(self.padding))
+
+        if self.suffix:
+            parts.append(self.suffix)
+
+        return self.separator.join(parts)
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.prefix}"

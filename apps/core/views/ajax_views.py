@@ -6,11 +6,11 @@ Ajax Views للاستجابة السريعة
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency
+from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute
 from ..decorators import permission_required_with_message
 from django.contrib.auth import get_user_model
 
@@ -1197,6 +1197,346 @@ def currency_datatable_ajax(request):
 
                 # الحالة
                 f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if currency.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+
+@login_required
+@permission_required_with_message('core.view_branch')
+@require_http_methods(["GET"])
+def branch_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable للفروع"""
+    try:
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        is_main_filter = request.GET.get('is_main', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات
+        if request.current_company:
+            queryset = Branch.objects.filter(company=request.current_company)
+        else:
+            queryset = Branch.objects.all()
+
+        queryset = queryset.select_related('default_warehouse')
+
+        # تطبيق الفلاتر المخصصة
+        if is_main_filter:
+            is_main = is_main_filter == '1'
+            queryset = queryset.filter(is_main=is_main)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(code__icontains=search_value) |
+                Q(phone__icontains=search_value) |
+                Q(email__icontains=search_value) |
+                Q(address__icontains=search_value)
+            )
+
+        # العدد الكلي
+        if request.current_company:
+            records_total = Branch.objects.filter(company=request.current_company).count()
+        else:
+            records_total = Branch.objects.count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['code', 'name', 'phone', 'default_warehouse__name', 'is_main', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('name')
+
+        # التقسيم للصفحات
+        branches = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for branch in branches:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_branch')
+            can_delete = request.user.has_perm('core.delete_branch')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:branch_detail', kwargs={'pk': branch.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:branch_update', kwargs={'pk': branch.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف (ممنوع للفرع الرئيسي)
+            if can_delete and not branch.is_main:
+                actions += f'''
+                    <a href="{reverse('core:branch_delete', kwargs={'pk': branch.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا الفرع؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تجميع صف البيانات
+            row = [
+                # الكود
+                f'<code class="text-primary fw-bold">{branch.code}</code>',
+
+                # اسم الفرع
+                f'<div><strong class="text-dark">{branch.name}</strong></div>',
+
+                # الهاتف
+                f'<span class="text-dark">{branch.phone}</span>' if branch.phone
+                else '<span class="text-muted">-</span>',
+
+                # المستودع الافتراضي
+                f'<span class="text-dark">{branch.default_warehouse.name}</span>' if branch.default_warehouse
+                else '<span class="text-muted">-</span>',
+
+                # فرع رئيسي
+                f'<span class="badge bg-warning"><i class="fas fa-star"></i> {_("رئيسي")}</span>' if branch.is_main
+                else f'<span class="badge bg-secondary">{_("فرعي")}</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if branch.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+
+@login_required
+@permission_required_with_message('core.view_variantattribute')
+@require_http_methods(["GET"])
+def variant_attribute_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable لخصائص المتغيرات"""
+    try:
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        is_required_filter = request.GET.get('is_required', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات
+        if request.current_company:
+            queryset = VariantAttribute.objects.filter(company=request.current_company)
+        else:
+            queryset = VariantAttribute.objects.all()
+
+        # تطبيق الفلاتر المخصصة
+        if is_required_filter:
+            is_required = is_required_filter == '1'
+            queryset = queryset.filter(is_required=is_required)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value) |
+                Q(display_name__icontains=search_value)
+            )
+
+        # العدد الكلي
+        if request.current_company:
+            records_total = VariantAttribute.objects.filter(company=request.current_company).count()
+        else:
+            records_total = VariantAttribute.objects.count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['name', 'display_name', 'values_count', 'is_required', 'sort_order', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+
+            # معالجة خاصة لعدد القيم
+            if order_field == 'values_count' or order_field == '-values_count':
+                from django.db.models import Count
+                queryset = queryset.annotate(values_count=Count('values'))
+                queryset = queryset.order_by(order_field)
+            else:
+                queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('sort_order', 'name')
+
+        # إضافة عدد القيم لكل خاصية
+        from django.db.models import Count
+        queryset = queryset.annotate(values_count=Count('values'))
+
+        # التقسيم للصفحات
+        attributes = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for attribute in attributes:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_variantattribute')
+            can_delete = request.user.has_perm('core.delete_variantattribute')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:variant_attribute_detail', kwargs={'pk': attribute.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:variant_attribute_update', kwargs={'pk': attribute.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                    <a href="{reverse('core:variant_attribute_delete', kwargs={'pk': attribute.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذه الخاصية؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تجميع صف البيانات
+            row = [
+                # اسم الخاصية
+                f'<div><strong class="text-dark">{attribute.name}</strong>' +
+                (f'<br><small class="text-muted">{attribute.name_en}</small>' if attribute.name_en else '') + '</div>',
+
+                # اسم العرض
+                f'<span class="text-dark">{attribute.display_name or attribute.name}</span>',
+
+                # عدد القيم
+                f'<span class="badge bg-primary fs-6">{attribute.values_count} {_("قيم")}</span>',
+
+                # إجباري
+                f'<span class="badge bg-danger"><i class="fas fa-exclamation"></i> {_("إجباري")}</span>' if attribute.is_required
+                else f'<span class="badge bg-secondary">{_("اختياري")}</span>',
+
+                # ترتيب العرض
+                f'<span class="badge bg-light text-dark">{attribute.sort_order}</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if attribute.is_active
                 else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
 
                 # الإجراءات

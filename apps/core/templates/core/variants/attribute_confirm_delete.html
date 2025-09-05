@@ -1,0 +1,236 @@
+{# templates/core/variants/attribute_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف" %}</p>
+        </div>
+    </div>
+
+    <!-- Warning Alert -->
+    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h5 class="alert-heading mb-2">{% trans "تحذير!" %}</h5>
+                <p class="mb-1">{% trans "هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                <small>{% trans "سيتم حذف جميع القيم المرتبطة بهذه الخاصية نهائياً." %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attribute Information -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex align-items-center">
+                    <i class="fas fa-tag text-primary me-2"></i>
+                    <h6 class="card-title mb-0">{% trans "معلومات الخاصية المراد حذفها" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "اسم الخاصية" %}</label>
+                                    <h5 class="mb-0">{{ object.name }}</h5>
+                                </div>
+
+                                {% if object.name_en %}
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الاسم الإنجليزي" %}</label>
+                                    <h5 class="mb-0">{{ object.name_en }}</h5>
+                                </div>
+                                {% endif %}
+
+                                {% if object.display_name %}
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "اسم العرض" %}</label>
+                                    <p class="mb-0">{{ object.display_name }}</p>
+                                </div>
+                                {% endif %}
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "نوع الخاصية" %}</label>
+                                    {% if object.is_required %}
+                                        <span class="badge bg-danger fs-6">{% trans "إجباري" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fs-6">{% trans "اختياري" %}</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "ترتيب العرض" %}</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-light text-dark">{{ object.sort_order }}</span>
+                                    </p>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الحالة" %}</label>
+                                    {% if object.is_active %}
+                                        <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fs-6">{% trans "غير نشط" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- معلومات إضافية -->
+                    <div class="row g-3 mt-3 pt-3 border-top">
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                            <strong>{{ object.created_at|date:"d/m/Y" }}</strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                            <strong>{{ object.updated_at|date:"d/m/Y" }}</strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "عدد القيم" %}</small>
+                            <strong class="text-warning">{{ values_count|default:0 }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قيم الخاصية -->
+            {% if values_count > 0 %}
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list"></i> {% trans "القيم التي سيتم حذفها" %} ({{ values_count }})
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        {% for value in object.values.all|slice:":10" %}
+                        <div class="col-auto">
+                            <span class="badge bg-light text-dark">{{ value.display_value|default:value.value }}</span>
+                        </div>
+                        {% endfor %}
+                        {% if values_count > 10 %}
+                        <div class="col-auto">
+                            <span class="badge bg-secondary">+{{ values_count|add:"-10" }} {% trans "أخرى" %}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Delete Form -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>
+                                    {% trans "أؤكد أنني أريد حذف هذه الخاصية وجميع قيمها نهائياً" %}
+                                </strong>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائي" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Related Data Warning -->
+            {% if used_in_variants > 0 or values_count > 0 %}
+            <div class="alert alert-warning mt-4" role="alert">
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "تنبيه مهم" %}
+                </h6>
+                <p class="mb-2">{% trans "هذه الخاصية مرتبطة بالبيانات التالية:" %}</p>
+                <ul class="mb-0">
+                    {% if values_count > 0 %}
+                    <li>{% trans "عدد القيم" %}: <strong>{{ values_count }}</strong></li>
+                    {% endif %}
+                    {% if used_in_variants > 0 %}
+                    <li>{% trans "عدد المتغيرات المستخدمة" %}: <strong>{{ used_in_variants }}</strong></li>
+                    {% endif %}
+                </ul>
+                <hr>
+                <small class="mb-0">
+                    {% trans "في حال وجود متغيرات مرتبطة، سيتم منع عملية الحذف للحفاظ على سلامة البيانات." %}
+                </small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+
+    // Enable/disable delete button based on checkbox
+    confirmCheckbox.addEventListener('change', function() {
+        deleteBtn.disabled = !this.checked;
+    });
+
+    // Confirmation dialog before submit
+    deleteForm.addEventListener('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد من أنك تريد حذف هذه الخاصية؟ هذا الإجراء لا يمكن التراجع عنه." %}')) {
+            e.preventDefault();
+        } else {
+            // Show loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}';
+            deleteBtn.disabled = true;
+        }
+    });
+
+    // Auto-focus on confirmation checkbox
+    confirmCheckbox.focus();
+});
+</script>
+{% endblock %}

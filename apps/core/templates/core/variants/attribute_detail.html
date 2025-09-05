@@ -1,0 +1,266 @@
+{# templates/core/variants/attribute_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ attribute.name }}</h1>
+            <p class="text-muted mb-1">
+                {% if attribute.display_name and attribute.display_name != attribute.name %}
+                    {{ attribute.display_name }}
+                {% endif %}
+                {% if attribute.name_en %}
+                    • {{ attribute.name_en }}
+                {% endif %}
+            </p>
+            <div class="d-flex align-items-center gap-3">
+                {% if attribute.is_required %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-exclamation"></i> {% trans "إجباري" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-question"></i> {% trans "اختياري" %}
+                    </span>
+                {% endif %}
+                {% if attribute.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+                <span class="badge bg-info fs-6">
+                    <i class="fas fa-list"></i> {{ values_count }} {% trans "قيم" %}
+                </span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:variant_attribute_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات الخاصية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم الخاصية" %}</h6>
+                            <p class="mb-0 fs-5">{{ attribute.name }}</p>
+                        </div>
+
+                        {% if attribute.name_en %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الاسم الإنجليزي" %}</h6>
+                            <p class="mb-0">{{ attribute.name_en }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if attribute.display_name %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم العرض" %}</h6>
+                            <p class="mb-0">{{ attribute.display_name }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "ترتيب العرض" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-light text-dark fs-6">{{ attribute.sort_order }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع الخاصية" %}</h6>
+                            {% if attribute.is_required %}
+                                <span class="badge bg-danger fs-6">
+                                    <i class="fas fa-exclamation"></i> {% trans "إجباري" %}
+                                </span>
+                                <small class="text-muted d-block">{% trans "يجب اختيار قيمة عند إنشاء المتغيرات" %}</small>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">
+                                    <i class="fas fa-question"></i> {% trans "اختياري" %}
+                                </span>
+                                <small class="text-muted d-block">{% trans "يمكن ترك هذه الخاصية فارغة" %}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قيم الخاصية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list"></i> {% trans "قيم الخاصية" %} ({{ values_count }})
+                    </h6>
+                    {% if can_change %}
+                    <a href="{{ edit_url }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-plus"></i> {% trans "إضافة/تعديل القيم" %}
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if values %}
+                        <div class="row g-3">
+                            {% for value in values %}
+                            <div class="col-lg-4 col-md-6">
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ value.display_value|default:value.value }}</h6>
+                                            {% if value.value_en %}
+                                                <small class="text-muted d-block">{{ value.value_en }}</small>
+                                            {% endif %}
+                                            {% if value.value != value.display_value and value.display_value %}
+                                                <small class="text-muted d-block">
+                                                    {% trans "القيمة الأصلية" %}: {{ value.value }}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                        <span class="badge bg-primary">{{ value.sort_order }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-list fa-3x text-muted mb-3"></i>
+                            <h6 class="text-muted">{% trans "لا توجد قيم لهذه الخاصية" %}</h6>
+                            <p class="text-muted small">{% trans "أضف قيم لهذه الخاصية لتتمكن من استخدامها في المتغيرات" %}</p>
+                            {% if can_change %}
+                            <a href="{{ edit_url }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus"></i> {% trans "إضافة قيم" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- إحصائيات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الخاصية" %}
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <h5 class="text-primary mb-0">{{ values_count }}</h5>
+                            <small class="text-muted">{% trans "قيم الخاصية" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-success mb-0">0</h5>
+                            <small class="text-muted">{% trans "متغيرات تستخدمها" %}</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted">{% trans "إحصائيات الاستخدام قيد التطوير" %}</small>
+                </div>
+            </div>
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ attribute.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ attribute.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if attribute.created_by %}
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong> {{ attribute.created_by.get_full_name|default:attribute.created_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "نصائح" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "يمكن إعادة ترتيب القيم بتغيير رقم الترتيب" %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "استخدم أسماء عرض واضحة للمستخدمين" %}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "الخصائص الإجبارية تظهر دائماً في النماذج" %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.875em;
+    }
+</style>
+{% endblock %}

@@ -1,7 +1,4 @@
 # apps/core/urls.py
-"""
-URLs الأساسية لتطبيق النواة
-"""
 
 from django.urls import path
 from . import views
@@ -61,6 +58,31 @@ urlpatterns = [
     path('currencies/<int:pk>/update/', views.CurrencyUpdateView.as_view(), name='currency_update'),
     path('currencies/<int:pk>/delete/', views.CurrencyDeleteView.as_view(), name='currency_delete'),
 
+    # الشركة
+    path('company/', views.CompanyDetailView.as_view(), name='company_detail'),
+    path('company/update/', views.CompanyUpdateView.as_view(), name='company_update'),
+
+    # الفروع - إضافة جديد
+    path('branches/', views.BranchListView.as_view(), name='branch_list'),
+    path('branches/<int:pk>/', views.BranchDetailView.as_view(), name='branch_detail'),
+    path('branches/create/', views.BranchCreateView.as_view(), name='branch_create'),
+    path('branches/<int:pk>/update/', views.BranchUpdateView.as_view(), name='branch_update'),
+    path('branches/<int:pk>/delete/', views.BranchDeleteView.as_view(), name='branch_delete'),
+
+    # تسلسل الترقيم - إضافة جديد
+    path('numbering/', views.NumberingSequenceListView.as_view(), name='numbering_list'),
+    path('numbering/<str:document_type>/', views.NumberingSequenceUpdateView.as_view(), name='numbering_update'),
+
+    # خصائص المتغيرات - إضافة جديد
+    path('variant-attributes/', views.VariantAttributeListView.as_view(), name='variant_attribute_list'),
+    path('variant-attributes/<int:pk>/', views.VariantAttributeDetailView.as_view(), name='variant_attribute_detail'),
+    path('variant-attributes/create/', views.VariantAttributeCreateView.as_view(), name='variant_attribute_create'),
+    path('variant-attributes/<int:pk>/update/', views.VariantAttributeUpdateView.as_view(),
+         name='variant_attribute_update'),
+    path('variant-attributes/<int:pk>/delete/', views.VariantAttributeDeleteView.as_view(),
+         name='variant_attribute_delete'),
+
+
     # Ajax endpoints
     path('ajax/items/datatable/', views.item_datatable_ajax, name='item_datatable_ajax'),
     path('ajax/partners/datatable/', views.partner_datatable_ajax, name='partner_datatable_ajax'),
@@ -68,7 +90,8 @@ urlpatterns = [
     path('ajax/brands/datatable/', views.brand_datatable_ajax, name='brand_datatable_ajax'),
     path('ajax/units/datatable/', views.unit_datatable_ajax, name='unit_datatable_ajax'),
     path('ajax/currencies/datatable/', views.currency_datatable_ajax, name='currency_datatable_ajax'),
-
+    path('ajax/branches/datatable/', views.branch_datatable_ajax, name='branch_datatable_ajax'),  # إضافة جديد
+    path('ajax/variant-attributes/datatable/', views.variant_attribute_datatable_ajax, name='variant_attribute_datatable_ajax'),
 ]
 
 

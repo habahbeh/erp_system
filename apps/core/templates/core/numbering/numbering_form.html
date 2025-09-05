@@ -1,0 +1,319 @@
+{# templates/core/numbering/numbering_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تخصيص تسلسل ترقيم المستندات" %}</p>
+        </div>
+    </div>
+
+    <!-- معاينة الرقم -->
+    <div class="alert alert-success border-0 shadow-sm mb-4" role="alert" id="previewAlert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-eye fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h6 class="alert-heading mb-1">{% trans "معاينة الرقم" %}</h6>
+                <p class="mb-0">
+                    {% trans "الرقم التالي سيكون" %}: 
+                    <code class="bg-white text-primary fs-5 px-2 py-1" id="numberPreview">
+                        {% if form.cleaned_data.preview %}{{ form.cleaned_data.preview }}{% else %}---{% endif %}
+                    </code>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- الإعدادات الأساسية -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-cog"></i> {% trans "الإعدادات الأساسية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "نوع المستند" %}</label>
+                                <input type="text" class="form-control" value="{{ document_name }}" readonly>
+                                {{ form.document_type|add_class:"d-none" }}
+                                <small class="form-text text-muted">
+                                    {% trans "نوع المستند المحدد لهذا التسلسل" %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "البادئة" %}</label>
+                                {{ form.prefix|add_class:"form-control" }}
+                                {% if form.prefix.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.prefix.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.prefix.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "اللاحقة" %}</label>
+                                {{ form.suffix|add_class:"form-control" }}
+                                {% if form.suffix.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.suffix.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.suffix.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "الرقم التالي" %}</label>
+                                {{ form.next_number|add_class:"form-control" }}
+                                {% if form.next_number.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.next_number.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.next_number.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "عدد الأصفار" %}</label>
+                                {{ form.padding|add_class:"form-control" }}
+                                {% if form.padding.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.padding.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.padding.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الفاصل" %}</label>
+                                {{ form.separator|add_class:"form-control" }}
+                                {% if form.separator.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.separator.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.separator.help_text }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- خيارات التاريخ -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-calendar"></i> {% trans "إعدادات التاريخ" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.include_year|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.include_year.id_for_label }}">
+                                        {{ form.include_year.label }}
+                                    </label>
+                                    <small class="form-text text-muted d-block">{{ form.include_year.help_text }}</small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.include_month|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.include_month.id_for_label }}">
+                                        {{ form.include_month.label }}
+                                    </label>
+                                    <small class="form-text text-muted d-block">{{ form.include_month.help_text }}</small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.yearly_reset|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.yearly_reset.id_for_label }}">
+                                        {{ form.yearly_reset.label }}
+                                    </label>
+                                    <small class="form-text text-muted d-block">{{ form.yearly_reset.help_text }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات النظام -->
+                {% if object.pk %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ object.created_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ object.updated_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            {% if object.created_by %}
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "أنشأ بواسطة" %}</small>
+                                <strong>{{ object.created_by.get_full_name|default:object.created_by.username }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- أمثلة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-lightbulb text-warning"></i> {% trans "أمثلة على التنسيق" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <strong>INV/2024/000001</strong><br>
+                                <small class="text-muted">{% trans "مع السنة والأصفار" %}</small>
+                            </li>
+                            <li class="mb-2">
+                                <strong>SO-12-000145</strong><br>
+                                <small class="text-muted">{% trans "مع الشهر وفاصل مختلف" %}</small>
+                            </li>
+                            <li class="mb-2">
+                                <strong>QUO_2024_0025_A</strong><br>
+                                <small class="text-muted">{% trans "مع لاحقة مخصصة" %}</small>
+                            </li>
+                            <li class="mb-0">
+                                <strong>JE000789</strong><br>
+                                <small class="text-muted">{% trans "بدون فواصل أو سنة" %}</small>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Live preview update
+document.addEventListener('DOMContentLoaded', function() {
+    const previewElement = document.getElementById('numberPreview');
+    const fields = ['id_prefix', 'id_suffix', 'id_next_number', 'id_padding', 'id_separator', 'id_include_year', 'id_include_month'];
+    
+    function updatePreview() {
+        const prefix = document.getElementById('id_prefix').value || '';
+        const suffix = document.getElementById('id_suffix').value || '';
+        const nextNumber = document.getElementById('id_next_number').value || '1';
+        const padding = document.getElementById('id_padding').value || '6';
+        const separator = document.getElementById('id_separator').value || '/';
+        const includeYear = document.getElementById('id_include_year').checked;
+        const includeMonth = document.getElementById('id_include_month').checked;
+        
+        const parts = [];
+        
+        if (prefix) parts.push(prefix);
+        
+        if (includeYear) {
+            parts.push(new Date().getFullYear().toString());
+        }
+        
+        if (includeMonth) {
+            const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+            parts.push(month);
+        }
+        
+        const paddedNumber = nextNumber.padStart(parseInt(padding), '0');
+        parts.push(paddedNumber);
+        
+        if (suffix) parts.push(suffix);
+        
+        const preview = parts.join(separator);
+        previewElement.textContent = preview || '---';
+    }
+    
+    // Add event listeners to all relevant fields
+    fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            if (field.type === 'checkbox') {
+                field.addEventListener('change', updatePreview);
+            } else {
+                field.addEventListener('input', updatePreview);
+            }
+        }
+    });
+    
+    // Initial update
+    updatePreview();
+});
+</script>
+{% endblock %}

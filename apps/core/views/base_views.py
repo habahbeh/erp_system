@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils.translation import gettext as _
-from ..models import Branch, Item, BusinessPartner, ItemCategory, Warehouse, Brand, UnitOfMeasure, Currency
+from ..models import Branch, Item, BusinessPartner, ItemCategory, Warehouse, Brand, UnitOfMeasure, Currency, NumberingSequence, VariantAttribute
 
 
 @login_required
@@ -46,14 +46,26 @@ def dashboard(request):
         if request.user.has_perm('core.view_brand'):
             context['brands_count'] = Brand.objects.filter(company=company).count()
 
-        # إحصائيات وحدات القياس - أضف هذا
+        # إحصائيات وحدات القياس
         if request.user.has_perm('core.view_unitofmeasure'):
             context['units_count'] = UnitOfMeasure.objects.filter(company=company).count()
 
-        # إحصائيات العملات - أضف هذا
+        # إحصائيات العملات
         if request.user.has_perm('core.view_currency'):
             context['currencies_count'] = Currency.objects.filter(is_active=True).count()
             context['base_currency'] = Currency.objects.filter(is_base=True).first()
+
+        # إحصائيات الفروع - إضافة جديد
+        if request.user.has_perm('core.view_branch'):
+            context['branches_count'] = Branch.objects.filter(company=company).count()
+
+        # إحصائيات تسلسل الترقيم - إضافة جديد
+        if request.user.has_perm('core.view_numberingsequence'):
+            context['numbering_sequences_count'] = NumberingSequence.objects.filter(company=company).count()
+            context['total_document_types'] = len(NumberingSequence.DOCUMENT_TYPES)
+
+        if request.user.has_perm('core.view_variantattribute'):
+            context['variant_attributes_count'] = VariantAttribute.objects.filter(company=company).count()
 
     return render(request, 'core/dashboard.html', context)
 
