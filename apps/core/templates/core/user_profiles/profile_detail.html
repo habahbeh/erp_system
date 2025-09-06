@@ -1,0 +1,155 @@
+{# templates/core/user_profiles/profile_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ profile.user.get_full_name|default:profile.user.username }}</h1>
+            <p class="text-muted mb-1">{{ profile.user.email }}</p>
+            <div class="d-flex align-items-center gap-3">
+                {% if profile.user.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل الملف" %}
+            </a>
+            <a href="{{ permissions_url }}" class="btn btn-info">
+                <i class="fas fa-key"></i> {% trans "إدارة الصلاحيات" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:profile_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- الحدود والقيود -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-shield-alt"></i> {% trans "الحدود والقيود" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نسبة الخصم المسموحة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-primary fs-5">{{ profile.max_discount_percentage }}%</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "حد الائتمان المسموح" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-success fs-5">{{ profile.max_credit_limit|floatformat:2 }} د.أ</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الفروع المسموحة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sitemap"></i> {% trans "الفروع المسموحة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if profile.allowed_branches.exists %}
+                        <div class="row g-2">
+                            {% for branch in profile.allowed_branches.all %}
+                                <div class="col-auto">
+                                    <span class="badge bg-info fs-6">{{ branch.name }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success border-0" role="alert">
+                            <i class="fas fa-check-circle"></i>
+                            {% trans "الوصول لجميع الفروع مسموح" %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- المستودعات المسموحة -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-warehouse"></i> {% trans "المستودعات المسموحة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if profile.allowed_warehouses.exists %}
+                        <div class="row g-2">
+                            {% for warehouse in profile.allowed_warehouses.all %}
+                                <div class="col-auto">
+                                    <span class="badge bg-success fs-6">{{ warehouse.name }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success border-0" role="alert">
+                            <i class="fas fa-check-circle"></i>
+                            {% trans "الوصول لجميع المستودعات مسموح" %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ profile.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ profile.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

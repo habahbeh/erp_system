@@ -1,0 +1,359 @@
+{# templates/core/permissions/copy_permissions.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "نسخ جميع صلاحيات مستخدم إلى مستخدمين آخرين" %}</p>
+        </div>
+    </div>
+
+    <!-- Info Alert -->
+    <div class="alert alert-info border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle fa-lg"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h6 class="alert-heading mb-1">{% trans "كيف تعمل هذه الميزة؟" %}</h6>
+                <p class="mb-0">
+                    {% trans "اختر مستخدماً مصدراً لنسخ صلاحياته، ثم اختر المستخدمين الذين تريد نسخ الصلاحيات إليهم. يمكنك اختيار نوع الصلاحيات المراد نسخها." %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- اختيار المستخدم المصدر -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-user-check"></i> {% trans "المستخدم المصدر" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">{% trans "المستخدم المراد نسخ صلاحياته" %}</label>
+                            {{ form.source_user|add_class:"form-select" }}
+                            {% if form.source_user.errors %}
+                                <div class="invalid-feedback d-block">{{ form.source_user.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">{{ form.source_user.help_text }}</small>
+                        </div>
+
+                        <!-- معاينة صلاحيات المستخدم المصدر -->
+                        <div id="sourceUserPreview" style="display: none;">
+                            <h6 class="text-muted">{% trans "صلاحيات المستخدم المصدر:" %}</h6>
+                            <div id="sourcePermissionsSummary">
+                                <!-- سيتم ملؤها بـ JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- خيارات النسخ -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-cog"></i> {% trans "خيارات النسخ" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "ما المراد نسخه؟" %}</label>
+                            {% for choice in form.copy_options %}
+                            <div class="form-check">
+                                {{ choice.tag }}
+                                <label class="form-check-label" for="{{ choice.id_for_label }}">
+                                    {{ choice.choice_label }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                            {% if form.copy_options.errors %}
+                                <div class="invalid-feedback d-block">{{ form.copy_options.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check">
+                            {{ form.replace_existing|add_class:"form-check-input" }}
+                            <label class="form-check-label" for="{{ form.replace_existing.id_for_label }}">
+                                <strong>{{ form.replace_existing.label }}</strong>
+                            </label>
+                            {% if form.replace_existing.errors %}
+                                <div class="invalid-feedback d-block">{{ form.replace_existing.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted d-block mt-1">
+                                {{ form.replace_existing.help_text }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- اختيار المستخدمين الهدف -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-users"></i> {% trans "المستخدمين الهدف" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">{% trans "المستخدمين المراد نسخ الصلاحيات إليهم" %}</label>
+                            {{ form.target_users|add_class:"form-select" }}
+                            {% if form.target_users.errors %}
+                                <div class="invalid-feedback d-block">{{ form.target_users.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">{{ form.target_users.help_text }}</small>
+                        </div>
+
+                        <!-- أزرار سريعة -->
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="selectAllTargets()">
+                                <i class="fas fa-check-double"></i> {% trans "تحديد الكل" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTargetSelection()">
+                                <i class="fas fa-times"></i> {% trans "مسح التحديد" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info" onclick="selectByRole('staff')">
+                                <i class="fas fa-user-tie"></i> {% trans "طاقم الإدارة فقط" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning" onclick="selectByRole('active')">
+                                <i class="fas fa-user-check"></i> {% trans "النشطون فقط" %}
+                            </button>
+                        </div>
+
+                        <!-- معاينة المستخدمين المحددين -->
+                        <div id="targetUsersPreview" style="display: none;">
+                            <h6 class="text-muted">{% trans "المستخدمين المحددين:" %}</h6>
+                            <div id="targetUsersList">
+                                <!-- سيتم ملؤها بـ JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- معاينة العملية -->
+                <div class="card shadow-sm mb-4" id="operationPreview" style="display: none;">
+                    <div class="card-header bg-dark text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-eye"></i> {% trans "معاينة عملية النسخ" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="previewContent">
+                            <!-- سيتم ملؤها بـ JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{{ cancel_url }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                    
+                    <div class="d-flex align-items-center">
+                        <span class="text-muted me-3" id="operationSummary">
+                            {% trans "اختر المستخدم المصدر والمستخدمين الهدف" %}
+                        </span>
+                        <button type="submit" class="btn btn-success" id="submitBtn" disabled>
+                            <i class="fas fa-copy"></i> {{ submit_text }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    updatePreview();
+    
+    // مراقبة التغييرات
+    document.getElementById('{{ form.source_user.id_for_label }}').addEventListener('change', updatePreview);
+    document.getElementById('{{ form.target_users.id_for_label }}').addEventListener('change', updatePreview);
+    
+    // مراقبة خيارات النسخ
+    document.querySelectorAll('input[name="{{ form.copy_options.name }}"]').forEach(checkbox => {
+        checkbox.addEventListener('change', updatePreview);
+    });
+    
+    document.getElementById('{{ form.replace_existing.id_for_label }}').addEventListener('change', updatePreview);
+});
+
+function selectAllTargets() {
+    const select = document.getElementById('{{ form.target_users.id_for_label }}');
+    const sourceSelect = document.getElementById('{{ form.source_user.id_for_label }}');
+    const sourceValue = sourceSelect.value;
+    
+    for (let option of select.options) {
+        // تجنب اختيار المستخدم المصدر
+        option.selected = option.value !== sourceValue;
+    }
+    updatePreview();
+}
+
+function clearTargetSelection() {
+    const select = document.getElementById('{{ form.target_users.id_for_label }}');
+    for (let option of select.options) {
+        option.selected = false;
+    }
+    updatePreview();
+}
+
+function selectByRole(role) {
+    const select = document.getElementById('{{ form.target_users.id_for_label }}');
+    const sourceSelect = document.getElementById('{{ form.source_user.id_for_label }}');
+    const sourceValue = sourceSelect.value;
+    
+    for (let option of select.options) {
+        if (option.value === sourceValue) {
+            option.selected = false;
+            continue;
+        }
+        
+        switch(role) {
+            case 'staff':
+                option.selected = option.text.includes('طاقم') || option.text.includes('مدير');
+                break;
+            case 'active':
+                option.selected = !option.text.includes('معطل') && !option.text.includes('غير نشط');
+                break;
+        }
+    }
+    updatePreview();
+}
+
+function updatePreview() {
+    const sourceSelect = document.getElementById('{{ form.source_user.id_for_label }}');
+    const targetSelect = document.getElementById('{{ form.target_users.id_for_label }}');
+    const copyOptions = document.querySelectorAll('input[name="{{ form.copy_options.name }}"]:checked');
+    const replaceExisting = document.getElementById('{{ form.replace_existing.id_for_label }}').checked;
+    
+    const sourceUser = sourceSelect.selectedOptions[0];
+    const targetUsers = Array.from(targetSelect.selectedOptions);
+    
+    // تحديث معاينة المستخدم المصدر
+    const sourceUserPreview = document.getElementById('sourceUserPreview');
+    if (sourceUser) {
+        sourceUserPreview.style.display = 'block';
+        // هنا يمكن إضافة Ajax call للحصول على صلاحيات المستخدم المصدر
+        document.getElementById('sourcePermissionsSummary').innerHTML = `
+            <div class="alert alert-light border p-2">
+                <small><i class="fas fa-user"></i> <strong>${sourceUser.text}</strong></small>
+                <br><small class="text-muted">{% trans "سيتم تحميل الصلاحيات..." %}</small>
+            </div>
+        `;
+    } else {
+        sourceUserPreview.style.display = 'none';
+    }
+    
+    // تحديث معاينة المستخدمين الهدف
+    const targetUsersPreview = document.getElementById('targetUsersPreview');
+    const targetUsersList = document.getElementById('targetUsersList');
+    
+    if (targetUsers.length > 0) {
+        targetUsersPreview.style.display = 'block';
+        targetUsersList.innerHTML = targetUsers.map(option => 
+            `<span class="badge bg-success me-1 mb-1">${option.text}</span>`
+        ).join('');
+    } else {
+        targetUsersPreview.style.display = 'none';
+    }
+    
+    // تحديث ملخص العملية
+    const operationSummary = document.getElementById('operationSummary');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (sourceUser && targetUsers.length > 0 && copyOptions.length > 0) {
+        const copyTypesCount = copyOptions.length;
+        const replaceText = replaceExisting ? ' (استبدال)' : ' (إضافة)';
+        
+        operationSummary.textContent = `نسخ ${copyTypesCount} نوع صلاحيات من ${sourceUser.text} إلى ${targetUsers.length} مستخدم${replaceText}`;
+        submitBtn.disabled = false;
+        
+        // إظهار معاينة العملية
+        const operationPreview = document.getElementById('operationPreview');
+        const previewContent = document.getElementById('previewContent');
+        
+        const copyTypesList = Array.from(copyOptions).map(option => option.nextElementSibling.textContent).join('، ');
+        
+        let previewHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <h6 class="text-primary">{% trans "المصدر:" %}</h6>
+                    <p class="mb-0"><i class="fas fa-user"></i> ${sourceUser.text}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-success">{% trans "الهدف:" %}</h6>
+                    <p class="mb-0">${targetUsers.length} {% trans "مستخدم" %}</p>
+                    ${targetUsers.length <= 3 ? targetUsers.map(u => `<small class="d-block text-muted">• ${u.text}</small>`).join('') : 
+                      `<small class="text-muted">${targetUsers.slice(0, 2).map(u => `• ${u.text}`).join('<br>')}
+                       <br>... و ${targetUsers.length - 2} آخرين</small>`}
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-info">{% trans "أنواع الصلاحيات:" %}</h6>
+                    <small class="text-muted">${copyTypesList}</small>
+                    <br><strong class="text-${replaceExisting ? 'warning' : 'info'}">${replaceExisting ? 'استبدال' : 'إضافة'}</strong>
+                </div>
+            </div>
+        `;
+        
+        previewContent.innerHTML = previewHTML;
+        operationPreview.style.display = 'block';
+    } else {
+        operationSummary.textContent = '{% trans "اختر المستخدم المصدر والمستخدمين الهدف" %}';
+        submitBtn.disabled = true;
+        document.getElementById('operationPreview').style.display = 'none';
+    }
+}
+
+// منع اختيار نفس المستخدم كمصدر وهدف
+document.getElementById('{{ form.source_user.id_for_label }}').addEventListener('change', function() {
+    const sourceValue = this.value;
+    const targetSelect = document.getElementById('{{ form.target_users.id_for_label }}');
+    
+    for (let option of targetSelect.options) {
+        if (option.value === sourceValue) {
+            option.selected = false;
+        }
+    }
+    updatePreview();
+});
+</script>
+{% endblock %}

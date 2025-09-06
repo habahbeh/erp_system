@@ -1,0 +1,213 @@
+{# templates/core/user_profiles/profile_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف" %}</p>
+        </div>
+    </div>
+
+    <!-- Warning Alert -->
+    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h5 class="alert-heading mb-2">{% trans "تحذير!" %}</h5>
+                <p class="mb-1">{% trans "هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                <small>{% trans "سيتم حذف ملف المستخدم وجميع الإعدادات والصلاحيات المرتبطة به." %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Information -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex align-items-center">
+                    <i class="fas fa-user-cog text-primary me-2"></i>
+                    <h6 class="card-title mb-0">{% trans "معلومات ملف المستخدم المراد حذفه" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <!-- معلومات المستخدم الأساسية -->
+                        <div class="col-12">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="user-avatar">
+                                        {{ object.user.first_name.0|default:object.user.username.0|upper }}
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">{{ object.user.get_full_name|default:object.user.username }}</h5>
+                                    <p class="text-muted mb-1">{{ object.user.email }}</p>
+                                    <small class="text-muted">
+                                        {% if object.user.company %}{{ object.user.company.name }}{% endif %}
+                                        {% if object.user.branch %} - {{ object.user.branch.name }}{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الحدود والقيود -->
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "نسبة الخصم المسموحة" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-primary fs-6">{{ object.max_discount_percentage }}%</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "حد الائتمان المسموح" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-success fs-6">{{ object.max_credit_limit|floatformat:2 }} د.أ</span>
+                            </p>
+                        </div>
+
+                        <!-- الفروع المسموحة -->
+                        {% if object.allowed_branches.exists %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الفروع المسموحة" %}</label>
+                            <div>
+                                {% for branch in object.allowed_branches.all %}
+                                    <span class="badge bg-info me-1">{{ branch.name }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- المستودعات المسموحة -->
+                        {% if object.allowed_warehouses.exists %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "المستودعات المسموحة" %}</label>
+                            <div>
+                                {% for warehouse in object.allowed_warehouses.all %}
+                                    <span class="badge bg-warning me-1">{{ warehouse.name }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- معلومات النظام -->
+                    <div class="row g-3 mt-3 pt-3 border-top">
+                        <div class="col-md-6 text-center">
+                            <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                            <strong>{{ object.created_at|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                            <strong>{{ object.updated_at|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Form -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>
+                                    {% trans "أؤكد أنني أريد حذف ملف هذا المستخدم نهائياً" %}
+                                </strong>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائي" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Additional Information -->
+            <div class="alert alert-info mt-4" role="alert">
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "معلومات مهمة" %}
+                </h6>
+                <p class="mb-2">{% trans "عند حذف ملف المستخدم، ستتأثر البيانات التالية:" %}</p>
+                <ul class="mb-0">
+                    <li>{% trans "إعدادات الحدود والقيود المخصصة" %}</li>
+                    <li>{% trans "الصلاحيات المخصصة للفروع والمستودعات" %}</li>
+                    <li>{% trans "تفضيلات المستخدم الشخصية" %}</li>
+                </ul>
+                <hr>
+                <small class="mb-0">
+                    <strong>{% trans "ملاحظة:" %}</strong>
+                    {% trans "لن يتم حذف حساب المستخدم نفسه، فقط ملفه الإضافي." %}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+
+    // Enable/disable delete button based on checkbox
+    confirmCheckbox.addEventListener('change', function() {
+        deleteBtn.disabled = !this.checked;
+    });
+
+    // Confirmation dialog before submit
+    deleteForm.addEventListener('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد من أنك تريد حذف ملف هذا المستخدم؟ هذا الإجراء لا يمكن التراجع عنه." %}')) {
+            e.preventDefault();
+        } else {
+            // Show loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}';
+            deleteBtn.disabled = true;
+        }
+    });
+
+    // Auto-focus on confirmation checkbox
+    confirmCheckbox.focus();
+});
+</script>
+{% endblock %}

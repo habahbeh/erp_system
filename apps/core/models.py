@@ -244,12 +244,102 @@ class UserProfile(models.Model):
     allowed_warehouses = models.ManyToManyField(Warehouse, verbose_name=_('المستودعات المسموحة'), blank=True,
                                                 help_text=_('فارغ = كل المستودعات'))
 
+    permission_groups = models.ManyToManyField(
+        'PermissionGroup',
+        blank=True,
+        verbose_name=_('مجموعات الصلاحيات'),
+        help_text=_('مجموعات الصلاحيات التي ينتمي إليها المستخدم')
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = _('ملف المستخدم')
         verbose_name_plural = _('ملفات المستخدمين')
+
+    def get_all_custom_permissions(self):
+        """الحصول على جميع الصلاحيات المخصصة (مباشرة + من المجموعات)"""
+        # الصلاحيات المباشرة من CustomPermission
+        direct_permissions = set(CustomPermission.objects.filter(
+            users=self.user,
+            is_active=True
+        ))
+
+        # الصلاحيات من المجموعات
+        group_permissions = set()
+        for group in self.permission_groups.filter(is_active=True):
+            group_permissions.update(group.get_active_permissions())
+
+        return list(direct_permissions | group_permissions)
+
+    def get_all_django_permissions(self):
+        """الحصول على جميع صلاحيات Django (مباشرة + من المجموعات + من Groups)"""
+        from django.contrib.auth.models import Permission
+
+        # صلاحيات Django من مجموعات الصلاحيات المخصصة
+        django_permissions = set()
+        for group in self.permission_groups.filter(is_active=True):
+            django_permissions.update(group.django_permissions.all())
+
+        # صلاحيات Django من Groups العادية
+        for group in self.user.groups.all():
+            django_permissions.update(group.permissions.all())
+
+        # الصلاحيات المباشرة للمستخدم
+        django_permissions.update(self.user.user_permissions.all())
+
+        return list(django_permissions)
+
+    def has_custom_permission(self, permission_code):
+        """التحقق من وجود صلاحية مخصصة"""
+        # التحقق في الصلاحيات المباشرة
+        if CustomPermission.objects.filter(
+                users=self.user,
+                code=permission_code,
+                is_active=True
+        ).exists():
+            return True
+
+        # التحقق في مجموعات الصلاحيات
+        for group in self.permission_groups.filter(is_active=True):
+            if group.permissions.filter(code=permission_code, is_active=True).exists():
+                return True
+
+        return False
+
+    def has_custom_permission_with_limit(self, permission_code, amount=None):
+        """التحقق من الصلاحية مع حد المبلغ"""
+        permissions = CustomPermission.objects.filter(
+            Q(users=self.user) | Q(permissiongroup__userprofile=self),
+            code=permission_code,
+            is_active=True
+        ).distinct()
+
+        for permission in permissions:
+            if permission.max_amount is None:
+                return True  # لا يوجد حد للمبلغ
+            elif amount is None:
+                return True  # لا يوجد مبلغ للتحقق منه
+            elif amount <= permission.max_amount:
+                return True  # المبلغ ضمن الحد المسموح
+
+        return False
+
+    def get_permission_max_amount(self, permission_code):
+        """الحصول على الحد الأقصى للمبلغ لصلاحية معينة"""
+        permissions = CustomPermission.objects.filter(
+            Q(users=self.user) | Q(permissiongroup__userprofile=self),
+            code=permission_code,
+            is_active=True
+        ).distinct()
+
+        max_amounts = [p.max_amount for p in permissions if p.max_amount is not None]
+
+        if not max_amounts:
+            return None  # لا يوجد حد
+
+        return max(max_amounts)  # أعلى حد متاح
 
     def __str__(self):
         return f"ملف {self.user.username}"
@@ -363,8 +453,57 @@ class CustomPermission(models.Model):
         ]
     )
 
+    # إضافة جديد - نوع الصلاحية
+    permission_type = models.CharField(
+        _('نوع الصلاحية'),
+        max_length=20,
+        choices=[
+            ('view', _('عرض')),
+            ('add', _('إضافة')),
+            ('change', _('تعديل')),
+            ('delete', _('حذف')),
+            ('approve', _('موافقة')),
+            ('export', _('تصدير')),
+            ('print', _('طباعة')),
+            ('special', _('صلاحية خاصة')),
+        ],
+        default='view'
+    )
+
+    # إضافة جديد - حالة النشاط
+    is_active = models.BooleanField(_('نشط'), default=True)
+
+    # إضافة جديد - يتطلب موافقة
+    requires_approval = models.BooleanField(
+        _('يتطلب موافقة'),
+        default=False,
+        help_text=_('هل تحتاج هذه الصلاحية موافقة من مدير أعلى؟')
+    )
+
+    # إضافة جديد - حد المبلغ
+    max_amount = models.DecimalField(
+        _('الحد الأقصى للمبلغ'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('الحد الأقصى للمبلغ المسموح (للصلاحيات المالية)')
+    )
+
     users = models.ManyToManyField(User, blank=True, verbose_name=_('المستخدمون'), related_name='custom_permissions')
     groups = models.ManyToManyField('auth.Group', blank=True, verbose_name=_('المجموعات'))
+
+    # إضافة جديد - تواريخ الإنشاء والتحديث مع null=True
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        null=True,  # ✅ يسمح بـ NULL
+        blank=True  # ✅ يسمح بالفراغ
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        null=True,  # ✅ يسمح بـ NULL
+        blank=True  # ✅ يسمح بالفراغ
+    )
 
     class Meta:
         verbose_name = _('صلاحية مخصصة')
@@ -374,6 +513,15 @@ class CustomPermission(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code})"
 
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        from django.core.exceptions import ValidationError
+
+        if self.code:
+            self.code = self.code.lower().replace(' ', '_')
+
+        if self.max_amount and self.max_amount < 0:
+            raise ValidationError(_('الحد الأقصى للمبلغ لا يمكن أن يكون سالباً'))
 
 class UnitOfMeasure(BaseModel):
     """وحدات القياس"""
@@ -809,3 +957,76 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.get_action_display()} - {self.object_repr}"
+
+
+class PermissionGroup(models.Model):
+    """مجموعات الصلاحيات المخصصة"""
+
+    name = models.CharField(_('اسم المجموعة'), max_length=200, unique=True)
+    description = models.TextField(_('الوصف'), blank=True)
+
+    # الصلاحيات المخصصة
+    permissions = models.ManyToManyField(
+        CustomPermission,
+        blank=True,
+        verbose_name=_('الصلاحيات المخصصة'),
+        help_text=_('الصلاحيات المخصصة المضمنة في هذه المجموعة')
+    )
+
+    # صلاحيات Django الأساسية
+    django_permissions = models.ManyToManyField(
+        'auth.Permission',
+        blank=True,
+        verbose_name=_('صلاحيات Django'),
+        help_text=_('صلاحيات Django الأساسية (CRUD) المضمنة في هذه المجموعة')
+    )
+
+    is_active = models.BooleanField(_('نشط'), default=True)
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name=_('الشركة'),
+        help_text=_('اتركها فارغة للمجموعات العامة')
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ الإنشاء'))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_('تاريخ التحديث'))
+
+    class Meta:
+        verbose_name = _('مجموعة صلاحيات')
+        verbose_name_plural = _('مجموعات الصلاحيات')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def get_custom_permissions_count(self):
+        """عدد الصلاحيات المخصصة النشطة"""
+        return self.permissions.filter(is_active=True).count()
+
+    def get_django_permissions_count(self):
+        """عدد صلاحيات Django"""
+        return self.django_permissions.count()
+
+    def get_total_permissions_count(self):
+        """إجمالي الصلاحيات"""
+        return self.get_custom_permissions_count() + self.get_django_permissions_count()
+
+    def get_active_custom_permissions(self):
+        """الحصول على الصلاحيات المخصصة النشطة فقط"""
+        return self.permissions.filter(is_active=True)
+
+    def get_permissions_by_category(self):
+        """تجميع الصلاحيات حسب التصنيف"""
+        permissions = self.get_active_custom_permissions()
+        categories = {}
+
+        for perm in permissions:
+            if perm.category not in categories:
+                categories[perm.category] = []
+            categories[perm.category].append(perm)
+
+        return categories

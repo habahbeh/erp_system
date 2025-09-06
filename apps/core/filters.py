@@ -6,7 +6,7 @@ Django Filters للبحث والتصفية
 import django_filters
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User, UnitOfMeasure, Currency
+from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User, UnitOfMeasure, Currency, Company, Branch
 from .models import Warehouse
 
 
@@ -636,11 +636,105 @@ class CurrencyFilter(django_filters.FilterSet):
             ).distinct()
         return queryset
 
+
+class UserFilter(django_filters.FilterSet):
+    """فلتر المستخدمين"""
+
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label=_('البحث'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('البحث في الاسم، اسم المستخدم، البريد...'),
+        })
+    )
+
+    company = django_filters.ModelChoiceFilter(
+        queryset=Company.objects.none(),
+        label=_('الشركة'),
+        empty_label=_('كل الشركات'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    branch = django_filters.ModelChoiceFilter(
+        queryset=Branch.objects.none(),
+        label=_('الفرع'),
+        empty_label=_('كل الفروع'),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    role = django_filters.ChoiceFilter(
+        choices=[
+            ('superuser', _('مدير نظام')),
+            ('staff', _('طاقم الإدارة')),
+            ('user', _('مستخدم عادي')),
+        ],
+        label=_('الصلاحيات'),
+        empty_label=_('كل الصلاحيات'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        method='filter_role'
+    )
+
+    is_active = django_filters.BooleanFilter(
+        label=_('الحالة'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    date_joined = django_filters.DateFromToRangeFilter(
+        label=_('تاريخ الانضمام'),
+        widget=django_filters.widgets.RangeWidget(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        })
+    )
+
+    class Meta:
+        model = User
+        fields = ['search', 'company', 'branch', 'role', 'is_active', 'date_joined']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        # فلترة الخيارات
+        self.filters['company'].queryset = Company.objects.filter(is_active=True).order_by('name')
+        self.filters['branch'].queryset = Branch.objects.filter(is_active=True).order_by('name')
+
+    def filter_search(self, queryset, name, value):
+        """البحث في عدة حقول"""
+        if value:
+            from django.db.models import Q
+            return queryset.filter(
+                Q(username__icontains=value) |
+                Q(first_name__icontains=value) |
+                Q(last_name__icontains=value) |
+                Q(email__icontains=value) |
+                Q(emp_number__icontains=value) |
+                Q(phone__icontains=value)
+            ).distinct()
+        return queryset
+
+    def filter_role(self, queryset, name, value):
+        """فلترة حسب الدور"""
+        if value == 'superuser':
+            return queryset.filter(is_superuser=True)
+        elif value == 'staff':
+            return queryset.filter(is_staff=True, is_superuser=False)
+        elif value == 'user':
+            return queryset.filter(is_staff=False, is_superuser=False)
+        return queryset
+
+# تحديث __all__ في نهاية الملف
 __all__ = [
     'ItemFilter',
     'ItemCategoryFilter',
     'BrandFilter',
     'UnitOfMeasureFilter',
     'BusinessPartnerFilter',
-    'WarehouseFilter'
+    'WarehouseFilter',
+    'UserFilter',  # إضافة جديد
 ]
+

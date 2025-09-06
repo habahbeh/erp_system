@@ -1,0 +1,143 @@
+{# templates/core/user_profiles/profile_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة ملفات وإعدادات المستخدمين" %}</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_add %}
+            <a href="{% url 'core:create_missing_profiles' %}" class="btn btn-info">
+                <i class="fas fa-plus-circle"></i> {% trans "إنشاء ملفات مفقودة" %}
+            </a>
+            <a href="{% url 'core:bulk_profile_update' %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تحديث جماعي" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-primary mb-1" id="totalProfiles">{{ profiles_count|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الملفات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-success mb-1" id="activeProfiles">{{ active_profiles|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ملفات نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-warning mb-1" id="restrictedProfiles">{{ restricted_profiles|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ملفات محددة الصلاحيات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-danger mb-1" id="missingProfiles">{{ missing_profiles|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ملفات مفقودة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="profilesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "المستخدم" %}</th>
+                            <th>{% trans "الشركة" %}</th>
+                            <th>{% trans "نسبة الخصم %" %}</th>
+                            <th>{% trans "حد الائتمان" %}</th>
+                            <th>{% trans "الفروع المسموحة" %}</th>
+                            <th>{% trans "المستودعات المسموحة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    var table = $('#profilesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:profile_datatable_ajax' %}",
+            "type": "GET"
+        },
+        "columns": [
+            {"data": 0, "name": "user__username"},
+            {"data": 1, "name": "user__company__name"},
+            {"data": 2, "name": "max_discount_percentage"},
+            {"data": 3, "name": "max_credit_limit"},
+            {"data": 4, "name": "allowed_branches"},
+            {"data": 5, "name": "allowed_warehouses"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [2, 3, 6] }
+        ]
+    });
+});
+</script>
+{% endblock %}

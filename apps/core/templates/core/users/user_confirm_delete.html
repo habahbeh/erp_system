@@ -1,0 +1,224 @@
+{# templates/core/users/user_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف" %}</p>
+        </div>
+    </div>
+
+    <!-- Warning Alert -->
+    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h5 class="alert-heading mb-2">{% trans "تحذير!" %}</h5>
+                <p class="mb-1">{% trans "هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                <small>{% trans "سيتم حذف جميع البيانات المرتبطة بهذا المستخدم نهائياً." %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Information -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex align-items-center">
+                    <i class="fas fa-user text-primary me-2"></i>
+                    <h6 class="card-title mb-0">{% trans "معلومات المستخدم المراد حذفه" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "اسم المستخدم" %}</label>
+                                    <h5 class="mb-0">
+                                        <code class="bg-light text-primary">{{ object.username }}</code>
+                                    </h5>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الاسم الكامل" %}</label>
+                                    <h5 class="mb-0">{{ object.get_full_name|default:"—" }}</h5>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "البريد الإلكتروني" %}</label>
+                                    <p class="mb-0">
+                                        <i class="fas fa-envelope text-primary"></i> {{ object.email }}
+                                    </p>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الصلاحيات" %}</label>
+                                    <div>
+                                        {% if object.is_superuser %}
+                                            <span class="badge bg-danger fs-6">
+                                                <i class="fas fa-crown"></i> {% trans "مدير نظام" %}
+                                            </span>
+                                        {% elif object.is_staff %}
+                                            <span class="badge bg-warning fs-6">
+                                                <i class="fas fa-user-tie"></i> {% trans "طاقم الإدارة" %}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary fs-6">
+                                                <i class="fas fa-user"></i> {% trans "مستخدم عادي" %}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                {% if object.company %}
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الشركة" %}</label>
+                                    <p class="mb-0">{{ object.company.name }}</p>
+                                </div>
+                                {% endif %}
+
+                                {% if object.branch %}
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "الفرع" %}</label>
+                                    <p class="mb-0">{{ object.branch.name }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- معلومات إضافية -->
+                    <div class="row g-3 mt-3 pt-3 border-top">
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "تاريخ الانضمام" %}</small>
+                            <strong>{{ object.date_joined|date:"d/m/Y" }}</strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "آخر تسجيل دخول" %}</small>
+                            <strong>
+                                {% if object.last_login %}
+                                    {{ object.last_login|date:"d/m/Y" }}
+                                {% else %}
+                                    {% trans "لم يسجل دخول" %}
+                                {% endif %}
+                            </strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "الحالة" %}</small>
+                            {% if object.is_active %}
+                                <span class="badge bg-success">{% trans "نشط" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Form -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>
+                                    {% trans "أؤكد أنني أريد حذف هذا المستخدم نهائياً" %}
+                                </strong>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائي" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Additional Warning -->
+            <div class="alert alert-warning mt-4" role="alert">
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "معلومات مهمة" %}
+                </h6>
+                <p class="mb-2">{% trans "عند حذف هذا المستخدم، ستتأثر البيانات التالية:" %}</p>
+                <ul class="mb-0">
+                    <li>{% trans "الفواتير والمستندات المرتبطة بالمستخدم" %}</li>
+                    <li>{% trans "سجلات العمليات والتدقيق" %}</li>
+                    <li>{% trans "الصلاحيات والأدوار المخصصة" %}</li>
+                </ul>
+                <hr>
+                <small class="mb-0">
+                    {% trans "تأكد من نقل أو حفظ أي بيانات مهمة قبل المتابعة." %}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+
+    // Enable/disable delete button based on checkbox
+    confirmCheckbox.addEventListener('change', function() {
+        deleteBtn.disabled = !this.checked;
+    });
+
+    // Confirmation dialog before submit
+    deleteForm.addEventListener('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد من أنك تريد حذف هذا المستخدم؟ هذا الإجراء لا يمكن التراجع عنه." %}')) {
+            e.preventDefault();
+        } else {
+            // Show loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}';
+            deleteBtn.disabled = true;
+        }
+    });
+
+    // Auto-focus on confirmation checkbox
+    confirmCheckbox.focus();
+});
+</script>
+{% endblock %}

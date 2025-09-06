@@ -1,0 +1,243 @@
+{# templates/core/users/user_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة مستخدمي النظام" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{{ add_url }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة مستخدم جديد" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الشركة" %}</label>
+                        <select class="form-select" id="companyFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الفرع" %}</label>
+                        <select class="form-select" id="branchFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الصلاحيات" %}</label>
+                        <select class="form-select" id="roleFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="superuser">{% trans "مدير نظام" %}</option>
+                            <option value="staff">{% trans "موظف" %}</option>
+                            <option value="user">{% trans "مستخدم عادي" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="usersTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "اسم المستخدم" %}</th>
+                            <th>{% trans "الاسم الكامل" %}</th>
+                            <th>{% trans "البريد الإلكتروني" %}</th>
+                            <th>{% trans "الشركة" %}</th>
+                            <th>{% trans "الفرع" %}</th>
+                            <th>{% trans "الصلاحيات" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // تحميل خيارات الفلاتر
+    loadFilterOptions();
+    
+    // Initialize DataTable
+    var table = $('#usersTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:user_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.company = $('#companyFilter').val();
+                d.branch = $('#branchFilter').val();
+                d.role = $('#roleFilter').val();
+                d.status = $('#statusFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "username"},
+            {"data": 1, "name": "full_name"},
+            {"data": 2, "name": "email"},
+            {"data": 3, "name": "company__name"},
+            {"data": 4, "name": "branch__name"},
+            {"data": 5, "name": "role"},
+            {"data": 6, "name": "is_active"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "{% trans 'الكل' %}"]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "dom": 'Bfrtip',
+        "buttons": [
+            {
+                extend: 'pageLength',
+                className: 'btn btn-outline-secondary btn-sm'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}',
+                className: 'btn btn-outline-success btn-sm'
+            },
+            {
+                extend: 'pdf',
+                text: '<i class="fas fa-file-pdf"></i> {% trans "تصدير PDF" %}',
+                className: 'btn btn-outline-danger btn-sm'
+            }
+        ],
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [5, 6, 7] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
+    });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#companyFilter, #branchFilter, #roleFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#companyFilter, #branchFilter, #roleFilter, #statusFilter').val('');
+        table.ajax.reload();
+    });
+
+    // تحديث الفروع عند تغيير الشركة
+    $('#companyFilter').on('change', function() {
+        var companyId = $(this).val();
+        loadBranches(companyId);
+    });
+});
+
+function loadFilterOptions() {
+    // تحميل خيارات الشركات
+    $.get("{% url 'core:user_datatable_ajax' %}?get_companies=1", function(data) {
+        var companySelect = $('#companyFilter');
+        companySelect.empty().append('<option value="">{% trans "الكل" %}</option>');
+        
+        if (data.companies) {
+            $.each(data.companies, function(index, company) {
+                companySelect.append('<option value="' + company.id + '">' + company.name + '</option>');
+            });
+        }
+    });
+}
+
+function loadBranches(companyId) {
+    var branchSelect = $('#branchFilter');
+    branchSelect.empty().append('<option value="">{% trans "الكل" %}</option>');
+    
+    if (companyId) {
+        $.get("{% url 'core:user_datatable_ajax' %}?get_branches=1&company_id=" + companyId, function(data) {
+            if (data.branches) {
+                $.each(data.branches, function(index, branch) {
+                    branchSelect.append('<option value="' + branch.id + '">' + branch.name + '</option>');
+                });
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

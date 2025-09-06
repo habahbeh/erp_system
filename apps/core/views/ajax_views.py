@@ -10,7 +10,7 @@ from django.db.models import Q, Count
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute
+from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission
 from ..decorators import permission_required_with_message
 from django.contrib.auth import get_user_model
 
@@ -1537,6 +1537,702 @@ def variant_attribute_datatable_ajax(request):
 
                 # الحالة
                 f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if attribute.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+
+@login_required
+@permission_required_with_message('auth.view_user')
+@require_http_methods(["GET"])
+def user_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable للمستخدمين"""
+    try:
+        # معالجة طلبات تحميل خيارات الفلاتر
+        if request.GET.get('get_companies'):
+            companies = Company.objects.filter(is_active=True).values('id', 'name').order_by('name')
+            return JsonResponse({'companies': list(companies)})
+
+        if request.GET.get('get_branches'):
+            company_id = request.GET.get('company_id')
+            if company_id:
+                branches = Branch.objects.filter(
+                    company_id=company_id, is_active=True
+                ).values('id', 'name').order_by('name')
+                return JsonResponse({'branches': list(branches)})
+            return JsonResponse({'branches': []})
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        company_filter = request.GET.get('company', '')
+        branch_filter = request.GET.get('branch', '')
+        role_filter = request.GET.get('role', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات مع فلترة حسب الصلاحيات
+        if request.user.is_superuser:
+            # مديرو النظام يرون جميع المستخدمين
+            queryset = User.objects.all()
+        elif hasattr(request.user, 'company') and request.user.company:
+            # المستخدمون العاديون يرون فقط مستخدمي شركتهم
+            queryset = User.objects.filter(company=request.user.company)
+        else:
+            # إذا لم تكن هناك شركة، المستخدم يرى نفسه فقط
+            queryset = User.objects.filter(pk=request.user.pk)
+
+        queryset = queryset.select_related('company', 'branch')
+
+        # تطبيق الفلاتر المخصصة
+        if company_filter:
+            queryset = queryset.filter(company_id=company_filter)
+
+        if branch_filter:
+            queryset = queryset.filter(branch_id=branch_filter)
+
+        if role_filter:
+            if role_filter == 'superuser':
+                queryset = queryset.filter(is_superuser=True)
+            elif role_filter == 'staff':
+                queryset = queryset.filter(is_staff=True, is_superuser=False)
+            elif role_filter == 'user':
+                queryset = queryset.filter(is_staff=False, is_superuser=False)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(username__icontains=search_value) |
+                Q(first_name__icontains=search_value) |
+                Q(last_name__icontains=search_value) |
+                Q(email__icontains=search_value) |
+                Q(emp_number__icontains=search_value) |
+                Q(phone__icontains=search_value)
+            )
+
+        # العدد الكلي (حسب الصلاحيات)
+        if request.user.is_superuser:
+            records_total = User.objects.count()
+        elif hasattr(request.user, 'company') and request.user.company:
+            records_total = User.objects.filter(company=request.user.company).count()
+        else:
+            records_total = 1  # المستخدم نفسه فقط
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['username', 'first_name', 'email', 'company__name', 'branch__name', 'role', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('username')
+
+        # التقسيم للصفحات
+        users = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for user_obj in users:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('auth.change_user')
+            can_delete = request.user.has_perm('auth.delete_user')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:user_detail', kwargs={'pk': user_obj.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:user_update', kwargs={'pk': user_obj.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر تغيير كلمة المرور
+            if can_change or request.user == user_obj:
+                actions += f'''
+                    <a href="{reverse('core:user_change_password', kwargs={'pk': user_obj.pk})}" 
+                       class="btn btn-outline-secondary btn-sm" title="{_('تغيير كلمة المرور')}">
+                        <i class="fas fa-key"></i>
+                    </a>
+                '''
+
+            # زر الحذف (ممنوع للمستخدم نفسه)
+            if can_delete and user_obj != request.user:
+                actions += f'''
+                    <a href="{reverse('core:user_delete', kwargs={'pk': user_obj.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا المستخدم؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تحديد دور المستخدم
+            if user_obj.is_superuser:
+                role_badge = f'<span class="badge bg-danger"><i class="fas fa-crown"></i> {_("مدير نظام")}</span>'
+            elif user_obj.is_staff:
+                role_badge = f'<span class="badge bg-warning"><i class="fas fa-user-tie"></i> {_("طاقم الإدارة")}</span>'
+            else:
+                role_badge = f'<span class="badge bg-secondary"><i class="fas fa-user"></i> {_("مستخدم عادي")}</span>'
+
+            # تجميع صف البيانات
+            row = [
+                # اسم المستخدم
+                f'<div><strong class="text-dark">{user_obj.username}</strong></div>',
+
+                # الاسم الكامل
+                f'<div><strong class="text-dark">{user_obj.get_full_name() or "—"}</strong>' +
+                (f'<br><small class="text-muted">{user_obj.emp_number}</small>' if user_obj.emp_number else '') + '</div>',
+
+                # البريد الإلكتروني
+                f'<div><span class="text-dark">{user_obj.email}</span>' +
+                (f'<br><small class="text-muted"><i class="fas fa-phone"></i> {user_obj.phone}</small>' if user_obj.phone else '') + '</div>',
+
+                # الشركة
+                f'<span class="text-dark">{user_obj.company.name}</span>' if user_obj.company
+                else '<span class="text-muted">-</span>',
+
+                # الفرع
+                f'<span class="text-dark">{user_obj.branch.name}</span>' if user_obj.branch
+                else '<span class="text-muted">-</span>',
+
+                # الصلاحيات
+                role_badge,
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if user_obj.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('core.view_userprofile')
+@require_http_methods(["GET"])
+def profile_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable لملفات المستخدمين"""
+    try:
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الحصول على البيانات مع فلترة حسب الصلاحيات
+        if request.user.is_superuser:
+            # مديرو النظام يرون جميع الملفات
+            queryset = UserProfile.objects.all()
+        elif hasattr(request.user, 'company') and request.user.company:
+            # المستخدمون العاديون يرون فقط ملفات مستخدمي شركتهم
+            queryset = UserProfile.objects.filter(user__company=request.user.company)
+        else:
+            # إذا لم تكن هناك شركة، المستخدم يرى ملفه فقط
+            queryset = UserProfile.objects.filter(user=request.user)
+
+        queryset = queryset.select_related('user', 'user__company', 'user__branch')
+        queryset = queryset.prefetch_related('allowed_branches', 'allowed_warehouses')
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(user__username__icontains=search_value) |
+                Q(user__first_name__icontains=search_value) |
+                Q(user__last_name__icontains=search_value) |
+                Q(user__email__icontains=search_value) |
+                Q(user__company__name__icontains=search_value)
+            )
+
+        # العدد الكلي (حسب الصلاحيات)
+        if request.user.is_superuser:
+            records_total = UserProfile.objects.count()
+        elif hasattr(request.user, 'company') and request.user.company:
+            records_total = UserProfile.objects.filter(user__company=request.user.company).count()
+        else:
+            records_total = UserProfile.objects.filter(user=request.user).count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = [
+            'user__username', 'user__company__name', 'max_discount_percentage',
+            'max_credit_limit', 'allowed_branches', 'allowed_warehouses'
+        ]
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('user__username')
+
+        # التقسيم للصفحات
+        profiles = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for profile in profiles:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_userprofile')
+            can_delete = request.user.has_perm('core.delete_userprofile')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:profile_detail', kwargs={'pk': profile.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:profile_update', kwargs={'pk': profile.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                            <a href="{reverse('core:profile_delete', kwargs={'pk': profile.pk})}" 
+                               class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                               onclick="return confirm('{_('هل أنت متأكد من حذف ملف هذا المستخدم؟')}')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        '''
+
+            # زر الصلاحيات
+            if request.user.has_perm('core.change_custompermission'):
+                actions += f'''
+                    <a href="{reverse('core:user_permissions', kwargs={'user_id': profile.user.pk})}" 
+                       class="btn btn-outline-secondary btn-sm" title="{_('إدارة الصلاحيات')}">
+                        <i class="fas fa-key"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # الفروع المسموحة
+            if profile.allowed_branches.exists():
+                branches_text = ', '.join([b.name for b in profile.allowed_branches.all()[:3]])
+                if profile.allowed_branches.count() > 3:
+                    branches_text += f' +{profile.allowed_branches.count() - 3}'
+                branches_badge = f'<span class="badge bg-info">{branches_text}</span>'
+            else:
+                branches_badge = f'<span class="badge bg-success">{_("جميع الفروع")}</span>'
+
+            # المستودعات المسموحة
+            if profile.allowed_warehouses.exists():
+                warehouses_text = ', '.join([w.name for w in profile.allowed_warehouses.all()[:3]])
+                if profile.allowed_warehouses.count() > 3:
+                    warehouses_text += f' +{profile.allowed_warehouses.count() - 3}'
+                warehouses_badge = f'<span class="badge bg-warning">{warehouses_text}</span>'
+            else:
+                warehouses_badge = f'<span class="badge bg-success">{_("جميع المستودعات")}</span>'
+
+            # تجميع صف البيانات
+            row = [
+                # المستخدم
+                f'<div><strong class="text-dark">{profile.user.get_full_name() or profile.user.username}</strong>' +
+                f'<br><small class="text-muted">@{profile.user.username}</small>' +
+                (f'<br><small class="text-muted">{profile.user.email}</small>' if profile.user.email else '') + '</div>',
+
+                # الشركة
+                f'<span class="text-dark">{profile.user.company.name}</span>' if profile.user.company
+                else '<span class="text-muted">-</span>',
+
+                # نسبة الخصم
+                f'<span class="badge bg-primary fs-6">{profile.max_discount_percentage}%</span>',
+
+                # حد الائتمان
+                f'<span class="badge bg-success fs-6">{profile.max_credit_limit:,.2f} د.أ</span>',
+
+                # الفروع المسموحة
+                branches_badge,
+
+                # المستودعات المسموحة
+                warehouses_badge,
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+# إضافة هذا في نهاية ملف apps/core/views/ajax_views.py
+
+@login_required
+@permission_required_with_message('core.view_custompermission')
+@require_http_methods(["GET"])
+def permission_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable للصلاحيات المخصصة"""
+    try:
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الحصول على البيانات
+        queryset = CustomPermission.objects.all()
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(code__icontains=search_value) |
+                Q(description__icontains=search_value) |
+                Q(category__icontains=search_value)
+            )
+
+        # فلترة حسب التصنيف
+        category_filter = request.GET.get('category', '')
+        if category_filter:
+            queryset = queryset.filter(category=category_filter)
+
+        # فلترة حسب النوع
+        type_filter = request.GET.get('permission_type', '')
+        if type_filter:
+            queryset = queryset.filter(permission_type=type_filter)
+
+        # فلترة حسب الحالة
+        status_filter = request.GET.get('is_active', '')
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # العدد الكلي
+        records_total = CustomPermission.objects.count()
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['name', 'code', 'category', 'permission_type', 'is_active', 'users_count']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('category', 'name')
+
+        # التقسيم للصفحات
+        permissions = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for permission in permissions:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_custompermission')
+            can_delete = request.user.has_perm('core.delete_custompermission')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:permission_detail', kwargs={'pk': permission.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:permission_update', kwargs={'pk': permission.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                    <a href="{reverse('core:permission_delete', kwargs={'pk': permission.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذه الصلاحية؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # عدد المستخدمين
+            users_count = permission.users.count()
+            groups_count = permission.groups.count()
+
+            # تجميع صف البيانات
+            row = [
+                # اسم الصلاحية
+                f'<div><strong class="text-dark">{permission.name}</strong>' +
+                (f'<br><small class="text-muted">{permission.description[:50]}...</small>' if permission.description else '') + '</div>',
+
+                # الرمز
+                f'<code class="bg-light text-primary">{permission.code}</code>',
+
+                # التصنيف
+                f'<span class="badge bg-primary">{permission.get_category_display()}</span>',
+
+                # نوع الصلاحية
+                f'<span class="badge bg-secondary">{permission.get_permission_type_display()}</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if permission.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # عدد المستخدمين
+                f'<div class="text-center">' +
+                f'<span class="badge bg-info">{users_count} {_("مستخدم")}</span>' +
+                (f'<br><span class="badge bg-warning">{groups_count} {_("مجموعة")}</span>' if groups_count > 0 else '') +
+                '</div>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('core.view_permissiongroup')
+@require_http_methods(["GET"])
+def group_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable لمجموعات الصلاحيات"""
+    try:
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الحصول على البيانات
+        queryset = PermissionGroup.objects.all()
+        queryset = queryset.prefetch_related('permissions', 'django_permissions')
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(description__icontains=search_value)
+            )
+
+        # فلترة حسب الحالة
+        status_filter = request.GET.get('is_active', '')
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # العدد الكلي
+        records_total = PermissionGroup.objects.count()
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['name', 'description', 'permissions_count', 'users_count', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('name')
+
+        # التقسيم للصفحات
+        groups = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for group in groups:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_permissiongroup')
+            can_delete = request.user.has_perm('core.delete_permissiongroup')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:group_detail', kwargs={'pk': group.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:group_update', kwargs={'pk': group.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف
+            if can_delete:
+                actions += f'''
+                    <a href="{reverse('core:group_delete', kwargs={'pk': group.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذه المجموعة؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # إحصائيات
+            permissions_count = group.get_total_permissions_count()
+            users_count = UserProfile.objects.filter(permission_groups=group).count()
+
+            # تجميع صف البيانات
+            row = [
+                # اسم المجموعة
+                f'<div><strong class="text-dark">{group.name}</strong></div>',
+
+                # الوصف
+                f'<div class="text-muted">{group.description[:100]}...</div>' if group.description else '<span class="text-muted">-</span>',
+
+                # عدد الصلاحيات
+                f'<div class="text-center">' +
+                f'<span class="badge bg-primary">{permissions_count} {_("صلاحية")}</span>' +
+                '</div>',
+
+                # عدد المستخدمين
+                f'<div class="text-center">' +
+                f'<span class="badge bg-info">{users_count} {_("مستخدم")}</span>' +
+                '</div>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if group.is_active
                 else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
 
                 # الإجراءات

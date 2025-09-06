@@ -82,6 +82,45 @@ urlpatterns = [
     path('variant-attributes/<int:pk>/delete/', views.VariantAttributeDeleteView.as_view(),
          name='variant_attribute_delete'),
 
+    # المستخدمين - إضافة جديد
+    path('users/', views.UserListView.as_view(), name='user_list'),
+    path('users/<int:pk>/', views.UserDetailView.as_view(), name='user_detail'),
+    path('users/create/', views.UserCreateView.as_view(), name='user_create'),
+    path('users/<int:pk>/update/', views.UserUpdateView.as_view(), name='user_update'),
+    path('users/<int:pk>/delete/', views.UserDeleteView.as_view(), name='user_delete'),
+    path('users/<int:pk>/change-password/', views.change_password_view, name='user_change_password'),
+
+
+    # ملفات المستخدمين
+    path('profiles/', views.UserProfileListView.as_view(), name='profile_list'),
+    path('profiles/<int:pk>/', views.UserProfileDetailView.as_view(), name='profile_detail'),
+    path('profiles/<int:pk>/update/', views.UserProfileUpdateView.as_view(), name='profile_update'),
+    path('profiles/<int:pk>/delete/', views.UserProfileDeleteView.as_view(), name='profile_delete'),  # إضافة جديد
+    path('profiles/bulk-update/', views.BulkUserProfileUpdateView.as_view(), name='bulk_profile_update'),
+    path('profiles/create-missing/', views.create_missing_profiles, name='create_missing_profiles'),
+    path('users/<int:user_id>/permissions/', views.user_permissions_view, name='user_permissions'),
+
+    # الصلاحيات المخصصة - إضافة جديد
+    path('permissions/', views.CustomPermissionListView.as_view(), name='permission_list'),
+    path('permissions/<int:pk>/', views.CustomPermissionDetailView.as_view(), name='permission_detail'),
+    path('permissions/create/', views.CustomPermissionCreateView.as_view(), name='permission_create'),
+    path('permissions/<int:pk>/update/', views.CustomPermissionUpdateView.as_view(), name='permission_update'),
+    path('permissions/<int:pk>/delete/', views.CustomPermissionDeleteView.as_view(), name='permission_delete'),
+
+    # مجموعات الصلاحيات - إضافة جديد
+    path('permission-groups/', views.PermissionGroupListView.as_view(), name='group_list'),
+    path('permission-groups/<int:pk>/', views.PermissionGroupDetailView.as_view(), name='group_detail'),
+    path('permission-groups/create/', views.PermissionGroupCreateView.as_view(), name='group_create'),
+    path('permission-groups/<int:pk>/update/', views.PermissionGroupUpdateView.as_view(), name='group_update'),
+    path('permission-groups/<int:pk>/delete/', views.PermissionGroupDeleteView.as_view(), name='group_delete'),
+    path('permissions/create-default-groups/', views.create_default_permission_groups, name='create_default_groups'),
+
+
+    # العمليات المتقدمة - إضافة جديد
+    path('permissions/bulk-assign/', views.BulkPermissionAssignView.as_view(), name='bulk_permission_assign'),
+    path('permissions/copy-user-permissions/', views.CopyUserPermissionsView.as_view(), name='copy_user_permissions'),
+
+
 
     # Ajax endpoints
     path('ajax/items/datatable/', views.item_datatable_ajax, name='item_datatable_ajax'),
@@ -92,6 +131,12 @@ urlpatterns = [
     path('ajax/currencies/datatable/', views.currency_datatable_ajax, name='currency_datatable_ajax'),
     path('ajax/branches/datatable/', views.branch_datatable_ajax, name='branch_datatable_ajax'),  # إضافة جديد
     path('ajax/variant-attributes/datatable/', views.variant_attribute_datatable_ajax, name='variant_attribute_datatable_ajax'),
+    path('ajax/users/datatable/', views.user_datatable_ajax, name='user_datatable_ajax'),  # إضافة جديد
+    path('ajax/profiles/datatable/', views.profile_datatable_ajax, name='profile_datatable_ajax'),  # إضافة جديد
+    path('ajax/permissions/datatable/', views.permission_datatable_ajax, name='permission_datatable_ajax'),  # إضافة جديد
+    path('ajax/groups/datatable/', views.group_datatable_ajax, name='group_datatable_ajax'),  # إضافة جديد
+
+
 ]
 
 
@@ -219,7 +264,7 @@ urlpatterns = [
 #     # path('settings/<int:pk>/delete/', views.SystemSettingsDeleteView.as_view(), name='settings_delete'),
 #     #
 #     # # سجل العمليات
-#     # path('audit-log/', views.AuditLogListView.as_view(), name='audit_list'),
+    #     # path('audit-log/', views.AuditLogListView.as_view(), name='audit_list'),
 #     # path('audit-log/<int:pk>/', views.AuditLogDetailView.as_view(), name='audit_detail'),
 #     #
 #     # Ajax endpoints

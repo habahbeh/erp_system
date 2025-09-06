@@ -1,0 +1,197 @@
+{# templates/core/permissions/group_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة مجموعات الصلاحيات المختلطة (Django + مخصصة)" %}</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_add %}
+            <a href="{% url 'core:group_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة مجموعة جديدة" %}
+            </a>
+            <a href="{% url 'core:permission_list' %}" class="btn btn-info">
+                <i class="fas fa-shield-alt"></i> {% trans "الصلاحيات المخصصة" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-primary mb-1">{{ total_groups }}</h3>
+                    <small class="text-muted">{% trans "إجمالي المجموعات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-success mb-1">{{ active_groups }}</h3>
+                    <small class="text-muted">{% trans "مجموعات نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-secondary mb-1">{{ inactive_groups }}</h3>
+                    <small class="text-muted">{% trans "مجموعات غير نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-bolt"></i> {% trans "عمليات سريعة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-auto">
+                    <a href="{% url 'core:bulk_permission_assign' %}" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-users-cog"></i> {% trans "تعيين صلاحيات متعددة" %}
+                    </a>
+                </div>
+                <div class="col-auto">
+                    <a href="{% url 'core:copy_user_permissions' %}" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-copy"></i> {% trans "نسخ صلاحيات المستخدمين" %}
+                    </a>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-success btn-sm" onclick="showCreateDefaultGroups()">
+                        <i class="fas fa-magic"></i> {% trans "إنشاء مجموعات افتراضية" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="groupsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "اسم المجموعة" %}</th>
+                            <th>{% trans "الوصف" %}</th>
+                            <th>{% trans "عدد الصلاحيات" %}</th>
+                            <th>{% trans "عدد المستخدمين" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    var table = $('#groupsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:group_datatable_ajax' %}",
+            "type": "GET"
+        },
+        "columns": [
+            {"data": 0, "name": "name"},
+            {"data": 1, "name": "description"},
+            {"data": 2, "name": "permissions_count"},
+            {"data": 3, "name": "users_count"},
+            {"data": 4, "name": "is_active"},
+            {"data": 5, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [2, 3, 4, 5] }
+        ]
+    });
+});
+
+function showCreateDefaultGroups() {
+    if (confirm('{% trans "هل تريد إنشاء مجموعات الصلاحيات الافتراضية؟ سيتم إنشاء مجموعات للأدوار الشائعة." %}')) {
+        // إظهار loading
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% trans "جاري الإنشاء..." %}';
+        button.disabled = true;
+
+        fetch('{% url "core:create_default_groups" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('{% trans "حدث خطأ: " %}' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('{% trans "حدث خطأ في الاتصال بالخادم" %}');
+        })
+        .finally(() => {
+            // استعادة الزر
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -134,11 +134,49 @@ class CompanyMixin:
         """إضافة الشركة تلقائياً - بدون branch"""
         # التحقق من أن الـ form هو ModelForm
         if (isinstance(form, ModelForm) and
-            hasattr(form._meta.model, 'company') and
-            not getattr(form.instance, 'company', None)):
+                hasattr(form._meta.model, 'company') and
+                not getattr(form.instance, 'company', None)):
             from .models import Company
             company = Company.objects.first()
             form.instance.company = company
+
+        return super().form_valid(form)
+
+
+class UserMixin:
+    """مايكسين خاص بإدارة المستخدمين"""
+
+    def get_queryset(self):
+        """فلترة المستخدمين حسب الصلاحيات"""
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # مديرو النظام يرون جميع المستخدمين
+        if user.is_superuser:
+            return queryset
+
+        # المستخدمون العاديون يرون فقط مستخدمي شركتهم
+        if hasattr(user, 'company') and user.company:
+            return queryset.filter(company=user.company)
+
+        # إذا لم تكن هناك شركة، عرض جميع المستخدمين لمديري النظام فقط
+        return queryset.filter(pk=user.pk)  # المستخدم يرى نفسه فقط
+
+    def form_valid(self, form):
+        """تعيين الشركة للمستخدم الجديد"""
+        if (isinstance(form, ModelForm) and
+                hasattr(form._meta.model, 'company') and
+                not getattr(form.instance, 'company', None)):
+
+            # تعيين شركة المستخدم الحالي للمستخدم الجديد
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                form.instance.company = self.request.user.company
+            else:
+                # استخدام أول شركة متاحة
+                from .models import Company
+                company = Company.objects.first()
+                if company:
+                    form.instance.company = company
 
         return super().form_valid(form)
 

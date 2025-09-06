@@ -1,0 +1,242 @@
+{# templates/core/permissions/permission_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة الصلاحيات المخصصة التجارية" %}</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_add %}
+            <a href="{% url 'core:permission_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة صلاحية جديدة" %}
+            </a>
+            <a href="{% url 'core:group_list' %}" class="btn btn-info">
+                <i class="fas fa-layer-group"></i> {% trans "مجموعات الصلاحيات" %}
+            </a>
+            <a href="{% url 'core:bulk_permission_assign' %}" class="btn btn-warning">
+                <i class="fas fa-users-cog"></i> {% trans "تعيين متعدد" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-primary mb-1">{{ total_permissions }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الصلاحيات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-success mb-1">{{ active_permissions }}</h3>
+                    <small class="text-muted">{% trans "صلاحيات نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-secondary mb-1">{{ inactive_permissions }}</h3>
+                    <small class="text-muted">{% trans "صلاحيات غير نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="text-info mb-1">{{ category_stats|length }}</h3>
+                    <small class="text-muted">{% trans "تصنيفات" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "التصنيف" %}</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="sales">{% trans "المبيعات" %}</option>
+                            <option value="purchases">{% trans "المشتريات" %}</option>
+                            <option value="inventory">{% trans "المخازن" %}</option>
+                            <option value="accounting">{% trans "المحاسبة" %}</option>
+                            <option value="reports">{% trans "التقارير" %}</option>
+                            <option value="system">{% trans "النظام" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع الصلاحية" %}</label>
+                        <select class="form-select" id="typeFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="view">{% trans "عرض" %}</option>
+                            <option value="add">{% trans "إضافة" %}</option>
+                            <option value="change">{% trans "تعديل" %}</option>
+                            <option value="delete">{% trans "حذف" %}</option>
+                            <option value="approve">{% trans "موافقة" %}</option>
+                            <option value="special">{% trans "صلاحية خاصة" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "يتطلب موافقة" %}</label>
+                        <select class="form-select" id="approvalFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نعم" %}</option>
+                            <option value="0">{% trans "لا" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="permissionsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "اسم الصلاحية" %}</th>
+                            <th>{% trans "الرمز" %}</th>
+                            <th>{% trans "التصنيف" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th>{% trans "المستخدمين" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    var table = $('#permissionsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:permission_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.category = $('#categoryFilter').val();
+                d.permission_type = $('#typeFilter').val();
+                d.is_active = $('#statusFilter').val();
+                d.requires_approval = $('#approvalFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "name"},
+            {"data": 1, "name": "code"},
+            {"data": 2, "name": "category"},
+            {"data": 3, "name": "permission_type"},
+            {"data": 4, "name": "is_active"},
+            {"data": 5, "name": "users_count"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[2, "asc"], [0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "{% trans 'الكل' %}"]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "dom": 'Bfrtip',
+        "buttons": [
+            {
+                extend: 'pageLength',
+                className: 'btn btn-outline-secondary btn-sm'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}',
+                className: 'btn btn-outline-success btn-sm'
+            }
+        ],
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [4, 5, 6] }
+        ]
+    });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#categoryFilter, #typeFilter, #statusFilter, #approvalFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#categoryFilter, #typeFilter, #statusFilter, #approvalFilter').val('');
+        table.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

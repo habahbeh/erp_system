@@ -1,0 +1,239 @@
+{# templates/core/permissions/permission_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف" %}</p>
+        </div>
+    </div>
+
+    <!-- Warning Alert -->
+    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h5 class="alert-heading mb-2">{% trans "تحذير!" %}</h5>
+                <p class="mb-1">{% trans "هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                <small>{% trans "سيتم حذف الصلاحية وإزالتها من جميع المستخدمين والمجموعات." %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permission Information -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex align-items-center">
+                    <i class="fas fa-shield-alt text-primary me-2"></i>
+                    <h6 class="card-title mb-0">{% trans "معلومات الصلاحية المراد حذفها" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "اسم الصلاحية" %}</label>
+                            <h5 class="mb-0">{{ object.name }}</h5>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "رمز الصلاحية" %}</label>
+                            <p class="mb-0">
+                                <code class="bg-light text-primary">{{ object.code }}</code>
+                            </p>
+                        </div>
+
+                        {% if object.description %}
+                        <div class="col-12">
+                            <label class="text-muted small">{% trans "الوصف" %}</label>
+                            <p class="mb-0">{{ object.description }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-4">
+                            <label class="text-muted small">{% trans "التصنيف" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-primary fs-6">{{ object.get_category_display }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="text-muted small">{% trans "نوع الصلاحية" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-secondary fs-6">{{ object.get_permission_type_display }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="text-muted small">{% trans "الحالة" %}</label>
+                            <div>
+                                {% if object.is_active %}
+                                    <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                {% endif %}
+                                {% if object.requires_approval %}
+                                    <span class="badge bg-warning ms-1">{% trans "يتطلب موافقة" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if object.max_amount %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الحد الأقصى للمبلغ" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-success fs-6">{{ object.max_amount|floatformat:2 }} د.أ</span>
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- إحصائيات التأثير -->
+                    <div class="row g-3 mt-3 pt-3 border-top">
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "المستخدمين المتأثرين" %}</small>
+                            <strong class="h4 text-danger">{{ object.users.count }}</strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "مجموعات Django" %}</small>
+                            <strong class="h4 text-warning">{{ object.groups.count }}</strong>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <small class="text-muted d-block">{% trans "مجموعات الصلاحيات" %}</small>
+                            <strong class="h4 text-info">{{ object.permissiongroup_set.count }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Form -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <!-- Confirmation Text -->
+                        <div class="mb-4">
+                            <label class="form-label required">{% trans "اكتب اسم الصلاحية للتأكيد" %}</label>
+                            <input type="text" class="form-control" id="confirmText" required 
+                                   placeholder="{{ object.name }}" autocomplete="off">
+                            <small class="form-text text-muted">
+                                {% trans "اكتب" %} "<strong>{{ object.name }}</strong>" {% trans "للتأكيد" %}
+                            </small>
+                        </div>
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>
+                                    {% trans "أؤكد أنني أريد حذف هذه الصلاحية نهائياً" %}
+                                </strong>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائي" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Additional Warning -->
+            <div class="alert alert-warning mt-4" role="alert">
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "معلومات مهمة" %}
+                </h6>
+                <p class="mb-2">{% trans "عند حذف هذه الصلاحية، ستتأثر البيانات التالية:" %}</p>
+                <ul class="mb-0">
+                    <li>{% trans "إزالة الصلاحية من جميع المستخدمين المخصصة لهم" %}</li>
+                    <li>{% trans "إزالة الصلاحية من جميع مجموعات Django" %}</li>
+                    <li>{% trans "إزالة الصلاحية من جميع مجموعات الصلاحيات المخصصة" %}</li>
+                    <li>{% trans "تعطيل أي وظائف تعتمد على هذه الصلاحية" %}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmText = document.getElementById('confirmText');
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+    const requiredText = "{{ object.name }}";
+
+    function checkValidation() {
+        const textValid = confirmText.value.trim() === requiredText;
+        const checkboxValid = confirmCheckbox.checked;
+        
+        deleteBtn.disabled = !(textValid && checkboxValid);
+        
+        // تغيير لون النص حسب الصحة
+        if (confirmText.value.trim() === '') {
+            confirmText.classList.remove('is-valid', 'is-invalid');
+        } else if (textValid) {
+            confirmText.classList.remove('is-invalid');
+            confirmText.classList.add('is-valid');
+        } else {
+            confirmText.classList.remove('is-valid');
+            confirmText.classList.add('is-invalid');
+        }
+    }
+
+    confirmText.addEventListener('input', checkValidation);
+    confirmCheckbox.addEventListener('change', checkValidation);
+
+    // Confirmation dialog before submit
+    deleteForm.addEventListener('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد تماماً من حذف هذه الصلاحية؟ هذا الإجراء لا يمكن التراجع عنه." %}')) {
+            e.preventDefault();
+        } else {
+            // Show loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}';
+            deleteBtn.disabled = true;
+        }
+    });
+
+    // Auto-focus on confirmation text
+    confirmText.focus();
+});
+</script>
+{% endblock %}

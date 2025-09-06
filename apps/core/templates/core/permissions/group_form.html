@@ -1,0 +1,331 @@
+{# templates/core/permissions/group_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل إعدادات مجموعة الصلاحيات" %}
+                {% else %}
+                    {% trans "إنشاء مجموعة صلاحيات جديدة تجمع بين Django والمخصصة" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- المعلومات الأساسية -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">{% trans "اسم المجموعة" %}</label>
+                            {{ form.name|add_class:"form-control" }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "الوصف" %}</label>
+                            {{ form.description|add_class:"form-control" }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "الشركة" %}</label>
+                            {{ form.company|add_class:"form-select" }}
+                            {% if form.company.errors %}
+                                <div class="invalid-feedback d-block">{{ form.company.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">{{ form.company.help_text }}</small>
+                        </div>
+
+                        <div class="form-check">
+                            {{ form.is_active|add_class:"form-check-input" }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {% trans "مجموعة نشطة" %}
+                            </label>
+                            {% if form.is_active.errors %}
+                                <div class="invalid-feedback d-block">{{ form.is_active.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- معاينة المجموعة -->
+                {% if is_update and form.instance %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-chart-pie"></i> {% trans "إحصائيات المجموعة" %}
+                        </h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <h5 class="text-primary mb-0">{{ form.instance.get_total_permissions_count }}</h5>
+                                <small class="text-muted">{% trans "إجمالي الصلاحيات" %}</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-info mb-0">{{ form.instance.get_custom_permissions_count }}</h6>
+                                <small class="text-muted">{% trans "مخصصة" %}</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-warning mb-0">{{ form.instance.get_django_permissions_count }}</h6>
+                                <small class="text-muted">{% trans "Django" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- الصلاحيات -->
+            <div class="col-lg-8">
+                <div class="row">
+                    <!-- الصلاحيات المخصصة -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4 h-100">
+                            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-shield-alt"></i> {% trans "الصلاحيات المخصصة" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-light" onclick="selectAllCustom()">
+                                    {% trans "تحديد الكل" %}
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                {{ form.permissions|add_class:"form-select" }}
+                                {% if form.permissions.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.permissions.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.permissions.help_text }}</small>
+                                
+                                <!-- عرض الصلاحيات حسب التصنيف -->
+                                <div class="mt-3">
+                                    <small class="text-muted">{% trans "تصنيفات متاحة:" %}</small>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        <span class="badge bg-primary">{% trans "المبيعات" %}</span>
+                                        <span class="badge bg-info">{% trans "المشتريات" %}</span>
+                                        <span class="badge bg-warning">{% trans "المخازن" %}</span>
+                                        <span class="badge bg-danger">{% trans "المحاسبة" %}</span>
+                                        <span class="badge bg-secondary">{% trans "النظام" %}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- صلاحيات Django -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4 h-100">
+                            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-cogs"></i> {% trans "صلاحيات Django" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="selectAllDjango()">
+                                    {% trans "تحديد الكل" %}
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                {{ form.django_permissions|add_class:"form-select" }}
+                                {% if form.django_permissions.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.django_permissions.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.django_permissions.help_text }}</small>
+                                
+                                <!-- عرض التطبيقات المتاحة -->
+                                <div class="mt-3">
+                                    <small class="text-muted">{% trans "تطبيقات متاحة:" %}</small>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        <span class="badge bg-primary">core</span>
+                                        <span class="badge bg-info">auth</span>
+                                        <span class="badge bg-warning">sales</span>
+                                        <span class="badge bg-success">purchases</span>
+                                        <span class="badge bg-danger">accounting</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- أزرار مساعدة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-magic"></i> {% trans "قوالب سريعة" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="applyTemplate('sales')">
+                                    {% trans "موظف مبيعات" %}
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-success" onclick="applyTemplate('manager')">
+                                    {% trans "مدير" %}
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="applyTemplate('accountant')">
+                                    {% trans "محاسب" %}
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyTemplate('warehouse')">
+                                    {% trans "أمين مخزن" %}
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
+                                    {% trans "مسح الكل" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ cancel_url }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> {{ submit_text }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+function selectAllCustom() {
+    const select = document.getElementById('{{ form.permissions.id_for_label }}');
+    for (let option of select.options) {
+        option.selected = true;
+    }
+}
+
+function selectAllDjango() {
+    const select = document.getElementById('{{ form.django_permissions.id_for_label }}');
+    for (let option of select.options) {
+        option.selected = true;
+    }
+}
+
+function clearAllSelections() {
+    const customSelect = document.getElementById('{{ form.permissions.id_for_label }}');
+    const djangoSelect = document.getElementById('{{ form.django_permissions.id_for_label }}');
+    
+    for (let option of customSelect.options) {
+        option.selected = false;
+    }
+    for (let option of djangoSelect.options) {
+        option.selected = false;
+    }
+}
+
+function applyTemplate(template) {
+    clearAllSelections();
+    
+    const customSelect = document.getElementById('{{ form.permissions.id_for_label }}');
+    const djangoSelect = document.getElementById('{{ form.django_permissions.id_for_label }}');
+    
+    // تطبيق القوالب المختلفة
+    switch(template) {
+        case 'sales':
+            // صلاحيات المبيعات
+            selectOptionsByText(customSelect, ['apply_discount', 'modify_sales_price', 'view_sales_profit']);
+            selectOptionsByText(djangoSelect, ['view_item', 'view_businesspartner']);
+            break;
+            
+        case 'manager':
+            // صلاحيات المدير
+            selectOptionsByText(customSelect, ['approve_purchase_order', 'void_sales_invoice', 'financial_reports']);
+            selectOptionsByText(djangoSelect, ['add_item', 'change_item', 'add_businesspartner']);
+            break;
+            
+        case 'accountant':
+            // صلاحيات المحاسب
+            selectOptionsByText(customSelect, ['manual_journal_entry', 'view_cost_analysis', 'financial_reports']);
+            selectOptionsByText(djangoSelect, ['view_item', 'view_businesspartner']);
+            break;
+            
+        case 'warehouse':
+            // صلاحيات أمين المخزن
+            selectOptionsByText(customSelect, ['stock_adjustment', 'inventory_count', 'bulk_stock_transfer']);
+            selectOptionsByText(djangoSelect, ['view_item', 'change_item', 'view_warehouse']);
+            break;
+    }
+}
+
+function selectOptionsByText(select, texts) {
+    for (let option of select.options) {
+        if (texts.some(text => option.text.includes(text) || option.value.includes(text))) {
+            option.selected = true;
+        }
+    }
+}
+</script>
+{% endblock %}

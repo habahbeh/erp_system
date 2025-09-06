@@ -1,0 +1,175 @@
+{# templates/core/user_profiles/profile_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تحديث إعدادات وصلاحيات المستخدم" %}</p>
+        </div>
+    </div>
+
+    <!-- User Info -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-user"></i> {% trans "معلومات المستخدم" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 me-3">
+                    <div class="user-avatar">
+                        {{ object.user.first_name.0|default:object.user.username.0|upper }}
+                    </div>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="mb-1">{{ object.user.get_full_name|default:object.user.username }}</h5>
+                    <p class="text-muted mb-1">{{ object.user.email }}</p>
+                    <small class="text-muted">
+                        {% if object.user.company %}{{ object.user.company.name }}{% endif %}
+                        {% if object.user.branch %} - {{ object.user.branch.name }}{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- الحدود والقيود -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-shield-alt"></i> {% trans "الحدود والقيود" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">{% trans "نسبة الخصم المسموحة %" %}</label>
+                                {{ form.max_discount_percentage|add_class:"form-control" }}
+                                {% if form.max_discount_percentage.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.max_discount_percentage.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "الحد الأقصى لنسبة الخصم التي يمكن للمستخدم تطبيقها" %}
+                                </small>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "حد الائتمان المسموح" %}</label>
+                                <div class="input-group">
+                                    {{ form.max_credit_limit|add_class:"form-control" }}
+                                    <span class="input-group-text">د.أ</span>
+                                </div>
+                                {% if form.max_credit_limit.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.max_credit_limit.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "الحد الأقصى للائتمان الذي يمكن للمستخدم منحه للعملاء" %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الصلاحيات المكانية -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-map-marker-alt"></i> {% trans "الصلاحيات المكانية" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الفروع المسموحة" %}</label>
+                                {{ form.allowed_branches|add_class:"form-select" }}
+                                {% if form.allowed_branches.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.allowed_branches.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {{ form.allowed_branches.help_text }}
+                                </small>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "المستودعات المسموحة" %}</label>
+                                {{ form.allowed_warehouses|add_class:"form-select" }}
+                                {% if form.allowed_warehouses.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.allowed_warehouses.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {{ form.allowed_warehouses.help_text }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ cancel_url }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> {{ submit_text }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}
