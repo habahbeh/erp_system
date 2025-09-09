@@ -1,100 +1,153 @@
-# apps/core/views/base_views.py
-"""
-Views الأساسية - Dashboard والتنقل
-"""
-
-from django.shortcuts import render, redirect
+# إضافة في أعلى الملف
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.utils.translation import gettext as _
+from django.shortcuts import render
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.contrib.auth import get_user_model
-from ..models import Branch, Item, BusinessPartner, ItemCategory, Warehouse, Brand, UnitOfMeasure, Currency, NumberingSequence, VariantAttribute
+from django.db.models import Count
+from django.http import JsonResponse
+from datetime import datetime, timedelta
+import json
+
+from ..models import Company, CustomPermission, PermissionGroup
 
 User = get_user_model()
 
 
-@login_required
 def dashboard(request):
-    """الصفحة الرئيسية"""
-
-    # الحصول على الإحصائيات
+    """لوحة التحكم الرئيسية مع KPIs وإحصائيات"""
     context = {
         'title': _('لوحة التحكم'),
-        'current_branch': request.current_branch,
-        'current_company': request.current_company,
+        'today': timezone.now(),
+
+        # إحصائيات أساسية
+        'total_users': User.objects.count(),
+        'total_companies': Company.objects.filter(is_active=True).count(),
+        'active_companies': Company.objects.filter(is_active=True).count(),
+        'total_permissions': CustomPermission.objects.filter(is_active=True).count(),
+        'permission_groups_count': PermissionGroup.objects.filter(is_active=True).count(),
+
+        # إحصائيات شهرية
+        'new_users_this_month': User.objects.filter(
+            date_joined__gte=timezone.now().replace(day=1)
+        ).count(),
+
+        # بيانات للـ Charts
+        'activity_labels': json.dumps(_get_activity_labels()),
+        'login_data': json.dumps(_get_login_data()),
+        'active_users_data': json.dumps(_get_active_users_data()),
+        'permission_categories': json.dumps(_get_permission_categories()),
+        'permission_counts': json.dumps(_get_permission_counts()),
+
+        # الأنشطة الأخيرة
+        'recent_activities': _get_recent_activities(request.user),
     }
-
-    # إضافة إحصائيات إذا كان هناك شركة حالية
-    if hasattr(request, 'current_company') and request.current_company:
-        company = request.current_company
-
-        # إحصائيات الأصناف
-        if request.user.has_perm('core.view_item'):
-            context['items_count'] = Item.objects.filter(company=company).count()
-            context['recent_items'] = Item.objects.filter(company=company).order_by('-created_at')[:5]
-
-        # إحصائيات الشركاء التجاريين
-        if request.user.has_perm('core.view_businesspartner'):
-            context['partners_count'] = BusinessPartner.objects.filter(company=company).count()
-
-        # إحصائيات التصنيفات
-        if request.user.has_perm('core.view_itemcategory'):
-            context['categories_count'] = ItemCategory.objects.filter(company=company).count()
-
-        # إحصائيات المستودعات
-        if request.user.has_perm('core.view_warehouse'):
-            context['warehouses_count'] = Warehouse.objects.filter(company=company).count()
-
-        # إحصائيات العلامات التجارية
-        if request.user.has_perm('core.view_brand'):
-            context['brands_count'] = Brand.objects.filter(company=company).count()
-
-        # إحصائيات وحدات القياس
-        if request.user.has_perm('core.view_unitofmeasure'):
-            context['units_count'] = UnitOfMeasure.objects.filter(company=company).count()
-
-        # إحصائيات العملات
-        if request.user.has_perm('core.view_currency'):
-            context['currencies_count'] = Currency.objects.filter(is_active=True).count()
-            context['base_currency'] = Currency.objects.filter(is_base=True).first()
-
-        # إحصائيات الفروع
-        if request.user.has_perm('core.view_branch'):
-            context['branches_count'] = Branch.objects.filter(company=company).count()
-
-        # إحصائيات تسلسل الترقيم
-        if request.user.has_perm('core.view_numberingsequence'):
-            context['numbering_sequences_count'] = NumberingSequence.objects.filter(company=company).count()
-            context['total_document_types'] = len(NumberingSequence.DOCUMENT_TYPES)
-
-        if request.user.has_perm('core.view_variantattribute'):
-            context['variant_attributes_count'] = VariantAttribute.objects.filter(company=company).count()
-
-        # إحصائيات المستخدمين - إضافة جديد
-        if request.user.has_perm('auth.view_user'):
-            context['users_count'] = User.objects.filter(company=company, is_active=True).count()
-            context['total_users_count'] = User.objects.filter(company=company).count()
-            context['superuser_count'] = User.objects.filter(company=company, is_superuser=True).count()
-            context['staff_count'] = User.objects.filter(company=company, is_staff=True, is_superuser=False).count()
-            context['recent_users'] = User.objects.filter(company=company).order_by('-date_joined')[:5]
 
     return render(request, 'core/dashboard.html', context)
 
 
-@login_required
-def switch_branch(request, branch_id):
-    """تبديل الفرع الحالي"""
-    try:
-        branch = Branch.objects.get(id=branch_id)
-        if request.user.can_access_branch(branch):
-            request.session['current_branch'] = branch_id
-            messages.success(
-                request,
-                _('تم التبديل إلى فرع: %(branch)s') % {'branch': branch.name}
-            )
-        else:
-            messages.error(request, _('ليس لديك صلاحية للوصول لهذا الفرع'))
-    except Branch.DoesNotExist:
-        messages.error(request, _('الفرع غير موجود'))
+def _get_activity_labels():
+    """الحصول على تسميات آخر 7 أيام"""
+    labels = []
+    for i in range(6, -1, -1):
+        date = timezone.now() - timedelta(days=i)
+        labels.append(date.strftime('%d/%m'))
+    return labels
 
-    return redirect('core:dashboard')
+
+def _get_login_data():
+    """بيانات تسجيل الدخول لآخر 7 أيام"""
+    # بيانات وهمية للآن - سنستبدلها بالحقيقية لاحقاً
+    return [12, 19, 15, 25, 22, 18, 30]
+
+
+def _get_active_users_data():
+    """بيانات المستخدمين النشطين لآخر 7 أيام"""
+    data = []
+    for i in range(6, -1, -1):
+        date = timezone.now() - timedelta(days=i)
+        count = User.objects.filter(
+            last_login__date=date.date(),
+            is_active=True
+        ).count()
+        data.append(count)
+    return data
+
+
+# def _get_permission_categories():
+#     """تصنيفات الصلاحيات"""
+#     categories = CustomPermission.objects.values_list('category', flat=True).distinct()
+#     return [dict(CustomPermission.CATEGORY_CHOICES).get(cat, cat) for cat in categories]
+
+def _get_permission_categories():
+    """تصنيفات الصلاحيات"""
+    categories = CustomPermission.objects.values_list('category', flat=True).distinct()
+    category_choices = {
+        'sales': 'المبيعات',
+        'purchases': 'المشتريات',
+        'inventory': 'المخازن',
+        'accounting': 'المحاسبة',
+        'hr': 'الموارد البشرية',
+        'reports': 'التقارير',
+        'system': 'النظام'
+    }
+    return [category_choices.get(cat, cat) for cat in categories]
+
+
+def _get_permission_counts():
+    """عدد الصلاحيات لكل تصنيف"""
+    categories = CustomPermission.objects.values('category').annotate(
+        count=Count('id')
+    ).order_by('category')
+    return [item['count'] for item in categories]
+
+
+def _get_recent_activities(user):
+    """الأنشطة الأخيرة للمستخدم"""
+    activities = []
+
+    # المستخدمين الجدد
+    recent_users = User.objects.filter(
+        date_joined__gte=timezone.now() - timedelta(days=7)
+    ).order_by('-date_joined')[:3]
+
+    for u in recent_users:
+        activities.append({
+            'description': f'انضم المستخدم {u.get_full_name() or u.username} للنظام',
+            'icon': 'user-plus',
+            'color': 'success',
+            'created_at': u.date_joined
+        })
+
+    # الشركات الجديدة
+    recent_companies = Company.objects.filter(
+        created_at__gte=timezone.now() - timedelta(days=7)
+    ).order_by('-created_at')[:2]
+
+    for c in recent_companies:
+        activities.append({
+            'description': f'تم إضافة شركة {c.name}',
+            'icon': 'building',
+            'color': 'primary',
+            'created_at': c.created_at
+        })
+
+    # ترتيب حسب التاريخ
+    activities.sort(key=lambda x: x['created_at'], reverse=True)
+
+    return activities[:5]
+
+
+# Ajax endpoint للتحديث المباشر
+@login_required
+def dashboard_ajax(request):
+    """إرجاع بيانات Dashboard للتحديث المباشر"""
+    data = {
+        'total_users': User.objects.count(),
+        'total_companies': Company.objects.filter(is_active=True).count(),
+        'total_permissions': CustomPermission.objects.filter(is_active=True).count(),
+        'today_activities': User.objects.filter(
+            last_login__date=timezone.now().date()
+        ).count(),
+    }
+    return JsonResponse(data)

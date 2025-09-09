@@ -8,7 +8,8 @@ app_name = 'core'
 urlpatterns = [
     # الرئيسية
     path('', views.dashboard, name='dashboard'),
-    path('switch-branch/<int:branch_id>/', views.switch_branch, name='switch_branch'),
+    path('ajax/dashboard/', views.dashboard_ajax, name='dashboard_ajax'),
+    # path('switch-branch/<int:branch_id>/', views.switch_branch, name='switch_branch'),
 
     # الأصناف
     path('items/', views.ItemListView.as_view(), name='item_list'),

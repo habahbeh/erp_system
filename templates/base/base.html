@@ -1,3 +1,4 @@
+{# templates/base/base.html #}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -16,40 +17,72 @@
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
+    <!-- SweetAlert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Navbar -->
-    {% include 'includes/navbar.html' %}
-
-    <!-- Main Content -->
-    <div class="container-fluid">
-        <div class="row">
+    {% if user.is_authenticated %}
+        <!-- Layout with Sidebar -->
+        <div class="main-wrapper d-flex">
             <!-- Sidebar -->
-            {% if user.is_authenticated %}
+            <nav class="sidebar" id="sidebar">
                 {% include 'includes/sidebar.html' %}
-            {% endif %}
+            </nav>
 
-            <!-- Content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <!-- Messages -->
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show mt-3" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+            <!-- Main Content Area -->
+            <div class="content-wrapper flex-grow-1">
+                <!-- Top Navbar -->
+                {% include 'includes/navbar.html' %}
 
                 <!-- Page Content -->
-                {% block content %}{% endblock %}
+                <main class="main-content">
+                    <!-- Messages -->
+                    {% if messages %}
+                        <div class="messages-container">
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- Page Content -->
+                    {% block content %}{% endblock %}
+                </main>
+            </div>
+        </div>
+    {% else %}
+        <!-- Guest Layout (No Sidebar) -->
+        <div class="guest-wrapper">
+            {% include 'includes/navbar.html' %}
+            <main class="guest-content">
+                {% if messages %}
+                    <div class="container mt-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <!-- Content for guest users only -->
+                <div class="guest-only-content">
+                    {% block guest_content %}{% endblock %}
+                </div>
             </main>
         </div>
-    </div>
+    {% endif %}
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.5"></script>
@@ -57,9 +90,190 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-
     {% block extra_js %}{% endblock %}
+
+    <style>
+        /* إعدادات عامة */
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Layout مع Sidebar */
+        .main-wrapper {
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .content-wrapper {
+            margin-right: 280px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 0;
+            background-color: #f8f9fa;
+        }
+
+        .messages-container {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            right: 300px;
+            z-index: 1050;
+            pointer-events: none;
+        }
+
+        .messages-container .alert {
+            pointer-events: all;
+            margin-bottom: 10px;
+        }
+
+        /* Guest Layout (بدون sidebar) */
+        .guest-wrapper {
+            min-height: 100vh;
+        }
+
+        .guest-content {
+            padding-top: 80px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .content-wrapper {
+                margin-right: 0;
+            }
+
+            .messages-container {
+                right: 20px;
+            }
+        }
+
+        /* Sidebar Toggle Button للموبايل */
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 1051;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-toggle {
+                display: block;
+            }
+        }
+
+        /* Overlay للموبايل */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-overlay.show {
+                display: block;
+            }
+        }
+
+        /* إضافات للـ navbar */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+
+        /* تحسينات للـ guest layout */
+        .guest-only-content {
+            min-height: calc(100vh - 160px);
+        }
+    </style>
+
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle d-md-none" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <script>
+        // Mobile Sidebar Functions
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+
+        // إغلاق الـ sidebar عند الضغط على رابط (موبايل)
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.innerWidth <= 768) {
+                document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (!this.hasAttribute('data-bs-toggle')) {
+                            closeSidebar();
+                        }
+                    });
+                });
+            }
+        });
+
+        // Global functions
+        function showComingSoon(feature) {
+            Swal.fire({
+                icon: 'info',
+                title: 'قريباً',
+                text: `ميزة ${feature} قيد التطوير وستكون متاحة قريباً`,
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#0d6efd'
+            });
+        }
+    </script>
 </body>
 </html>

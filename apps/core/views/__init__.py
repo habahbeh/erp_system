@@ -3,7 +3,8 @@
 استيراد جميع الـ Views
 """
 
-from .base_views import dashboard, switch_branch
+# from .base_views import dashboard, switch_branch
+from .base_views import dashboard, dashboard_ajax
 from .item_views import (
     ItemListView, ItemCreateView, ItemUpdateView, ItemDeleteView, ItemDetailView,
     ItemCategoryListView, ItemCategoryCreateView, ItemCategoryUpdateView, ItemCategoryDeleteView
@@ -71,7 +72,8 @@ from .ajax_views import (
 __all__ = [
     # Base Views
     'dashboard',
-    'switch_branch',
+    # 'switch_branch',
+    'dashboard_ajax',
 
     # Item Views
     'ItemListView',
