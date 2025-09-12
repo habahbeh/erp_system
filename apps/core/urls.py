@@ -18,6 +18,7 @@ urlpatterns = [
     path('items/<int:pk>/update/', views.ItemUpdateView.as_view(), name='item_update'),
     path('items/<int:pk>/delete/', views.ItemDeleteView.as_view(), name='item_delete'),
 
+
     # تصنيفات الأصناف
     path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
     path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),

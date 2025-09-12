@@ -48,6 +48,7 @@ class CompanyBranchMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """معالجة الطلب وإضافة الشركة والفرع"""
 
+        print('request.user.is_authenticated', request.user.is_authenticated)
         # إضافة الشركة الحالية
         if request.user.is_authenticated:
             if hasattr(request.user, 'company') and request.user.company:
@@ -55,6 +56,11 @@ class CompanyBranchMiddleware(MiddlewareMixin):
             else:
                 # للتطبيقات التي تحتاج شركة افتراضية
                 request.current_company = Company.objects.filter(is_active=True).first()
+
+            # تشخيص المشكلة - طباعة للتأكد
+            print(f"User: {request.user.username}")
+            print(f"User company: {getattr(request.user, 'company', 'None')}")
+            print(f"Current company: {request.current_company}")
         else:
             request.current_company = None
 

@@ -124,9 +124,22 @@ class ItemForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
+        # التأكد من وجود الشركة
+        company = None
         if self.request:
-            company = self.request.current_company
+            if hasattr(self.request, 'current_company') and self.request.current_company:
+                company = self.request.current_company
+            elif hasattr(self.request.user, 'company') and self.request.user.company:
+                company = self.request.user.company
+            else:
+                # استخدام أول شركة متاحة
+                from ..models import Company
+                company = Company.objects.filter(is_active=True).first()
 
+        # تشخيص المشكلة - طباعة للتأكد (أزل في الإنتاج)
+        print(f"Form company: {company}")
+
+        if company:
             try:
                 from apps.accounting.models import Account
                 accounts_queryset = Account.objects.filter(company=company, is_active=True)
@@ -146,19 +159,35 @@ class ItemForm(forms.ModelForm):
                 self.fields['cost_of_goods_account'].queryset = self.fields['cost_of_goods_account'].queryset.none()
 
             # فلترة الخيارات حسب الشركة
-            self.fields['category'].queryset = ItemCategory.objects.filter(
-                company=company, is_active=True
-            )
-            self.fields['brand'].queryset = Brand.objects.filter(
-                company=company, is_active=True
-            )
-            self.fields['unit_of_measure'].queryset = UnitOfMeasure.objects.filter(
-                company=company, is_active=True
-            )
+            categories = ItemCategory.objects.filter(company=company, is_active=True)
+            brands = Brand.objects.filter(company=company, is_active=True)
+            units = UnitOfMeasure.objects.filter(company=company, is_active=True)
+            warehouses = Warehouse.objects.filter(company=company, is_active=True)
+
+            # تشخيص إضافي
+            print(f"Categories found: {categories.count()}")
+            print(f"Brands found: {brands.count()}")
+            print(f"Units found: {units.count()}")
+            print(f"Warehouses found: {warehouses.count()}")
+
+            self.fields['category'].queryset = categories
+            self.fields['brand'].queryset = brands
+            self.fields['unit_of_measure'].queryset = units
             self.fields['currency'].queryset = Currency.objects.filter(is_active=True)
-            self.fields['default_warehouse'].queryset = Warehouse.objects.filter(
-                company=company, is_active=True
-            )
+            self.fields['default_warehouse'].queryset = warehouses
+        else:
+            # إذا لم توجد شركة، أجعل كل الحقول فارغة
+            self.fields['category'].queryset = ItemCategory.objects.none()
+            self.fields['brand'].queryset = Brand.objects.none()
+            self.fields['unit_of_measure'].queryset = UnitOfMeasure.objects.none()
+            self.fields['currency'].queryset = Currency.objects.filter(is_active=True)
+            self.fields['default_warehouse'].queryset = Warehouse.objects.none()
+
+            # معالجة الحسابات المحاسبية
+            self.fields['sales_account'].queryset = self.fields['sales_account'].queryset.none()
+            self.fields['purchase_account'].queryset = self.fields['purchase_account'].queryset.none()
+            self.fields['inventory_account'].queryset = self.fields['inventory_account'].queryset.none()
+            self.fields['cost_of_goods_account'].queryset = self.fields['cost_of_goods_account'].queryset.none()
 
         # جعل بعض الحقول اختيارية في العرض
         self.fields['brand'].required = False
