@@ -84,6 +84,7 @@ urlpatterns = [
     path('variant-attributes/<int:pk>/delete/', views.VariantAttributeDeleteView.as_view(),
          name='variant_attribute_delete'),
 
+
     # المستخدمين - إضافة جديد
     path('users/', views.UserListView.as_view(), name='user_list'),
     path('users/<int:pk>/', views.UserDetailView.as_view(), name='user_detail'),

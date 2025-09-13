@@ -4,6 +4,98 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Google Material Design Tabs - ألوان محسنة */
+.nav-tabs-material {
+    border: none;
+    background: #f8f9fa;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 12px 12px 0 0;
+    padding: 0 8px;
+}
+
+.nav-tabs-material .nav-link {
+    border: none;
+    color: #495057 !important;  /* رمادي غامق واضح */
+    padding: 18px 28px;
+    font-weight: 600;
+    font-size: 15px;
+    position: relative;
+    background: transparent;
+    border-radius: 8px 8px 0 0;
+    margin: 4px 2px 0;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs-material .nav-link:hover {
+    color: #1a73e8 !important;  /* أزرق واضح */
+    background: rgba(26, 115, 232, 0.08) !important;
+    border: none;
+    text-decoration: none;
+}
+
+.nav-tabs-material .nav-link.active {
+    color: #1a73e8 !important;  /* أزرق واضح للتاب النشط */
+    background: white !important;
+    border: none;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 -2px 12px rgba(26, 115, 232, 0.15);
+}
+
+.nav-tabs-material .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1a73e8, #4285f4);
+    border-radius: 4px 4px 0 0;
+}
+
+/* تحسين أيقونات التابز */
+.tab-icon {
+    margin-left: 10px;
+    font-size: 18px;
+    color: inherit !important;
+}
+
+/* تحسين محتوى التابز */
+.tab-content-material {
+    background: white;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    padding: 32px;
+    min-height: 500px;
+}
+
+/* باقي الـ CSS كما هو... */
+.form-control:invalid {
+    border-color: #ea4335;
+    box-shadow: 0 0 0 0.2rem rgba(234, 67, 53, 0.25);
+}
+
+.form-control:valid {
+    border-color: #34a853;
+}
+
+.invalid-feedback {
+    display: block;
+    color: #ea4335;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.required-field::after {
+    content: ' *';
+    color: #ea4335;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
@@ -27,299 +119,485 @@
             <h1 class="h3 mb-1">{{ title }}</h1>
             <p class="text-muted mb-0">
                 {% if is_update %}
-                    {% trans "تعديل بيانات الصنف" %}
+                    {% trans "تعديل بيانات الصنف وإدارة متغيراته" %}
                 {% else %}
-                    {% trans "إضافة صنف جديد للشركة" %}
+                    {% trans "إضافة صنف جديد مع إمكانية إنشاء متغيرات" %}
                 {% endif %}
             </p>
         </div>
     </div>
 
-    <!-- Form -->
-    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <!-- Form Progress -->
+    <div class="form-progress">
+        <div class="form-progress-bar" id="formProgress"></div>
+    </div>
+
+    <!-- Form with Tabs -->
+    <form method="post" enctype="multipart/form-data" id="itemForm" class="needs-validation" novalidate>
         {% csrf_token %}
 
-        <div class="row">
-            <!-- المعلومات الأساسية -->
-            <div class="col-lg-8">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "رمز الصنف" %}</label>
-                                {{ form.code|add_class:"form-control" }}
-                                {% if form.code.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
-                                {% endif %}
-                                <small class="form-text text-muted">{% trans "سيتم توليده تلقائياً إذا ترك فارغاً" %}</small>
-                            </div>
+        <!-- Material Design Tabs -->
+        <div class="card shadow-sm">
+            <ul class="nav nav-tabs nav-tabs-material" id="itemTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="basic-tab" data-bs-toggle="tab"
+                            data-bs-target="#basic-content" type="button" role="tab">
+                        <i class="fas fa-info-circle tab-icon"></i>
+                        {% trans "المعلومات الأساسية" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pricing-tab" data-bs-toggle="tab"
+                            data-bs-target="#pricing-content" type="button" role="tab">
+                        <i class="fas fa-dollar-sign tab-icon"></i>
+                        {% trans "الأسعار والضرائب" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="description-tab" data-bs-toggle="tab"
+                            data-bs-target="#description-content" type="button" role="tab">
+                        <i class="fas fa-file-alt tab-icon"></i>
+                        {% trans "الوصف والمواصفات" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="variants-tab" data-bs-toggle="tab"
+                            data-bs-target="#variants-content" type="button" role="tab">
+                        <i class="fas fa-layer-group tab-icon"></i>
+                        {% trans "المتغيرات" %}
+                        <span class="badge bg-primary ms-2" id="variantCount">0</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="media-tab" data-bs-toggle="tab"
+                            data-bs-target="#media-content" type="button" role="tab">
+                        <i class="fas fa-images tab-icon"></i>
+                        {% trans "الوسائط والملفات" %}
+                    </button>
+                </li>
+            </ul>
 
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "اسم الصنف" %}</label>
-                                {{ form.name|add_class:"form-control" }}
-                                {% if form.name.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+            <div class="tab-content tab-content-material" id="itemTabsContent">
 
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
-                                {{ form.name_en|add_class:"form-control" }}
-                                {% if form.name_en.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.name_en.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                <!-- Tab 1: Basic Information -->
+                <div class="tab-pane fade show active" id="basic-content" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "رمز الصنف" %}</label>
+                            {{ form.code|add_class:"form-control" }}
+                            {% if form.code.errors %}
+                                <div class="invalid-feedback">{{ form.code.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">{% trans "سيتم توليده تلقائياً إذا ترك فارغاً" %}</small>
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "SKU" %}</label>
+                        <div class="col-md-6">
+                            <label class="form-label required-field">{% trans "اسم الصنف" %}</label>
+                            {{ form.name|add_class:"form-control" }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">{{ form.name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "الاسم الإنجليزي" %}</label>
+                            {{ form.name_en|add_class:"form-control" }}
+                            {% if form.name_en.errors %}
+                                <div class="invalid-feedback">{{ form.name_en.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "SKU" %}</label>
+                            <div class="input-group">
                                 {{ form.sku|add_class:"form-control" }}
-                                {% if form.sku.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.sku.errors.0 }}</div>
-                                {% endif %}
+                                <button type="button" class="btn btn-outline-primary" id="generateSku">
+                                    <i class="fas fa-magic"></i>
+                                </button>
                             </div>
+                            {% if form.sku.errors %}
+                                <div class="invalid-feedback">{{ form.sku.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "الباركود" %}</label>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "الباركود" %}</label>
+                            <div class="input-group">
                                 {{ form.barcode|add_class:"form-control" }}
-                                {% if form.barcode.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.barcode.errors.0 }}</div>
-                                {% endif %}
+                                <button type="button" class="btn btn-outline-primary" id="generateBarcode">
+                                    <i class="fas fa-barcode"></i>
+                                </button>
                             </div>
+                            {% if form.barcode.errors %}
+                                <div class="invalid-feedback">{{ form.barcode.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "التصنيف" %}</label>
-                                {{ form.category|add_class:"form-select" }}
-                                {% if form.category.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.category.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label required-field">{% trans "التصنيف" %}</label>
+                            {{ form.category|add_class:"form-select" }}
+                            {% if form.category.errors %}
+                                <div class="invalid-feedback">{{ form.category.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "العلامة التجارية" %}</label>
-                                {{ form.brand|add_class:"form-select" }}
-                                {% if form.brand.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.brand.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "العلامة التجارية" %}</label>
+                            {{ form.brand|add_class:"form-select" }}
+                            {% if form.brand.errors %}
+                                <div class="invalid-feedback">{{ form.brand.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "وحدة القياس" %}</label>
-                                {{ form.unit_of_measure|add_class:"form-select" }}
-                                {% if form.unit_of_measure.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.unit_of_measure.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label required-field">{% trans "وحدة القياس" %}</label>
+                            {{ form.unit_of_measure|add_class:"form-select" }}
+                            {% if form.unit_of_measure.errors %}
+                                <div class="invalid-feedback">{{ form.unit_of_measure.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <!-- الأسعار والضرائب -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-dollar-sign"></i> {% trans "الأسعار والضرائب" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "العملة" %}</label>
-                                {{ form.currency|add_class:"form-select" }}
-                                {% if form.currency.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.currency.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                <!-- Tab 2: Pricing & Tax -->
+                <div class="tab-pane fade" id="pricing-content" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label required-field">{% trans "العملة" %}</label>
+                            {{ form.currency|add_class:"form-select" }}
+                            {% if form.currency.errors %}
+                                <div class="invalid-feedback">{{ form.currency.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "المستودع الافتراضي" %}</label>
-                                {{ form.default_warehouse|add_class:"form-select" }}
-                                {% if form.default_warehouse.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.default_warehouse.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "المستودع الافتراضي" %}</label>
+                            {{ form.default_warehouse|add_class:"form-select" }}
+                            {% if form.default_warehouse.errors %}
+                                <div class="invalid-feedback">{{ form.default_warehouse.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-
-
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "نسبة الضريبة %" %}</label>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "نسبة الضريبة %" %}</label>
+                            <div class="input-group">
                                 {{ form.tax_rate|add_class:"form-control" }}
-                                {% if form.tax_rate.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.tax_rate.errors.0 }}</div>
-                                {% endif %}
+                                <span class="input-group-text">%</span>
                             </div>
+                            {% if form.tax_rate.errors %}
+                                <div class="invalid-feedback">{{ form.tax_rate.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- الحسابات المحاسبية -->
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-calculator"></i> {% trans "الحسابات المحاسبية" %}
+                            </h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "حساب المبيعات" %}</label>
+                            {{ form.sales_account|add_class:"form-select" }}
+                            {% if form.sales_account.errors %}
+                                <div class="invalid-feedback">{{ form.sales_account.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "حساب المشتريات" %}</label>
+                            {{ form.purchase_account|add_class:"form-select" }}
+                            {% if form.purchase_account.errors %}
+                                <div class="invalid-feedback">{{ form.purchase_account.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "حساب المخزون" %}</label>
+                            {{ form.inventory_account|add_class:"form-select" }}
+                            {% if form.inventory_account.errors %}
+                                <div class="invalid-feedback">{{ form.inventory_account.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "حساب تكلفة البضاعة المباعة" %}</label>
+                            {{ form.cost_of_goods_account|add_class:"form-select" }}
+                            {% if form.cost_of_goods_account.errors %}
+                                <div class="invalid-feedback">{{ form.cost_of_goods_account.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <!-- الوصف -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-file-alt"></i> {% trans "الوصف والتفاصيل" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">{% trans "وصف مختصر" %}</label>
-                                {{ form.short_description|add_class:"form-control" }}
-                                {% if form.short_description.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.short_description.errors.0 }}</div>
-                                {% endif %}
-                                <small class="form-text text-muted">{% trans "حد أقصى 300 حرف" %}</small>
-                            </div>
-
-                            <div class="col-12">
-                                <label class="form-label">{% trans "الوصف التفصيلي" %}</label>
-                                {{ form.description|add_class:"form-control" }}
-                                {% if form.description.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                <!-- Tab 3: Description & Specifications -->
+                <div class="tab-pane fade" id="description-content" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <label class="form-label">{% trans "وصف مختصر" %}</label>
+                            {{ form.short_description|add_class:"form-control" }}
+                            {% if form.short_description.errors %}
+                                <div class="invalid-feedback">{{ form.short_description.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">{% trans "حد أقصى 300 حرف" %}</small>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- الشريط الجانبي -->
-            <div class="col-lg-4">
-                <!-- إعدادات إضافية -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-warning text-dark">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-cogs"></i> {% trans "إعدادات إضافية" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-check mb-3">
-                            {{ form.has_variants|add_class:"form-check-input" }}
-                            <label class="form-check-label">
-                                {% trans "هذا الصنف له متغيرات" %}
-                            </label>
+                        <div class="col-12">
+                            <label class="form-label">{% trans "الوصف التفصيلي" %}</label>
+                            {{ form.description|add_class:"form-control" }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
+                            {% endif %}
                         </div>
-                    </div>
-                </div>
 
-                <!-- الأبعاد -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-secondary text-white">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-ruler-combined"></i> {% trans "الأبعاد الفيزيائية" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">{% trans "الوزن (كغ)" %}</label>
+                        <!-- Physical Dimensions -->
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-ruler-combined"></i> {% trans "الأبعاد الفيزيائية" %}
+                            </h6>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "الوزن (كغ)" %}</label>
+                            <div class="input-group">
                                 {{ form.weight|add_class:"form-control" }}
+                                <span class="input-group-text">كغ</span>
                             </div>
-                            <div class="col-4">
-                                <label class="form-label">{% trans "الطول" %}</label>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "الطول (سم)" %}</label>
+                            <div class="input-group">
                                 {{ form.length|add_class:"form-control" }}
+                                <span class="input-group-text">سم</span>
                             </div>
-                            <div class="col-4">
-                                <label class="form-label">{% trans "العرض" %}</label>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "العرض (سم)" %}</label>
+                            <div class="input-group">
                                 {{ form.width|add_class:"form-control" }}
+                                <span class="input-group-text">سم</span>
                             </div>
-                            <div class="col-4">
-                                <label class="form-label">{% trans "الارتفاع" %}</label>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "الارتفاع (سم)" %}</label>
+                            <div class="input-group">
                                 {{ form.height|add_class:"form-control" }}
+                                <span class="input-group-text">سم</span>
                             </div>
+                        </div>
+
+                        <!-- Manufacturing Info -->
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-industry"></i> {% trans "معلومات التصنيع" %}
+                            </h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "الشركة المصنعة" %}</label>
+                            {{ form.manufacturer|add_class:"form-control" }}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "رقم الموديل" %}</label>
+                            {{ form.model_number|add_class:"form-control" }}
                         </div>
                     </div>
                 </div>
 
-                <!-- معلومات التصنيع -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-dark text-white">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-industry"></i> {% trans "معلومات التصنيع" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">{% trans "الشركة المصنعة" %}</label>
-                                {{ form.manufacturer|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "رقم الموديل" %}</label>
-                                {{ form.model_number|add_class:"form-control" }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Tab 4: Variants -->
+                <div class="tab-pane fade" id="variants-content" role="tabpanel">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h6 class="mb-1 text-primary">{% trans "متغيرات الصنف" %}</h6>
+            <small class="text-muted">{% trans "أضف متغيرات مختلفة للصنف (مثل: الألوان، الأحجام)" %}</small>
+        </div>
+        <div class="form-check form-switch">
+            {{ form.has_variants|add_class:"form-check-input" }}
+            <label class="form-check-label fw-bold">{% trans "هذا الصنف له متغيرات" %}</label>
+        </div>
+    </div>
 
-                <!-- الملفات -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-paperclip"></i> {% trans "الصور والمرفقات" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">{% trans "صورة الصنف" %}</label>
-                                {{ form.image|add_class:"form-control" }}
-                                {% if form.instance.image %}
-                                    <div class="mt-2">
-                                        <img src="{{ form.instance.image.url }}" class="img-thumbnail" style="max-height: 100px;">
+    <div id="variantsContainer" style="display: none;">
+
+        <!-- قسم اختيار الخصائص -->
+        <div class="card mb-4 border-primary" style="border-left: 4px solid #1a73e8;">
+            <div class="card-header bg-light">
+                <h6 class="mb-0 text-primary">
+                    <i class="fas fa-sliders-h"></i> {% trans "اختيار خصائص المتغيرات" %}
+                </h6>
+                <small class="text-muted">{% trans "اختر الخصائص والقيم لتوليد المتغيرات تلقائياً" %}</small>
+            </div>
+            <div class="card-body">
+                {% if variant_attributes %}
+                    <div class="row g-4" id="attributesSelection">
+                        {% for attribute in variant_attributes %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="attribute-group" data-attribute-id="{{ attribute.id }}">
+                                <h6 class="text-dark mb-3">
+                                    {{ attribute.display_name|default:attribute.name }}
+                                    {% if attribute.is_required %}
+                                        <span class="text-danger">*</span>
+                                    {% endif %}
+                                </h6>
+
+                                <div class="attribute-values-container" style="max-height: 200px; overflow-y: auto;">
+                                    {% for value in attribute.values.all %}
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input attribute-value-checkbox"
+                                               type="checkbox"
+                                               name="attribute_{{ attribute.id }}"
+                                               value="{{ value.id }}"
+                                               id="attr_{{ attribute.id }}_val_{{ value.id }}"
+                                               data-attribute-id="{{ attribute.id }}"
+                                               data-attribute-name="{{ attribute.name }}"
+                                               data-value-id="{{ value.id }}"
+                                               data-value-name="{{ value.display_value|default:value.value }}">
+                                        <label class="form-check-label" for="attr_{{ attribute.id }}_val_{{ value.id }}">
+                                            {{ value.display_value|default:value.value }}
+                                        </label>
                                     </div>
-                                {% endif %}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "مرفق إضافي" %}</label>
-                                {{ form.attachment|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "اسم المرفق" %}</label>
-                                {{ form.attachment_name|add_class:"form-control" }}
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                </div>
 
-                <!-- ملاحظات -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-sticky-note"></i> {% trans "الملاحظات" %}
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات عامة" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات إضافية" %}</label>
-                                {{ form.additional_notes|add_class:"form-control" }}
-                            </div>
+                    <!-- أزرار التحكم -->
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="selectAllBtn">
+                                <i class="fas fa-check-double"></i> {% trans "تحديد الكل" %}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="clearAllBtn">
+                                <i class="fas fa-times"></i> {% trans "إلغاء التحديد" %}
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" id="generateVariantsBtn">
+                                <i class="fas fa-magic"></i> {% trans "توليد المتغيرات" %}
+                                <span class="badge bg-white text-success ms-2" id="variantCountPreview">0</span>
+                            </button>
                         </div>
                     </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "لا توجد خصائص متغيرات متاحة. يرجى إضافة خصائص أولاً من قائمة الإعدادات." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- معاينة المتغيرات المولدة -->
+        <div class="card border-success" id="generatedVariantsCard" style="display: none; border-left: 4px solid #28a745;">
+            <div class="card-header bg-light">
+                <h6 class="mb-0 text-success">
+                    <i class="fas fa-list"></i> {% trans "المتغيرات المولدة" %}
+                    <span class="badge bg-success ms-2" id="finalVariantCount">0</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>{% trans "كود المتغير" %}</th>
+                                <th>{% trans "التركيبة" %}</th>
+                                <th>{% trans "إجراءات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="variantsPreviewTable">
+                            <!-- سيتم ملؤها بـ JavaScript -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
+    </div>
+
+    <!-- رسالة عند إلغاء المتغيرات -->
+    <div id="noVariantsMessage">
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-layer-group fa-4x mb-3 opacity-50"></i>
+            <h5 class="text-muted">{% trans "المتغيرات معطلة" %}</h5>
+            <p class="mb-0">{% trans "فعّل 'هذا الصنف له متغيرات' لإضافة متغيرات مختلفة للصنف" %}</p>
+        </div>
+    </div>
+</div>
+
+                <!-- Tab 5: Media & Files -->
+                <div class="tab-pane fade" id="media-content" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "صورة الصنف" %}</label>
+                            {{ form.image|add_class:"form-control" }}
+                            {% if form.instance.image %}
+                                <div class="mt-2">
+                                    <img src="{{ form.instance.image.url }}" class="img-thumbnail" style="max-height: 150px;">
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "مرفق إضافي" %}</label>
+                            {{ form.attachment|add_class:"form-control" }}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "اسم المرفق" %}</label>
+                            {{ form.attachment_name|add_class:"form-control" }}
+                        </div>
+
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note"></i> {% trans "الملاحظات" %}
+                            </h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "ملاحظات عامة" %}</label>
+                            {{ form.notes|add_class:"form-control" }}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "ملاحظات إضافية" %}</label>
+                            {{ form.additional_notes|add_class:"form-control" }}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
         <!-- Action Buttons -->
-        <div class="row">
+        <div class="row mt-4">
             <div class="col-12">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <a href="{{ cancel_url }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
-                            </a>
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-save"></i> {{ submit_text }}
-                            </button>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary me-2" id="prevTab">
+                                    <i class="fas fa-chevron-right"></i> {% trans "السابق" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-primary me-2" id="nextTab">
+                                    {% trans "التالي" %} <i class="fas fa-chevron-left"></i>
+                                </button>
+                            </div>
+                            <div>
+                                <a href="{{ cancel_url }}" class="btn btn-secondary me-2">
+                                    <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                </a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> {{ submit_text }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -327,37 +605,419 @@
         </div>
     </form>
 </div>
+
+<!-- Variant Template -->
+<div id="variantTemplate" style="display: none;">
+    <div class="variant-container" data-variant-index="{index}">
+        <div class="variant-header">
+            <h6 class="mb-0">{% trans "متغير" %} #{index}</h6>
+            <button type="button" class="remove-variant-btn">
+                <i class="fas fa-times"></i> {% trans "حذف" %}
+            </button>
+        </div>
+        <div class="variant-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "كود المتغير" %}</label>
+                    <input type="text" name="variants-{index}-code" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "SKU المتغير" %}</label>
+                    <input type="text" name="variants-{index}-sku" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "باركود المتغير" %}</label>
+                    <input type="text" name="variants-{index}-barcode" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">{% trans "الوزن الخاص" %}</label>
+                    <input type="number" name="variants-{index}-weight" step="0.001" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">{% trans "صورة المتغير" %}</label>
+                    <input type="file" name="variants-{index}-image" class="form-control form-control-sm">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">{% trans "ملاحظات المتغير" %}</label>
+                    <textarea name="variants-{index}-notes" rows="2" class="form-control form-control-sm"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Form validation
-(function() {
-    'use strict';
-    window.addEventListener('load', function() {
-        var forms = document.getElementsByClassName('needs-validation');
-        var validation = Array.prototype.filter.call(forms, function(form) {
-            form.addEventListener('submit', function(event) {
-                if (form.checkValidity() === false) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-                form.classList.add('was-validated');
-            }, false);
-        });
-    }, false);
-})();
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const form = document.getElementById('itemForm');
+    const hasVariantsCheckbox = document.getElementById('id_has_variants');
+    const variantsContainer = document.getElementById('variantsContainer');
+    const noVariantsMessage = document.getElementById('noVariantsMessage');
 
-// Auto-generate SKU based on name
-document.getElementById('id_name').addEventListener('blur', function() {
-    var skuField = document.getElementById('id_sku');
-    if (!skuField.value) {
-        var name = this.value.trim();
-        if (name) {
-            // Simple SKU generation
-            var sku = name.replace(/\s+/g, '-').toUpperCase().substring(0, 20);
-            skuField.value = sku;
+    // Variants elements
+    const generateVariantsBtn = document.getElementById('generateVariantsBtn');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const variantCountPreview = document.getElementById('variantCountPreview');
+    const generatedVariantsCard = document.getElementById('generatedVariantsCard');
+    const variantsPreviewTable = document.getElementById('variantsPreviewTable');
+    const finalVariantCount = document.getElementById('finalVariantCount');
+
+    let currentTabIndex = 0;
+    const totalTabs = document.querySelectorAll('.nav-link').length;
+    let generatedVariants = [];
+    const isUpdate = {{ is_update|yesno:"true,false" }};
+
+    // Tab navigation
+    const tabButtons = document.querySelectorAll('#itemTabs .nav-link');
+    const nextTabBtn = document.getElementById('nextTab');
+    const prevTabBtn = document.getElementById('prevTab');
+
+    // Update progress bar
+    function updateProgress() {
+        const progress = ((currentTabIndex + 1) / totalTabs) * 100;
+        document.getElementById('formProgress').style.width = progress + '%';
+    }
+
+    // Handle tab changes
+    tabButtons.forEach((button, index) => {
+        button.addEventListener('shown.bs.tab', function() {
+            currentTabIndex = index;
+            updateProgress();
+            updateTabButtons();
+        });
+    });
+
+    // Update tab navigation buttons
+    function updateTabButtons() {
+        prevTabBtn.disabled = currentTabIndex === 0;
+        nextTabBtn.disabled = currentTabIndex === totalTabs - 1;
+    }
+
+    // Next tab button
+    nextTabBtn.addEventListener('click', function() {
+        if (currentTabIndex < totalTabs - 1) {
+            tabButtons[currentTabIndex + 1].click();
         }
+    });
+
+    // Previous tab button
+    prevTabBtn.addEventListener('click', function() {
+        if (currentTabIndex > 0) {
+            tabButtons[currentTabIndex - 1].click();
+        }
+    });
+
+    // === الوظائف الجديدة للمتغيرات ===
+
+    // Variants functionality
+    hasVariantsCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            variantsContainer.style.display = 'block';
+            noVariantsMessage.style.display = 'none';
+        } else {
+            variantsContainer.style.display = 'none';
+            noVariantsMessage.style.display = 'block';
+            // إخفاء معاينة المتغيرات
+            generatedVariantsCard.style.display = 'none';
+            generatedVariants = [];
+            updateVariantCount();
+        }
+    });
+
+    // Select All button
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('.attribute-value-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateVariantCount();
+        });
+    }
+
+    // Clear All button
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('.attribute-value-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateVariantCount();
+            generatedVariantsCard.style.display = 'none';
+            generatedVariants = [];
+        });
+    }
+
+    // مراقبة تغيير الخصائص
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('attribute-value-checkbox')) {
+            updateVariantCount();
+        }
+    });
+
+    // Generate Variants button
+    if (generateVariantsBtn) {
+        generateVariantsBtn.addEventListener('click', function() {
+            generateVariantCombinations();
+        });
+    }
+
+    // حساب عدد المتغيرات المحتملة
+    function updateVariantCount() {
+        const combinations = calculateCombinations();
+        const count = combinations.length;
+
+        if (variantCountPreview) {
+            variantCountPreview.textContent = count;
+            variantCountPreview.className = count > 0 ? 'badge bg-white text-success ms-2' : 'badge bg-light text-muted ms-2';
+        }
+
+        // تحديث عداد التاب
+        const tabBadge = document.getElementById('variantCount');
+        if (tabBadge) {
+            tabBadge.textContent = count;
+            tabBadge.className = count > 0 ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2';
+        }
+
+        // تفعيل/إلغاء تفعيل زر التوليد
+        if (generateVariantsBtn) {
+            generateVariantsBtn.disabled = count === 0;
+        }
+    }
+
+    // حساب التركيبات المحتملة
+    function calculateCombinations() {
+        const attributeGroups = {};
+
+        // جمع القيم المختارة لكل خاصية
+        const checkboxes = document.querySelectorAll('.attribute-value-checkbox:checked');
+        checkboxes.forEach(checkbox => {
+            const attributeId = checkbox.dataset.attributeId;
+            const valueData = {
+                id: checkbox.dataset.valueId,
+                name: checkbox.dataset.valueName,
+                attributeName: checkbox.dataset.attributeName
+            };
+
+            if (!attributeGroups[attributeId]) {
+                attributeGroups[attributeId] = {
+                    name: checkbox.dataset.attributeName,
+                    values: []
+                };
+            }
+            attributeGroups[attributeId].values.push(valueData);
+        });
+
+        // توليد التركيبات
+        const attributeKeys = Object.keys(attributeGroups);
+        if (attributeKeys.length === 0) return [];
+
+        const combinations = cartesianProduct(
+            attributeKeys.map(key => attributeGroups[key].values)
+        );
+
+        return combinations.map((combo, index) => ({
+            index: index + 1,
+            combination: combo,
+            code: generateVariantCode(index + 1),
+            description: combo.map(item => item.name).join(' - ')
+        }));
+    }
+
+    // حساب الضرب الديكارتي للتركيبات
+    function cartesianProduct(arrays) {
+        return arrays.reduce((acc, curr) => {
+            const result = [];
+            acc.forEach(a => {
+                curr.forEach(b => {
+                    result.push([...a, b]);
+                });
+            });
+            return result;
+        }, [[]]);
+    }
+
+    // توليد كود المتغير
+    function generateVariantCode(index) {
+        const baseCode = document.getElementById('id_code').value ||
+                        document.getElementById('id_name').value?.replace(/\s+/g, '') || 'ITM';
+        return `${baseCode}-V${String(index).padStart(3, '0')}`;
+    }
+
+    // توليد المتغيرات وعرضها
+    function generateVariantCombinations() {
+        generatedVariants = calculateCombinations();
+
+        if (generatedVariants.length > 0) {
+            displayVariantPreview();
+            generatedVariantsCard.style.display = 'block';
+            finalVariantCount.textContent = generatedVariants.length;
+        } else {
+            alert('{% trans "يرجى اختيار خصائص وقيم للمتغيرات أولاً" %}');
+        }
+    }
+
+    // عرض معاينة المتغيرات
+    function displayVariantPreview() {
+        let tableHTML = '';
+
+        generatedVariants.forEach((variant, index) => {
+            tableHTML += `
+                <tr>
+                    <td>${variant.index}</td>
+                    <td><code class="text-primary">${variant.code}</code></td>
+                    <td>${variant.description}</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeVariant(${index})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        variantsPreviewTable.innerHTML = tableHTML;
+    }
+
+    // عرض المتغيرات الموجودة (للتحديث)
+    // عرض المتغيرات الموجودة (للتحديث) - نسخة محسنة
+    function displayExistingVariants() {
+        if (!isUpdate) return;
+
+        // بيانات المتغيرات الموجودة من الخادم
+        const existingVariantsData = [
+            {% for variant in existing_variants %}
+            {
+                code: '{{ variant.code }}',
+                description: '{% for attr_val in variant.variant_attribute_values.all %}{{ attr_val.value.display_value|default:attr_val.value.value }}{% if not forloop.last %} - {% endif %}{% endfor %}'
+            },
+            {% endfor %}
+        ];
+
+        let existingVariantsHTML = '';
+
+        existingVariantsData.forEach((variant, index) => {
+            existingVariantsHTML += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td><code class="text-primary">${variant.code}</code></td>
+                    <td>${variant.description || '{% trans "بدون خصائص" %}'}</td>
+                    <td>
+                        <span class="badge bg-info">{% trans "موجود" %}</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        if (variantsPreviewTable) {
+            variantsPreviewTable.innerHTML = existingVariantsHTML;
+        }
+
+        if (finalVariantCount) {
+            finalVariantCount.textContent = existingVariantsData.length;
+        }
+
+        if (generatedVariantsCard && existingVariantsData.length > 0) {
+            generatedVariantsCard.style.display = 'block';
+        }
+
+        // تحديث العداد في التاب
+        const tabBadge = document.getElementById('variantCount');
+        if (tabBadge) {
+            tabBadge.textContent = existingVariantsData.length;
+            tabBadge.className = existingVariantsData.length > 0 ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2';
+        }
+    }
+
+    // حذف متغير من المعاينة
+    window.removeVariant = function(index) {
+        generatedVariants.splice(index, 1);
+        // إعادة ترقيم المتغيرات
+        generatedVariants.forEach((variant, newIndex) => {
+            variant.index = newIndex + 1;
+            variant.code = generateVariantCode(newIndex + 1);
+        });
+        displayVariantPreview();
+        finalVariantCount.textContent = generatedVariants.length;
+        updateVariantCount();
+
+        if (generatedVariants.length === 0) {
+            generatedVariantsCard.style.display = 'none';
+        }
+    };
+
+    // Generate SKU
+    document.getElementById('generateSku')?.addEventListener('click', function() {
+        const name = document.getElementById('id_name').value.trim();
+        if (name) {
+            const sku = name.replace(/\s+/g, '-').toUpperCase().substring(0, 20);
+            document.getElementById('id_sku').value = sku;
+        }
+    });
+
+    // Generate Barcode
+    document.getElementById('generateBarcode')?.addEventListener('click', function() {
+        const randomBarcode = Math.random().toString().slice(2, 15);
+        document.getElementById('id_barcode').value = randomBarcode;
+    });
+
+    // Form submission - إضافة بيانات المتغيرات
+    form.addEventListener('submit', function(event) {
+        // إضافة المتغيرات المولدة للفورم
+        if (hasVariantsCheckbox.checked && generatedVariants.length > 0) {
+            addVariantsToForm();
+        }
+
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            // Find first invalid field and switch to its tab
+            const firstInvalid = form.querySelector(':invalid');
+            if (firstInvalid) {
+                const tabPane = firstInvalid.closest('.tab-pane');
+                if (tabPane) {
+                    const tabButton = document.querySelector(`[data-bs-target="#${tabPane.id}"]`);
+                    if (tabButton) {
+                        tabButton.click();
+                    }
+                }
+                firstInvalid.focus();
+            }
+        }
+        form.classList.add('was-validated');
+    });
+
+    // إضافة بيانات المتغيرات للفورم قبل الإرسال
+    function addVariantsToForm() {
+        // إزالة الحقول المخفية السابقة
+        const oldHiddenInputs = form.querySelectorAll('input[name*="generated_variants"]');
+        oldHiddenInputs.forEach(input => input.remove());
+
+        // إضافة بيانات المتغيرات كـ JSON
+        const variantsInput = document.createElement('input');
+        variantsInput.type = 'hidden';
+        variantsInput.name = 'generated_variants';
+        variantsInput.value = JSON.stringify(generatedVariants);
+        form.appendChild(variantsInput);
+    }
+
+    // Initialize
+    updateProgress();
+    updateTabButtons();
+
+    // Check initial variants state
+    if (hasVariantsCheckbox && hasVariantsCheckbox.checked) {
+        variantsContainer.style.display = 'block';
+        noVariantsMessage.style.display = 'none';
+    }
+
+    // عرض المتغيرات الموجودة في حالة التعديل
+    if (isUpdate) {
+        setTimeout(displayExistingVariants, 100);
     }
 });
 </script>

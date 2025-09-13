@@ -113,6 +113,21 @@ class AuditLogMixin:
 class CompanyMixin:
     """مايكسين للموديلات التي تحتاج company فقط (مثل الأصناف)"""
 
+    @property
+    def current_company(self):
+        """الحصول على الشركة الحالية"""
+        user = self.request.user
+        if hasattr(user, 'company') and user.company:
+            return user.company
+        else:
+            from .models import Company
+            return Company.objects.first()
+
+    def dispatch(self, request, *args, **kwargs):
+        """إضافة current_company للـ request"""
+        request.current_company = self.current_company
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         """فلترة حسب الشركة فقط"""
         queryset = super().get_queryset()

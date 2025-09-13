@@ -165,6 +165,159 @@
             </div>
             {% endif %}
 
+        <!-- المتغيرات -->
+            {% if item.has_variants %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-gradient" style="background: linear-gradient(45deg, #28a745, #20c997);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0 text-white">
+                            <i class="fas fa-layer-group"></i> {% trans "متغيرات الصنف" %}
+                        </h6>
+                        {% if variants_count > 0 %}
+                            <span class="badge bg-white text-success fw-bold">{{ variants_count }} {% trans "متغير" %}</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">{% trans "لا توجد متغيرات" %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if variants %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="text-center" width="80">#</th>
+                                        <th>{% trans "الكود" %}</th>
+                                        <th>{% trans "SKU" %}</th>
+                                        <th>{% trans "المواصفات" %}</th>
+                                        {% if variants.0.weight %}
+                                        <th width="100">{% trans "الوزن" %}</th>
+                                        {% endif %}
+                                        {% if variants.0.image %}
+                                        <th width="100">{% trans "الصورة" %}</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for variant in variants %}
+                                    <tr>
+                                        <td class="text-center">
+                                            <span class="badge bg-primary">{{ forloop.counter }}</span>
+                                        </td>
+                                        <td>
+                                            <code class="bg-light text-primary px-2 py-1 rounded">{{ variant.code }}</code>
+                                        </td>
+                                        <td>
+                                            {% if variant.sku %}
+                                                <code class="bg-light text-info px-2 py-1 rounded">{{ variant.sku }}</code>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                {% for attr_val in variant.variant_attribute_values.all %}
+                                                    <span class="badge bg-light text-dark border">
+                                                        <small>{{ attr_val.attribute.name }}:</small>
+                                                        <strong>{{ attr_val.value.display_value|default:attr_val.value.value }}</strong>
+                                                    </span>
+                                                {% empty %}
+                                                    <span class="text-muted">{% trans "لا توجد خصائص" %}</span>
+                                                {% endfor %}
+                                            </div>
+                                        </td>
+                                        {% if variants.0.weight %}
+                                        <td>
+                                            {% if variant.weight %}
+                                                <span class="badge bg-secondary">{{ variant.weight }} كغ</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                        {% if variants.0.image %}
+                                        <td>
+                                            {% if variant.image %}
+                                                <img src="{{ variant.image.url }}" class="rounded"
+                                                     style="width: 40px; height: 40px; object-fit: cover;"
+                                                     alt="{{ variant.code }}">
+                                            {% else %}
+                                                <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                                     style="width: 40px; height: 40px;">
+                                                    <i class="fas fa-image text-muted"></i>
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+
+                                    <!-- ملاحظات المتغير إذا كانت موجودة -->
+                                    {% if variant.notes %}
+                                    <tr class="table-light">
+                                        <td></td>
+                                        <td colspan="{% if variants.0.weight and variants.0.image %}5{% elif variants.0.weight or variants.0.image %}4{% else %}3{% endif %}">
+                                            <small class="text-muted">
+                                                <i class="fas fa-sticky-note"></i>
+                                                <strong>{% trans "ملاحظة:" %}</strong> {{ variant.notes }}
+                                            </small>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- إحصائيات سريعة -->
+                        <div class="row mt-3 pt-3 border-top">
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
+                                         style="width: 40px; height: 40px;">
+                                        <i class="fas fa-list text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">{{ variants_count }}</h6>
+                                        <small class="text-muted">{% trans "إجمالي المتغيرات" %}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-success rounded-circle d-flex align-items-center justify-content-center me-3"
+                                         style="width: 40px; height: 40px;">
+                                        <i class="fas fa-sliders-h text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">
+                                            {% regroup variants by variant_attribute_values.attribute.name as variant_groups %}
+                                            {{ variant_groups|length }}
+                                        </h6>
+                                        <small class="text-muted">{% trans "أنواع الخصائص" %}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <!-- رسالة عدم وجود متغيرات -->
+                        <div class="text-center py-5">
+                            <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
+                                 style="width: 80px; height: 80px;">
+                                <i class="fas fa-layer-group fa-2x text-muted"></i>
+                            </div>
+                            <h6 class="text-muted mb-2">{% trans "هذا الصنف مُعَد للمتغيرات لكن لا توجد متغيرات حالياً" %}</h6>
+                            <p class="text-muted small mb-3">{% trans "يمكنك إضافة متغيرات من صفحة التعديل" %}</p>
+                            {% if can_change %}
+                            <a href="{{ edit_url }}" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-plus"></i> {% trans "إضافة متغيرات" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- معلومات التصنيع -->
             {% if item.manufacturer or item.model_number %}
             <div class="card shadow-sm mb-4">
