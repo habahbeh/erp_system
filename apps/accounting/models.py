@@ -79,6 +79,10 @@ class Account(BaseModel):
     opening_balance = models.DecimalField(_('الرصيد الافتتاحي'), max_digits=15, decimal_places=3, default=0)
     opening_balance_date = models.DateField(_('تاريخ الرصيد الافتتاحي'), null=True, blank=True)
 
+    # إضافة هذين الحقلين:
+    can_have_children = models.BooleanField(_('يمكن أن يحتوي على حسابات فرعية'), default=True)
+    is_system_account = models.BooleanField(_('حساب نظام'), default=False)
+
     class Meta:
         verbose_name = _('حساب')
         verbose_name_plural = _('دليل الحسابات')
@@ -101,6 +105,11 @@ class Account(BaseModel):
 
     def get_balance(self, date=None):
         return self.opening_balance
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.children.exists() and self.accept_entries:
+            raise ValidationError(_("الحسابات الأب لا تقبل قيود مباشرة"))
 
     def __str__(self):
         return f"{self.code} - {self.name}"
