@@ -150,6 +150,7 @@ class UserDetailView(LoginRequiredMixin, PermissionRequiredMixin, UserMixin, Det
             'delete_url': reverse('core:user_delete', kwargs={'pk': self.object.pk}),
             'change_password_url': reverse('core:user_change_password', kwargs={'pk': self.object.pk}),
             'profile_exists': profile_exists,
+            'permissions_url': reverse('core:user_permissions', kwargs={'user_id': self.object.pk}),
         })
         return context
 

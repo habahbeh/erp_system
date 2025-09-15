@@ -176,43 +176,32 @@ class BulkUserProfileUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Use
 
 @login_required
 def user_permissions_view(request, user_id):
-    """إدارة صلاحيات المستخدم"""
     user_obj = get_object_or_404(User, pk=user_id)
 
-    # التحقق من الصلاحيات
-    if not request.user.has_perm('core.change_customerpermission'):
-        messages.error(request, _('ليس لديك صلاحية لإدارة صلاحيات المستخدمين'))
-        return redirect('core:user_list')
-
     if request.method == 'POST':
-        form = UserPermissionsForm(user_obj, request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                _('تم تحديث صلاحيات المستخدم "%(name)s" بنجاح') % {
-                    'name': user_obj.get_full_name() or user_obj.username
-                }
-            )
-            return redirect('core:user_detail', pk=user_obj.pk)
-    else:
-        form = UserPermissionsForm(user_obj)
+        # حفظ المجموعات
+        selected_groups = request.POST.getlist('groups')
+        user_obj.groups.set(selected_groups)
+
+        # حفظ الصلاحيات المباشرة
+        selected_permissions = request.POST.getlist('permissions')
+        user_obj.user_permissions.set(selected_permissions)
+
+        messages.success(request, 'تم تحديث الصلاحيات بنجاح')
+        return redirect('core:user_detail', pk=user_obj.pk)
+
+    # جلب البيانات
+    from django.contrib.auth.models import Group, Permission
 
     context = {
-        'form': form,
         'user_obj': user_obj,
-        'title': _('إدارة صلاحيات: %(name)s') % {'name': user_obj.get_full_name() or user_obj.username},
-        'breadcrumbs': [
-            {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-            {'title': _('المستخدمين'), 'url': reverse('core:user_list')},
-            {'title': _('إدارة الصلاحيات'), 'url': ''}
-        ],
-        'submit_text': _('حفظ الصلاحيات'),
-        'cancel_url': reverse('core:user_detail', kwargs={'pk': user_obj.pk}),
+        'all_groups': Group.objects.all(),
+        'all_permissions': Permission.objects.all().select_related('content_type'),
+        'user_groups': user_obj.groups.values_list('id', flat=True),
+        'user_permissions': user_obj.user_permissions.values_list('id', flat=True),
     }
 
     return render(request, 'core/user_profiles/user_permissions.html', context)
-
 
 @login_required
 def create_missing_profiles(request):

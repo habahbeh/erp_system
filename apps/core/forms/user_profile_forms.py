@@ -188,45 +188,104 @@ class UserPermissionsForm(forms.Form):
         self.user = user
         super().__init__(*args, **kwargs)
 
+        # إضافة صلاحيات Django
+        self._add_django_permissions()
+
+        # إضافة الصلاحيات المخصصة
+        self._add_custom_permissions()
+
+    def _add_django_permissions(self):
+        """إضافة صلاحيات Django"""
+        from django.contrib.auth.models import Permission
+
+        # Core permissions
+        core_permissions = Permission.objects.filter(
+            content_type__app_label='core'
+        ).select_related('content_type').order_by('content_type__model', 'name')
+
+        if core_permissions.exists():
+            user_current_core_perms = self.user.user_permissions.filter(
+                content_type__app_label='core'
+            ).values_list('id', flat=True)
+
+            self.fields['django_core_permissions'] = forms.ModelMultipleChoiceField(
+                queryset=core_permissions,
+                required=False,
+                widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+                label='صلاحيات النظام الأساسي (Core)',
+                initial=list(user_current_core_perms)  # ✅ التأكد من التحويل لـ list
+            )
+
+        # Auth permissions
+        auth_permissions = Permission.objects.filter(
+            content_type__app_label='auth'
+        ).select_related('content_type').order_by('content_type__model', 'name')
+
+        if auth_permissions.exists():
+            user_current_auth_perms = self.user.user_permissions.filter(
+                content_type__app_label='auth'
+            ).values_list('id', flat=True)
+
+            self.fields['django_auth_permissions'] = forms.ModelMultipleChoiceField(
+                queryset=auth_permissions,
+                required=False,
+                widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+                label='صلاحيات إدارة المستخدمين (Auth)',
+                initial=list(user_current_auth_perms)  # ✅ التأكد من التحويل لـ list
+            )
+
+    def _add_custom_permissions(self):
+        """إضافة الصلاحيات المخصصة"""
         try:
             from ..models import CustomPermission
-
-            # تجميع الصلاحيات حسب التصنيف
-            categories = CustomPermission.objects.values_list('category', flat=True).distinct()
+            categories = CustomPermission.objects.filter(is_active=True).values_list('category', flat=True).distinct()
 
             for category in categories:
-                permissions = CustomPermission.objects.filter(category=category).order_by('name')
+                permissions = CustomPermission.objects.filter(category=category, is_active=True).order_by('name')
 
                 if permissions.exists():
+                    user_custom_perms = []
+                    if hasattr(self.user, 'custom_permissions'):
+                        user_custom_perms = self.user.custom_permissions.filter(
+                            category=category
+                        ).values_list('id', flat=True)
+
                     field_name = f'permissions_{category}'
                     self.fields[field_name] = forms.ModelMultipleChoiceField(
                         queryset=permissions,
                         required=False,
-                        widget=forms.CheckboxSelectMultiple(attrs={
-                            'class': 'form-check-input'
-                        }),
-                        label=permissions.first().get_category_display() if hasattr(permissions.first(),
-                                                                                    'get_category_display') else category,
-                        initial=user.custom_permissions.filter(category=category) if hasattr(user,
-                                                                                             'custom_permissions') else []
+                        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+                        label=f'الصلاحيات المخصصة - {category}',
+                        initial=list(user_custom_perms)
                     )
         except ImportError:
-            # CustomPermission model doesn't exist yet
             pass
 
     def save(self):
-        """حفظ الصلاحيات المحددة للمستخدم"""
+        """حفظ الصلاحيات"""
+        # حفظ صلاحيات Django
+        for field_name, field_obj in self.fields.items():
+            if field_name.startswith('django_'):
+                app_label = field_name.replace('django_', '').replace('_permissions', '')
+
+                # مسح الصلاحيات الحالية لهذا التطبيق
+                current_perms = self.user.user_permissions.filter(content_type__app_label=app_label)
+                self.user.user_permissions.remove(*current_perms)
+
+                # إضافة الصلاحيات المحددة
+                selected_perms = self.cleaned_data.get(field_name, [])
+                if selected_perms:
+                    self.user.user_permissions.add(*selected_perms)
+
+        # حفظ الصلاحيات المخصصة
         try:
-            # مسح الصلاحيات الحالية إذا كانت متاحة
             if hasattr(self.user, 'custom_permissions'):
                 self.user.custom_permissions.clear()
 
-                # إضافة الصلاحيات الجديدة
-                for field_name, field in self.fields.items():
+                for field_name, field_obj in self.fields.items():
                     if field_name.startswith('permissions_'):
                         selected_permissions = self.cleaned_data.get(field_name, [])
                         for permission in selected_permissions:
                             self.user.custom_permissions.add(permission)
         except AttributeError:
-            # custom_permissions field doesn't exist
             pass
