@@ -1,0 +1,166 @@
+<!-- apps/accounting/templates/accounting/vouchers/receipt_voucher_confirm_delete.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}حذف سند القبض{% endblock %}
+
+{% block extra_css %}
+<style>
+.delete-warning {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.voucher-info {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 1.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:dashboard' %}">المحاسبة</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:receipt_voucher_list' %}">سندات القبض</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:receipt_voucher_detail' object.pk %}">{{ object.number }}</a>
+            </li>
+            <li class="breadcrumb-item active">حذف</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Delete Warning Card -->
+            <div class="card shadow-lg">
+                <div class="delete-warning">
+                    <i class="fas fa-exclamation-triangle fa-4x mb-3"></i>
+                    <h2>تحذير - حذف سند القبض</h2>
+                    <p class="mb-0">هذا الإجراء لا يمكن التراجع عنه!</p>
+                </div>
+
+                <div class="card-body p-4">
+                    <!-- Voucher Info -->
+                    <div class="voucher-info mb-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-2 text-center">
+                                <i class="fas fa-arrow-up fa-3x text-success"></i>
+                            </div>
+                            <div class="col-md-10">
+                                <h4 class="mb-2">سند قبض رقم: {{ object.number }}</h4>
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <strong>مستلم من:</strong> {{ object.received_from }}<br>
+                                        <strong>التاريخ:</strong> {{ object.date|date:"Y/m/d" }}<br>
+                                        <strong>المبلغ:</strong> {{ object.amount|floatformat:3 }} {{ object.currency.symbol }}
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <strong>الحالة:</strong>
+                                        {% if object.status == 'draft' %}
+                                            <span class="badge bg-secondary">مسودة</span>
+                                        {% elif object.status == 'confirmed' %}
+                                            <span class="badge bg-warning">مؤكد</span>
+                                        {% elif object.status == 'posted' %}
+                                            <span class="badge bg-success">مرحل</span>
+                                        {% endif %}<br>
+                                        <strong>طريقة القبض:</strong> {{ object.get_receipt_method_display }}<br>
+                                        <strong>أنشأ بواسطة:</strong> {{ object.created_by.get_full_name|default:object.created_by.username }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warning Message -->
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>تحذير:</strong>
+                        سيتم حذف سند القبض نهائياً من النظام.
+                        {% if object.journal_entry %}
+                            <br><strong>ملاحظة:</strong> سيتم حذف القيد المحاسبي المرتبط أيضاً.
+                        {% endif %}
+                    </div>
+
+                    <!-- Confirmation Form -->
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label" for="confirmDelete">
+                                <strong>أؤكد أنني أريد حذف هذا السند نهائياً</strong>
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'accounting:receipt_voucher_detail' object.pk %}"
+                               class="btn btn-outline-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>إلغاء والعودة
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>حذف السند نهائياً
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تفعيل/تعطيل زر الحذف حسب حالة checkbox
+    $('#confirmDelete').on('change', function() {
+        $('#deleteBtn').prop('disabled', !this.checked);
+    });
+
+    // تأكيد إضافي عند الضغط على الحذف
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            title: 'تأكيد الحذف',
+            text: 'هل أنت متأكد تماماً من حذف هذا السند؟',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'نعم، احذف نهائياً',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // عرض loading
+                Swal.fire({
+                    title: 'جاري الحذف...',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // إرسال النموذج
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

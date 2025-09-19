@@ -8,6 +8,8 @@ from .views import (
     account_views,
     # Journal Views
     journal_views,
+    # Voucher Views
+    voucher_views,
     # Report Views
     report_views
 )
@@ -43,16 +45,47 @@ urlpatterns = [
          name='journal_entry_delete'),
     path('journal-entries/quick/', journal_views.QuickJournalEntryView.as_view(), name='quick_journal_entry'),
 
+    # Payment Voucher URLs
+    path('payment-vouchers/', voucher_views.PaymentVoucherListView.as_view(), name='payment_voucher_list'),
+    path('payment-vouchers/create/', voucher_views.PaymentVoucherCreateView.as_view(), name='payment_voucher_create'),
+    path('payment-vouchers/<int:pk>/', voucher_views.PaymentVoucherDetailView.as_view(), name='payment_voucher_detail'),
+    path('payment-vouchers/<int:pk>/update/', voucher_views.PaymentVoucherUpdateView.as_view(),
+         name='payment_voucher_update'),
+    path('payment-vouchers/<int:pk>/delete/', voucher_views.PaymentVoucherDeleteView.as_view(),
+         name='payment_voucher_delete'),
+
+    # Receipt Voucher URLs
+    path('receipt-vouchers/', voucher_views.ReceiptVoucherListView.as_view(), name='receipt_voucher_list'),
+    path('receipt-vouchers/create/', voucher_views.ReceiptVoucherCreateView.as_view(), name='receipt_voucher_create'),
+    path('receipt-vouchers/<int:pk>/', voucher_views.ReceiptVoucherDetailView.as_view(), name='receipt_voucher_detail'),
+    path('receipt-vouchers/<int:pk>/update/', voucher_views.ReceiptVoucherUpdateView.as_view(),
+         name='receipt_voucher_update'),
+    path('receipt-vouchers/<int:pk>/delete/', voucher_views.ReceiptVoucherDeleteView.as_view(),
+         name='receipt_voucher_delete'),
+
+    # ========== تقارير محاسبية جديدة ==========
+    # General Ledger - دفتر الأستاذ
+    path('reports/general-ledger/', report_views.GeneralLedgerView.as_view(), name='general_ledger'),
+
+    # Trial Balance - ميزان المراجعة
+    path('reports/trial-balance/', report_views.TrialBalanceView.as_view(), name='trial_balance'),
+
     # Ajax endpoints - DataTables
     path('ajax/account-types/', account_type_views.account_type_datatable_ajax, name='account_type_datatable_ajax'),
     path('ajax/accounts/', account_views.account_datatable_ajax, name='account_datatable_ajax'),
     path('ajax/journal-entries/', journal_views.journal_entry_datatable_ajax, name='journal_entry_datatable_ajax'),
+    path('ajax/payment-vouchers/', voucher_views.payment_voucher_datatable_ajax, name='payment_voucher_datatable_ajax'),
+    path('ajax/receipt-vouchers/', voucher_views.receipt_voucher_datatable_ajax, name='receipt_voucher_datatable_ajax'),
 
     # Ajax endpoints - Account related
     path('ajax/accounts/search/', account_views.account_search_ajax, name='account_search_ajax'),
     path('ajax/accounts/autocomplete/', journal_views.account_autocomplete, name='account_autocomplete'),
     path('ajax/accounts/hierarchy/', account_views.account_hierarchy_ajax, name='account_hierarchy_ajax'),
     path('ajax/accounts/stats/', account_views.account_stats_ajax, name='account_stats_ajax'),
+
+    # Ajax endpoints - Reports
+    path('ajax/accounts/search-for-reports/', report_views.account_search_for_reports,
+         name='account_search_for_reports'),
 
     # Ajax endpoints - Account Type related
     path('ajax/account-types/stats/', account_type_views.account_type_stats_ajax, name='account_type_stats_ajax'),
@@ -64,9 +97,48 @@ urlpatterns = [
     path('ajax/journal-entries/<int:pk>/post/', journal_views.post_journal_entry, name='post_journal_entry'),
     path('ajax/journal-entries/<int:pk>/unpost/', journal_views.unpost_journal_entry, name='unpost_journal_entry'),
 
+    # Voucher Actions - Payment Vouchers
+    path('ajax/payment-vouchers/<int:pk>/post/', voucher_views.post_payment_voucher, name='post_payment_voucher'),
+    path('ajax/payment-vouchers/<int:pk>/unpost/', voucher_views.unpost_payment_voucher, name='unpost_payment_voucher'),
+
+    # Voucher Actions - Receipt Vouchers
+    path('ajax/receipt-vouchers/<int:pk>/post/', voucher_views.post_receipt_voucher, name='post_receipt_voucher'),
+    path('ajax/receipt-vouchers/<int:pk>/unpost/', voucher_views.unpost_receipt_voucher, name='unpost_receipt_voucher'),
+
     # Export/Import URLs
     path('account-types/export/', report_views.export_account_types, name='export_account_types'),
     path('account-types/import/', report_views.import_account_types, name='import_account_types'),
     path('accounts/export/', report_views.export_accounts, name='export_accounts'),
     path('accounts/import/', report_views.import_accounts, name='import_accounts'),
+
+    # Voucher Export URLs
+    path('payment-vouchers/export/', voucher_views.export_payment_vouchers, name='export_payment_vouchers'),
+    path('receipt-vouchers/export/', voucher_views.export_receipt_vouchers, name='export_receipt_vouchers'),
+
+    # ========== تقارير محاسبية كاملة ==========
+    # General Ledger - دفتر الأستاذ
+    path('reports/general-ledger/', report_views.GeneralLedgerView.as_view(), name='general_ledger'),
+
+    # Trial Balance - ميزان المراجعة
+    path('reports/trial-balance/', report_views.TrialBalanceView.as_view(), name='trial_balance'),
+
+    # Account Statement - كشف الحساب
+    path('reports/account-statement/', report_views.AccountStatementView.as_view(), name='account_statement'),
+
+    # Income Statement - قائمة الدخل
+    path('reports/income-statement/', report_views.IncomeStatementView.as_view(), name='income_statement'),
+
+    # Balance Sheet - الميزانية العمومية
+    path('reports/balance-sheet/', report_views.BalanceSheetView.as_view(), name='balance_sheet'),
+
+    # Account Comparison - مقارنة الحسابات
+    path('reports/account-comparison/', report_views.AccountComparisonView.as_view(), name='account_comparison'),
+
+    # ========== تصدير جميع التقارير ==========
+    path('reports/general-ledger/export/', report_views.export_general_ledger, name='export_general_ledger'),
+    path('reports/trial-balance/export/', report_views.export_trial_balance, name='export_trial_balance'),
+    path('reports/account-statement/export/', report_views.export_account_statement, name='export_account_statement'),
+    path('reports/income-statement/export/', report_views.export_income_statement, name='export_income_statement'),
+    path('reports/balance-sheet/export/', report_views.export_balance_sheet, name='export_balance_sheet'),
+
 ]

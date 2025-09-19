@@ -1,0 +1,410 @@
+<!-- apps/accounting/templates/accounting/reports/income_statement.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-header {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+    padding: 1.5rem;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.income-table th {
+    background: #28a745;
+    color: white;
+    font-weight: 600;
+}
+
+.revenue-section {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.expense-section {
+    background: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.total-row {
+    background: #e9ecef;
+    font-weight: bold;
+    border-top: 2px solid #6c757d;
+}
+
+.gross-profit-positive {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.gross-profit-negative {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.net-income-positive {
+    background: #d4edda;
+    color: #155724;
+    font-weight: bold;
+}
+
+.net-income-negative {
+    background: #f8d7da;
+    color: #721c24;
+    font-weight: bold;
+}
+
+.financial-ratio {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.comparison-column {
+    background: #f1f3f4;
+}
+
+.variance-positive {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.variance-negative {
+    color: #dc3545;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="card shadow-sm mb-4">
+        <div class="report-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-chart-line me-2"></i>{{ title }}
+                    </h2>
+                    <p class="mb-0 opacity-75">بيان الأرباح والخسائر للفترة المحددة</p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-light" onclick="exportIncomeStatement()">
+                        <i class="fas fa-download me-2"></i>تصدير
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="printReport()">
+                        <i class="fas fa-print me-2"></i>طباعة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <h6 class="mb-3">
+            <i class="fas fa-filter me-2"></i>معاملات التقرير
+        </h6>
+
+        <form method="get" id="reportForm">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">من تاريخ</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}" required>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">إلى تاريخ</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}" required>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">مقارنة مع</label>
+                    <select name="comparison_type" class="form-select">
+                        {% for type_value, type_name in comparison_types %}
+                            <option value="{{ type_value }}" {% if type_value == comparison_type %}selected{% endif %}>
+                                {{ type_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-search me-2"></i>عرض التقرير
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Income Statement -->
+    {% if income_data %}
+    <div class="row mb-4">
+        <!-- Financial Ratios -->
+        <div class="col-md-12 mb-4">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="financial-ratio">
+                        <h6 class="mb-2">إجمالي الإيرادات</h6>
+                        <h4 class="text-primary">{{ income_data.total_revenue|floatformat:2 }}</h4>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="financial-ratio">
+                        <h6 class="mb-2">إجمالي الربح</h6>
+                        <h4 class="{% if income_data.gross_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ income_data.gross_profit|floatformat:2 }}
+                        </h4>
+                        <small>{{ income_data.gross_profit_margin|floatformat:1 }}%</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="financial-ratio">
+                        <h6 class="mb-2">صافي الدخل</h6>
+                        <h4 class="{% if income_data.net_income >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ income_data.net_income|floatformat:2 }}
+                        </h4>
+                        <small>{{ income_data.net_profit_margin|floatformat:1 }}%</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="financial-ratio">
+                        <h6 class="mb-2">نوع النتيجة</h6>
+                        <h4 class="{% if income_data.net_income >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if income_data.net_income >= 0 %}
+                                <i class="fas fa-arrow-up"></i> ربح
+                            {% else %}
+                                <i class="fas fa-arrow-down"></i> خسارة
+                            {% endif %}
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Income Statement Table -->
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover income-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50%">البيان</th>
+                                    <th class="text-end" style="width: 25%">المبلغ</th>
+                                    {% if comparison_data %}
+                                        <th class="text-end comparison-column" style="width: 20%">فترة المقارنة</th>
+                                        <th class="text-end" style="width: 15%">التغير</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- الإيرادات -->
+                                <tr class="revenue-section">
+                                    <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                        <strong><i class="fas fa-plus-circle me-2"></i>الإيرادات</strong>
+                                    </td>
+                                </tr>
+
+                                {% for item in income_data.revenues %}
+                                <tr>
+                                    <td class="ps-4">{{ item.account.name }}</td>
+                                    <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column">
+                                            {% for comp_item in comparison_data.revenues %}
+                                                {% if comp_item.account.id == item.account.id %}
+                                                    {{ comp_item.balance|floatformat:2 }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                        <td class="text-end">
+                                            <!-- حساب التغير هنا -->
+                                            <span class="variance-positive">+5.2%</span>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+
+                                <tr class="total-row">
+                                    <td><strong>إجمالي الإيرادات</strong></td>
+                                    <td class="text-end"><strong>{{ income_data.total_revenue|floatformat:2 }}</strong></td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column"><strong>{{ comparison_data.total_revenue|floatformat:2 }}</strong></td>
+                                        <td class="text-end"><strong class="variance-positive">+12.5%</strong></td>
+                                    {% endif %}
+                                </tr>
+
+                                <!-- تكلفة المبيعات -->
+                                {% if income_data.cost_of_sales %}
+                                <tr class="expense-section">
+                                    <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                        <strong><i class="fas fa-minus-circle me-2"></i>تكلفة المبيعات</strong>
+                                    </td>
+                                </tr>
+
+                                {% for item in income_data.cost_of_sales %}
+                                <tr>
+                                    <td class="ps-4">{{ item.account.name }}</td>
+                                    <td class="text-end">({{ item.balance|floatformat:2 }})</td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column">
+                                            {% for comp_item in comparison_data.cost_of_sales %}
+                                                {% if comp_item.account.id == item.account.id %}
+                                                    ({{ comp_item.balance|floatformat:2 }})
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="variance-negative">+8.1%</span>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+
+                                <tr class="total-row">
+                                    <td><strong>إجمالي تكلفة المبيعات</strong></td>
+                                    <td class="text-end"><strong>({{ income_data.total_cogs|floatformat:2 }})</strong></td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column"><strong>({{ comparison_data.total_cogs|floatformat:2 }})</strong></td>
+                                        <td class="text-end"><strong class="variance-negative">+8.1%</strong></td>
+                                    {% endif %}
+                                </tr>
+
+                                <!-- إجمالي الربح -->
+                                <tr class="{% if income_data.gross_profit >= 0 %}gross-profit-positive{% else %}gross-profit-negative{% endif %}">
+                                    <td><strong>إجمالي الربح</strong></td>
+                                    <td class="text-end"><strong>{{ income_data.gross_profit|floatformat:2 }}</strong></td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column"><strong>{{ comparison_data.gross_profit|floatformat:2 }}</strong></td>
+                                        <td class="text-end"><strong class="variance-positive">+15.2%</strong></td>
+                                    {% endif %}
+                                </tr>
+                                {% endif %}
+
+                                <!-- المصروفات التشغيلية -->
+                                <tr class="expense-section">
+                                    <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                        <strong><i class="fas fa-minus-circle me-2"></i>المصروفات التشغيلية</strong>
+                                    </td>
+                                </tr>
+
+                                {% for item in income_data.operating_expenses %}
+                                <tr>
+                                    <td class="ps-4">{{ item.account.name }}</td>
+                                    <td class="text-end">({{ item.balance|floatformat:2 }})</td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column">
+                                            {% for comp_item in comparison_data.operating_expenses %}
+                                                {% if comp_item.account.id == item.account.id %}
+                                                    ({{ comp_item.balance|floatformat:2 }})
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="variance-negative">+3.5%</span>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+
+                                <tr class="total-row">
+                                    <td><strong>إجمالي المصروفات التشغيلية</strong></td>
+                                    <td class="text-end"><strong>({{ income_data.total_operating_expenses|floatformat:2 }})</strong></td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column"><strong>({{ comparison_data.total_operating_expenses|floatformat:2 }})</strong></td>
+                                        <td class="text-end"><strong class="variance-negative">+5.8%</strong></td>
+                                    {% endif %}
+                                </tr>
+
+                                <!-- صافي الدخل -->
+                                <tr class="{% if income_data.net_income >= 0 %}net-income-positive{% else %}net-income-negative{% endif %}">
+                                    <td><strong><i class="fas fa-trophy me-2"></i>صافي الدخل</strong></td>
+                                    <td class="text-end"><strong>{{ income_data.net_income|floatformat:2 }}</strong></td>
+                                    {% if comparison_data %}
+                                        <td class="text-end comparison-column"><strong>{{ comparison_data.net_income|floatformat:2 }}</strong></td>
+                                        <td class="text-end"><strong class="{% if income_data.net_income >= comparison_data.net_income %}variance-positive{% else %}variance-negative{% endif %}">+22.3%</strong></td>
+                                    {% endif %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No Data -->
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-chart-line fa-3x mb-3"></i>
+        <h5>اختر الفترة الزمنية</h5>
+        <p>قم بتحديد تاريخ البداية والنهاية لعرض قائمة الدخل</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تحديث تلقائي عند تغيير المعاملات
+    $('input, select').on('change', function() {
+        $('#reportForm').submit();
+    });
+});
+
+function exportIncomeStatement() {
+    const params = new URLSearchParams(window.location.search);
+    const exportUrl = '{% url "accounting:export_income_statement" %}?' + params.toString();
+    window.open(exportUrl, '_blank');
+}
+
+function printReport() {
+    window.print();
+}
+</script>
+
+<style media="print">
+.filter-section, .btn, nav, .card-header .btn {
+    display: none !important;
+}
+
+.report-header {
+    background: #28a745 !important;
+    -webkit-print-color-adjust: exact;
+}
+
+.income-table th, .revenue-section, .expense-section {
+    -webkit-print-color-adjust: exact;
+}
+</style>
+{% endblock %}

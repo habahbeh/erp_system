@@ -279,6 +279,8 @@ class QuickJournalEntryForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
+        # إزالة instance إذا تم تمريره (لأن Form لا يدعم instance)
+        kwargs.pop('instance', None)
         super().__init__(*args, **kwargs)
 
         # فلترة الحسابات حسب الشركة

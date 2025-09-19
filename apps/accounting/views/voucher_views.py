@@ -565,3 +565,387 @@ def unpost_receipt_voucher(request, pk):
             'success': False,
             'message': f'خطأ في إلغاء ترحيل السند: {str(e)}'
         })
+
+
+# ========== Ajax DataTables للسندات ==========
+
+@login_required
+@permission_required('accounting.view_paymentvoucher')
+def payment_voucher_datatable_ajax(request):
+    """Ajax endpoint لجدول سندات الصرف"""
+    from django.http import JsonResponse
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+
+    # الحصول على المعاملات
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 25))
+    search_value = request.GET.get('search[value]', '').strip()
+    order_column = int(request.GET.get('order[0][column]', 0))
+    order_dir = request.GET.get('order[0][dir]', 'desc')
+
+    # أعمدة الجدول
+    columns = ['number', 'date', 'beneficiary_name', 'amount', 'payment_method', 'status']
+
+    # الاستعلام الأساسي
+    queryset = PaymentVoucher.objects.filter(
+        company=request.current_company
+    ).select_related('cash_account', 'currency', 'created_by')
+
+    # البحث
+    if search_value:
+        queryset = queryset.filter(
+            Q(number__icontains=search_value) |
+            Q(beneficiary_name__icontains=search_value) |
+            Q(description__icontains=search_value)
+        )
+
+    # الترتيب
+    if order_column < len(columns):
+        order_field = columns[order_column]
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+        queryset = queryset.order_by(order_field)
+    else:
+        queryset = queryset.order_by('-date', '-number')
+
+    # العدد الكلي
+    total_records = PaymentVoucher.objects.filter(company=request.current_company).count()
+    filtered_records = queryset.count()
+
+    # التقسيم على صفحات
+    vouchers = queryset[start:start + length]
+
+    # بناء البيانات
+    data = []
+    for voucher in vouchers:
+        # تحديد لون الحالة
+        if voucher.status == 'draft':
+            status_badge = '<span class="badge bg-secondary">مسودة</span>'
+        elif voucher.status == 'confirmed':
+            status_badge = '<span class="badge bg-warning">مؤكد</span>'
+        elif voucher.status == 'posted':
+            status_badge = '<span class="badge bg-success">مرحل</span>'
+        else:
+            status_badge = '<span class="badge bg-danger">ملغي</span>'
+
+        # بناء أزرار الإجراءات
+        actions = f'''
+        <div class="btn-group" role="group">
+            <a href="/accounting/payment-vouchers/{voucher.pk}/" 
+               class="btn btn-outline-info btn-sm" title="عرض">
+                <i class="fas fa-eye"></i>
+            </a>
+        '''
+
+        if voucher.can_edit() and request.user.has_perm('accounting.change_paymentvoucher'):
+            actions += f'''
+            <a href="/accounting/payment-vouchers/{voucher.pk}/update/" 
+               class="btn btn-outline-primary btn-sm" title="تعديل">
+                <i class="fas fa-edit"></i>
+            </a>
+            '''
+
+        if voucher.can_post() and request.user.has_perm('accounting.change_paymentvoucher'):
+            actions += f'''
+            <button type="button" class="btn btn-outline-success btn-sm" 
+                    onclick="postVoucher({voucher.pk})" title="ترحيل">
+                <i class="fas fa-check"></i>
+            </button>
+            '''
+        elif voucher.can_unpost() and request.user.has_perm('accounting.change_paymentvoucher'):
+            actions += f'''
+            <button type="button" class="btn btn-outline-warning btn-sm" 
+                    onclick="unpostVoucher({voucher.pk})" title="إلغاء ترحيل">
+                <i class="fas fa-undo"></i>
+            </button>
+            '''
+
+        if voucher.can_delete() and request.user.has_perm('accounting.delete_paymentvoucher'):
+            actions += f'''
+            <a href="/accounting/payment-vouchers/{voucher.pk}/delete/" 
+               class="btn btn-outline-danger btn-sm" title="حذف">
+                <i class="fas fa-trash"></i>
+            </a>
+            '''
+
+        actions += '</div>'
+
+        data.append([
+            f'<a href="/accounting/payment-vouchers/{voucher.pk}/" class="text-decoration-none">{voucher.number}</a>',
+            voucher.date.strftime('%Y/%m/%d'),
+            voucher.beneficiary_name,
+            f'{voucher.amount:,.2f}',
+            voucher.get_payment_method_display(),
+            status_badge,
+            actions
+        ])
+
+    return JsonResponse({
+        'draw': draw,
+        'recordsTotal': total_records,
+        'recordsFiltered': filtered_records,
+        'data': data
+    })
+
+
+@login_required
+@permission_required('accounting.view_receiptvoucher')
+def receipt_voucher_datatable_ajax(request):
+    """Ajax endpoint لجدول سندات القبض"""
+    from django.http import JsonResponse
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+
+    # الحصول على المعاملات
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 25))
+    search_value = request.GET.get('search[value]', '').strip()
+    order_column = int(request.GET.get('order[0][column]', 0))
+    order_dir = request.GET.get('order[0][dir]', 'desc')
+
+    # أعمدة الجدول
+    columns = ['number', 'date', 'received_from', 'amount', 'receipt_method', 'status']
+
+    # الاستعلام الأساسي
+    queryset = ReceiptVoucher.objects.filter(
+        company=request.current_company
+    ).select_related('cash_account', 'currency', 'created_by')
+
+    # البحث
+    if search_value:
+        queryset = queryset.filter(
+            Q(number__icontains=search_value) |
+            Q(received_from__icontains=search_value) |
+            Q(description__icontains=search_value)
+        )
+
+    # الترتيب
+    if order_column < len(columns):
+        order_field = columns[order_column]
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+        queryset = queryset.order_by(order_field)
+    else:
+        queryset = queryset.order_by('-date', '-number')
+
+    # العدد الكلي
+    total_records = ReceiptVoucher.objects.filter(company=request.current_company).count()
+    filtered_records = queryset.count()
+
+    # التقسيم على صفحات
+    vouchers = queryset[start:start + length]
+
+    # بناء البيانات
+    data = []
+    for voucher in vouchers:
+        # تحديد لون الحالة
+        if voucher.status == 'draft':
+            status_badge = '<span class="badge bg-secondary">مسودة</span>'
+        elif voucher.status == 'confirmed':
+            status_badge = '<span class="badge bg-warning">مؤكد</span>'
+        elif voucher.status == 'posted':
+            status_badge = '<span class="badge bg-success">مرحل</span>'
+        else:
+            status_badge = '<span class="badge bg-danger">ملغي</span>'
+
+        # بناء أزرار الإجراءات
+        actions = f'''
+        <div class="btn-group" role="group">
+            <a href="/accounting/receipt-vouchers/{voucher.pk}/" 
+               class="btn btn-outline-info btn-sm" title="عرض">
+                <i class="fas fa-eye"></i>
+            </a>
+        '''
+
+        if voucher.can_edit() and request.user.has_perm('accounting.change_receiptvoucher'):
+            actions += f'''
+            <a href="/accounting/receipt-vouchers/{voucher.pk}/update/" 
+               class="btn btn-outline-primary btn-sm" title="تعديل">
+                <i class="fas fa-edit"></i>
+            </a>
+            '''
+
+        if voucher.can_post() and request.user.has_perm('accounting.change_receiptvoucher'):
+            actions += f'''
+            <button type="button" class="btn btn-outline-success btn-sm" 
+                    onclick="postVoucher({voucher.pk})" title="ترحيل">
+                <i class="fas fa-check"></i>
+            </button>
+            '''
+        elif voucher.can_unpost() and request.user.has_perm('accounting.change_receiptvoucher'):
+            actions += f'''
+            <button type="button" class="btn btn-outline-warning btn-sm" 
+                    onclick="unpostVoucher({voucher.pk})" title="إلغاء ترحيل">
+                <i class="fas fa-undo"></i>
+            </button>
+            '''
+
+        if voucher.can_delete() and request.user.has_perm('accounting.delete_receiptvoucher'):
+            actions += f'''
+            <a href="/accounting/receipt-vouchers/{voucher.pk}/delete/" 
+               class="btn btn-outline-danger btn-sm" title="حذف">
+                <i class="fas fa-trash"></i>
+            </a>
+            '''
+
+        actions += '</div>'
+
+        data.append([
+            f'<a href="/accounting/receipt-vouchers/{voucher.pk}/" class="text-decoration-none">{voucher.number}</a>',
+            voucher.date.strftime('%Y/%m/%d'),
+            voucher.received_from,
+            f'{voucher.amount:,.2f}',
+            voucher.get_receipt_method_display(),
+            status_badge,
+            actions
+        ])
+
+    return JsonResponse({
+        'draw': draw,
+        'recordsTotal': total_records,
+        'recordsFiltered': filtered_records,
+        'data': data
+    })
+
+
+# ========== Export Functions ==========
+
+@login_required
+@permission_required('accounting.view_paymentvoucher')
+def export_payment_vouchers(request):
+    """تصدير سندات الصرف إلى Excel"""
+    import openpyxl
+    from django.http import HttpResponse
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from datetime import datetime
+
+    # إنشاء workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "سندات الصرف"
+
+    # العناوين
+    headers = [
+        'رقم السند', 'التاريخ', 'المستفيد', 'المبلغ', 'العملة',
+        'طريقة الدفع', 'الحالة', 'البيان', 'حساب الصندوق', 'تاريخ الإنشاء'
+    ]
+
+    # إضافة العناوين
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+
+    # الحصول على البيانات
+    vouchers = PaymentVoucher.objects.filter(
+        company=request.current_company
+    ).select_related('cash_account', 'currency').order_by('-date', '-number')
+
+    # إضافة البيانات
+    for row, voucher in enumerate(vouchers, 2):
+        ws.cell(row=row, column=1, value=voucher.number)
+        ws.cell(row=row, column=2, value=voucher.date.strftime('%Y/%m/%d'))
+        ws.cell(row=row, column=3, value=voucher.beneficiary_name)
+        ws.cell(row=row, column=4, value=float(voucher.amount))
+        ws.cell(row=row, column=5, value=voucher.currency.name)
+        ws.cell(row=row, column=6, value=voucher.get_payment_method_display())
+        ws.cell(row=row, column=7, value=voucher.get_status_display())
+        ws.cell(row=row, column=8, value=voucher.description)
+        ws.cell(row=row, column=9, value=f"{voucher.cash_account.code} - {voucher.cash_account.name}")
+        ws.cell(row=row, column=10, value=voucher.created_at.strftime('%Y/%m/%d %H:%M'))
+
+    # تعديل عرض الأعمدة
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column].width = adjusted_width
+
+    # إنشاء الاستجابة
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"payment_vouchers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
+
+
+@login_required
+@permission_required('accounting.view_receiptvoucher')
+def export_receipt_vouchers(request):
+    """تصدير سندات القبض إلى Excel"""
+    import openpyxl
+    from django.http import HttpResponse
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from datetime import datetime
+
+    # إنشاء workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "سندات القبض"
+
+    # العناوين
+    headers = [
+        'رقم السند', 'التاريخ', 'مستلم من', 'المبلغ', 'العملة',
+        'طريقة القبض', 'الحالة', 'البيان', 'حساب الصندوق', 'تاريخ الإنشاء'
+    ]
+
+    # إضافة العناوين
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="198754", end_color="198754", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+
+    # الحصول على البيانات
+    vouchers = ReceiptVoucher.objects.filter(
+        company=request.current_company
+    ).select_related('cash_account', 'currency').order_by('-date', '-number')
+
+    # إضافة البيانات
+    for row, voucher in enumerate(vouchers, 2):
+        ws.cell(row=row, column=1, value=voucher.number)
+        ws.cell(row=row, column=2, value=voucher.date.strftime('%Y/%m/%d'))
+        ws.cell(row=row, column=3, value=voucher.received_from)
+        ws.cell(row=row, column=4, value=float(voucher.amount))
+        ws.cell(row=row, column=5, value=voucher.currency.name)
+        ws.cell(row=row, column=6, value=voucher.get_receipt_method_display())
+        ws.cell(row=row, column=7, value=voucher.get_status_display())
+        ws.cell(row=row, column=8, value=voucher.description)
+        ws.cell(row=row, column=9, value=f"{voucher.cash_account.code} - {voucher.cash_account.name}")
+        ws.cell(row=row, column=10, value=voucher.created_at.strftime('%Y/%m/%d %H:%M'))
+
+    # تعديل عرض الأعمدة
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column].width = adjusted_width
+
+    # إنشاء الاستجابة
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"receipt_vouchers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response

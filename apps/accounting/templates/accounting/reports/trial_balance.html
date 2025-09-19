@@ -1,0 +1,305 @@
+<!-- apps/accounting/templates/accounting/reports/trial_balance.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-header {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+    padding: 1.5rem;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.trial-balance-table th {
+    background: #198754;
+    color: white;
+    font-weight: 600;
+}
+
+.debit-column {
+    background: #fff2f2;
+}
+
+.credit-column {
+    background: #f2fff2;
+}
+
+.total-row {
+    background: #e9ecef;
+    font-weight: bold;
+}
+
+.balanced-indicator {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border: 1px solid #198754;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.unbalanced-indicator {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border: 1px solid #dc3545;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.account-level-1 { font-weight: bold; font-size: 1.1em; }
+.account-level-2 { padding-left: 1rem; font-weight: 600; }
+.account-level-3 { padding-left: 2rem; }
+.account-level-4 { padding-left: 3rem; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="card shadow-sm mb-4">
+        <div class="report-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-balance-scale me-2"></i>{{ title }}
+                    </h2>
+                    <p class="mb-0 opacity-75">عرض أرصدة جميع الحسابات في تاريخ معين</p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-light" onclick="exportTrialBalance()">
+                        <i class="fas fa-download me-2"></i>تصدير
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="printReport()">
+                        <i class="fas fa-print me-2"></i>طباعة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <h6 class="mb-3">
+            <i class="fas fa-filter me-2"></i>معاملات التقرير
+        </h6>
+
+        <form method="get" id="reportForm">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">حتى تاريخ</label>
+                    <input type="date" name="as_of_date" class="form-control" value="{{ as_of_date }}" required>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">مستوى الحسابات</label>
+                    <select name="account_level" class="form-select">
+                        <option value="1" {% if account_level == 1 %}selected{% endif %}>المستوى 1 فقط</option>
+                        <option value="2" {% if account_level == 2 %}selected{% endif %}>حتى المستوى 2</option>
+                        <option value="3" {% if account_level == 3 %}selected{% endif %}>حتى المستوى 3</option>
+                        <option value="4" {% if account_level == 4 %}selected{% endif %}>جميع المستويات</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="show_zero_balances"
+                               {% if show_zero_balances %}checked{% endif %}>
+                        <label class="form-check-label">
+                            عرض الأرصدة الصفرية
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-search me-2"></i>عرض التقرير
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Balance Status -->
+    {% if trial_balance_data %}
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="{% if trial_balance_data.is_balanced %}balanced-indicator{% else %}unbalanced-indicator{% endif %}">
+                <h5 class="mb-2">
+                    {% if trial_balance_data.is_balanced %}
+                        <i class="fas fa-check-circle text-success me-2"></i>ميزان متوازن
+                    {% else %}
+                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>ميزان غير متوازن
+                    {% endif %}
+                </h5>
+                <div class="row">
+                    <div class="col-6">
+                        <div>إجمالي المدين: <strong>{{ trial_balance_data.total_debit|floatformat:2 }}</strong></div>
+                    </div>
+                    <div class="col-6">
+                        <div>إجمالي الدائن: <strong>{{ trial_balance_data.total_credit|floatformat:2 }}</strong></div>
+                    </div>
+                </div>
+                {% if not trial_balance_data.is_balanced %}
+                    <div class="mt-2 text-danger">
+                        الفرق: <strong>{{ trial_balance_data.difference|floatformat:2 }}</strong>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>معلومات التقرير
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div><strong>التاريخ:</strong> {{ as_of_date|date:"Y/m/d l" }}</div>
+                    <div><strong>مستوى الحسابات:</strong> حتى المستوى {{ account_level }}</div>
+                    <div><strong>عدد الحسابات:</strong> {{ trial_balance_data.accounts|length }}</div>
+                    <div><strong>الأرصدة الصفرية:</strong> {{ show_zero_balances|yesno:"معروضة,مخفية" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trial Balance Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            {% if trial_balance_data.accounts %}
+            <div class="table-responsive">
+                <table class="table table-hover trial-balance-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%">رمز الحساب</th>
+                            <th style="width: 45%">اسم الحساب</th>
+                            <th class="text-end debit-column" style="width: 20%">رصيد مدين</th>
+                            <th class="text-end credit-column" style="width: 20%">رصيد دائن</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in trial_balance_data.accounts %}
+                        <tr>
+                            <td>
+                                <span class="account-level-{{ item.account.level }}">
+                                    {{ item.account.code }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="account-level-{{ item.account.level }}">
+                                    {{ item.account.name }}
+                                </span>
+                            </td>
+                            <td class="text-end debit-column">
+                                {% if item.debit_balance %}
+                                    {{ item.debit_balance|floatformat:2 }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="text-end credit-column">
+                                {% if item.credit_balance %}
+                                    {{ item.credit_balance|floatformat:2 }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-dark">
+                        <tr class="total-row">
+                            <th colspan="2" class="text-center">الإجمالي</th>
+                            <th class="text-end">{{ trial_balance_data.total_debit|floatformat:2 }}</th>
+                            <th class="text-end">{{ trial_balance_data.total_credit|floatformat:2 }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <h5>لا توجد حسابات</h5>
+                <p>لا توجد حسابات تطابق المعايير المحددة</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <!-- No Data -->
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-search fa-3x mb-3"></i>
+        <h5>اختر معاملات التقرير</h5>
+        <p>قم بتحديد التاريخ والمعاملات الأخرى لعرض ميزان المراجعة</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تحديث تلقائي عند تغيير المعاملات
+    $('input, select').on('change', function() {
+        $('#reportForm').submit();
+    });
+});
+
+function exportTrialBalance() {
+    const params = new URLSearchParams(window.location.search);
+    const exportUrl = '{% url "accounting:export_trial_balance" %}?' + params.toString();
+    window.open(exportUrl, '_blank');
+}
+
+function printReport() {
+    window.print();
+}
+</script>
+
+<style media="print">
+.filter-section, .btn, nav, .card-header .btn {
+    display: none !important;
+}
+
+.report-header {
+    background: #198754 !important;
+    -webkit-print-color-adjust: exact;
+}
+
+.trial-balance-table th {
+    background: #198754 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+}
+
+.debit-column, .credit-column {
+    -webkit-print-color-adjust: exact;
+}
+</style>
+{% endblock %}

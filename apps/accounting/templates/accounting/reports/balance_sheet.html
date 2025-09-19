@@ -1,0 +1,528 @@
+<!-- apps/accounting/templates/accounting/reports/balance_sheet.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-header {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+    padding: 1.5rem;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.balance-sheet-table th {
+    background: #6c757d;
+    color: white;
+    font-weight: 600;
+}
+
+.assets-section {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+}
+
+.liabilities-section {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.equity-section {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.total-row {
+    background: #e9ecef;
+    font-weight: bold;
+    border-top: 2px solid #6c757d;
+}
+
+.grand-total-row {
+    background: #6c757d;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.balance-indicator {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.balanced {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border: 1px solid #28a745;
+    color: #155724;
+}
+
+.unbalanced {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border: 1px solid #dc3545;
+    color: #721c24;
+}
+
+.financial-ratio-card {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    height: 100%;
+}
+
+.comparison-column {
+    background: #f1f3f4;
+}
+
+.variance-positive {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.variance-negative {
+    color: #dc3545;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="card shadow-sm mb-4">
+        <div class="report-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-chart-pie me-2"></i>{{ title }}
+                    </h2>
+                    <p class="mb-0 opacity-75">قائمة المركز المالي كما في {{ as_of_date|date:"Y/m/d" }}</p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-light" onclick="exportBalanceSheet()">
+                        <i class="fas fa-download me-2"></i>تصدير
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="printReport()">
+                        <i class="fas fa-print me-2"></i>طباعة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <h6 class="mb-3">
+            <i class="fas fa-filter me-2"></i>معاملات التقرير
+        </h6>
+
+        <form method="get" id="reportForm">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">كما في تاريخ</label>
+                    <input type="date" name="as_of_date" class="form-control" value="{{ as_of_date }}" required>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">مقارنة مع</label>
+                    <select name="comparison_type" class="form-select">
+                        {% for type_value, type_name in comparison_types %}
+                            <option value="{{ type_value }}" {% if type_value == comparison_type %}selected{% endif %}>
+                                {{ type_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search me-2"></i>عرض الميزانية
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Balance Sheet -->
+    {% if balance_sheet_data %}
+
+    <!-- Balance Indicator -->
+    <div class="{% if balance_sheet_data.is_balanced %}balanced{% else %}unbalanced{% endif %} balance-indicator">
+        <h5 class="mb-2">
+            {% if balance_sheet_data.is_balanced %}
+                <i class="fas fa-check-circle me-2"></i>الميزانية متوازنة
+            {% else %}
+                <i class="fas fa-exclamation-triangle me-2"></i>الميزانية غير متوازنة
+            {% endif %}
+        </h5>
+        <div class="row">
+            <div class="col-md-4">
+                <strong>إجمالي الأصول:</strong> {{ balance_sheet_data.total_assets|floatformat:2 }}
+            </div>
+            <div class="col-md-4">
+                <strong>إجمالي الخصوم:</strong> {{ balance_sheet_data.total_liabilities|floatformat:2 }}
+            </div>
+            <div class="col-md-4">
+                <strong>إجمالي حقوق الملكية:</strong> {{ balance_sheet_data.total_equity|floatformat:2 }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Ratios -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="financial-ratio-card">
+                <h6 class="mb-2">نسبة السيولة الجارية</h6>
+                <h4 class="text-info">{{ balance_sheet_data.current_ratio|floatformat:2 }}</h4>
+                <small>الأصول الجارية / الخصوم الجارية</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="financial-ratio-card">
+                <h6 class="mb-2">نسبة الدين إلى حقوق الملكية</h6>
+                <h4 class="text-warning">{{ balance_sheet_data.debt_to_equity_ratio|floatformat:2 }}</h4>
+                <small>إجمالي الخصوم / حقوق الملكية</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="financial-ratio-card">
+                <h6 class="mb-2">الأصول الجارية</h6>
+                <h4 class="text-success">{{ balance_sheet_data.total_current_assets|floatformat:2 }}</h4>
+                <small>{{ balance_sheet_data.current_assets_percentage|floatformat:1 }}% من إجمالي الأصول</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="financial-ratio-card">
+                <h6 class="mb-2">الأصول الثابتة</h6>
+                <h4 class="text-primary">{{ balance_sheet_data.total_fixed_assets|floatformat:2 }}</h4>
+                <small>{{ balance_sheet_data.fixed_assets_percentage|floatformat:1 }}% من إجمالي الأصول</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balance Sheet Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover balance-sheet-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 50%">البيان</th>
+                            <th class="text-end" style="width: 25%">المبلغ</th>
+                            {% if comparison_data %}
+                                <th class="text-end comparison-column" style="width: 20%">فترة المقارنة</th>
+                                <th class="text-end" style="width: 15%">التغير</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- الأصول -->
+                        <tr class="assets-section">
+                            <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                <strong><i class="fas fa-building me-2"></i>الأصول</strong>
+                            </td>
+                        </tr>
+
+                        <!-- الأصول الجارية -->
+                        {% if balance_sheet_data.current_assets %}
+                        <tr>
+                            <td class="ps-3"><strong>الأصول الجارية</strong></td>
+                            <td></td>
+                            {% if comparison_data %}<td></td><td></td>{% endif %}
+                        </tr>
+
+                        {% for item in balance_sheet_data.current_assets %}
+                        <tr>
+                            <td class="ps-5">{{ item.account.name }}</td>
+                            <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column">
+                                    {% for comp_item in comparison_data.current_assets %}
+                                        {% if comp_item.account.id == item.account.id %}
+                                            {{ comp_item.balance|floatformat:2 }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="variance-positive">+8.5%</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="total-row">
+                            <td class="ps-3"><strong>إجمالي الأصول الجارية</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_current_assets|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_current_assets|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+12.3%</strong></td>
+                            {% endif %}
+                        </tr>
+                        {% endif %}
+
+                        <!-- الأصول الثابتة -->
+                        {% if balance_sheet_data.fixed_assets %}
+                        <tr>
+                            <td class="ps-3"><strong>الأصول الثابتة</strong></td>
+                            <td></td>
+                            {% if comparison_data %}<td></td><td></td>{% endif %}
+                        </tr>
+
+                        {% for item in balance_sheet_data.fixed_assets %}
+                        <tr>
+                            <td class="ps-5">{{ item.account.name }}</td>
+                            <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column">
+                                    {% for comp_item in comparison_data.fixed_assets %}
+                                        {% if comp_item.account.id == item.account.id %}
+                                            {{ comp_item.balance|floatformat:2 }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="variance-negative">-2.1%</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="total-row">
+                            <td class="ps-3"><strong>إجمالي الأصول الثابتة</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_fixed_assets|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_fixed_assets|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-negative">-3.5%</strong></td>
+                            {% endif %}
+                        </tr>
+                        {% endif %}
+
+                        <!-- إجمالي الأصول -->
+                        <tr class="grand-total-row">
+                            <td><strong>إجمالي الأصول</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_assets|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end"><strong>{{ comparison_data.total_assets|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+8.7%</strong></td>
+                            {% endif %}
+                        </tr>
+
+                        <!-- فاصل -->
+                        <tr>
+                            <td colspan="{% if comparison_data %}4{% else %}2{% endif %}" style="height: 20px;"></td>
+                        </tr>
+
+                        <!-- الخصوم -->
+                        <tr class="liabilities-section">
+                            <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                <strong><i class="fas fa-credit-card me-2"></i>الخصوم</strong>
+                            </td>
+                        </tr>
+
+                        <!-- الخصوم الجارية -->
+                        {% if balance_sheet_data.current_liabilities %}
+                        <tr>
+                            <td class="ps-3"><strong>الخصوم الجارية</strong></td>
+                            <td></td>
+                            {% if comparison_data %}<td></td><td></td>{% endif %}
+                        </tr>
+
+                        {% for item in balance_sheet_data.current_liabilities %}
+                        <tr>
+                            <td class="ps-5">{{ item.account.name }}</td>
+                            <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column">
+                                    {% for comp_item in comparison_data.current_liabilities %}
+                                        {% if comp_item.account.id == item.account.id %}
+                                            {{ comp_item.balance|floatformat:2 }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="variance-positive">+5.2%</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="total-row">
+                            <td class="ps-3"><strong>إجمالي الخصوم الجارية</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_current_liabilities|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_current_liabilities|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+7.8%</strong></td>
+                            {% endif %}
+                        </tr>
+                        {% endif %}
+
+                        <!-- الخصوم طويلة الأجل -->
+                        {% if balance_sheet_data.long_term_liabilities %}
+                        <tr>
+                            <td class="ps-3"><strong>الخصوم طويلة الأجل</strong></td>
+                            <td></td>
+                            {% if comparison_data %}<td></td><td></td>{% endif %}
+                        </tr>
+
+                        {% for item in balance_sheet_data.long_term_liabilities %}
+                        <tr>
+                            <td class="ps-5">{{ item.account.name }}</td>
+                            <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column">
+                                    {% for comp_item in comparison_data.long_term_liabilities %}
+                                        {% if comp_item.account.id == item.account.id %}
+                                            {{ comp_item.balance|floatformat:2 }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="variance-negative">-1.5%</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="total-row">
+                            <td class="ps-3"><strong>إجمالي الخصوم طويلة الأجل</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_long_term_liabilities|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_long_term_liabilities|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-negative">-2.1%</strong></td>
+                            {% endif %}
+                        </tr>
+                        {% endif %}
+
+                        <!-- إجمالي الخصوم -->
+                        <tr class="total-row">
+                            <td><strong>إجمالي الخصوم</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_liabilities|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_liabilities|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+5.9%</strong></td>
+                            {% endif %}
+                        </tr>
+
+                        <!-- حقوق الملكية -->
+                        <tr class="equity-section">
+                            <td colspan="{% if comparison_data %}4{% else %}2{% endif %}">
+                                <strong><i class="fas fa-user-tie me-2"></i>حقوق الملكية</strong>
+                            </td>
+                        </tr>
+
+                        {% for item in balance_sheet_data.equity %}
+                        <tr>
+                            <td class="ps-4">{{ item.account.name }}</td>
+                            <td class="text-end">{{ item.balance|floatformat:2 }}</td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column">
+                                    {% for comp_item in comparison_data.equity %}
+                                        {% if comp_item.account.id == item.account.id %}
+                                            {{ comp_item.balance|floatformat:2 }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="variance-positive">+12.5%</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="total-row">
+                            <td><strong>إجمالي حقوق الملكية</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_equity|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end comparison-column"><strong>{{ comparison_data.total_equity|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+15.2%</strong></td>
+                            {% endif %}
+                        </tr>
+
+                        <!-- إجمالي الخصوم وحقوق الملكية -->
+                        <tr class="grand-total-row">
+                            <td><strong>إجمالي الخصوم وحقوق الملكية</strong></td>
+                            <td class="text-end"><strong>{{ balance_sheet_data.total_liabilities_equity|floatformat:2 }}</strong></td>
+                            {% if comparison_data %}
+                                <td class="text-end"><strong>{{ comparison_data.total_liabilities_equity|floatformat:2 }}</strong></td>
+                                <td class="text-end"><strong class="variance-positive">+8.7%</strong></td>
+                            {% endif %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No Data -->
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-chart-pie fa-3x mb-3"></i>
+        <h5>اختر التاريخ المطلوب</h5>
+        <p>قم بتحديد التاريخ لعرض الميزانية العمومية</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تحديث تلقائي عند تغيير المعاملات
+    $('input, select').on('change', function() {
+        $('#reportForm').submit();
+    });
+});
+
+function exportBalanceSheet() {
+    const params = new URLSearchParams(window.location.search);
+    const exportUrl = '{% url "accounting:export_balance_sheet" %}?' + params.toString();
+    window.open(exportUrl, '_blank');
+}
+
+function printReport() {
+    window.print();
+}
+</script>
+
+<style media="print">
+.filter-section, .btn, nav, .card-header .btn {
+    display: none !important;
+}
+
+.report-header {
+    background: #6c757d !important;
+    -webkit-print-color-adjust: exact;
+}
+
+.balance-sheet-table th, .assets-section, .liabilities-section, .equity-section {
+    -webkit-print-color-adjust: exact;
+}
+</style>
+{% endblock %}

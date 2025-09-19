@@ -25,6 +25,7 @@ from ..forms.journal_forms import (
     JournalEntryForm, JournalEntryLineForm, JournalEntryTemplateForm,
     QuickJournalEntryForm, JournalEntryLineFormSet
 )
+from django.views.generic import FormView
 
 
 class JournalEntryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
@@ -218,7 +219,7 @@ class JournalEntryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Compan
 
 
 # Views للقيد السريع
-class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, CreateView):
+class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
     """إنشاء قيد سريع (سطرين فقط)"""
 
     form_class = QuickJournalEntryForm
@@ -250,7 +251,6 @@ class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Company
             ]
         })
         return context
-
 
 # Ajax Views
 @login_required
