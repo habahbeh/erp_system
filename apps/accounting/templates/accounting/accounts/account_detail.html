@@ -1,0 +1,225 @@
+{# apps/accounting/templates/accounting/accounts/account_detail.html#}
+
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.account-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.info-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Account Header -->
+    <div class="account-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="mb-2">
+                    <i class="fas fa-sitemap me-2"></i>
+                    {{ account.name }}
+                </h2>
+                <p class="mb-0">
+                    <strong>الرمز:</strong> {{ account.code }} |
+                    <strong>النوع:</strong> {{ account.account_type.name }}
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                {% if account.is_suspended %}
+                    <span class="badge badge-lg bg-danger">موقوف</span>
+                {% else %}
+                    <span class="badge badge-lg bg-success">نشط</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Account Info -->
+            <div class="info-card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle me-2"></i>معلومات الحساب</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>الاسم العربي:</th>
+                                    <td>{{ account.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>الاسم الإنجليزي:</th>
+                                    <td>{{ account.name_en|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>نوع الحساب:</th>
+                                    <td>{{ account.account_type.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>العملة:</th>
+                                    <td>{{ account.currency.name }} ({{ account.currency.code }})</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>الرصيد الافتتاحي:</th>
+                                    <td>{{ account.opening_balance|floatformat:3 }}</td>
+                                </tr>
+                                <tr>
+                                    <th>المستوى:</th>
+                                    <td>{{ account.level }}</td>
+                                </tr>
+                                <tr>
+                                    <th>يقبل قيود:</th>
+                                    <td>{% if account.accept_entries %}نعم{% else %}لا{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <th>حساب نقدي:</th>
+                                    <td>{% if account.is_cash_account %}نعم{% else %}لا{% endif %}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    {% if account.notes %}
+                    <div class="mt-3">
+                        <strong>ملاحظات:</strong>
+                        <p class="mt-2">{{ account.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Children Accounts -->
+            {% if account.children.exists %}
+            <div class="info-card">
+                <div class="card-header">
+                    <h5><i class="fas fa-sitemap me-2"></i>الحسابات الفرعية</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>الرمز</th>
+                                    <th>الاسم</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for child in account.children.all %}
+                                <tr>
+                                    <td>{{ child.code }}</td>
+                                    <td>{{ child.name }}</td>
+                                    <td>
+                                        {% if child.is_suspended %}
+                                            <span class="badge bg-danger">موقوف</span>
+                                        {% else %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'accounting:account_detail' child.pk %}" class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h6>الإجراءات</h6>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    {% if can_edit %}
+                    <a href="{% url 'accounting:account_update' account.pk %}" class="btn btn-primary">
+                        <i class="fas fa-edit me-2"></i>تعديل الحساب
+                    </a>
+                    {% endif %}
+
+                    {% if can_delete %}
+                    <a href="{% url 'accounting:account_delete' account.pk %}" class="btn btn-outline-danger">
+                        <i class="fas fa-trash me-2"></i>حذف الحساب
+                    </a>
+                    {% endif %}
+
+                    <hr>
+                    <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+                    </a>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>إحصائيات</h6>
+                </div>
+                <div class="card-body">
+                    <div class="stat-card">
+                        <h4>{{ account_stats.children_count }}</h4>
+                        <small>حساب فرعي</small>
+                    </div>
+                    <div class="stat-card">
+                        <h4>{{ account_stats.current_balance|floatformat:3 }}</h4>
+                        <small>الرصيد الحالي</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

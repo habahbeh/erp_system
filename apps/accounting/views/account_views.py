@@ -23,7 +23,7 @@ from ..forms.account_forms import AccountForm, AccountFilterForm
 class AccountListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """قائمة الحسابات"""
 
-    template_name = 'accounting/account/account_list.html'
+    template_name = 'accounting/accounts/account_list.html'
     permission_required = 'accounting.view_account'
 
     def get_context_data(self, **kwargs):
@@ -67,7 +67,7 @@ class AccountCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
 
     model = Account
     form_class = AccountForm
-    template_name = 'accounting/account/account_form.html'
+    template_name = 'accounting/accounts/account_form.html'
     permission_required = 'accounting.add_account'
 
     def get_form_kwargs(self):
@@ -107,7 +107,7 @@ class AccountUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
 
     model = Account
     form_class = AccountForm
-    template_name = 'accounting/account/account_form.html'
+    template_name = 'accounting/accounts/account_form.html'
     permission_required = 'accounting.change_account'
 
     def get_queryset(self):
@@ -154,7 +154,7 @@ class AccountDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
     """عرض تفاصيل الحساب"""
 
     model = Account
-    template_name = 'accounting/account/account_detail.html'
+    template_name = 'accounting/accounts/account_detail.html'
     context_object_name = 'account'
     permission_required = 'accounting.view_account'
 
@@ -193,7 +193,7 @@ class AccountDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
     """حذف حساب"""
 
     model = Account
-    template_name = 'accounting/account/account_confirm_delete.html'
+    template_name = 'accounting/accounts/account_confirm_delete.html'
     permission_required = 'accounting.delete_account'
     success_url = reverse_lazy('accounting:account_list')
 

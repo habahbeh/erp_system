@@ -23,7 +23,7 @@ from ..forms.account_type_forms import AccountTypeForm
 class AccountTypeListView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
     """قائمة أنواع الحسابات"""
 
-    template_name = 'accounting/account_type/account_type_list.html'
+    template_name = 'accounting/account_types/account_type_list.html'
     permission_required = 'accounting.view_accounttype'
 
     def get_context_data(self, **kwargs):
@@ -61,7 +61,7 @@ class AccountTypeCreateView(LoginRequiredMixin, PermissionRequiredMixin, AuditLo
 
     model = AccountType
     form_class = AccountTypeForm
-    template_name = 'accounting/account_type/account_type_form.html'
+    template_name = 'accounting/account_types/account_type_form.html'
     permission_required = 'accounting.add_accounttype'
     success_url = reverse_lazy('accounting:account_type_list')
 
@@ -89,7 +89,7 @@ class AccountTypeUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AuditLo
 
     model = AccountType
     form_class = AccountTypeForm
-    template_name = 'accounting/account_type/account_type_form.html'
+    template_name = 'accounting/account_types/account_type_form.html'
     permission_required = 'accounting.change_accounttype'
 
     def form_valid(self, form):
@@ -118,7 +118,7 @@ class AccountTypeDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteV
     """حذف نوع حساب"""
 
     model = AccountType
-    template_name = 'accounting/account_type/account_type_confirm_delete.html'
+    template_name = 'accounting/account_types/account_type_confirm_delete.html'
     permission_required = 'accounting.delete_accounttype'
     success_url = reverse_lazy('accounting:account_type_list')
 
