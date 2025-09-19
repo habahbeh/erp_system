@@ -10,6 +10,8 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('ajax/dashboard/', views.dashboard_ajax, name='dashboard_ajax'),
     # path('switch-branch/<int:branch_id>/', views.switch_branch, name='switch_branch'),
+    path('switch-company/<int:company_id>/', views.switch_company, name='switch_company'),
+    path('ajax/company/<int:company_id>/branches/', views.get_company_branches, name='company_branches'),
 
     # الأصناف
     path('items/', views.ItemListView.as_view(), name='item_list'),

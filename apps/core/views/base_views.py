@@ -9,7 +9,13 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta
 import json
 
-from ..models import Company, CustomPermission, PermissionGroup
+from ..models import Company, Branch, CustomPermission, PermissionGroup
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods
+
 
 User = get_user_model()
 
@@ -151,3 +157,67 @@ def dashboard_ajax(request):
         ).count(),
     }
     return JsonResponse(data)
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+@require_http_methods(["POST"])
+def switch_company(request, company_id):
+    """تبديل الشركة للـ superuser"""
+    try:
+        company = get_object_or_404(Company, id=company_id, is_active=True)
+        request.session['selected_company'] = company.id
+
+        # مسح الفرع المحدد سابقاً لأننا في شركة جديدة
+        if 'current_branch' in request.session:
+            del request.session['current_branch']
+
+        messages.success(request, f'تم التبديل إلى شركة: {company.name}')
+
+        # للـ Ajax requests
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': f'تم التبديل إلى شركة: {company.name}',
+                'company_id': company.id,
+                'company_name': company.name
+            })
+
+    except Exception as e:
+        messages.error(request, f'خطأ في التبديل: {str(e)}')
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'message': f'خطأ في التبديل: {str(e)}'
+            })
+
+    # الإعادة للصفحة السابقة أو الرئيسية
+    return redirect(request.META.get('HTTP_REFERER', '/'))
+
+@login_required
+@require_http_methods(["GET"])
+def get_company_branches(request, company_id):
+    """الحصول على فروع الشركة عبر Ajax"""
+    try:
+        company = get_object_or_404(Company, id=company_id, is_active=True)
+
+        # التحقق من الصلاحيات
+        if not request.user.is_superuser and request.user.company != company:
+            return JsonResponse({'error': 'غير مصرح'}, status=403)
+
+        branches = company.branches.filter(is_active=True).values(
+            'id', 'name', 'code', 'is_main'
+        ).order_by('name')
+
+        return JsonResponse({
+            'success': True,
+            'branches': list(branches)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

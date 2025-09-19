@@ -1,0 +1,351 @@
+<!-- templates/accounting/account_types/account_type_list.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة وتصنيف أنواع الحسابات المحاسبية" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{{ add_url }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة نوع حساب جديد" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "تصنيف الحساب" %}</label>
+                        <select class="form-select" id="typeCategoryFilter">
+                            <option value="">{% trans "جميع التصنيفات" %}</option>
+                            <option value="assets">{% trans "الأصول" %}</option>
+                            <option value="liabilities">{% trans "الخصوم" %}</option>
+                            <option value="equity">{% trans "حقوق الملكية" %}</option>
+                            <option value="revenue">{% trans "الإيرادات" %}</option>
+                            <option value="expenses">{% trans "المصروفات" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الرصيد الطبيعي" %}</label>
+                        <select class="form-select" id="normalBalanceFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="debit">{% trans "مدين" %}</option>
+                            <option value="credit">{% trans "دائن" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث في الرمز أو الاسم' %}">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+
+                        <!-- أزرار التصدير والاستيراد -->
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
+                                <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                            </button>
+                            {% if can_add %}
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importModal">
+                                <i class="fas fa-upload"></i> {% trans "استيراد" %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+         
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="accountTypesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الرمز" %}</th>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "تصنيف الحساب" %}</th>
+                            <th>{% trans "الرصيد الطبيعي" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+{% if can_add %}
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload"></i> {% trans "استيراد أنواع الحسابات" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'accounting:import_account_types' %}" enctype="multipart/form-data" id="importForm">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_file" class="form-label">{% trans "اختر ملف الاستيراد" %}</label>
+                        <input type="file" class="form-control" id="id_file" name="file" accept=".xlsx,.xls,.csv" required>
+                        <div class="form-text">
+                            يدعم ملفات Excel (.xlsx, .xls) و CSV (.csv)
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> تنسيق الملف المطلوب:</h6>
+                        <p class="mb-1">الأعمدة المطلوبة:</p>
+                        <ul class="mb-0">
+                            <li><strong>code:</strong> رمز نوع الحساب</li>
+                            <li><strong>name:</strong> اسم نوع الحساب</li>
+                            <li><strong>type_category:</strong> تصنيف الحساب</li>
+                            <li><strong>normal_balance:</strong> الرصيد الطبيعي</li>
+                        </ul>
+                    </div>
+
+                    <div class="text-center">
+                        <a href="{% url 'accounting:export_account_types' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-download"></i> تحميل نموذج
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload"></i> استيراد
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    var table = $('#accountTypesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'accounting:account_type_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                // إضافة الفلاتر المخصصة
+                d.type_category = $('#typeCategoryFilter').val();
+                d.normal_balance = $('#normalBalanceFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "code"},
+            {"data": 1, "name": "name"},
+            {"data": 2, "name": "type_category"},
+            {"data": 3, "name": "normal_balance"},
+            {"data": 4, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        // إزالة dom و buttons لتبسيط الواجهة
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [4] }
+        ],
+        "drawCallback": function(settings) {
+            // تفعيل tooltips
+            $('[data-bs-toggle="tooltip"]').tooltip();
+
+            // إظهار معلومات الصفحة في مكان مخصص
+            var info = table.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#typeCategoryFilter, #normalBalanceFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // البحث المباشر
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#typeCategoryFilter, #normalBalanceFilter').val('');
+        $('#searchFilter').val('');
+        table.ajax.reload();
+    });
+
+    // Export function
+    window.exportToExcel = function() {
+        window.location.href = '{% url "accounting:export_account_types" %}';
+    };
+
+    // Delete function
+    window.deleteAccountType = function(id) {
+        Swal.fire({
+            title: 'هل أنت متأكد؟',
+            text: 'سيتم حذف نوع الحساب نهائياً',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var form = $('<form>', {
+                    'method': 'POST',
+                    'action': '/accounting/account-types/' + id + '/delete/'
+                });
+
+                form.append($('<input>', {
+                    'type': 'hidden',
+                    'name': 'csrfmiddlewaretoken',
+                    'value': $('[name=csrfmiddlewaretoken]').val()
+                }));
+
+                $('body').append(form);
+                form.submit();
+            }
+        });
+    };
+
+    // دالة لإظهار معلومات الجدول
+    function updateTableInfo(info) {
+        var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' نوع حساب';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+});
+
+// تعامل مع رفع الملف
+$('#importForm').on('submit', function(e) {
+    var fileInput = $('#id_file')[0];
+
+    if (!fileInput.files[0]) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'warning',
+            title: 'تحديد ملف مطلوب',
+            text: 'يرجى اختيار ملف للاستيراد'
+        });
+        return;
+    }
+
+    Swal.fire({
+        title: 'جاري الاستيراد...',
+        html: 'يرجى الانتظار حتى اكتمال عملية الاستيراد',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        willOpen: () => {
+            Swal.showLoading();
+        }
+    });
+});
+
+// تحديث الجدول كل 30 ثانية
+setInterval(function() {
+    $('#accountTypesTable').DataTable().ajax.reload(null, false);
+}, 30000);
+
+function changePageLength(length) {
+    $('#accountTypesTable').DataTable().page.len(parseInt(length)).draw();
+}
+
+// Export function
+function exportToExcel() {
+    window.location.href = '{% url "accounting:export_account_types" %}';
+}
+
+// يمكن أيضاً إضافة تصدير PDF مخصص إذا أردت
+function exportToPDF() {
+    // إذا كنت تريد تصدير PDF مخصص
+    Swal.fire({
+        icon: 'info',
+        title: 'تصدير PDF',
+        text: 'ميزة تصدير PDF قيد التطوير',
+        confirmButtonText: 'حسناً'
+    });
+}
+
+</script>
+{% endblock %}

@@ -89,15 +89,6 @@ class Account(BaseModel):
         unique_together = [['company', 'code']]
         ordering = ['code']
 
-    def save(self, *args, **kwargs):
-        if self.parent:
-            self.level = self.parent.level + 1
-            if not self.account_type_id:
-                self.account_type = self.parent.account_type
-        else:
-            self.level = 1
-        super().save(*args, **kwargs)
-
     def get_full_name(self):
         if self.parent:
             return f"{self.parent.get_full_name()} / {self.name}"
@@ -108,8 +99,45 @@ class Account(BaseModel):
 
     def clean(self):
         from django.core.exceptions import ValidationError
+
+        # التحقق من عمق الهيكل الهرمي فقط
+        if self.parent:
+            level = 1
+            current_parent = self.parent
+            while current_parent:
+                level += 1
+                if level > 4:
+                    raise ValidationError(_('لا يمكن تجاوز 4 مستويات في الهيكل الهرمي'))
+                current_parent = current_parent.parent
+
+        return super().clean()
+
+    def save(self, *args, **kwargs):
+        # حساب المستوى
+        if self.parent:
+            self.level = self.parent.level + 1
+            if not self.account_type_id:
+                self.account_type = self.parent.account_type
+        else:
+            self.level = 1
+
+        # التحقق من منطق accept_entries بعد الحفظ
+        super().save(*args, **kwargs)
+
+        # بعد الحفظ، تحقق من أن الأطفال لا يملكون آباء يقبلون قيود
         if self.children.exists() and self.accept_entries:
-            raise ValidationError(_("الحسابات الأب لا تقبل قيود مباشرة"))
+            self.accept_entries = False
+            super().save(update_fields=['accept_entries'])
+
+    def can_accept_entries(self):
+        """تحقق مما إذا كان الحساب يمكنه قبول قيود"""
+        return not self.children.exists()
+
+    def get_children_count(self):
+        """عدد الحسابات الفرعية"""
+        if not self.pk:
+            return 0
+        return self.children.count()
 
     def __str__(self):
         return f"{self.code} - {self.name}"

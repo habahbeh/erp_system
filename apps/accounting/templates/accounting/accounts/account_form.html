@@ -1,0 +1,374 @@
+<!-- templates/accounting/accounts/account_form.html -->
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.info-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-section {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    background: #fafafa;
+}
+
+.form-section h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e9ecef;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدخال بيانات الحساب المحاسبي" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <!-- Form Card -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-sitemap me-2"></i>
+                        {% if object %}{% trans "تعديل الحساب" %}{% else %}{% trans "إضافة حساب جديد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <!-- المعلومات الأساسية -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-info-circle me-2"></i>المعلومات الأساسية</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.code.id_for_label }}" class="form-label">
+                                        {{ form.code.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.code|add_class:"form-control" }}
+                                    {% if form.code.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.code.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                                        {{ form.name.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.name|add_class:"form-control" }}
+                                    {% if form.name.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                        {{ form.name_en.label }}
+                                    </label>
+                                    {{ form.name_en|add_class:"form-control" }}
+                                    {% if form.name_en.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name_en.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- التصنيف والهيكل -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-sitemap me-2"></i>التصنيف والهيكل</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.account_type.id_for_label }}" class="form-label">
+                                        {{ form.account_type.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.account_type|add_class:"form-select" }}
+                                    {% if form.account_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.account_type.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.parent.id_for_label }}" class="form-label">
+                                        {{ form.parent.label }}
+                                    </label>
+                                    {{ form.parent|add_class:"form-select" }}
+                                    {% if form.parent.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.parent.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.nature.id_for_label }}" class="form-label">
+                                        {{ form.nature.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.nature|add_class:"form-select" }}
+                                    {% if form.nature.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.nature.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الإعدادات المالية -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-coins me-2"></i>الإعدادات المالية</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.currency.id_for_label }}" class="form-label">
+                                        {{ form.currency.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.currency|add_class:"form-select" }}
+                                    {% if form.currency.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.currency.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.opening_balance.id_for_label }}" class="form-label">
+                                        {{ form.opening_balance.label }}
+                                    </label>
+                                    {{ form.opening_balance|add_class:"form-control" }}
+                                    {% if form.opening_balance.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.opening_balance.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="{{ form.opening_balance_date.id_for_label }}" class="form-label">
+                                        {{ form.opening_balance_date.label }}
+                                    </label>
+                                    {{ form.opening_balance_date|add_class:"form-control" }}
+                                    {% if form.opening_balance_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.opening_balance_date.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- خصائص الحساب -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-cogs me-2"></i>خصائص الحساب</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        {{ form.accept_entries|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.accept_entries.id_for_label }}">
+                                            {{ form.accept_entries.label }}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        {{ form.is_cash_account|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_cash_account.id_for_label }}">
+                                            {{ form.is_cash_account.label }}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        {{ form.is_bank_account|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_bank_account.id_for_label }}">
+                                            {{ form.is_bank_account.label }}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        {{ form.is_suspended|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_suspended.id_for_label }}">
+                                            {{ form.is_suspended.label }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ملاحظات -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-sticky-note me-2"></i>ملاحظات</h6>
+                            <div class="row">
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- معلومات مساعدة -->
+                        <div class="info-box">
+                            <h6><i class="fas fa-lightbulb me-2"></i>معلومات مساعدة:</h6>
+                            <ul class="mb-0">
+                                <li><strong>رمز الحساب:</strong> يجب أن يكون فريداً ومناسباً للترتيب الهرمي</li>
+                                <li><strong>الحساب الأب:</strong> اتركه فارغاً لإنشاء حساب رئيسي</li>
+                                <li><strong>يقبل قيود مباشرة:</strong> الحسابات الأب لا تقبل قيود مباشرة</li>
+                                <li><strong>الحد الأقصى:</strong> 4 مستويات هرمية</li>
+                            </ul>
+                        </div>
+
+                        <!-- أزرار الإجراءات -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-right me-2"></i>العودة
+                            </a>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>
+                                {% if object %}تحديث{% else %}إضافة{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تحسين تجربة المستخدم
+    $('form').on('submit', function() {
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...'
+        );
+    });
+
+    // تنبيه عند مغادرة الصفحة بدون حفظ
+    var formChanged = false;
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+    });
+
+    $('#id_parent').on('change', function () {
+        var parentId = $(this).val();
+        if (parentId) {
+            // التحقق عبر Ajax مما إذا كان الحساب الأب يقبل قيود
+            $.get('/accounting/ajax/check-parent/', {parent_id: parentId}, function (data) {
+                if (data.accepts_entries) {
+                    alert('تحذير: الحساب الأب المحدد يقبل قيود مباشرة. سيتم تعديله تلقائياً.');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

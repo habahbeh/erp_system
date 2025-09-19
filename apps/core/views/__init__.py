@@ -4,7 +4,7 @@
 """
 
 # from .base_views import dashboard, switch_branch
-from .base_views import dashboard, dashboard_ajax
+from .base_views import dashboard, dashboard_ajax, switch_company, get_company_branches
 from .item_views import (
     ItemListView, ItemCreateView, ItemUpdateView, ItemDeleteView, ItemDetailView,
     ItemCategoryListView, ItemCategoryCreateView, ItemCategoryUpdateView, ItemCategoryDeleteView
