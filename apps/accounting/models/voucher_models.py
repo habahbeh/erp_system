@@ -1,14 +1,15 @@
 # apps/accounting/models/voucher_models.py
 """
-نماذج السندات (القبض والصرف)
+نماذج السندات (القبض والصرف) - مع الربط التلقائي للقيود
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from apps.core.models import DocumentBaseModel
 from .account_models import Account
-from .journal_models import JournalEntry
+from .journal_models import JournalEntry, JournalEntryLine
 
 
 class PaymentVoucher(DocumentBaseModel):
@@ -21,8 +22,16 @@ class PaymentVoucher(DocumentBaseModel):
         ('credit_card', _('بطاقة ائتمان'))
     ]
 
+    STATUS_CHOICES = [
+        ('draft', _('مسودة')),
+        ('confirmed', _('مؤكد')),
+        ('posted', _('مرحل')),
+        ('cancelled', _('ملغي')),
+    ]
+
     number = models.CharField(_('رقم السند'), max_length=50, editable=False)
     date = models.DateField(_('التاريخ'))
+    status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # المستفيد
     beneficiary_name = models.CharField(_('اسم المستفيد'), max_length=200)
@@ -56,8 +65,11 @@ class PaymentVoucher(DocumentBaseModel):
     journal_entry = models.OneToOneField(JournalEntry, on_delete=models.SET_NULL, null=True, blank=True,
                                         verbose_name=_('القيد المحاسبي'))
 
-    # الحالة
-    is_posted = models.BooleanField(_('مرحل'), default=False)
+    # معلومات الترحيل
+    posted_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='posted_payment_vouchers', verbose_name=_('رحل بواسطة'))
+    posted_date = models.DateTimeField(_('تاريخ الترحيل'), null=True, blank=True)
+
     notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
@@ -68,21 +80,124 @@ class PaymentVoucher(DocumentBaseModel):
 
     def save(self, *args, **kwargs):
         if not self.number:
-            year_month = self.date.strftime('%Y%m')
-            last_voucher = PaymentVoucher.objects.filter(
-                company=self.company,
-                number__startswith=f"PV{year_month}"
-            ).order_by('-number').first()
-
-            if last_voucher:
-                last_number = int(last_voucher.number[-4:])
-                new_number = last_number + 1
-            else:
-                new_number = 1
-
-            self.number = f"PV{year_month}{new_number:04d}"
-
+            self.number = self.generate_number()
         super().save(*args, **kwargs)
+
+    def generate_number(self):
+        """توليد رقم السند"""
+        year_month = self.date.strftime('%Y%m')
+        last_voucher = PaymentVoucher.objects.filter(
+            company=self.company,
+            number__startswith=f"PV{year_month}"
+        ).order_by('-number').first()
+
+        if last_voucher:
+            last_number = int(last_voucher.number[-4:])
+            new_number = last_number + 1
+        else:
+            new_number = 1
+
+        return f"PV{year_month}{new_number:04d}"
+
+    def can_post(self):
+        """هل يمكن ترحيل السند"""
+        return self.status == 'confirmed' and not self.journal_entry
+
+    def can_unpost(self):
+        """هل يمكن إلغاء ترحيل السند"""
+        return self.status == 'posted' and self.journal_entry
+
+    def can_edit(self):
+        """هل يمكن تعديل السند"""
+        return self.status in ['draft', 'confirmed']
+
+    def can_delete(self):
+        """هل يمكن حذف السند"""
+        return self.status == 'draft' and not self.journal_entry
+
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل السند وإنشاء القيد المحاسبي"""
+        if not self.can_post():
+            raise ValidationError(_('لا يمكن ترحيل هذا السند'))
+
+        # التحقق من صحة البيانات
+        if not self.cash_account:
+            raise ValidationError(_('يجب تحديد حساب الصندوق/البنك'))
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"سند صرف رقم {self.number} - {self.description}",
+            reference=self.number,
+            source_document='payment_voucher',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        # إنشاء سطور القيد
+        line_number = 1
+
+        # سطر المصروف (مدين)
+        expense_account = self.expense_account or self.cash_account  # افتراضي إذا لم يحدد
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=expense_account,
+            description=f"{self.description} - {self.beneficiary_name}",
+            debit_amount=self.amount,
+            credit_amount=0,
+            currency=self.currency,
+            exchange_rate=self.exchange_rate,
+            reference=self.number
+        )
+        line_number += 1
+
+        # سطر الصندوق/البنك (دائن)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=self.cash_account,
+            description=f"سند صرف - {self.beneficiary_name}",
+            debit_amount=0,
+            credit_amount=self.amount,
+            currency=self.currency,
+            exchange_rate=self.exchange_rate,
+            reference=self.number
+        )
+
+        # ترحيل القيد تلقائياً
+        journal_entry.post(user=user)
+
+        # تحديث السند
+        self.journal_entry = journal_entry
+        self.status = 'posted'
+        self.posted_by = user
+        self.posted_date = journal_entry.posted_date
+        self.save()
+
+        return journal_entry
+
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل السند"""
+        if not self.can_unpost():
+            raise ValidationError(_('لا يمكن إلغاء ترحيل هذا السند'))
+
+        # إلغاء ترحيل القيد
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+
+        # تحديث السند
+        self.journal_entry = None
+        self.status = 'confirmed'
+        self.posted_by = None
+        self.posted_date = None
+        self.save()
 
     def __str__(self):
         return f"{self.number} - {self.beneficiary_name}"
@@ -98,8 +213,16 @@ class ReceiptVoucher(DocumentBaseModel):
         ('credit_card', _('بطاقة ائتمان'))
     ]
 
+    STATUS_CHOICES = [
+        ('draft', _('مسودة')),
+        ('confirmed', _('مؤكد')),
+        ('posted', _('مرحل')),
+        ('cancelled', _('ملغي')),
+    ]
+
     number = models.CharField(_('رقم السند'), max_length=50, editable=False)
     date = models.DateField(_('التاريخ'))
+    status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # المستلم من
     received_from = models.CharField(_('مستلم من'), max_length=200)
@@ -133,8 +256,11 @@ class ReceiptVoucher(DocumentBaseModel):
     journal_entry = models.OneToOneField(JournalEntry, on_delete=models.SET_NULL, null=True, blank=True,
                                         verbose_name=_('القيد المحاسبي'))
 
-    # الحالة
-    is_posted = models.BooleanField(_('مرحل'), default=False)
+    # معلومات الترحيل
+    posted_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='posted_receipt_vouchers', verbose_name=_('رحل بواسطة'))
+    posted_date = models.DateTimeField(_('تاريخ الترحيل'), null=True, blank=True)
+
     notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
@@ -145,21 +271,124 @@ class ReceiptVoucher(DocumentBaseModel):
 
     def save(self, *args, **kwargs):
         if not self.number:
-            year_month = self.date.strftime('%Y%m')
-            last_voucher = ReceiptVoucher.objects.filter(
-                company=self.company,
-                number__startswith=f"RV{year_month}"
-            ).order_by('-number').first()
-
-            if last_voucher:
-                last_number = int(last_voucher.number[-4:])
-                new_number = last_number + 1
-            else:
-                new_number = 1
-
-            self.number = f"RV{year_month}{new_number:04d}"
-
+            self.number = self.generate_number()
         super().save(*args, **kwargs)
+
+    def generate_number(self):
+        """توليد رقم السند"""
+        year_month = self.date.strftime('%Y%m')
+        last_voucher = ReceiptVoucher.objects.filter(
+            company=self.company,
+            number__startswith=f"RV{year_month}"
+        ).order_by('-number').first()
+
+        if last_voucher:
+            last_number = int(last_voucher.number[-4:])
+            new_number = last_number + 1
+        else:
+            new_number = 1
+
+        return f"RV{year_month}{new_number:04d}"
+
+    def can_post(self):
+        """هل يمكن ترحيل السند"""
+        return self.status == 'confirmed' and not self.journal_entry
+
+    def can_unpost(self):
+        """هل يمكن إلغاء ترحيل السند"""
+        return self.status == 'posted' and self.journal_entry
+
+    def can_edit(self):
+        """هل يمكن تعديل السند"""
+        return self.status in ['draft', 'confirmed']
+
+    def can_delete(self):
+        """هل يمكن حذف السند"""
+        return self.status == 'draft' and not self.journal_entry
+
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل السند وإنشاء القيد المحاسبي"""
+        if not self.can_post():
+            raise ValidationError(_('لا يمكن ترحيل هذا السند'))
+
+        # التحقق من صحة البيانات
+        if not self.cash_account:
+            raise ValidationError(_('يجب تحديد حساب الصندوق/البنك'))
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"سند قبض رقم {self.number} - {self.description}",
+            reference=self.number,
+            source_document='receipt_voucher',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        # إنشاء سطور القيد
+        line_number = 1
+
+        # سطر الصندوق/البنك (مدين)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=self.cash_account,
+            description=f"سند قبض - {self.received_from}",
+            debit_amount=self.amount,
+            credit_amount=0,
+            currency=self.currency,
+            exchange_rate=self.exchange_rate,
+            reference=self.number
+        )
+        line_number += 1
+
+        # سطر الإيراد (دائن)
+        income_account = self.income_account or self.cash_account  # افتراضي إذا لم يحدد
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=income_account,
+            description=f"{self.description} - {self.received_from}",
+            debit_amount=0,
+            credit_amount=self.amount,
+            currency=self.currency,
+            exchange_rate=self.exchange_rate,
+            reference=self.number
+        )
+
+        # ترحيل القيد تلقائياً
+        journal_entry.post(user=user)
+
+        # تحديث السند
+        self.journal_entry = journal_entry
+        self.status = 'posted'
+        self.posted_by = user
+        self.posted_date = journal_entry.posted_date
+        self.save()
+
+        return journal_entry
+
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل السند"""
+        if not self.can_unpost():
+            raise ValidationError(_('لا يمكن إلغاء ترحيل هذا السند'))
+
+        # إلغاء ترحيل القيد
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+
+        # تحديث السند
+        self.journal_entry = None
+        self.status = 'confirmed'
+        self.posted_by = None
+        self.posted_date = None
+        self.save()
 
     def __str__(self):
         return f"{self.number} - {self.received_from}"

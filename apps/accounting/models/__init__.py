@@ -12,10 +12,12 @@ from .journal_models import (
     JournalEntryTemplateLine
 )
 from .voucher_models import PaymentVoucher, ReceiptVoucher
+from .balance_models import AccountBalance, AccountBalanceHistory
 
 __all__ = [
     'AccountType', 'Account', 'CostCenter',
     'FiscalYear', 'AccountingPeriod',
     'JournalEntryTemplate', 'JournalEntry', 'JournalEntryLine', 'JournalEntryTemplateLine',
-    'PaymentVoucher', 'ReceiptVoucher'
+    'PaymentVoucher', 'ReceiptVoucher',
+    'AccountBalance', 'AccountBalanceHistory'
 ]

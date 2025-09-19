@@ -3,7 +3,7 @@
 نماذج القيود اليومية - محسنة لسهولة الاستخدام
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
@@ -213,8 +213,9 @@ class JournalEntry(DocumentBaseModel):
             if not self.lines.exists():
                 raise ValidationError(_('لا يمكن ترحيل قيد بدون سطور'))
 
+    @transaction.atomic
     def post(self, user=None):
-        """ترحيل القيد"""
+        """ترحيل القيد وتحديث الأرصدة"""
         if self.status == 'posted':
             raise ValidationError(_('القيد مرحل مسبقاً'))
 
@@ -226,20 +227,80 @@ class JournalEntry(DocumentBaseModel):
         if not self.lines.exists():
             raise ValidationError(_('لا توجد سطور في القيد'))
 
+        # ترحيل القيد
         self.status = 'posted'
         self.posted_by = user
         self.posted_date = timezone.now()
         self.save()
 
+        # تحديث أرصدة الحسابات
+        self.update_account_balances()
+
+    @transaction.atomic
     def unpost(self):
-        """إلغاء ترحيل القيد"""
+        """إلغاء ترحيل القيد وتحديث الأرصدة"""
         if self.status != 'posted':
             raise ValidationError(_('القيد غير مرحل'))
 
+        # إلغاء الترحيل
         self.status = 'draft'
         self.posted_by = None
         self.posted_date = None
         self.save()
+
+        # تحديث أرصدة الحسابات
+        self.update_account_balances()
+
+    def update_account_balances(self):
+        """تحديث أرصدة جميع الحسابات المتأثرة"""
+        from .balance_models import AccountBalance
+
+        # الحصول على جميع الحسابات المتأثرة
+        affected_accounts = set()
+        for line in self.lines.all():
+            affected_accounts.add(line.account)
+
+        # تحديث رصيد كل حساب
+        for account in affected_accounts:
+            balance = AccountBalance.get_or_create_balance(
+                account=account,
+                fiscal_year=self.fiscal_year,
+                period=self.period,
+                company=self.company
+            )
+            balance.refresh_balance()
+
+            # تسجيل التاريخ
+            self.log_balance_change(account, balance)
+
+    def log_balance_change(self, account, balance):
+        """تسجيل تغيير الرصيد في التاريخ"""
+        from .balance_models import AccountBalanceHistory
+
+        # البحث عن آخر رصيد مسجل
+        last_history = AccountBalanceHistory.objects.filter(
+            account=account,
+            company=self.company
+        ).first()
+
+        old_debit = last_history.new_debit_balance if last_history else 0
+        old_credit = last_history.new_credit_balance if last_history else 0
+
+        # تسجيل التغيير
+        AccountBalanceHistory.objects.create(
+            account=account,
+            company=self.company,
+            change_reason=f"ترحيل قيد {self.number}",
+            old_debit_balance=old_debit,
+            old_credit_balance=old_credit,
+            new_debit_balance=balance.closing_balance_debit,
+            new_credit_balance=balance.closing_balance_credit,
+            affected_amount=sum(
+                [line.debit_amount + line.credit_amount for line in self.lines.filter(account=account)]),
+            reference_type='journal_entry',
+            reference_id=self.pk,
+            changed_by=self.posted_by or self.created_by
+        )
 
     def can_edit(self):
         """هل يمكن تعديل القيد"""
@@ -252,6 +313,10 @@ class JournalEntry(DocumentBaseModel):
     def can_unpost(self):
         """هل يمكن إلغاء ترحيل القيد"""
         return self.status == 'posted'
+
+    def can_delete(self):
+        """هل يمكن حذف القيد"""
+        return self.status == 'draft'
 
     def get_absolute_url(self):
         return reverse('accounting:journal_entry_detail', kwargs={'pk': self.pk})
