@@ -23,6 +23,18 @@ from .user_profile_forms import (  # إضافة جديد
     UserProfileForm, BulkUserProfileForm, UserPermissionsForm
 )
 
+from django import forms
+
+class BaseForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # إضافة CSS classes تلقائياً
+        for field in self.fields.values():
+            if isinstance(field.widget, (forms.TextInput, forms.EmailInput)):
+                field.widget.attrs.update({'class': 'form-control'})
+            elif isinstance(field.widget, forms.Select):
+                field.widget.attrs.update({'class': 'form-select'})
+
 __all__ = [
     'ItemForm',
     'ItemCategoryForm',

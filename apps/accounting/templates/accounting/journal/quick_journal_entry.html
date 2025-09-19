@@ -1,0 +1,262 @@
+{#apps/accounting/templates/accounting/journa/quick_journal_entry.html#}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.quick-entry-form {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.amount-display {
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.account-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Quick Entry Form -->
+            <div class="quick-entry-form">
+                <div class="text-center mb-4">
+                    <h2><i class="fas fa-bolt me-2"></i>قيد سريع</h2>
+                    <p class="mb-0">أسرع طريقة لإدخال قيد من سطرين</p>
+                </div>
+
+                <form method="post" id="quickEntryForm">
+                    {% csrf_token %}
+                    
+                    <!-- التاريخ والبيان -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{{ form.entry_date.label }}</label>
+                            {{ form.entry_date|add_class:"form-control form-control-lg" }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{{ form.amount.label }}</label>
+                            {{ form.amount|add_class:"form-control form-control-lg text-center" }}
+                        </div>
+                    </div>
+
+                    <!-- البيان -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">{{ form.description.label }}</label>
+                        {{ form.description|add_class:"form-control form-control-lg" }}
+                    </div>
+
+                    <!-- الحسابات -->
+                    <div class="row">
+                        <!-- الحساب المدين -->
+                        <div class="col-md-6">
+                            <div class="account-card">
+                                <h5 class="text-center mb-3">
+                                    <i class="fas fa-arrow-up text-success"></i> الحساب المدين
+                                </h5>
+                                
+                                <label class="form-label">{{ form.debit_account_search.label }}</label>
+                                {{ form.debit_account_search|add_class:"form-control form-control-lg account-search" }}
+                                {{ form.debit_account }}
+                                
+                                <div class="account-info mt-2" id="debit-account-info" style="display: none;">
+                                    <small class="text-light">
+                                        <i class="fas fa-info-circle"></i> <span class="account-details"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الحساب الدائن -->
+                        <div class="col-md-6">
+                            <div class="account-card">
+                                <h5 class="text-center mb-3">
+                                    <i class="fas fa-arrow-down text-warning"></i> الحساب الدائن
+                                </h5>
+                                
+                                <label class="form-label">{{ form.credit_account_search.label }}</label>
+                                {{ form.credit_account_search|add_class:"form-control form-control-lg account-search" }}
+                                {{ form.credit_account }}
+                                
+                                <div class="account-info mt-2" id="credit-account-info" style="display: none;">
+                                    <small class="text-light">
+                                        <i class="fas fa-info-circle"></i> <span class="account-details"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- المرجع -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">{{ form.reference.label }}</label>
+                        {{ form.reference|add_class:"form-control form-control-lg" }}
+                    </div>
+
+                    <!-- أزرار الإجراءات -->
+                    <div class="text-center">
+                        <a href="{% url 'accounting:journal_entry_list' %}" class="btn btn-outline-light btn-lg me-3">
+                            <i class="fas fa-arrow-right me-2"></i>العودة
+                        </a>
+                        <button type="submit" class="btn btn-light btn-lg">
+                            <i class="fas fa-save me-2"></i>حفظ القيد
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- نصائح سريعة -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح للاستخدام السريع
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>ابحث بالرمز أو الاسم</li>
+                                <li><i class="fas fa-check text-success me-2"></i>استخدم Tab للتنقل السريع</li>
+                                <li><i class="fas fa-check text-success me-2"></i>المبلغ يطبق على السطرين</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>البيان ينسخ للسطرين</li>
+                                <li><i class="fas fa-check text-success me-2"></i>المرجع اختياري</li>
+                                <li><i class="fas fa-check text-success me-2"></i>القيد متوازن تلقائياً</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // تهيئة البحث التلقائي للحسابات
+    $('.account-search').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'ابحث عن الحساب...',
+        minimumInputLength: 2,
+        ajax: {
+            url: '{% url "accounting:account_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    term: params.term,
+                    page: params.page
+                };
+            },
+            processResults: function (data, params) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text,
+                            code: item.code,
+                            name: item.name
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // عند اختيار الحساب المدين
+    $('#id_debit_account_search').on('select2:select', function (e) {
+        var data = e.params.data;
+        $('#id_debit_account').val(data.id);
+        $('#debit-account-info .account-details').text(data.code + ' - ' + data.name);
+        $('#debit-account-info').show();
+    });
+
+    // عند اختيار الحساب الدائن
+    $('#id_credit_account_search').on('select2:select', function (e) {
+        var data = e.params.data;
+        $('#id_credit_account').val(data.id);
+        $('#credit-account-info .account-details').text(data.code + ' - ' + data.name);
+        $('#credit-account-info').show();
+    });
+
+    // تحسين تجربة المستخدم
+    $('#quickEntryForm').on('submit', function(e) {
+        var submitBtn = $(this).find('button[type="submit"]');
+        submitBtn.prop('disabled', true)
+               .html('<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...');
+    });
+
+    // تنبيه عند مغادرة الصفحة بدون حفظ
+    var formChanged = false;
+    $('#quickEntryForm input, #quickEntryForm select, #quickEntryForm textarea').on('change', function() {
+        formChanged = true;
+    });
+    
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+        }
+    });
+    
+    $('#quickEntryForm').on('submit', function() {
+        formChanged = false;
+    });
+
+    // Focus على أول حقل
+    $('#id_amount').focus();
+});
+</script>
+{% endblock %}

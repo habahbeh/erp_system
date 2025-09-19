@@ -1,0 +1,493 @@
+{#apps/accounting/templates/accounting/journa/journal_entry_detail.html#}
+
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.entry-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.status-badge {
+    font-size: 1.1rem;
+    padding: 0.5rem 1rem;
+}
+
+.lines-table {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+.balance-summary {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border-left: 5px solid #007bff;
+}
+
+.action-buttons {
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+}
+
+.line-row:hover {
+    background-color: #f8f9fa;
+}
+
+.print-only {
+    display: none;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .print-only {
+        display: block;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-9">
+            <!-- Entry Header -->
+            <div class="entry-header">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h2 class="mb-2">
+                            <i class="fas fa-file-invoice me-2"></i>
+                            القيد رقم: {{ journal_entry.number }}
+                        </h2>
+                        <p class="mb-0">
+                            <i class="fas fa-calendar me-2"></i>
+                            {{ journal_entry.entry_date|date:"Y/m/d l" }}
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        {% if journal_entry.status == 'draft' %}
+                            <span class="badge status-badge bg-warning">مسودة</span>
+                        {% elif journal_entry.status == 'posted' %}
+                            <span class="badge status-badge bg-success">مرحل</span>
+                        {% else %}
+                            <span class="badge status-badge bg-danger">ملغي</span>
+                        {% endif %}
+
+                        <div class="mt-2">
+                            <small>
+                                نوع القيد: <strong>{{ journal_entry.get_entry_type_display }}</strong>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                {% if journal_entry.reference %}
+                <div class="mt-3 pt-3 border-top border-light">
+                    <strong>المرجع:</strong> {{ journal_entry.reference }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Entry Description -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-align-left me-2"></i>بيان القيد
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ journal_entry.description }}</p>
+                </div>
+            </div>
+
+            <!-- Journal Lines -->
+            <div class="lines-table">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th width="5%">#</th>
+                                <th width="25%">الحساب</th>
+                                <th width="35%">البيان</th>
+                                <th width="15%" class="text-end">مدين</th>
+                                <th width="15%" class="text-end">دائن</th>
+                                <th width="5%" class="text-center no-print">العملة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in journal_entry.lines.all %}
+                            <tr class="line-row">
+                                <td class="fw-bold text-muted">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="fw-bold">{{ line.account.name }}</div>
+                                    <small class="text-muted">{{ line.account.code }}</small>
+                                </td>
+                                <td>
+                                    {{ line.description|default:"-" }}
+                                    {% if line.reference %}
+                                        <br><small class="text-muted">{{ line.reference }}</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if line.debit_amount %}
+                                        <span class="fw-bold text-success">
+                                            {{ line.debit_amount|floatformat:2 }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if line.credit_amount %}
+                                        <span class="fw-bold text-primary">
+                                            {{ line.credit_amount|floatformat:2 }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-center no-print">
+                                    <small>{{ line.currency.code }}</small>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-2x mb-3"></i><br>
+                                    لا توجد سطور في هذا القيد
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Balance Summary -->
+            <div class="balance-summary">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <h5 class="text-success mb-2">إجمالي المدين</h5>
+                        <h3 class="fw-bold">{{ journal_entry.total_debit|floatformat:2 }}</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h5 class="text-primary mb-2">إجمالي الدائن</h5>
+                        <h3 class="fw-bold">{{ journal_entry.total_credit|floatformat:2 }}</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h5 class="{% if journal_entry.is_balanced %}text-success{% else %}text-danger{% endif %} mb-2">
+                            الحالة
+                        </h5>
+                        <h3 class="fw-bold">
+                            {% if journal_entry.is_balanced %}
+                                <i class="fas fa-check-circle text-success"></i> متوازن
+                            {% else %}
+                                <i class="fas fa-exclamation-triangle text-danger"></i> غير متوازن
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Info -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">معلومات إضافية</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <td><strong>السنة المالية:</strong></td>
+                                    <td>{{ journal_entry.fiscal_year|default:"غير محدد" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>الفترة المحاسبية:</strong></td>
+                                    <td>{{ journal_entry.period|default:"غير محدد" }}</td>
+                                </tr>
+                                {% if journal_entry.template %}
+                                <tr>
+                                    <td><strong>القالب:</strong></td>
+                                    <td>{{ journal_entry.template.name }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td><strong>تاريخ الإنشاء:</strong></td>
+                                    <td>{{ journal_entry.created_at|date:"Y/m/d H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>أنشأ بواسطة:</strong></td>
+                                    <td>{{ journal_entry.created_by.get_full_name|default:journal_entry.created_by.username }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {% if journal_entry.status == 'posted' %}
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">معلومات الترحيل</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <td><strong>تاريخ الترحيل:</strong></td>
+                                    <td>{{ journal_entry.posted_date|date:"Y/m/d H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>رحل بواسطة:</strong></td>
+                                    <td>{{ journal_entry.posted_by.get_full_name|default:journal_entry.posted_by.username }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>حالة القيد:</strong></td>
+                                    <td><span class="badge bg-success">مرحل ونهائي</span></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if journal_entry.notes %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ journal_entry.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Action Sidebar -->
+        <div class="col-lg-3 no-print">
+            <div class="action-buttons">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">الإجراءات</h6>
+                    </div>
+                    <div class="card-body d-grid gap-2">
+                        <!-- Edit Button -->
+                        {% if can_edit %}
+                        <a href="{% url 'accounting:journal_entry_update' journal_entry.pk %}"
+                           class="btn btn-primary">
+                            <i class="fas fa-edit me-2"></i>تعديل القيد
+                        </a>
+                        {% endif %}
+
+                        <!-- Post/Unpost Buttons -->
+                        {% if can_post %}
+                        <button type="button" class="btn btn-success"
+                                onclick="postJournalEntry({{ journal_entry.pk }})">
+                            <i class="fas fa-check me-2"></i>ترحيل القيد
+                        </button>
+                        {% elif can_unpost %}
+                        <button type="button" class="btn btn-warning"
+                                onclick="unpostJournalEntry({{ journal_entry.pk }})">
+                            <i class="fas fa-undo me-2"></i>إلغاء الترحيل
+                        </button>
+                        {% endif %}
+
+                        <!-- Print Button -->
+                        <button type="button" class="btn btn-info" onclick="printEntry()">
+                            <i class="fas fa-print me-2"></i>طباعة القيد
+                        </button>
+
+                        <!-- Copy Button -->
+                        <button type="button" class="btn btn-secondary" onclick="copyEntry()">
+                            <i class="fas fa-copy me-2"></i>نسخ القيد
+                        </button>
+
+                        <!-- Delete Button -->
+                        {% if can_delete %}
+                        <button type="button" class="btn btn-outline-danger"
+                                onclick="deleteJournalEntry({{ journal_entry.pk }})">
+                            <i class="fas fa-trash me-2"></i>حذف القيد
+                        </button>
+                        {% endif %}
+
+                        <hr>
+
+                        <!-- Back Button -->
+                        <a href="{% url 'accounting:journal_entry_list' %}"
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">إحصائيات سريعة</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center">
+                            <div class="mb-2">
+                                <strong>عدد السطور</strong><br>
+                                <span class="fs-4 text-primary">{{ journal_entry.lines.count }}</span>
+                            </div>
+                            <div class="mb-2">
+                                <strong>المبلغ الإجمالي</strong><br>
+                                <span class="fs-4 text-success">{{ journal_entry.total_debit|floatformat:2 }}</span>
+                            </div>
+                            <div>
+                                <strong>عدد الحسابات</strong><br>
+                                <span class="fs-4 text-info">{{ journal_entry.lines.all|length }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Header (Hidden, shown only when printing) -->
+<div class="print-only">
+    <div class="text-center mb-4">
+        <h2>{{ current_company.name }}</h2>
+        <h4>قيد يومية رقم: {{ journal_entry.number }}</h4>
+        <p>التاريخ: {{ journal_entry.entry_date|date:"Y/m/d" }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function printEntry() {
+    window.print();
+}
+
+function copyEntry() {
+    Swal.fire({
+        title: 'نسخ القيد',
+        text: 'سيتم إنشاء قيد جديد بنفس البيانات كمسودة',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، انسخ القيد',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // يمكن تطويره لاحقاً
+            Swal.fire('تحت التطوير', 'هذه الميزة قيد التطوير', 'info');
+        }
+    });
+}
+
+// دوال الترحيل والحذف (نفسها من القائمة)
+function postJournalEntry(id) {
+    Swal.fire({
+        title: 'ترحيل القيد',
+        text: 'هل أنت متأكد من ترحيل هذا القيد؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، رحل القيد',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post('{% url "accounting:post_journal_entry" 0 %}'.replace('0', id), {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            })
+            .done(function(data) {
+                if (data.success) {
+                    Swal.fire('تم الترحيل!', data.message, 'success').then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('خطأ!', data.message, 'error');
+                }
+            })
+            .fail(function() {
+                Swal.fire('خطأ!', 'حدث خطأ في الشبكة', 'error');
+            });
+        }
+    });
+}
+
+function unpostJournalEntry(id) {
+    Swal.fire({
+        title: 'إلغاء ترحيل القيد',
+        text: 'هل أنت متأكد من إلغاء ترحيل هذا القيد؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ffc107',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، إلغاء الترحيل',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post('{% url "accounting:unpost_journal_entry" 0 %}'.replace('0', id), {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            })
+            .done(function(data) {
+                if (data.success) {
+                    Swal.fire('تم إلغاء الترحيل!', data.message, 'success').then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('خطأ!', data.message, 'error');
+                }
+            })
+            .fail(function() {
+                Swal.fire('خطأ!', 'حدث خطأ في الشبكة', 'error');
+            });
+        }
+    });
+}
+
+function deleteJournalEntry(id) {
+    Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: 'سيتم حذف القيد نهائياً',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "accounting:journal_entry_delete" 0 %}'.replace('0', id);
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,379 @@
+{#apps/accounting/templates/accounting/journa/journal_entry_list.html#}
+
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">إدارة القيود اليومية والمحاسبية</p>
+        </div>
+        {% if can_add %}
+        <div class="btn-group">
+            <a href="{% url 'accounting:quick_journal_entry' %}" class="btn btn-success">
+                <i class="fas fa-bolt"></i> قيد سريع
+            </a>
+            <a href="{% url 'accounting:journal_entry_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> قيد مفصل
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="fs-6 fw-semibold">إجمالي القيود</div>
+                            <div class="fs-4 fw-bold" id="totalEntries">-</div>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-book fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="fs-6 fw-semibold">مسودات</div>
+                            <div class="fs-4 fw-bold" id="draftEntries">-</div>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-edit fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="fs-6 fw-semibold">مرحلة</div>
+                            <div class="fs-4 fw-bold" id="postedEntries">-</div>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="fs-6 fw-semibold">هذا الشهر</div>
+                            <div class="fs-4 fw-bold" id="monthEntries">-</div>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-calendar fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> البحث والفلترة
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-2">
+                        <label class="form-label">الحالة</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">جميع الحالات</option>
+                            {% for key, value in status_choices %}
+                                <option value="{{ key }}">{{ value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">نوع القيد</label>
+                        <select class="form-select" id="entryTypeFilter">
+                            <option value="">جميع الأنواع</option>
+                            {% for key, value in entry_type_choices %}
+                                <option value="{{ key }}">{{ value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" class="form-control" id="dateToFilter">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">البحث</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="رقم القيد أو البيان">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                            <i class="fas fa-times"></i> مسح الفلاتر
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="journalEntriesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رقم القيد</th>
+                            <th>التاريخ</th>
+                            <th>النوع</th>
+                            <th>البيان</th>
+                            <th>المبلغ</th>
+                            <th>الحالة</th>
+                            <th class="no-sort text-center">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    var table = $('#journalEntriesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'accounting:journal_entry_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.entry_type = $('#entryTypeFilter').val();
+                d.date_from = $('#dateFromFilter').val();
+                d.date_to = $('#dateToFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "number"},
+            {"data": 1, "name": "entry_date"},
+            {"data": 2, "name": "entry_type"},
+            {"data": 3, "name": "description"},
+            {"data": 4, "name": "total_debit", "className": "text-end"},
+            {"data": 5, "name": "status"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[1, "desc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = table.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    // تحديث الجدول عند تغيير الفلاتر
+    $('#statusFilter, #entryTypeFilter, #dateFromFilter, #dateToFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // البحث المباشر
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter, #entryTypeFilter').val('');
+        $('#dateFromFilter, #dateToFilter, #searchFilter').val('');
+        table.ajax.reload();
+    });
+
+    // Load stats
+    loadStats();
+
+    function updateTableInfo(info) {
+        var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' قيد';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
+
+    function loadStats() {
+        // هذا مثال - يمكن تطويره لاحقاً
+        $('#totalEntries').text('0');
+        $('#draftEntries').text('0');
+        $('#postedEntries').text('0');
+        $('#monthEntries').text('0');
+    }
+});
+
+// Global functions for actions
+function postJournalEntry(id) {
+    Swal.fire({
+        title: 'ترحيل القيد',
+        text: 'هل أنت متأكد من ترحيل هذا القيد؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، رحل القيد',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post('{% url "accounting:post_journal_entry" 0 %}'.replace('0', id), {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            })
+            .done(function(data) {
+                if (data.success) {
+                    Swal.fire('تم الترحيل!', data.message, 'success');
+                    $('#journalEntriesTable').DataTable().ajax.reload();
+                } else {
+                    Swal.fire('خطأ!', data.message, 'error');
+                }
+            })
+            .fail(function() {
+                Swal.fire('خطأ!', 'حدث خطأ في الشبكة', 'error');
+            });
+        }
+    });
+}
+
+function unpostJournalEntry(id) {
+    Swal.fire({
+        title: 'إلغاء ترحيل القيد',
+        text: 'هل أنت متأكد من إلغاء ترحيل هذا القيد؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ffc107',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، إلغاء الترحيل',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post('{% url "accounting:unpost_journal_entry" 0 %}'.replace('0', id), {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            })
+            .done(function(data) {
+                if (data.success) {
+                    Swal.fire('تم إلغاء الترحيل!', data.message, 'success');
+                    $('#journalEntriesTable').DataTable().ajax.reload();
+                } else {
+                    Swal.fire('خطأ!', data.message, 'error');
+                }
+            })
+            .fail(function() {
+                Swal.fire('خطأ!', 'حدث خطأ في الشبكة', 'error');
+            });
+        }
+    });
+}
+
+function deleteJournalEntry(id) {
+    Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: 'سيتم حذف القيد نهائياً',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "accounting:journal_entry_delete" 0 %}'.replace('0', id);
+        }
+    });
+}
+</script>
+{% endblock %}

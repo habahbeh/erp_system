@@ -1,10 +1,21 @@
-# تحديث apps/accounting/urls.py
+# apps/accounting/urls.py
 from django.urls import path
-from .views import account_type_views, account_views
+from .views import (
+    dashboard,
+    # Account Type Views
+    account_type_views,
+    # Account Views
+    account_views,
+    # Journal Views
+    journal_views
+)
 
 app_name = 'accounting'
 
 urlpatterns = [
+    # Dashboard
+    path('', dashboard.AccountingDashboardView.as_view(), name='dashboard'),
+
     # Account Types URLs
     path('account-types/', account_type_views.AccountTypeListView.as_view(), name='account_type_list'),
     path('account-types/create/', account_type_views.AccountTypeCreateView.as_view(), name='account_type_create'),
@@ -19,9 +30,26 @@ urlpatterns = [
     path('accounts/<int:pk>/update/', account_views.AccountUpdateView.as_view(), name='account_update'),
     path('accounts/<int:pk>/delete/', account_views.AccountDeleteView.as_view(), name='account_delete'),
 
+    # Journal Entry URLs
+    path('journal-entries/', journal_views.JournalEntryListView.as_view(), name='journal_entry_list'),
+    path('journal-entries/create/', journal_views.JournalEntryCreateView.as_view(), name='journal_entry_create'),
+    path('journal-entries/<int:pk>/', journal_views.JournalEntryDetailView.as_view(), name='journal_entry_detail'),
+    path('journal-entries/<int:pk>/update/', journal_views.JournalEntryUpdateView.as_view(),
+         name='journal_entry_update'),
+    path('journal-entries/<int:pk>/delete/', journal_views.JournalEntryDeleteView.as_view(),
+         name='journal_entry_delete'),
+    path('journal-entries/quick/', journal_views.QuickJournalEntryView.as_view(), name='quick_journal_entry'),
+
     # Ajax endpoints
     path('ajax/account-types/', account_type_views.account_type_datatable_ajax, name='account_type_datatable_ajax'),
     path('ajax/accounts/', account_views.account_datatable_ajax, name='account_datatable_ajax'),
+    path('ajax/journal-entries/', journal_views.journal_entry_datatable_ajax, name='journal_entry_datatable_ajax'),
+    path('ajax/accounts/search/', journal_views.account_autocomplete, name='account_autocomplete'),
+    path('ajax/templates/<int:template_id>/lines/', journal_views.get_template_lines, name='get_template_lines'),
+
+    # Journal Entry Actions
+    path('ajax/journal-entries/<int:pk>/post/', journal_views.post_journal_entry, name='post_journal_entry'),
+    path('ajax/journal-entries/<int:pk>/unpost/', journal_views.unpost_journal_entry, name='unpost_journal_entry'),
 
     # Export/Import
     path('account-types/export/', account_type_views.export_account_types, name='export_account_types'),

@@ -1,0 +1,570 @@
+{#apps/accounting/templates/accounting/journa/journal_entry_form.html#}
+
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.journal-form {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.lines-section {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 2px solid #e9ecef;
+}
+
+.line-row {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid #007bff;
+    position: relative;
+}
+
+.line-row.to-delete {
+    border-left-color: #dc3545;
+    background: #f8d7da;
+}
+
+.delete-line-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+}
+
+.balance-display {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 1rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.balanced {
+    background: #d1edff;
+    color: #0c5460;
+    border: 2px solid #bee5eb;
+}
+
+.unbalanced {
+    background: #f8d7da;
+    color: #721c24;
+    border: 2px solid #f5c6cb;
+}
+
+.template-selection {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <form method="post" id="journalEntryForm" novalidate>
+        {% csrf_token %}
+
+        <!-- Template Selection (for new entries only) -->
+        {% if not object %}
+        <div class="template-selection">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="mb-0">
+                        <i class="fas fa-magic me-2"></i>هل تريد استخدام قالب موجود؟
+                    </h5>
+                    <small>اختر قالب لتسهيل الإدخال أو اتركه فارغاً لإدخال يدوي</small>
+                </div>
+                <div class="col-md-4">
+                    {{ form.template|add_class:"form-select form-select-lg" }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Basic Information -->
+        <div class="journal-form">
+            <h4 class="mb-4">
+                <i class="fas fa-info-circle me-2"></i>معلومات أساسية
+            </h4>
+
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="{{ form.entry_date.id_for_label }}" class="form-label">
+                        {{ form.entry_date.label }} <span class="text-danger">*</span>
+                    </label>
+                    {{ form.entry_date|add_class:"form-control" }}
+                    {% if form.entry_date.errors %}
+                        <div class="text-danger small mt-1">
+                            {% for error in form.entry_date.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-3">
+                    <label for="{{ form.entry_type.id_for_label }}" class="form-label">
+                        {{ form.entry_type.label }}
+                    </label>
+                    {{ form.entry_type|add_class:"form-select" }}
+                </div>
+
+                <div class="col-md-6">
+                    <label for="{{ form.reference.id_for_label }}" class="form-label">
+                        {{ form.reference.label }}
+                    </label>
+                    {{ form.reference|add_class:"form-control" }}
+                </div>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-12">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        {{ form.description.label }} <span class="text-danger">*</span>
+                    </label>
+                    {{ form.description|add_class:"form-control" }}
+                    {% if form.description.errors %}
+                        <div class="text-danger small mt-1">
+                            {% for error in form.description.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if form.notes %}
+            <div class="row mt-3">
+                <div class="col-12">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                        {{ form.notes.label }}
+                    </label>
+                    {{ form.notes|add_class:"form-control" }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Journal Lines Section -->
+        <div class="lines-section">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0">
+                    <i class="fas fa-list me-2"></i>سطور القيد
+                </h4>
+                <button type="button" class="btn btn-success" onclick="addNewLine()">
+                    <i class="fas fa-plus me-2"></i>إضافة سطر
+                </button>
+            </div>
+
+            <!-- Lines Container -->
+            <div id="linesContainer">
+                <!-- Dynamic lines will be added here -->
+            </div>
+
+            <!-- Balance Display -->
+            <div class="balance-display balanced" id="balanceDisplay">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div>إجمالي المدين</div>
+                        <div id="totalDebit">0.00</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div>إجمالي الدائن</div>
+                        <div id="totalCredit">0.00</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div>الفرق</div>
+                        <div id="difference">0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Balance Helper -->
+            <div class="text-center mt-3">
+                <button type="button" class="btn btn-outline-info" onclick="autoBalance()">
+                    <i class="fas fa-balance-scale me-2"></i>توازن تلقائي
+                </button>
+                <small class="text-muted ms-3">سيضيف سطر لجعل القيد متوازن</small>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between align-items-center mt-4">
+            <a href="{% url 'accounting:journal_entry_list' %}" class="btn btn-outline-secondary btn-lg">
+                <i class="fas fa-arrow-right me-2"></i>العودة
+            </a>
+
+            <div>
+                <button type="button" class="btn btn-outline-primary btn-lg me-3" onclick="validateEntry()">
+                    <i class="fas fa-check me-2"></i>التحقق من التوازن
+                </button>
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>
+                    {% if object %}تحديث{% else %}حفظ{% endif %} القيد
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Line Template (Hidden) -->
+<div class="d-none" id="lineTemplate">
+    <div class="line-row" data-line-index="">
+        <button type="button" class="btn btn-outline-danger btn-sm delete-line-btn" onclick="deleteLine(this)">
+            <i class="fas fa-times"></i>
+        </button>
+
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">الحساب <span class="text-danger">*</span></label>
+                <select class="form-select account-select" name="lines-{INDEX}-account" required>
+                    <option value="">اختر الحساب...</option>
+                </select>
+                <input type="hidden" name="lines-{INDEX}-account_search" class="account-search">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">البيان</label>
+                <input type="text" class="form-control" name="lines-{INDEX}-description" placeholder="وصف العملية">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">مدين</label>
+                <input type="number" class="form-control amount-input debit-input"
+                       name="lines-{INDEX}-debit_amount" placeholder="0.00" step="0.01" min="0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">دائن</label>
+                <input type="number" class="form-control amount-input credit-input"
+                       name="lines-{INDEX}-credit_amount" placeholder="0.00" step="0.01" min="0">
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary" onclick="clearLine(this)" title="مسح السطر">
+                    <i class="fas fa-eraser"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="row mt-2">
+            <div class="col-md-6">
+                <input type="text" class="form-control" name="lines-{INDEX}-reference" placeholder="مرجع (اختياري)">
+            </div>
+            <div class="col-md-6">
+                <select class="form-select" name="lines-{INDEX}-cost_center">
+                    <option value="">بدون مركز تكلفة</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+let lineCounter = 0;
+
+$(document).ready(function() {
+    // إضافة سطرين افتراضيين
+    addNewLine();
+    addNewLine();
+
+    // مراقبة التغييرات في القالب
+    $('#id_template').on('change', function() {
+        if ($(this).val()) {
+            loadTemplate($(this).val());
+        }
+    });
+
+    // مراقبة التغييرات في المبالغ
+    $(document).on('input', '.amount-input', function() {
+        // منع إدخال مدين ودائن معاً في نفس السطر
+        var row = $(this).closest('.line-row');
+        if ($(this).hasClass('debit-input') && $(this).val()) {
+            row.find('.credit-input').val('');
+        } else if ($(this).hasClass('credit-input') && $(this).val()) {
+            row.find('.debit-input').val('');
+        }
+
+        calculateBalance();
+    });
+
+    // تحسين تجربة المستخدم
+    $('#journalEntryForm').on('submit', function(e) {
+        if (!validateEntry()) {
+            e.preventDefault();
+            return false;
+        }
+
+        var submitBtn = $(this).find('button[type="submit"]');
+        submitBtn.prop('disabled', true)
+               .html('<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...');
+    });
+});
+
+function addNewLine() {
+    lineCounter++;
+    var template = $('#lineTemplate').html();
+    template = template.replace(/{INDEX}/g, lineCounter);
+    template = template.replace('data-line-index=""', 'data-line-index="' + lineCounter + '"');
+
+    $('#linesContainer').append(template);
+
+    // تهيئة البحث التلقائي للحساب الجديد
+    initAccountSearch($('.line-row[data-line-index="' + lineCounter + '"] .account-select'));
+
+    calculateBalance();
+}
+
+function deleteLine(button) {
+    var lineRow = $(button).closest('.line-row');
+
+    Swal.fire({
+        title: 'حذف السطر',
+        text: 'هل أنت متأكد من حذف هذا السطر؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            lineRow.remove();
+            calculateBalance();
+        }
+    });
+}
+
+function clearLine(button) {
+    var lineRow = $(button).closest('.line-row');
+    lineRow.find('input, select').not('.account-select').val('');
+    lineRow.find('.account-select').val('').trigger('change');
+    calculateBalance();
+}
+
+function initAccountSearch(selectElement) {
+    selectElement.select2({
+        theme: 'bootstrap-5',
+        placeholder: 'ابحث عن الحساب...',
+        minimumInputLength: 2,
+        ajax: {
+            url: '{% url "accounting:account_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    term: params.term,
+                    page: params.page
+                };
+            },
+            processResults: function (data, params) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text,
+                            code: item.code,
+                            name: item.name
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+}
+
+function calculateBalance() {
+    var totalDebit = 0;
+    var totalCredit = 0;
+
+    $('.debit-input').each(function() {
+        if ($(this).val()) {
+            totalDebit += parseFloat($(this).val()) || 0;
+        }
+    });
+
+    $('.credit-input').each(function() {
+        if ($(this).val()) {
+            totalCredit += parseFloat($(this).val()) || 0;
+        }
+    });
+
+    var difference = Math.abs(totalDebit - totalCredit);
+
+    $('#totalDebit').text(totalDebit.toFixed(2));
+    $('#totalCredit').text(totalCredit.toFixed(2));
+    $('#difference').text(difference.toFixed(2));
+
+    var balanceDisplay = $('#balanceDisplay');
+    if (difference < 0.01) { // متوازن (مع تجاهل الفروقات الطفيفة)
+        balanceDisplay.removeClass('unbalanced').addClass('balanced');
+    } else {
+        balanceDisplay.removeClass('balanced').addClass('unbalanced');
+    }
+}
+
+function validateEntry() {
+    var errors = [];
+    var hasLines = false;
+
+    // التحقق من وجود سطور
+    $('.line-row').each(function() {
+        var account = $(this).find('.account-select').val();
+        var debit = $(this).find('.debit-input').val();
+        var credit = $(this).find('.credit-input').val();
+
+        if (account && (debit || credit)) {
+            hasLines = true;
+        }
+    });
+
+    if (!hasLines) {
+        errors.push('يجب إدخال سطر واحد على الأقل');
+    }
+
+    // التحقق من التوازن
+    var totalDebit = parseFloat($('#totalDebit').text()) || 0;
+    var totalCredit = parseFloat($('#totalCredit').text()) || 0;
+    var difference = Math.abs(totalDebit - totalCredit);
+
+    if (difference >= 0.01) {
+        errors.push('القيد غير متوازن - الفرق: ' + difference.toFixed(2));
+    }
+
+    if (errors.length > 0) {
+        Swal.fire({
+            icon: 'error',
+            title: 'أخطاء في القيد',
+            html: '<ul class="text-start"><li>' + errors.join('</li><li>') + '</li></ul>'
+        });
+        return false;
+    } else {
+        Swal.fire({
+            icon: 'success',
+            title: 'القيد صحيح',
+            text: 'القيد متوازن وجاهز للحفظ',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        return true;
+    }
+}
+
+function autoBalance() {
+    var totalDebit = parseFloat($('#totalDebit').text()) || 0;
+    var totalCredit = parseFloat($('#totalCredit').text()) || 0;
+    var difference = totalDebit - totalCredit;
+
+    if (Math.abs(difference) < 0.01) {
+        Swal.fire({
+            icon: 'info',
+            title: 'القيد متوازن',
+            text: 'القيد متوازن بالفعل'
+        });
+        return;
+    }
+
+    // إضافة سطر جديد بالفرق
+    addNewLine();
+    var lastLine = $('.line-row').last();
+
+    if (difference > 0) { // نحتاج دائن
+        lastLine.find('.credit-input').val(Math.abs(difference).toFixed(2));
+        lastLine.find('.debit-input').val('');
+    } else { // نحتاج مدين
+        lastLine.find('.debit-input').val(Math.abs(difference).toFixed(2));
+        lastLine.find('.credit-input').val('');
+    }
+
+    lastLine.find('input[name*="description"]').val('سطر توازن');
+
+    calculateBalance();
+
+    Swal.fire({
+        icon: 'success',
+        title: 'تم التوازن',
+        text: 'تم إضافة سطر توازن تلقائي',
+        timer: 1500,
+        showConfirmButton: false
+    });
+}
+
+function loadTemplate(templateId) {
+    if (!templateId) return;
+
+    $.get('{% url "accounting:get_template_lines" 0 %}'.replace('0', templateId))
+    .done(function(data) {
+        if (data.success) {
+            // مسح السطور الحالية
+            $('#linesContainer').empty();
+            lineCounter = 0;
+
+            // تحديث البيان
+            if (data.description) {
+                $('#id_description').val(data.description);
+            }
+
+            // إضافة سطور القالب
+            data.lines.forEach(function(line) {
+                addNewLine();
+                var lastLine = $('.line-row').last();
+
+                // تعيين الحساب
+                var accountOption = new Option(line.account_text, line.account_id, true, true);
+                lastLine.find('.account-select').append(accountOption).trigger('change');
+
+                // تعيين البيانات الأخرى
+                lastLine.find('input[name*="description"]').val(line.description);
+                lastLine.find('input[name*="debit_amount"]').val(line.debit_amount);
+                lastLine.find('input[name*="credit_amount"]').val(line.credit_amount);
+                lastLine.find('input[name*="reference"]').val(line.reference);
+            });
+
+            calculateBalance();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'تم تحميل القالب',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+    })
+    .fail(function() {
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: 'فشل في تحميل القالب'
+        });
+    });
+}
+</script>
+{% endblock %}
