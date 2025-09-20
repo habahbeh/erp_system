@@ -141,4 +141,28 @@ urlpatterns = [
     path('reports/income-statement/export/', report_views.export_income_statement, name='export_income_statement'),
     path('reports/balance-sheet/export/', report_views.export_balance_sheet, name='export_balance_sheet'),
 
+    # ========== السنوات المالية ==========
+    path('fiscal-years/', fiscal_views.FiscalYearListView.as_view(), name='fiscal_year_list'),
+    path('fiscal-years/create/', fiscal_views.FiscalYearCreateView.as_view(), name='fiscal_year_create'),
+    path('fiscal-years/<int:pk>/', fiscal_views.FiscalYearDetailView.as_view(), name='fiscal_year_detail'),
+    path('fiscal-years/<int:pk>/update/', fiscal_views.FiscalYearUpdateView.as_view(), name='fiscal_year_update'),
+    path('fiscal-years/<int:pk>/delete/', fiscal_views.FiscalYearDeleteView.as_view(), name='fiscal_year_delete'),
+
+    # Ajax - السنوات المالية
+    path('ajax/fiscal-years/', fiscal_views.fiscal_year_datatable_ajax, name='fiscal_year_datatable_ajax'),
+    path('ajax/fiscal-years/<int:fiscal_year_id>/create-periods/', fiscal_views.create_periods_ajax,
+         name='create_periods_ajax'),
+
+    # ========== الفترات المحاسبية ==========
+    path('periods/', fiscal_views.AccountingPeriodListView.as_view(), name='period_list'),
+    path('periods/create/', fiscal_views.AccountingPeriodCreateView.as_view(), name='period_create'),
+    path('periods/<int:pk>/', fiscal_views.AccountingPeriodDetailView.as_view(), name='period_detail'),
+    path('periods/<int:pk>/update/', fiscal_views.AccountingPeriodUpdateView.as_view(), name='period_update'),
+    path('periods/<int:pk>/delete/', fiscal_views.AccountingPeriodDeleteView.as_view(), name='period_delete'),
+
+    # Ajax - الفترات المحاسبية
+    path('ajax/periods/', fiscal_views.period_datatable_ajax, name='period_datatable_ajax'),
+    path('ajax/periods/<int:period_id>/close/', fiscal_views.close_period_ajax, name='close_period_ajax'),
+    path('ajax/periods/<int:period_id>/reopen/', fiscal_views.reopen_period_ajax, name='reopen_period_ajax'),
+
 ]

@@ -5,6 +5,7 @@ from .account_views import *
 from .journal_views import *
 from .voucher_views import *
 from .report_views import *
+from . import fiscal_views
 
 __all__ = [
     # Dashboard
@@ -30,6 +31,13 @@ __all__ = [
     'ReceiptVoucherListView', 'ReceiptVoucherCreateView', 'ReceiptVoucherUpdateView',
     'ReceiptVoucherDetailView', 'ReceiptVoucherDeleteView',
     'post_payment_voucher', 'unpost_payment_voucher', 'post_receipt_voucher', 'unpost_receipt_voucher',
+
+    # Fiscal views
+    'FiscalYearListView', 'FiscalYearCreateView', 'FiscalYearUpdateView',
+    'FiscalYearDetailView', 'FiscalYearDeleteView', 'fiscal_year_datatable_ajax', 'create_periods_ajax',
+    'AccountingPeriodListView', 'AccountingPeriodCreateView', 'AccountingPeriodUpdateView',
+    'AccountingPeriodDetailView', 'AccountingPeriodDeleteView', 'close_period_ajax', 'reopen_period_ajax'
+
 
     # Report views
     'export_account_types', 'import_account_types', 'export_accounts', 'import_accounts'

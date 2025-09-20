@@ -1,0 +1,746 @@
+# apps/accounting/views/fiscal_views.py
+"""
+واجهات السنوات والفترات المالية
+"""
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib import messages
+from django.urls import reverse_lazy, reverse
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.db.models import Q, Count
+from django.utils.translation import gettext_lazy as _
+from django.db import transaction
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+
+from apps.core.mixins import CompanyMixin, AuditLogMixin
+from apps.core.decorators import permission_required_with_message
+from ..models import FiscalYear, AccountingPeriod
+from ..forms.fiscal_forms import FiscalYearForm, FiscalYearFilterForm, CreatePeriodsForm
+
+
+class FiscalYearListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
+    """قائمة السنوات المالية"""
+
+    model = FiscalYear
+    template_name = 'accounting/fiscal/fiscal_year_list.html'
+    context_object_name = 'fiscal_years'
+    permission_required = 'accounting.view_fiscalyear'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FiscalYear.objects.filter(
+            company=self.request.current_company
+        ).order_by('-start_date')
+
+        # تطبيق الفلاتر
+        form = FiscalYearFilterForm(self.request.GET, request=self.request)
+        if form.is_valid():
+            if form.cleaned_data.get('status') == 'active':
+                queryset = queryset.filter(is_closed=False)
+            elif form.cleaned_data.get('status') == 'closed':
+                queryset = queryset.filter(is_closed=True)
+
+            if form.cleaned_data.get('year'):
+                queryset = queryset.filter(start_date__year=form.cleaned_data['year'])
+
+            if form.cleaned_data.get('search'):
+                search = form.cleaned_data['search']
+                queryset = queryset.filter(
+                    Q(name__icontains=search) | Q(code__icontains=search)
+                )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إحصائيات سريعة
+        stats = FiscalYear.objects.filter(
+            company=self.request.current_company
+        ).aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_closed=False)),
+            closed=Count('id', filter=Q(is_closed=True))
+        )
+
+        context.update({
+            'title': _('السنوات المالية'),
+            'filter_form': FiscalYearFilterForm(self.request.GET, request=self.request),
+            'can_add': self.request.user.has_perm('accounting.add_fiscalyear'),
+            'can_edit': self.request.user.has_perm('accounting.change_fiscalyear'),
+            'can_delete': self.request.user.has_perm('accounting.delete_fiscalyear'),
+            'stats': stats,
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('السنوات المالية'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class FiscalYearCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
+    """إنشاء سنة مالية جديدة"""
+
+    model = FiscalYear
+    form_class = FiscalYearForm
+    template_name = 'accounting/fiscal/fiscal_year_form.html'
+    permission_required = 'accounting.add_fiscalyear'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.company = self.request.current_company
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم إنشاء السنة المالية {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:fiscal_year_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': _('إنشاء سنة مالية جديدة'),
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('السنوات المالية'), 'url': reverse('accounting:fiscal_year_list')},
+                {'title': _('إنشاء جديد'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class FiscalYearDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """تفاصيل السنة المالية"""
+
+    model = FiscalYear
+    template_name = 'accounting/fiscal/fiscal_year_detail.html'
+    context_object_name = 'fiscal_year'
+    permission_required = 'accounting.view_fiscalyear'
+
+    def get_queryset(self):
+        return FiscalYear.objects.filter(company=self.request.current_company)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # الفترات المحاسبية لهذه السنة
+        periods = self.object.periods.all().order_by('start_date')
+
+        # إحصائيات
+        stats = {
+            'periods_count': periods.count(),
+            'active_periods': periods.filter(is_closed=False).count(),
+            'closed_periods': periods.filter(is_closed=True).count(),
+            'days_count': (self.object.end_date - self.object.start_date).days + 1
+        }
+
+        context.update({
+            'title': f'تفاصيل السنة المالية: {self.object.name}',
+            'periods': periods,
+            'stats': stats,
+            'can_edit': self.request.user.has_perm('accounting.change_fiscalyear') and not self.object.is_closed,
+            'can_delete': self.request.user.has_perm('accounting.delete_fiscalyear') and not self.object.is_closed,
+            'can_create_periods': self.request.user.has_perm(
+                'accounting.add_accountingperiod') and not periods.exists(),
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('السنوات المالية'), 'url': reverse('accounting:fiscal_year_list')},
+                {'title': self.object.name, 'url': ''},
+            ]
+        })
+        return context
+
+
+class FiscalYearUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
+    """تعديل السنة المالية"""
+
+    model = FiscalYear
+    form_class = FiscalYearForm
+    template_name = 'accounting/fiscal/fiscal_year_form.html'
+    permission_required = 'accounting.change_fiscalyear'
+
+    def get_queryset(self):
+        return FiscalYear.objects.filter(company=self.request.current_company)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        # التحقق من إمكانية التعديل
+        if self.object.is_closed:
+            messages.error(self.request, 'لا يمكن تعديل سنة مالية مقفلة')
+            return redirect('accounting:fiscal_year_detail', pk=self.object.pk)
+
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم تحديث السنة المالية {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:fiscal_year_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': f'تعديل السنة المالية: {self.object.name}',
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('السنوات المالية'), 'url': reverse('accounting:fiscal_year_list')},
+                {'title': f'تعديل: {self.object.name}', 'url': ''},
+            ]
+        })
+        return context
+
+
+class FiscalYearDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
+    """حذف السنة المالية"""
+
+    model = FiscalYear
+    template_name = 'accounting/fiscal/fiscal_year_confirm_delete.html'
+    permission_required = 'accounting.delete_fiscalyear'
+    success_url = reverse_lazy('accounting:fiscal_year_list')
+
+    def get_queryset(self):
+        return FiscalYear.objects.filter(company=self.request.current_company)
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # التحقق من إمكانية الحذف
+        if self.object.is_closed:
+            messages.error(request, 'لا يمكن حذف سنة مالية مقفلة')
+            return redirect('accounting:fiscal_year_detail', pk=self.object.pk)
+
+        if self.object.periods.exists():
+            messages.error(request, 'لا يمكن حذف السنة المالية لوجود فترات محاسبية مرتبطة')
+            return redirect('accounting:fiscal_year_detail', pk=self.object.pk)
+
+        fiscal_year_name = self.object.name
+        messages.success(request, f'تم حذف السنة المالية {fiscal_year_name} بنجاح')
+        return super().delete(request, *args, **kwargs)
+
+
+# Ajax Views
+@login_required
+@permission_required_with_message('accounting.view_fiscalyear')
+@require_http_methods(["GET"])
+def fiscal_year_datatable_ajax(request):
+    """Ajax endpoint لجدول السنوات المالية"""
+    # سيتم تطوير هذا لاحقاً مع DataTables
+    pass
+
+
+@login_required
+@permission_required_with_message('accounting.add_accountingperiod')
+@require_http_methods(["POST"])
+def create_periods_ajax(request, fiscal_year_id):
+    """إنشاء فترات محاسبية تلقائياً للسنة المالية"""
+
+    try:
+        fiscal_year = get_object_or_404(
+            FiscalYear,
+            pk=fiscal_year_id,
+            company=request.current_company
+        )
+
+        if fiscal_year.periods.exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'توجد فترات محاسبية لهذه السنة مسبقاً'
+            })
+
+        form = CreatePeriodsForm(request.POST)
+        if not form.is_valid():
+            return JsonResponse({
+                'success': False,
+                'message': 'بيانات النموذج غير صحيحة'
+            })
+
+        period_type = form.cleaned_data['period_type']
+        create_adjustment = form.cleaned_data['create_adjustment_period']
+
+        with transaction.atomic():
+            periods_created = []
+            start_date = fiscal_year.start_date
+            end_date = fiscal_year.end_date
+
+            if period_type == 'monthly':
+                # إنشاء 12 فترة شهرية
+                current_date = start_date
+                month_num = 1
+
+                while current_date <= end_date:
+                    month_end = min(
+                        current_date + relativedelta(months=1) - timedelta(days=1),
+                        end_date
+                    )
+
+                    period = AccountingPeriod.objects.create(
+                        company=request.current_company,
+                        fiscal_year=fiscal_year,
+                        name=f'الشهر {month_num:02d} - {current_date.strftime("%B %Y")}',
+                        start_date=current_date,
+                        end_date=month_end,
+                        created_by=request.user
+                    )
+                    periods_created.append(period.name)
+
+                    current_date = month_end + timedelta(days=1)
+                    month_num += 1
+
+            elif period_type == 'quarterly':
+                # إنشاء 4 فترات ربع سنوية
+                quarter_months = [
+                    (1, 3, 'الربع الأول'),
+                    (4, 6, 'الربع الثاني'),
+                    (7, 9, 'الربع الثالث'),
+                    (10, 12, 'الربع الرابع')
+                ]
+
+                for start_month, end_month, quarter_name in quarter_months:
+                    quarter_start = date(start_date.year, start_month, 1)
+                    quarter_end = date(start_date.year, end_month, 1) + relativedelta(months=1) - timedelta(days=1)
+
+                    # تعديل التواريخ لتكون داخل السنة المالية
+                    quarter_start = max(quarter_start, start_date)
+                    quarter_end = min(quarter_end, end_date)
+
+                    if quarter_start <= end_date:
+                        period = AccountingPeriod.objects.create(
+                            company=request.current_company,
+                            fiscal_year=fiscal_year,
+                            name=f'{quarter_name} {start_date.year}',
+                            start_date=quarter_start,
+                            end_date=quarter_end,
+                            created_by=request.user
+                        )
+                        periods_created.append(period.name)
+
+            elif period_type == 'semi_annual':
+                # إنشاء فترتين نصف سنويتين
+                mid_date = start_date + relativedelta(months=6)
+
+                # النصف الأول
+                period1 = AccountingPeriod.objects.create(
+                    company=request.current_company,
+                    fiscal_year=fiscal_year,
+                    name=f'النصف الأول {start_date.year}',
+                    start_date=start_date,
+                    end_date=mid_date - timedelta(days=1),
+                    created_by=request.user
+                )
+                periods_created.append(period1.name)
+
+                # النصف الثاني
+                period2 = AccountingPeriod.objects.create(
+                    company=request.current_company,
+                    fiscal_year=fiscal_year,
+                    name=f'النصف الثاني {start_date.year}',
+                    start_date=mid_date,
+                    end_date=end_date,
+                    created_by=request.user
+                )
+                periods_created.append(period2.name)
+
+            elif period_type == 'annual':
+                # إنشاء فترة سنوية واحدة
+                period = AccountingPeriod.objects.create(
+                    company=request.current_company,
+                    fiscal_year=fiscal_year,
+                    name=f'السنة الكاملة {start_date.year}',
+                    start_date=start_date,
+                    end_date=end_date,
+                    created_by=request.user
+                )
+                periods_created.append(period.name)
+
+            # إنشاء فترة التسويات إذا طُلبت
+            if create_adjustment:
+                adjustment_period = AccountingPeriod.objects.create(
+                    company=request.current_company,
+                    fiscal_year=fiscal_year,
+                    name=f'فترة التسويات {start_date.year}',
+                    start_date=end_date,
+                    end_date=end_date,
+                    is_adjustment=True,
+                    created_by=request.user
+                )
+                periods_created.append(adjustment_period.name)
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم إنشاء {len(periods_created)} فترة محاسبية بنجاح',
+            'periods_created': periods_created
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في إنشاء الفترات: {str(e)}'
+        })
+
+
+class AccountingPeriodListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
+    """قائمة الفترات المحاسبية"""
+
+    model = AccountingPeriod
+    template_name = 'accounting/fiscal/period_list.html'
+    context_object_name = 'periods'
+    permission_required = 'accounting.view_accountingperiod'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = AccountingPeriod.objects.filter(
+            company=self.request.current_company
+        ).select_related('fiscal_year').order_by('-fiscal_year__start_date', 'start_date')
+
+        # تطبيق الفلاتر
+        form = AccountingPeriodFilterForm(self.request.GET, request=self.request)
+        if form.is_valid():
+            if form.cleaned_data.get('fiscal_year'):
+                queryset = queryset.filter(fiscal_year=form.cleaned_data['fiscal_year'])
+
+            if form.cleaned_data.get('status') == 'active':
+                queryset = queryset.filter(is_closed=False)
+            elif form.cleaned_data.get('status') == 'closed':
+                queryset = queryset.filter(is_closed=True)
+
+            if form.cleaned_data.get('period_type') == 'normal':
+                queryset = queryset.filter(is_adjustment=False)
+            elif form.cleaned_data.get('period_type') == 'adjustment':
+                queryset = queryset.filter(is_adjustment=True)
+
+            if form.cleaned_data.get('search'):
+                search = form.cleaned_data['search']
+                queryset = queryset.filter(name__icontains=search)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إحصائيات سريعة
+        stats = AccountingPeriod.objects.filter(
+            company=self.request.current_company
+        ).aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_closed=False)),
+            closed=Count('id', filter=Q(is_closed=True)),
+            adjustment=Count('id', filter=Q(is_adjustment=True))
+        )
+
+        context.update({
+            'title': _('الفترات المحاسبية'),
+            'filter_form': AccountingPeriodFilterForm(self.request.GET, request=self.request),
+            'can_add': self.request.user.has_perm('accounting.add_accountingperiod'),
+            'can_edit': self.request.user.has_perm('accounting.change_accountingperiod'),
+            'can_delete': self.request.user.has_perm('accounting.delete_accountingperiod'),
+            'stats': stats,
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('الفترات المحاسبية'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class AccountingPeriodCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
+    """إنشاء فترة محاسبية جديدة"""
+
+    model = AccountingPeriod
+    form_class = AccountingPeriodForm
+    template_name = 'accounting/fiscal/period_form.html'
+    permission_required = 'accounting.add_accountingperiod'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.company = self.request.current_company
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم إنشاء الفترة المحاسبية {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:period_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': _('إنشاء فترة محاسبية جديدة'),
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('الفترات المحاسبية'), 'url': reverse('accounting:period_list')},
+                {'title': _('إنشاء جديد'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class AccountingPeriodDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """تفاصيل الفترة المحاسبية"""
+
+    model = AccountingPeriod
+    template_name = 'accounting/fiscal/period_detail.html'
+    context_object_name = 'period'
+    permission_required = 'accounting.view_accountingperiod'
+
+    def get_queryset(self):
+        return AccountingPeriod.objects.filter(
+            company=self.request.current_company
+        ).select_related('fiscal_year')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إحصائيات القيود في هذه الفترة
+        from ..models import JournalEntry
+
+        journal_entries = JournalEntry.objects.filter(
+            company=self.request.current_company,
+            period=self.object
+        )
+
+        stats = {
+            'duration_days': (self.object.end_date - self.object.start_date).days + 1,
+            'journal_entries_count': journal_entries.count(),
+            'posted_entries': journal_entries.filter(status='posted').count(),
+            'draft_entries': journal_entries.filter(status='draft').count(),
+        }
+
+        context.update({
+            'title': f'تفاصيل الفترة: {self.object.name}',
+            'stats': stats,
+            'can_edit': self.request.user.has_perm('accounting.change_accountingperiod') and not self.object.is_closed,
+            'can_delete': self.request.user.has_perm(
+                'accounting.delete_accountingperiod') and not self.object.is_closed,
+            'can_close': self.request.user.has_perm('accounting.change_accountingperiod') and not self.object.is_closed,
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('الفترات المحاسبية'), 'url': reverse('accounting:period_list')},
+                {'title': self.object.name, 'url': ''},
+            ]
+        })
+        return context
+
+
+class AccountingPeriodUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
+    """تعديل الفترة المحاسبية"""
+
+    model = AccountingPeriod
+    form_class = AccountingPeriodForm
+    template_name = 'accounting/fiscal/period_form.html'
+    permission_required = 'accounting.change_accountingperiod'
+
+    def get_queryset(self):
+        return AccountingPeriod.objects.filter(company=self.request.current_company)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        # التحقق من إمكانية التعديل
+        if self.object.is_closed:
+            messages.error(self.request, 'لا يمكن تعديل فترة محاسبية مقفلة')
+            return redirect('accounting:period_detail', pk=self.object.pk)
+
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم تحديث الفترة المحاسبية {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:period_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': f'تعديل الفترة: {self.object.name}',
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('الفترات المحاسبية'), 'url': reverse('accounting:period_list')},
+                {'title': f'تعديل: {self.object.name}', 'url': ''},
+            ]
+        })
+        return context
+
+
+class AccountingPeriodDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
+    """حذف الفترة المحاسبية"""
+
+    model = AccountingPeriod
+    template_name = 'accounting/fiscal/period_confirm_delete.html'
+    permission_required = 'accounting.delete_accountingperiod'
+    success_url = reverse_lazy('accounting:period_list')
+
+    def get_queryset(self):
+        return AccountingPeriod.objects.filter(company=self.request.current_company)
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # التحقق من إمكانية الحذف
+        if self.object.is_closed:
+            messages.error(request, 'لا يمكن حذف فترة محاسبية مقفلة')
+            return redirect('accounting:period_detail', pk=self.object.pk)
+
+        # التحقق من وجود قيود مرتبطة
+        from ..models import JournalEntry
+        if JournalEntry.objects.filter(period=self.object).exists():
+            messages.error(request, 'لا يمكن حذف الفترة المحاسبية لوجود قيود محاسبية مرتبطة')
+            return redirect('accounting:period_detail', pk=self.object.pk)
+
+        period_name = self.object.name
+        messages.success(request, f'تم حذف الفترة المحاسبية {period_name} بنجاح')
+        return super().delete(request, *args, **kwargs)
+
+
+# Ajax Views للفترات المحاسبية
+@login_required
+@permission_required_with_message('accounting.change_accountingperiod')
+@require_http_methods(["POST"])
+def close_period_ajax(request, period_id):
+    """إقفال الفترة المحاسبية"""
+
+    try:
+        period = get_object_or_404(
+            AccountingPeriod,
+            pk=period_id,
+            company=request.current_company
+        )
+
+        if period.is_closed:
+            return JsonResponse({
+                'success': False,
+                'message': 'الفترة مقفلة مسبقاً'
+            })
+
+        form = PeriodClosingForm(request.POST)
+        if not form.is_valid():
+            return JsonResponse({
+                'success': False,
+                'message': 'بيانات النموذج غير صحيحة'
+            })
+
+        # التحقق من وجود قيود غير مرحلة
+        from ..models import JournalEntry
+        draft_entries = JournalEntry.objects.filter(
+            period=period,
+            status='draft'
+        ).count()
+
+        if draft_entries > 0:
+            return JsonResponse({
+                'success': False,
+                'message': f'يوجد {draft_entries} قيد غير مرحل في هذه الفترة. يجب ترحيل جميع القيود أولاً'
+            })
+
+        with transaction.atomic():
+            # إقفال الفترة
+            period.is_closed = True
+            period.save()
+
+            # تسجيل تاريخ الإقفال في ActivityLog
+            from apps.core.models import ActivityLog
+            ActivityLog.objects.create(
+                user=request.user,
+                company=request.current_company,
+                action='period_closed',
+                object_type='accounting_period',
+                object_id=period.id,
+                description=f'تم إقفال الفترة المحاسبية: {period.name}',
+                extra_data={
+                    'period_name': period.name,
+                    'fiscal_year': period.fiscal_year.name,
+                    'closing_notes': form.cleaned_data.get('closing_notes', '')
+                }
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم إقفال الفترة {period.name} بنجاح'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في إقفال الفترة: {str(e)}'
+        })
+
+
+@login_required
+@permission_required_with_message('accounting.change_accountingperiod')
+@require_http_methods(["POST"])
+def reopen_period_ajax(request, period_id):
+    """إعادة فتح الفترة المحاسبية"""
+
+    try:
+        period = get_object_or_404(
+            AccountingPeriod,
+            pk=period_id,
+            company=request.current_company
+        )
+
+        if not period.is_closed:
+            return JsonResponse({
+                'success': False,
+                'message': 'الفترة مفتوحة مسبقاً'
+            })
+
+        # التحقق من أن السنة المالية غير مقفلة
+        if period.fiscal_year.is_closed:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن إعادة فتح فترة في سنة مالية مقفلة'
+            })
+
+        with transaction.atomic():
+            # إعادة فتح الفترة
+            period.is_closed = False
+            period.save()
+
+            # تسجيل في ActivityLog
+            from apps.core.models import ActivityLog
+            ActivityLog.objects.create(
+                user=request.user,
+                company=request.current_company,
+                action='period_reopened',
+                object_type='accounting_period',
+                object_id=period.id,
+                description=f'تم إعادة فتح الفترة المحاسبية: {period.name}'
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم إعادة فتح الفترة {period.name} بنجاح'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في إعادة فتح الفترة: {str(e)}'
+        })
+
+
+@login_required
+@permission_required_with_message('accounting.view_accountingperiod')
+@require_http_methods(["GET"])
+def period_datatable_ajax(request):
+    """Ajax endpoint لجدول الفترات المحاسبية"""
+    # سيتم تطوير هذا لاحقاً مع DataTables
+    pass

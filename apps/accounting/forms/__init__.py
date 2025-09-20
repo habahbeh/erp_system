@@ -2,6 +2,7 @@
 from .account_forms import *
 from .journal_forms import *
 from .voucher_forms import *
+from .fiscal_forms import *
 
 __all__ = [
     # Account forms
@@ -10,5 +11,8 @@ __all__ = [
     'JournalEntryForm', 'JournalEntryLineForm', 'JournalEntryTemplateForm',
     'JournalEntryLineFormSet', 'QuickJournalEntryForm',
     # Voucher forms
-    'PaymentVoucherForm', 'ReceiptVoucherForm'
+    'PaymentVoucherForm', 'ReceiptVoucherForm',
+    # Fiscal forms
+    'FiscalYearForm', 'FiscalYearFilterForm', 'CreatePeriodsForm',
+    'AccountingPeriodForm', 'AccountingPeriodFilterForm', 'PeriodClosingForm'
 ]
