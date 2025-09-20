@@ -140,19 +140,46 @@ class Account(BaseModel):
 
 
 class CostCenter(BaseModel):
-    """مراكز التكلفة"""
+    """مركز التكلفة"""
 
+    COST_CENTER_TYPES = [
+        ('administration', 'إدارة'),
+        ('production', 'إنتاج'),
+        ('sales', 'مبيعات'),
+        ('services', 'خدمات'),
+        ('marketing', 'تسويق'),
+        ('maintenance', 'صيانة'),
+    ]
+
+    name = models.CharField(_('اسم مركز التكلفة'), max_length=100)
     code = models.CharField(_('الرمز'), max_length=20)
-    name = models.CharField(_('الاسم'), max_length=100)
+    description = models.TextField(_('الوصف'), blank=True, null=True)
+
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
-                              related_name='children', verbose_name=_('المركز الأب'))
+                               related_name='children', verbose_name=_('مركز التكلفة الأب'))
+
+    cost_center_type = models.CharField(_('نوع المركز'), max_length=20,
+                                        choices=COST_CENTER_TYPES, default='administration')
+
     manager = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, blank=True,
-                               verbose_name=_('المسؤول'))
+                                related_name='managed_cost_centers', verbose_name=_('مدير المركز'))
+
+    level = models.PositiveSmallIntegerField(_('المستوى'), default=1)
+    is_active = models.BooleanField(_('نشط'), default=True)
 
     class Meta:
         verbose_name = _('مركز تكلفة')
         verbose_name_plural = _('مراكز التكلفة')
         unique_together = [['company', 'code']]
+        ordering = ['code']
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # حساب المستوى تلقائياً
+        if self.parent:
+            self.level = self.parent.level + 1
+        else:
+            self.level = 1
+        super().save(*args, **kwargs)

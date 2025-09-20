@@ -20,39 +20,80 @@ class JournalEntryTemplate(BaseModel):
     """قوالب القيود - لسهولة الإدخال المتكرر"""
 
     name = models.CharField(_('اسم القالب'), max_length=100)
+    code = models.CharField(_('رمز القالب'), max_length=20, blank=True)
     description = models.TextField(_('الوصف'), blank=True)
-    entry_type = models.CharField(_('نوع القيد'), max_length=20, default='manual')
+
+    entry_type = models.CharField(_('نوع القيد'), max_length=20,
+                                  choices=[
+                                      ('manual', _('قيد يدوي')),
+                                      ('auto', _('قيد تلقائي')),
+                                      ('opening', _('قيد افتتاحي')),
+                                      ('closing', _('قيد إقفال')),
+                                      ('adjustment', _('قيد تسوية')),
+                                  ], default='manual')
+
     default_description = models.TextField(_('البيان الافتراضي'))
+    default_reference = models.CharField(_('المرجع الافتراضي'), max_length=100, blank=True)
+
     display_order = models.PositiveIntegerField(_('ترتيب العرض'), default=0)
+    is_active = models.BooleanField(_('نشط'), default=True)
+
+    # إعدادات القالب
+    auto_balance = models.BooleanField(_('توازن تلقائي'), default=False,
+                                       help_text=_('هل يحسب المبلغ الأخير تلقائياً للتوازن'))
+
+    category = models.CharField(_('فئة القالب'), max_length=50, blank=True,
+                                help_text=_('لتصنيف القوالب'))
 
     class Meta:
         verbose_name = _('قالب قيد')
         verbose_name_plural = _('قوالب القيود')
-        unique_together = [['company', 'name']]
+        unique_together = [['company', 'name'], ['company', 'code']]
         ordering = ['display_order', 'name']
+
+    def save(self, *args, **kwargs):
+        # توليد رمز تلقائي إذا لم يوجد
+        if not self.code:
+            self.code = self.name[:10].upper().replace(' ', '')
+        super().save(*args, **kwargs)
 
     def create_journal_entry(self, **kwargs):
         """إنشاء قيد من القالب"""
         entry = JournalEntry.objects.create(
             company=self.company,
             entry_type=self.entry_type,
-            description=self.default_description,
+            description=kwargs.get('description', self.default_description),
+            reference=kwargs.get('reference', self.default_reference),
             template=self,
             **kwargs
         )
 
         # نسخ سطور القالب
-        for template_line in self.template_lines.all():
+        for template_line in self.template_lines.all().order_by('line_number'):
             JournalEntryLine.objects.create(
                 journal_entry=entry,
+                line_number=template_line.line_number,
                 account=template_line.account,
-                description=template_line.description,
+                description=template_line.description or entry.description,
                 debit_amount=template_line.debit_amount,
                 credit_amount=template_line.credit_amount,
-                reference=template_line.reference
+                reference=template_line.reference or entry.reference,
+                cost_center=template_line.default_cost_center
             )
 
         return entry
+
+    def get_total_debit(self):
+        """إجمالي المدين في القالب"""
+        return sum(line.debit_amount for line in self.template_lines.all())
+
+    def get_total_credit(self):
+        """إجمالي الدائن في القالب"""
+        return sum(line.credit_amount for line in self.template_lines.all())
+
+    def is_balanced(self):
+        """هل القالب متوازن"""
+        return self.get_total_debit() == self.get_total_credit()
 
     def __str__(self):
         return self.name
@@ -350,6 +391,7 @@ class JournalEntryLine(models.Model):
     # معلومات إضافية
     reference = models.CharField(_('المرجع'), max_length=100, blank=True)
     cost_center = models.ForeignKey(CostCenter, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='journal_lines',
                                     verbose_name=_('مركز التكلفة'))
 
     # للربط مع الشركاء
@@ -430,12 +472,24 @@ class JournalEntryTemplateLine(models.Model):
 
     line_number = models.PositiveIntegerField(_('رقم السطر'))
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name=_('الحساب'))
-    description = models.CharField(_('البيان'), max_length=255)
+    description = models.CharField(_('البيان'), max_length=255, blank=True)
 
-    # يمكن ترك المبالغ فارغة ليملأها المستخدم
+    # المبالغ - يمكن ترك أحدهما فارغ
     debit_amount = models.DecimalField(_('مدين'), max_digits=15, decimal_places=4, default=0)
     credit_amount = models.DecimalField(_('دائن'), max_digits=15, decimal_places=4, default=0)
+
     reference = models.CharField(_('المرجع'), max_length=100, blank=True)
+
+    # مركز التكلفة الافتراضي
+    default_cost_center = models.ForeignKey(CostCenter, on_delete=models.SET_NULL,
+                                            null=True, blank=True,
+                                            verbose_name=_('مركز التكلفة الافتراضي'))
+
+    # هل هذا السطر مطلوب
+    is_required = models.BooleanField(_('إجباري'), default=True)
+
+    # هل يمكن تعديل المبلغ عند استخدام القالب
+    amount_editable = models.BooleanField(_('المبلغ قابل للتعديل'), default=True)
 
     class Meta:
         verbose_name = _('سطر قالب قيد')
@@ -443,5 +497,42 @@ class JournalEntryTemplateLine(models.Model):
         ordering = ['line_number']
         unique_together = [['template', 'line_number']]
 
+    def clean(self):
+        """التحقق من صحة السطر"""
+        # التأكد من أن أحد المبلغين فقط موجود (أو كلاهما صفر للمتغير)
+        if self.debit_amount > 0 and self.credit_amount > 0:
+            raise ValidationError(_('لا يمكن إدخال مبلغ في المدين والدائن معاً'))
+
+        # التحقق من أن الحساب يقبل قيود
+        if not self.account.accept_entries:
+            raise ValidationError(f'الحساب {self.account.name} لا يقبل قيود مباشرة')
+
+    def save(self, *args, **kwargs):
+        # تعيين رقم السطر تلقائياً
+        if not self.line_number:
+            max_line = self.template.template_lines.aggregate(
+                max_line=models.Max('line_number')
+            )['max_line']
+            self.line_number = (max_line or 0) + 1
+
+        super().save(*args, **kwargs)
+
+    @property
+    def amount(self):
+        """المبلغ (مدين أو دائن)"""
+        return self.debit_amount or self.credit_amount
+
+    @property
+    def is_debit(self):
+        """هل السطر مدين"""
+        return self.debit_amount > 0
+
+    @property
+    def is_credit(self):
+        """هل السطر دائن"""
+        return self.credit_amount > 0
+
     def __str__(self):
-        return f"{self.template.name} - {self.line_number}"
+        amount = self.debit_amount or self.credit_amount
+        side = 'مدين' if self.debit_amount else 'دائن'
+        return f"{self.template.name} - {self.line_number}: {self.account.name} ({amount} {side})"

@@ -19,9 +19,12 @@ from dateutil.relativedelta import relativedelta
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
-from ..models import FiscalYear, AccountingPeriod
-from ..forms.fiscal_forms import FiscalYearForm, FiscalYearFilterForm, CreatePeriodsForm
 
+from ..models.account_models import CostCenter
+from ..models import FiscalYear, AccountingPeriod
+from ..forms.fiscal_forms import (FiscalYearForm, FiscalYearFilterForm, CreatePeriodsForm,
+                                 AccountingPeriodForm, AccountingPeriodFilterForm, PeriodClosingForm,
+                                 CostCenterForm, CostCenterFilterForm)
 
 class FiscalYearListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
     """قائمة السنوات المالية"""
@@ -744,3 +747,271 @@ def period_datatable_ajax(request):
     """Ajax endpoint لجدول الفترات المحاسبية"""
     # سيتم تطوير هذا لاحقاً مع DataTables
     pass
+
+
+class CostCenterListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
+    """قائمة مراكز التكلفة"""
+
+    model = CostCenter
+    template_name = 'accounting/fiscal/cost_center_list.html'
+    context_object_name = 'cost_centers'
+    permission_required = 'accounting.view_costcenter'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = CostCenter.objects.filter(
+            company=self.request.current_company
+        ).select_related('parent', 'manager').order_by('code')
+
+        # تطبيق الفلاتر
+        form = CostCenterFilterForm(self.request.GET, request=self.request)
+        if form.is_valid():
+            if form.cleaned_data.get('cost_center_type'):
+                queryset = queryset.filter(cost_center_type=form.cleaned_data['cost_center_type'])
+
+            if form.cleaned_data.get('level'):
+                queryset = queryset.filter(level=form.cleaned_data['level'])
+
+            if form.cleaned_data.get('status') == 'active':
+                queryset = queryset.filter(is_active=True)
+            elif form.cleaned_data.get('status') == 'inactive':
+                queryset = queryset.filter(is_active=False)
+
+            if form.cleaned_data.get('parent'):
+                queryset = queryset.filter(parent=form.cleaned_data['parent'])
+
+            if form.cleaned_data.get('search'):
+                search = form.cleaned_data['search']
+                queryset = queryset.filter(
+                    Q(name__icontains=search) | Q(code__icontains=search)
+                )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إحصائيات سريعة
+        stats = CostCenter.objects.filter(
+            company=self.request.current_company
+        ).aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_active=True)),
+            inactive=Count('id', filter=Q(is_active=False)),
+            level_1=Count('id', filter=Q(level=1)),
+            level_2=Count('id', filter=Q(level=2)),
+            level_3=Count('id', filter=Q(level=3)),
+            level_4=Count('id', filter=Q(level=4))
+        )
+
+        context.update({
+            'title': _('مراكز التكلفة'),
+            'filter_form': CostCenterFilterForm(self.request.GET, request=self.request),
+            'can_add': self.request.user.has_perm('accounting.add_costcenter'),
+            'can_edit': self.request.user.has_perm('accounting.change_costcenter'),
+            'can_delete': self.request.user.has_perm('accounting.delete_costcenter'),
+            'stats': stats,
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('مراكز التكلفة'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class CostCenterCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
+    """إنشاء مركز تكلفة جديد"""
+
+    model = CostCenter
+    form_class = CostCenterForm
+    template_name = 'accounting/fiscal/cost_center_form.html'
+    permission_required = 'accounting.add_costcenter'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.company = self.request.current_company
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم إنشاء مركز التكلفة {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:cost_center_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': _('إنشاء مركز تكلفة جديد'),
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('مراكز التكلفة'), 'url': reverse('accounting:cost_center_list')},
+                {'title': _('إنشاء جديد'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class CostCenterDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """تفاصيل مركز التكلفة"""
+
+    model = CostCenter
+    template_name = 'accounting/fiscal/cost_center_detail.html'
+    context_object_name = 'cost_center'
+    permission_required = 'accounting.view_costcenter'
+
+    def get_queryset(self):
+        return CostCenter.objects.filter(
+            company=self.request.current_company
+        ).select_related('parent', 'manager')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # المراكز الفرعية
+        children = self.object.children.filter(is_active=True).order_by('code')
+
+        # إحصائيات استخدام المركز
+        from ..models import JournalEntryLine
+
+        usage_stats = {
+            'journal_entries_count': JournalEntryLine.objects.filter(
+                cost_center=self.object,
+                journal_entry__company=self.request.current_company
+            ).count(),
+            'children_count': children.count(),
+            'total_descendants': self.get_total_descendants(self.object)
+        }
+
+        context.update({
+            'title': f'تفاصيل مركز التكلفة: {self.object.name}',
+            'children': children,
+            'usage_stats': usage_stats,
+            'can_edit': self.request.user.has_perm('accounting.change_costcenter'),
+            'can_delete': self.request.user.has_perm('accounting.delete_costcenter') and usage_stats[
+                'journal_entries_count'] == 0,
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('مراكز التكلفة'), 'url': reverse('accounting:cost_center_list')},
+                {'title': self.object.name, 'url': ''},
+            ]
+        })
+        return context
+
+    def get_total_descendants(self, cost_center):
+        """حساب عدد المراكز التابعة (جميع المستويات)"""
+        total = 0
+        for child in cost_center.children.all():
+            total += 1 + self.get_total_descendants(child)
+        return total
+
+
+class CostCenterUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
+    """تعديل مركز التكلفة"""
+
+    model = CostCenter
+    form_class = CostCenterForm
+    template_name = 'accounting/fiscal/cost_center_form.html'
+    permission_required = 'accounting.change_costcenter'
+
+    def get_queryset(self):
+        return CostCenter.objects.filter(company=self.request.current_company)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, f'تم تحديث مركز التكلفة {self.object.name} بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('accounting:cost_center_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': f'تعديل مركز التكلفة: {self.object.name}',
+            'breadcrumbs': [
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('مراكز التكلفة'), 'url': reverse('accounting:cost_center_list')},
+                {'title': f'تعديل: {self.object.name}', 'url': ''},
+            ]
+        })
+        return context
+
+
+class CostCenterDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
+    """حذف مركز التكلفة"""
+
+    model = CostCenter
+    template_name = 'accounting/fiscal/cost_center_confirm_delete.html'
+    permission_required = 'accounting.delete_costcenter'
+    success_url = reverse_lazy('accounting:cost_center_list')
+
+    def get_queryset(self):
+        return CostCenter.objects.filter(company=self.request.current_company)
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # التحقق من إمكانية الحذف
+        from ..models import JournalEntryLine
+
+        if JournalEntryLine.objects.filter(cost_center=self.object).exists():
+            messages.error(request, 'لا يمكن حذف مركز التكلفة لوجود قيود محاسبية مرتبطة')
+            return redirect('accounting:cost_center_detail', pk=self.object.pk)
+
+        if self.object.children.exists():
+            messages.error(request, 'لا يمكن حذف مركز التكلفة لوجود مراكز فرعية تابعة له')
+            return redirect('accounting:cost_center_detail', pk=self.object.pk)
+
+        cost_center_name = self.object.name
+        messages.success(request, f'تم حذف مركز التكلفة {cost_center_name} بنجاح')
+        return super().delete(request, *args, **kwargs)
+
+
+# Ajax Views
+@login_required
+@permission_required_with_message('accounting.view_costcenter')
+@require_http_methods(["GET"])
+def cost_center_datatable_ajax(request):
+    """Ajax endpoint لجدول مراكز التكلفة"""
+    # سيتم تطوير هذا لاحقاً مع DataTables
+    pass
+
+
+@login_required
+@permission_required_with_message('accounting.view_costcenter')
+@require_http_methods(["GET"])
+def cost_center_search_ajax(request):
+    """البحث في مراكز التكلفة - Ajax"""
+
+    query = request.GET.get('term', '')
+    if len(query) < 2:
+        return JsonResponse([])
+
+    cost_centers = CostCenter.objects.filter(
+        company=request.current_company,
+        is_active=True
+    ).filter(
+        Q(code__icontains=query) | Q(name__icontains=query)
+    )[:20]
+
+    results = []
+    for cc in cost_centers:
+        results.append({
+            'id': cc.id,
+            'text': f"{cc.code} - {cc.name}",
+            'code': cc.code,
+            'name': cc.name,
+            'type': cc.get_cost_center_type_display(),
+            'level': cc.level
+        })
+
+    return JsonResponse(results, safe=False)

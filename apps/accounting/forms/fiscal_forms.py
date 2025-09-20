@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 
 from ..models import FiscalYear, AccountingPeriod
-
+from ..models.account_models import CostCenter
 
 class FiscalYearForm(forms.ModelForm):
     """نموذج السنة المالية"""
@@ -358,3 +358,151 @@ class PeriodClosingForm(forms.Form):
         if not self.cleaned_data.get('confirm_closing'):
             raise ValidationError('يجب تأكيد إقفال الفترة')
         return self.cleaned_data['confirm_closing']
+
+class CostCenterForm(forms.ModelForm):
+    """نموذج مركز التكلفة"""
+
+    class Meta:
+        model = CostCenter
+        fields = ['name', 'code', 'description', 'parent', 'cost_center_type', 'manager', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'اسم مركز التكلفة (مثال: قسم المحاسبة)'
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'رمز المركز (مثال: ACCT001)'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'وصف مركز التكلفة...'
+            }),
+            'parent': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'cost_center_type': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'manager': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        # فلترة مراكز التكلفة الأب للشركة الحالية
+        if self.request and hasattr(self.request, 'current_company'):
+            self.fields['parent'].queryset = CostCenter.objects.filter(
+                company=self.request.current_company,
+                is_active=True
+            ).exclude(pk=self.instance.pk if self.instance else None).order_by('code')
+
+            # فلترة المدراء للشركة الحالية
+            self.fields['manager'].queryset = self.request.current_company.users.filter(
+                is_active=True
+            ).order_by('first_name', 'last_name', 'username')
+
+        # إعدادات إضافية
+        self.fields['parent'].empty_label = "-- اختر مركز التكلفة الأب (اختياري) --"
+        self.fields['manager'].empty_label = "-- اختر مدير المركز (اختياري) --"
+
+    def clean_code(self):
+        code = self.cleaned_data['code'].strip().upper()
+
+        if not self.request or not hasattr(self.request, 'current_company'):
+            raise ValidationError('لا توجد شركة محددة')
+
+        # التحقق من عدم تكرار الرمز
+        existing = CostCenter.objects.filter(
+            code=code,
+            company=self.request.current_company
+        ).exclude(pk=self.instance.pk if self.instance else None)
+
+        if existing.exists():
+            raise ValidationError('رمز مركز التكلفة موجود مسبقاً')
+
+        return code
+
+    def clean(self):
+        cleaned_data = super().clean()
+        parent = cleaned_data.get('parent')
+
+        # التحقق من عدم جعل المركز أباً لنفسه
+        if parent and self.instance and parent.pk == self.instance.pk:
+            raise ValidationError({
+                'parent': 'لا يمكن جعل مركز التكلفة أباً لنفسه'
+            })
+
+        # التحقق من عدم تجاوز 4 مستويات
+        if parent and parent.level >= 4:
+            raise ValidationError({
+                'parent': 'لا يمكن تجاوز 4 مستويات في مراكز التكلفة'
+            })
+
+        return cleaned_data
+
+
+class CostCenterFilterForm(forms.Form):
+    """نموذج فلترة مراكز التكلفة"""
+
+    cost_center_type = forms.ChoiceField(
+        choices=[('', 'جميع الأنواع')] + CostCenter.COST_CENTER_TYPES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    level = forms.ChoiceField(
+        choices=[
+            ('', 'جميع المستويات'),
+            ('1', 'المستوى الأول'),
+            ('2', 'المستوى الثاني'),
+            ('3', 'المستوى الثالث'),
+            ('4', 'المستوى الرابع')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    status = forms.ChoiceField(
+        choices=[
+            ('', 'جميع الحالات'),
+            ('active', 'نشطة'),
+            ('inactive', 'غير نشطة')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    parent = forms.ModelChoiceField(
+        queryset=CostCenter.objects.none(),
+        required=False,
+        empty_label="جميع مراكز التكلفة",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    search = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'البحث في الاسم أو الرمز'
+        })
+    )
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if request and hasattr(request, 'current_company'):
+            self.fields['parent'].queryset = CostCenter.objects.filter(
+                company=request.current_company,
+                level__lt=4,  # فقط المراكز التي يمكن أن تكون آباء
+                is_active=True
+            ).order_by('code')

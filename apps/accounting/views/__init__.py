@@ -36,9 +36,12 @@ __all__ = [
     'FiscalYearListView', 'FiscalYearCreateView', 'FiscalYearUpdateView',
     'FiscalYearDetailView', 'FiscalYearDeleteView', 'fiscal_year_datatable_ajax', 'create_periods_ajax',
     'AccountingPeriodListView', 'AccountingPeriodCreateView', 'AccountingPeriodUpdateView',
-    'AccountingPeriodDetailView', 'AccountingPeriodDeleteView', 'close_period_ajax', 'reopen_period_ajax'
+    'AccountingPeriodDetailView', 'AccountingPeriodDeleteView', 'close_period_ajax', 'reopen_period_ajax',
 
+    # Cost Center views
+    'CostCenterListView', 'CostCenterCreateView', 'CostCenterUpdateView',
+    'CostCenterDetailView', 'CostCenterDeleteView', 'cost_center_search_ajax',
 
     # Report views
-    'export_account_types', 'import_account_types', 'export_accounts', 'import_accounts'
+    'export_account_types', 'import_account_types', 'export_accounts', 'import_accounts',
 ]

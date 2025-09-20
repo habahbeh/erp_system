@@ -15,9 +15,14 @@ from .voucher_models import PaymentVoucher, ReceiptVoucher
 from .balance_models import AccountBalance, AccountBalanceHistory
 
 __all__ = [
+    # Account models
     'AccountType', 'Account', 'CostCenter',
-    'FiscalYear', 'AccountingPeriod',
+    # Fiscal models
+    'FiscalYear', 'AccountingPeriod'
+    # Journal models
     'JournalEntryTemplate', 'JournalEntry', 'JournalEntryLine', 'JournalEntryTemplateLine',
+    # Voucher models
     'PaymentVoucher', 'ReceiptVoucher',
+    # balance models
     'AccountBalance', 'AccountBalanceHistory'
 ]

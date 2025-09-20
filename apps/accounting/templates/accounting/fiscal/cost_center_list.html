@@ -1,0 +1,338 @@
+<!-- apps/accounting/templates/accounting/fiscal/cost_center_list.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">{{ title }}</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    {% for crumb in breadcrumbs %}
+                        {% if forloop.last %}
+                            <li class="breadcrumb-item active">{{ crumb.title }}</li>
+                        {% else %}
+                            <li class="breadcrumb-item">
+                                <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                </ol>
+            </nav>
+        </div>
+
+        {% if can_add %}
+        <div>
+            <a href="{% url 'accounting:cost_center_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>إضافة مركز تكلفة جديد
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">إجمالي المراكز</h5>
+                            <h3 class="mb-0">{{ stats.total }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-sitemap fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">المراكز النشطة</h5>
+                            <h3 class="mb-0">{{ stats.active }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">المراكز غير النشطة</h5>
+                            <h3 class="mb-0">{{ stats.inactive }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-pause-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">المستوى الأول</h5>
+                            <h3 class="mb-0">{{ stats.level_1 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-layer-group fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-filter me-2"></i>فلاتر البحث
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row">
+                    <div class="col-md-2">
+                        {{ filter_form.cost_center_type.label_tag }}
+                        {{ filter_form.cost_center_type }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ filter_form.level.label_tag }}
+                        {{ filter_form.level }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ filter_form.status.label_tag }}
+                        {{ filter_form.status }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ filter_form.parent.label_tag }}
+                        {{ filter_form.parent }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ filter_form.search.label_tag }}
+                        {{ filter_form.search }}
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-redo"></i>
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-list me-2"></i>قائمة مراكز التكلفة
+            </h5>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-success btn-sm" onclick="exportData()">
+                    <i class="fas fa-file-excel me-1"></i>تصدير Excel
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="costCenterTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>الرمز</th>
+                            <th>اسم مركز التكلفة</th>
+                            <th>النوع</th>
+                            <th>المركز الأب</th>
+                            <th>المستوى</th>
+                            <th>المدير</th>
+                            <th>الحالة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cost_center in cost_centers %}
+                        <tr>
+                            <td><strong>{{ cost_center.code }}</strong></td>
+                            <td>
+                                <a href="{% url 'accounting:cost_center_detail' cost_center.pk %}"
+                                   class="text-decoration-none">
+                                    <!-- إضافة مسافات حسب المستوى للتمثيل الهرمي -->
+                                    {% for i in "12345"|make_list %}
+                                        {% if forloop.counter0 < cost_center.level|add:"-1" %}
+                                            &nbsp;&nbsp;&nbsp;&nbsp;
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if cost_center.level > 1 %}
+                                        <i class="fas fa-level-up-alt text-muted me-1"></i>
+                                    {% endif %}
+                                    {{ cost_center.name }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge
+                                    {% if cost_center.cost_center_type == 'administration' %}bg-primary
+                                    {% elif cost_center.cost_center_type == 'production' %}bg-success
+                                    {% elif cost_center.cost_center_type == 'sales' %}bg-info
+                                    {% elif cost_center.cost_center_type == 'services' %}bg-warning
+                                    {% elif cost_center.cost_center_type == 'marketing' %}bg-purple
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ cost_center.get_cost_center_type_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if cost_center.parent %}
+                                    <a href="{% url 'accounting:cost_center_detail' cost_center.parent.pk %}"
+                                       class="text-muted text-decoration-none">
+                                        {{ cost_center.parent.name }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-- مركز رئيسي --</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-info">المستوى {{ cost_center.level }}</span>
+                            </td>
+                            <td>
+                                {% if cost_center.manager %}
+                                    <small class="text-muted">{{ cost_center.manager.get_full_name|default:cost_center.manager.username }}</small>
+                                {% else %}
+                                    <span class="text-muted">-- غير محدد --</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cost_center.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-danger">غير نشط</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'accounting:cost_center_detail' cost_center.pk %}"
+                                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+
+                                    {% if can_edit %}
+                                    <a href="{% url 'accounting:cost_center_update' cost_center.pk %}"
+                                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+
+                                    {% if can_delete %}
+                                    <a href="{% url 'accounting:cost_center_delete' cost_center.pk %}"
+                                       class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-sitemap fa-3x mb-3"></i>
+                                    <p>لا توجد مراكز تكلفة مسجلة حالياً</p>
+                                    {% if can_add %}
+                                    <a href="{% url 'accounting:cost_center_create' %}" class="btn btn-primary">
+                                        <i class="fas fa-plus me-2"></i>إضافة مركز التكلفة الأول
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="الصفحات">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.items %}&{{ request.GET.urlencode }}{% endif %}">الأولى</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.items %}&{{ request.GET.urlencode }}{% endif %}">السابقة</a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.items %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.items %}&{{ request.GET.urlencode }}{% endif %}">التالية</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.items %}&{{ request.GET.urlencode }}{% endif %}">الأخيرة</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+function exportData() {
+    window.location.href = '{% url "accounting:export_cost_centers" %}?' + $('#filterForm').serialize();
+}
+</script>
+
+<style>
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+</style>
+{% endblock %}

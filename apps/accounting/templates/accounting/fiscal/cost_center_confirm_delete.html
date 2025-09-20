@@ -1,0 +1,276 @@
+<!-- apps/accounting/templates/accounting/fiscal/cost_center_confirm_delete.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}حذف مركز التكلفة - {{ object.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>تأكيد حذف مركز التكلفة
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'accounting:dashboard' %}">المحاسبة</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'accounting:cost_center_list' %}">مراكز التكلفة</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'accounting:cost_center_detail' object.pk %}">{{ object.name }}</a>
+                    </li>
+                    <li class="breadcrumb-item active">حذف</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-trash me-2"></i>تأكيد حذف مركز التكلفة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h5><i class="fas fa-exclamation-triangle me-2"></i>تحذير!</h5>
+                        <p class="mb-0">
+                            أنت على وشك حذف مركز التكلفة نهائياً. هذا الإجراء <strong>لا يمكن التراجع عنه</strong>.
+                        </p>
+                    </div>
+
+                    <!-- معلومات مركز التكلفة -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>معلومات مركز التكلفة:</h6>
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <th width="30%">الاسم:</th>
+                                    <td><strong>{{ object.name }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>الرمز:</th>
+                                    <td><code>{{ object.code }}</code></td>
+                                </tr>
+                                <tr>
+                                    <th>النوع:</th>
+                                    <td>{{ object.get_cost_center_type_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>المستوى:</th>
+                                    <td>{{ object.level }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>تفاصيل إضافية:</h6>
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <th width="30%">المركز الأب:</th>
+                                    <td>
+                                        {% if object.parent %}
+                                            {{ object.parent.name }}
+                                        {% else %}
+                                            -- مركز رئيسي --
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>المدير:</th>
+                                    <td>
+                                        {% if object.manager %}
+                                            {{ object.manager.get_full_name|default:object.manager.username }}
+                                        {% else %}
+                                            -- غير محدد --
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>تاريخ الإنشاء:</th>
+                                    <td>{{ object.created_at|date:"Y/m/d" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>الحالة:</th>
+                                    <td>
+                                        {% if object.is_active %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">غير نشط</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- فحص التبعيات -->
+                    {% if object.children.exists %}
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>تحذير: مراكز فرعية موجودة</h6>
+                        <p class="mb-2">يحتوي هذا المركز على <strong>{{ object.children.count }}</strong> مركز فرعي:</p>
+                        <ul class="mb-0">
+                            {% for child in object.children.all %}
+                            <li>{{ child.name }} ({{ child.code }})</li>
+                            {% endfor %}
+                        </ul>
+                        <p class="mt-2 mb-0 text-danger">
+                            <strong>لا يمكن حذف مركز التكلفة لوجود مراكز فرعية. يجب حذف أو نقل المراكز الفرعية أولاً.</strong>
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- فحص الاستخدام في القيود -->
+                    {% if usage_count > 0 %}
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-ban me-2"></i>خطأ: مركز التكلفة مستخدم</h6>
+                        <p class="mb-0">
+                            هذا مركز التكلفة مستخدم في <strong>{{ usage_count }}</strong> قيد محاسبي.
+                            <strong>لا يمكن حذفه.</strong>
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- نموذج الحذف -->
+                    {% if not object.children.exists and usage_count == 0 %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>معلومات الحذف</h6>
+                        <ul class="mb-0">
+                            <li>سيتم حذف مركز التكلفة نهائياً من النظام</li>
+                            <li>لن يظهر في التقارير المستقبلية</li>
+                            <li>لا يمكن استرداد البيانات بعد الحذف</li>
+                        </ul>
+                    </div>
+
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>أؤكد أنني أريد حذف مركز التكلفة "{{ object.name }}" نهائياً</strong>
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'accounting:cost_center_detail' object.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="deleteButton" disabled>
+                                <i class="fas fa-trash me-2"></i>حذف نهائياً
+                            </button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <!-- إذا كان لا يمكن الحذف -->
+                    <div class="d-flex justify-content-center mt-4">
+                        <a href="{% url 'accounting:cost_center_detail' object.pk %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>العودة للتفاصيل
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- نصائح جانبية -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح قبل الحذف
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6>بدائل الحذف:</h6>
+                        <ul class="mb-0">
+                            <li><strong>إلغاء التفعيل:</strong> بدلاً من الحذف، يمكن إلغاء تفعيل المركز</li>
+                            <li><strong>النقل:</strong> نقل المراكز الفرعية لمركز آخر</li>
+                            <li><strong>الدمج:</strong> دمج هذا المركز مع مركز آخر</li>
+                        </ul>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6>تأثير الحذف:</h6>
+                        <ul class="mb-0">
+                            <li>إزالة نهائية من النظام</li>
+                            <li>عدم ظهور في التقارير الجديدة</li>
+                            <li>فقدان ارتباط القيود السابقة</li>
+                        </ul>
+                    </div>
+
+                    {% if object.children.exists %}
+                    <div class="alert alert-danger">
+                        <h6>خطوات مطلوبة:</h6>
+                        <ol class="mb-0">
+                            <li>حذف أو نقل المراكز الفرعية</li>
+                            <li>التأكد من عدم وجود قيود مرتبطة</li>
+                            <li>المحاولة مرة أخرى</li>
+                        </ol>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تفعيل/إلغاء تفعيل زر الحذف حسب التأكيد
+    $('#confirmDelete').on('change', function() {
+        $('#deleteButton').prop('disabled', !this.checked);
+    });
+
+    // تأكيد إضافي عند الإرسال
+    $('form').on('submit', function(e) {
+        if (!$('#confirmDelete').prop('checked')) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'تأكيد مطلوب',
+                text: 'يجب تأكيد الحذف أولاً'
+            });
+            return false;
+        }
+
+        // تأكيد نهائي
+        e.preventDefault();
+        Swal.fire({
+            title: 'تأكيد نهائي',
+            text: 'هل أنت متأكد من حذف مركز التكلفة "{{ object.name }}" نهائياً؟',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'نعم، احذف نهائياً',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // إظهار loading
+                Swal.fire({
+                    title: 'جاري الحذف...',
+                    text: 'يرجى الانتظار',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    willOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // إرسال النموذج
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

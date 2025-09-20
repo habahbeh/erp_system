@@ -11,7 +11,9 @@ from .views import (
     # Voucher Views
     voucher_views,
     # Report Views
-    report_views
+    report_views,
+    # Fiscal Views
+    fiscal_views
 )
 
 app_name = 'accounting'
@@ -164,5 +166,18 @@ urlpatterns = [
     path('ajax/periods/', fiscal_views.period_datatable_ajax, name='period_datatable_ajax'),
     path('ajax/periods/<int:period_id>/close/', fiscal_views.close_period_ajax, name='close_period_ajax'),
     path('ajax/periods/<int:period_id>/reopen/', fiscal_views.reopen_period_ajax, name='reopen_period_ajax'),
+
+    # ========== مراكز التكلفة ==========
+    path('cost-centers/', fiscal_views.CostCenterListView.as_view(), name='cost_center_list'),
+    path('cost-centers/create/', fiscal_views.CostCenterCreateView.as_view(), name='cost_center_create'),
+    path('cost-centers/<int:pk>/', fiscal_views.CostCenterDetailView.as_view(), name='cost_center_detail'),
+    path('cost-centers/<int:pk>/update/', fiscal_views.CostCenterUpdateView.as_view(), name='cost_center_update'),
+    path('cost-centers/<int:pk>/delete/', fiscal_views.CostCenterDeleteView.as_view(), name='cost_center_delete'),
+    path('cost-centers/export/', report_views.export_cost_centers, name='export_cost_centers'),
+
+    # Ajax - مراكز التكلفة
+    path('ajax/cost-centers/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    path('ajax/cost-centers/search/', fiscal_views.cost_center_search_ajax, name='cost_center_search_ajax'),
+
 
 ]

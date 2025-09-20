@@ -7,12 +7,21 @@ from .fiscal_forms import *
 __all__ = [
     # Account forms
     'AccountTypeForm', 'AccountForm', 'AccountImportForm', 'AccountFilterForm',
+
     # Journal forms
-    'JournalEntryForm', 'JournalEntryLineForm', 'JournalEntryTemplateForm',
-    'JournalEntryLineFormSet', 'QuickJournalEntryForm',
+    'JournalEntryForm', 'JournalEntryLineForm', 'JournalEntryLineFormSet', 'QuickJournalEntryForm',
+
+    # Template forms - إضافة جديدة
+    'JournalEntryTemplateForm', 'JournalEntryTemplateLineForm', 'JournalEntryTemplateLineFormSet',
+    'JournalEntryTemplateFilterForm', 'UseTemplateForm',
+
     # Voucher forms
     'PaymentVoucherForm', 'ReceiptVoucherForm',
+
     # Fiscal forms
     'FiscalYearForm', 'FiscalYearFilterForm', 'CreatePeriodsForm',
-    'AccountingPeriodForm', 'AccountingPeriodFilterForm', 'PeriodClosingForm'
+    'AccountingPeriodForm', 'AccountingPeriodFilterForm', 'PeriodClosingForm',
+
+    # Cost Center forms
+    'CostCenterForm', 'CostCenterFilterForm'
 ]

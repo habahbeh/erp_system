@@ -23,7 +23,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from apps.core.decorators import permission_required_with_message, company_required
 from apps.core.mixins import CompanyMixin
 from apps.core.models import Currency
-from ..models import Account, AccountType, JournalEntry, JournalEntryLine, AccountBalance
+from ..models import Account, AccountType, JournalEntry, JournalEntryLine, AccountBalance, CostCenter
 from ..forms.account_forms import AccountImportForm
 from dateutil.relativedelta import relativedelta
 
@@ -1684,6 +1684,69 @@ def export_balance_sheet(request):
     )
     filename = f"balance_sheet_{as_of_date}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
+
+@login_required
+@permission_required('accounting.view_costcenter')
+def export_cost_centers(request):
+    """تصدير مراكز التكلفة إلى Excel"""
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "مراكز التكلفة"
+
+    # تنسيق الرأس
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="6f42c1", end_color="6f42c1", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    # إضافة الرأس
+    headers = ['الرمز', 'اسم مركز التكلفة', 'النوع', 'المركز الأب', 'المستوى', 'المدير', 'الحالة']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    # إضافة البيانات
+    cost_centers = CostCenter.objects.filter(
+        company=request.current_company
+    ).select_related('parent', 'manager').order_by('code')
+
+    for row, cc in enumerate(cost_centers, 2):
+        ws.cell(row=row, column=1, value=cc.code).border = thin_border
+        ws.cell(row=row, column=2, value=cc.name).border = thin_border
+        ws.cell(row=row, column=3, value=cc.get_cost_center_type_display()).border = thin_border
+        ws.cell(row=row, column=4, value=cc.parent.name if cc.parent else '-- مركز رئيسي --').border = thin_border
+        ws.cell(row=row, column=5, value=cc.level).border = thin_border
+        ws.cell(row=row, column=6, value=cc.manager.get_full_name() if cc.manager else '-- غير محدد --').border = thin_border
+        ws.cell(row=row, column=7, value='نشط' if cc.is_active else 'غير نشط').border = thin_border
+
+    # تعديل عرض الأعمدة
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    # إعداد الاستجابة
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="cost_centers.xlsx"'
 
     wb.save(response)
     return response
