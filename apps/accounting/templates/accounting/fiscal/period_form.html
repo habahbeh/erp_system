@@ -1,0 +1,562 @@
+{# templates/accounting/fiscal/period_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}
+    {% if object %}
+        تعديل الفترة المحاسبية
+    {% else %}
+        إنشاء فترة محاسبية جديدة
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        margin-bottom: 0;
+    }
+
+    .form-body {
+        padding: 2rem;
+    }
+
+    .form-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .form-section h5 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .form-label i {
+        margin-left: 0.5rem;
+        color: #6c757d;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 0.75rem 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    }
+
+    .btn-group-custom {
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
+    .required-field::after {
+        content: ' *';
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .alert-info {
+        border-left: 4px solid #0dcaf0;
+        border-radius: 8px;
+    }
+
+    .form-check {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .form-check:hover {
+        border-color: #0d6efd;
+        background: rgba(13, 110, 253, 0.05);
+    }
+
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .fiscal-year-info {
+        background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e1bee7;
+    }
+
+    .date-range-display {
+        background: #e8f5e8;
+        border: 2px solid #c3e6cb;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for crumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">
+                        {{ crumb.title }}
+                    </li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            <div class="form-container">
+                <!-- Form Header -->
+                <div class="form-header text-center">
+                    <h2 class="mb-2">
+                        {% if object %}
+                            <i class="fas fa-edit me-3"></i>
+                            تعديل الفترة المحاسبية
+                        {% else %}
+                            <i class="fas fa-plus-circle me-3"></i>
+                            إنشاء فترة محاسبية جديدة
+                        {% endif %}
+                    </h2>
+                    {% if object %}
+                        <p class="mb-0 opacity-90">
+                            تعديل بيانات الفترة: {{ object.name }}
+                        </p>
+                    {% else %}
+                        <p class="mb-0 opacity-90">
+                            إضافة فترة محاسبية جديدة للنظام
+                        </p>
+                    {% endif %}
+                </div>
+
+                <!-- Form Body -->
+                <div class="form-body">
+                    <form method="post" id="periodForm" novalidate>
+                        {% csrf_token %}
+
+                        <!-- معلومات السنة المالية -->
+                        <div class="form-section">
+                            <h5>
+                                <i class="fas fa-building me-2 text-primary"></i>
+                                معلومات السنة المالية
+                            </h5>
+
+                            <div class="form-group">
+                                <label for="{{ form.fiscal_year.id_for_label }}" class="form-label required-field">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    السنة المالية
+                                </label>
+                                {{ form.fiscal_year|add_class:"form-select" }}
+                                {% if form.fiscal_year.help_text %}
+                                    <div class="help-text">{{ form.fiscal_year.help_text }}</div>
+                                {% endif %}
+                                {% if form.fiscal_year.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.fiscal_year.errors|first }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- عرض معلومات السنة المالية المحددة -->
+                            <div id="fiscalYearInfo" class="fiscal-year-info" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong><i class="fas fa-calendar me-1"></i> فترة السنة المالية:</strong>
+                                        <span id="fiscalYearRange"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong><i class="fas fa-info-circle me-1"></i> حالة السنة:</strong>
+                                        <span id="fiscalYearStatus"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- بيانات الفترة الأساسية -->
+                        <div class="form-section">
+                            <h5>
+                                <i class="fas fa-calendar-week me-2 text-success"></i>
+                                بيانات الفترة المحاسبية
+                            </h5>
+
+                            <div class="form-group">
+                                <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                    <i class="fas fa-tag"></i>
+                                    اسم الفترة
+                                </label>
+                                {{ form.name|add_class:"form-control" }}
+                                <div class="help-text">
+                                    مثال: يناير 2024، الربع الأول 2024، فترة التسويات
+                                </div>
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.name.errors|first }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.start_date.id_for_label }}" class="form-label required-field">
+                                            <i class="fas fa-calendar-check"></i>
+                                            تاريخ بداية الفترة
+                                        </label>
+                                        {{ form.start_date|add_class:"form-control" }}
+                                        {% if form.start_date.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.start_date.errors|first }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.end_date.id_for_label }}" class="form-label required-field">
+                                            <i class="fas fa-calendar-times"></i>
+                                            تاريخ نهاية الفترة
+                                        </label>
+                                        {{ form.end_date|add_class:"form-control" }}
+                                        {% if form.end_date.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.end_date.errors|first }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- عرض مدة الفترة المحسوبة -->
+                            <div id="periodDurationDisplay" class="date-range-display">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-clock text-success me-2"></i>
+                                    <strong>مدة الفترة: <span id="periodDuration">-- يوم</span></strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- خصائص الفترة -->
+                        <div class="form-section">
+                            <h5>
+                                <i class="fas fa-cogs me-2 text-warning"></i>
+                                خصائص الفترة
+                            </h5>
+
+                            <div class="form-group">
+                                <div class="form-check">
+                                    {{ form.is_adjustment }}
+                                    <label class="form-check-label" for="{{ form.is_adjustment.id_for_label }}">
+                                        <strong><i class="fas fa-tools me-2"></i>فترة تسويات</strong>
+                                        <div class="help-text mt-1">
+                                            فترات التسويات تستخدم لإجراء القيود التسويات في نهاية السنة المالية
+                                        </div>
+                                    </label>
+                                    {% if form.is_adjustment.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.is_adjustment.errors|first }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- تنبيه حول فترات التسويات -->
+                            <div id="adjustmentAlert" class="alert alert-info" style="display: none;">
+                                <h6><i class="fas fa-info-circle me-2"></i>ملاحظة حول فترات التسويات</h6>
+                                <ul class="mb-0">
+                                    <li>فترات التسويات عادة ما تكون في نهاية السنة المالية</li>
+                                    <li>تستخدم لإجراء قيود الإقفال والتسويات النهائية</li>
+                                    <li>يمكن أن تكون لفترة قصيرة (يوم واحد أو عدة أيام)</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- معلومات إضافية للتعديل -->
+                        {% if object %}
+                        <div class="form-section">
+                            <h5>
+                                <i class="fas fa-info-circle me-2 text-info"></i>
+                                معلومات الفترة الحالية
+                            </h5>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="alert alert-light">
+                                        <strong><i class="fas fa-flag me-1"></i> الحالة:</strong>
+                                        {% if object.is_closed %}
+                                            <span class="badge bg-danger ms-2">مقفلة</span>
+                                        {% else %}
+                                            <span class="badge bg-success ms-2">مفتوحة</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="alert alert-light">
+                                        <strong><i class="fas fa-calendar-plus me-1"></i> تاريخ الإنشاء:</strong>
+                                        {{ object.created_at|date:"j F Y" }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if object.is_closed %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>تنبيه:</strong> هذه الفترة مقفلة. يرجى التأكد من صحة التعديلات قبل الحفظ.
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- أزرار التحكم -->
+                        <div class="d-flex justify-content-between btn-group-custom">
+                            <div>
+                                <a href="{% url 'accounting:period_list' %}" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+                                </a>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
+                                    <i class="fas fa-undo me-2"></i>إعادة تعيين
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>
+                                    {% if object %}
+                                        حفظ التعديلات
+                                    {% else %}
+                                        إنشاء الفترة
+                                    {% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fiscalYearSelect = document.getElementById('{{ form.fiscal_year.id_for_label }}');
+    const fiscalYearInfo = document.getElementById('fiscalYearInfo');
+    const fiscalYearRange = document.getElementById('fiscalYearRange');
+    const fiscalYearStatus = document.getElementById('fiscalYearStatus');
+    const startDateInput = document.getElementById('{{ form.start_date.id_for_label }}');
+    const endDateInput = document.getElementById('{{ form.end_date.id_for_label }}');
+    const periodDurationDisplay = document.getElementById('periodDurationDisplay');
+    const periodDuration = document.getElementById('periodDuration');
+    const adjustmentCheckbox = document.getElementById('{{ form.is_adjustment.id_for_label }}');
+    const adjustmentAlert = document.getElementById('adjustmentAlert');
+
+    // بيانات السنوات المالية (ستأتي من الخادم)
+    const fiscalYearsData = {};
+
+    // تحديث معلومات السنة المالية
+    function updateFiscalYearInfo() {
+        const selectedValue = fiscalYearSelect.value;
+        if (selectedValue && fiscalYearsData[selectedValue]) {
+            const fiscalYear = fiscalYearsData[selectedValue];
+            fiscalYearRange.textContent = fiscalYear.start_date + ' - ' + fiscalYear.end_date;
+            fiscalYearStatus.innerHTML = fiscalYear.is_closed ? 
+                '<span class="badge bg-danger">مقفلة</span>' : 
+                '<span class="badge bg-success">نشطة</span>';
+            fiscalYearInfo.style.display = 'block';
+        } else {
+            fiscalYearInfo.style.display = 'none';
+        }
+    }
+
+    // حساب مدة الفترة
+    function calculatePeriodDuration() {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            periodDuration.textContent = diffDays + ' يوم';
+            periodDurationDisplay.style.display = 'block';
+            
+            // التحقق من صحة التواريخ
+            if (end <= start) {
+                periodDuration.textContent = 'خطأ: تاريخ النهاية يجب أن يكون بعد تاريخ البداية';
+                periodDurationDisplay.className = 'date-range-display alert alert-danger';
+            } else {
+                periodDurationDisplay.className = 'date-range-display';
+            }
+        } else {
+            periodDurationDisplay.style.display = 'none';
+        }
+    }
+
+    // إظهار/إخفاء تنبيه فترات التسويات
+    function toggleAdjustmentAlert() {
+        adjustmentAlert.style.display = adjustmentCheckbox.checked ? 'block' : 'none';
+    }
+
+    // Event Listeners
+    fiscalYearSelect.addEventListener('change', updateFiscalYearInfo);
+    startDateInput.addEventListener('change', calculatePeriodDuration);
+    endDateInput.addEventListener('change', calculatePeriodDuration);
+    adjustmentCheckbox.addEventListener('change', toggleAdjustmentAlert);
+
+    // التحقق الأولي
+    updateFiscalYearInfo();
+    calculatePeriodDuration();
+    toggleAdjustmentAlert();
+
+    // تحميل بيانات السنوات المالية عبر AJAX
+    {% if form.fiscal_year.queryset %}
+        {% for fiscal_year in form.fiscal_year.queryset %}
+            fiscalYearsData[{{ fiscal_year.pk }}] = {
+                name: '{{ fiscal_year.name }}',
+                start_date: '{{ fiscal_year.start_date|date:"Y/m/d" }}',
+                end_date: '{{ fiscal_year.end_date|date:"Y/m/d" }}',
+                is_closed: {{ fiscal_year.is_closed|yesno:"true,false" }}
+            };
+        {% endfor %}
+        updateFiscalYearInfo();
+    {% endif %}
+});
+
+// إعادة تعيين النموذج
+function resetForm() {
+    Swal.fire({
+        title: 'إعادة تعيين النموذج',
+        text: 'هل تريد إعادة تعيين جميع الحقول؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، إعادة تعيين',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#6c757d',
+        cancelButtonColor: '#dc3545'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('periodForm').reset();
+            document.getElementById('fiscalYearInfo').style.display = 'none';
+            document.getElementById('periodDurationDisplay').style.display = 'none';
+            document.getElementById('adjustmentAlert').style.display = 'none';
+        }
+    });
+}
+
+// التحقق من صحة النموذج قبل الإرسال
+document.getElementById('periodForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const startDate = document.getElementById('{{ form.start_date.id_for_label }}').value;
+    const endDate = document.getElementById('{{ form.end_date.id_for_label }}').value;
+    const name = document.getElementById('{{ form.name.id_for_label }}').value.trim();
+    const fiscalYear = document.getElementById('{{ form.fiscal_year.id_for_label }}').value;
+
+    // التحقق الأساسي
+    if (!name || !fiscalYear || !startDate || !endDate) {
+        Swal.fire({
+            icon: 'error',
+            title: 'بيانات ناقصة',
+            text: 'يرجى ملء جميع الحقول المطلوبة',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+
+    // التحقق من التواريخ
+    if (new Date(endDate) <= new Date(startDate)) {
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ في التواريخ',
+            text: 'تاريخ نهاية الفترة يجب أن يكون بعد تاريخ البداية',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+
+    // إرسال النموذج
+    Swal.fire({
+        title: 'جاري الحفظ...',
+        text: 'يرجى الانتظار',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    this.submit();
+});
+
+// تحسين تجربة المستخدم
+document.querySelectorAll('.form-control, .form-select').forEach(element => {
+    element.addEventListener('focus', function() {
+        this.closest('.form-group').querySelector('.form-label').style.color = '#0d6efd';
+    });
+
+    element.addEventListener('blur', function() {
+        this.closest('.form-group').querySelector('.form-label').style.color = '#495057';
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,900 @@
+{# templates/accounting/journal/journal_entry_template_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}
+    {% if object %}
+        تعديل قالب القيد - {{ object.name }}
+    {% else %}
+        إنشاء قالب قيد جديد
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+    .form-container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+    }
+
+    .form-body {
+        padding: 2rem;
+    }
+
+    .form-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .form-section h5 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+    }
+
+    .form-section h5 i {
+        margin-left: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .form-label i {
+        margin-left: 0.5rem;
+        color: #6c757d;
+    }
+
+    .required-field::after {
+        content: ' *';
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 0.75rem 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    }
+
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
+    .lines-section {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    }
+
+    .lines-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .line-form {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+        transition: all 0.3s ease;
+    }
+
+    .line-form:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 5px 15px rgba(13, 110, 253, 0.1);
+    }
+
+    .line-form.to-delete {
+        background: #ffebee;
+        border-color: #f44336;
+        opacity: 0.7;
+    }
+
+    .line-number {
+        position: absolute;
+        top: -10px;
+        right: 15px;
+        background: #0d6efd;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.875rem;
+    }
+
+    .line-actions {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-line-action {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        border: none;
+        transition: all 0.3s ease;
+    }
+
+    .select2-container--default .select2-selection--single {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        height: calc(2.875rem + 2px);
+    }
+
+    .select2-container--default .select2-selection--single:focus {
+        border-color: #0d6efd;
+    }
+
+    .balance-summary {
+        background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        border: 2px solid #e1bee7;
+    }
+
+    .balance-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .balance-row:last-child {
+        border-bottom: none;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .balance-amount {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-weight: 600;
+    }
+
+    .balanced {
+        color: #198754;
+    }
+
+    .unbalanced {
+        color: #dc3545;
+    }
+
+    .btn-add-line {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-add-line:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+    }
+
+    .form-check {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .form-check:hover {
+        border-color: #0d6efd;
+        background: rgba(13, 110, 253, 0.05);
+    }
+
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for crumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">
+                        {{ crumb.title }}
+                    </li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <form method="post" id="templateForm" novalidate>
+        {% csrf_token %}
+
+        <div class="form-container">
+            <!-- Form Header -->
+            <div class="form-header text-center">
+                <h2 class="mb-2">
+                    {% if object %}
+                        <i class="fas fa-edit me-3"></i>
+                        تعديل قالب القيد
+                    {% else %}
+                        <i class="fas fa-plus-circle me-3"></i>
+                        إنشاء قالب قيد جديد
+                    {% endif %}
+                </h2>
+                {% if object %}
+                    <p class="mb-0 opacity-90">تعديل بيانات القالب: {{ object.name }}</p>
+                {% else %}
+                    <p class="mb-0 opacity-90">إنشاء قالب جديد لتسريع إدخال القيود المتكررة</p>
+                {% endif %}
+            </div>
+
+            <!-- Form Body -->
+            <div class="form-body">
+                <!-- معلومات القالب الأساسية -->
+                <div class="form-section">
+                    <h5>
+                        <i class="fas fa-info-circle text-primary"></i>
+                        معلومات القالب الأساسية
+                    </h5>
+
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                    <i class="fas fa-tag"></i>
+                                    اسم القالب
+                                </label>
+                                {{ form.name|add_class:"form-control" }}
+                                <div class="help-text">
+                                    اختر اسماً وصفياً للقالب مثل "مصروف إداري" أو "قيد مبيعات نقدية"
+                                </div>
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    <i class="fas fa-barcode"></i>
+                                    رمز القالب
+                                </label>
+                                {{ form.code|add_class:"form-control" }}
+                                <div class="help-text">رمز مختصر (اختياري)</div>
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">
+                            <i class="fas fa-align-left"></i>
+                            وصف القالب
+                        </label>
+                        {{ form.description|add_class:"form-control" }}
+                        <div class="help-text">وصف مفصل لاستخدامات هذا القالب</div>
+                        {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">{{ form.description.errors|first }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.entry_type.id_for_label }}" class="form-label required-field">
+                                    <i class="fas fa-cogs"></i>
+                                    نوع القيد
+                                </label>
+                                {{ form.entry_type|add_class:"form-select" }}
+                                {% if form.entry_type.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.entry_type.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.category.id_for_label }}" class="form-label">
+                                    <i class="fas fa-folder"></i>
+                                    فئة القالب
+                                </label>
+                                {{ form.category|add_class:"form-control" }}
+                                <div class="help-text">للتصنيف والتنظيم</div>
+                                {% if form.category.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.category.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.display_order.id_for_label }}" class="form-label">
+                                    <i class="fas fa-sort-numeric-up"></i>
+                                    ترتيب العرض
+                                </label>
+                                {{ form.display_order|add_class:"form-control" }}
+                                <div class="help-text">0 = الأول</div>
+                                {% if form.display_order.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.display_order.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- البيانات الافتراضية -->
+                <div class="form-section">
+                    <h5>
+                        <i class="fas fa-file-alt text-success"></i>
+                        البيانات الافتراضية للقيود
+                    </h5>
+
+                    <div class="form-group">
+                        <label for="{{ form.default_description.id_for_label }}" class="form-label required-field">
+                            <i class="fas fa-comment"></i>
+                            البيان الافتراضي
+                        </label>
+                        {{ form.default_description|add_class:"form-control" }}
+                        <div class="help-text">البيان الذي سيظهر افتراضياً في القيود المنشأة من هذا القالب</div>
+                        {% if form.default_description.errors %}
+                            <div class="invalid-feedback d-block">{{ form.default_description.errors|first }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.default_reference.id_for_label }}" class="form-label">
+                            <i class="fas fa-hashtag"></i>
+                            المرجع الافتراضي
+                        </label>
+                        {{ form.default_reference|add_class:"form-control" }}
+                        <div class="help-text">المرجع الافتراضي (اختياري)</div>
+                        {% if form.default_reference.errors %}
+                            <div class="invalid-feedback d-block">{{ form.default_reference.errors|first }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- إعدادات القالب -->
+                <div class="form-section">
+                    <h5>
+                        <i class="fas fa-sliders-h text-warning"></i>
+                        إعدادات القالب
+                    </h5>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                {{ form.auto_balance }}
+                                <label class="form-check-label" for="{{ form.auto_balance.id_for_label }}">
+                                    <strong><i class="fas fa-balance-scale me-2"></i>توازن تلقائي</strong>
+                                    <div class="help-text mt-1">
+                                        حساب المبلغ الأخير تلقائياً لضمان توازن القيد
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                {{ form.is_active }}
+                                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                    <strong><i class="fas fa-toggle-on me-2"></i>قالب نشط</strong>
+                                    <div class="help-text mt-1">
+                                        القوالب النشطة فقط تظهر في قائمة الاختيار
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- سطور القالب -->
+        <div class="lines-section">
+            <div class="lines-header">
+                <div>
+                    <h4>
+                        <i class="fas fa-list me-2 text-primary"></i>
+                        سطور القالب
+                    </h4>
+                    <p class="text-muted mb-0">تحديد الحسابات والمبالغ لسطور القيد</p>
+                </div>
+                <button type="button" class="btn btn-add-line" onclick="addNewLine()">
+                    <i class="fas fa-plus me-2"></i>إضافة سطر جديد
+                </button>
+            </div>
+
+            <!-- Container for dynamic lines -->
+            <div id="linesContainer">
+                <!-- سيتم إضافة السطور هنا بـ JavaScript -->
+            </div>
+
+            <!-- ملخص التوازن -->
+            <div class="balance-summary">
+                <h6 class="mb-3">
+                    <i class="fas fa-calculator me-2"></i>
+                    ملخص التوازن
+                </h6>
+                <div class="balance-row">
+                    <span>إجمالي المدين:</span>
+                    <span class="balance-amount" id="totalDebit">0.00</span>
+                </div>
+                <div class="balance-row">
+                    <span>إجمالي الدائن:</span>
+                    <span class="balance-amount" id="totalCredit">0.00</span>
+                </div>
+                <div class="balance-row">
+                    <span>الفرق:</span>
+                    <span class="balance-amount" id="difference">0.00</span>
+                </div>
+                <div class="balance-row" id="balanceStatus">
+                    <span>حالة التوازن:</span>
+                    <span class="balance-amount balanced">متوازن</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- أزرار التحكم -->
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'accounting:journal_template_list' %}" class="btn btn-secondary btn-lg">
+                <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+            </a>
+            <div>
+                <button type="button" class="btn btn-outline-secondary btn-lg me-2" onclick="resetForm()">
+                    <i class="fas fa-undo me-2"></i>إعادة تعيين
+                </button>
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>
+                    {% if object %}حفظ التعديلات{% else %}إنشاء القالب{% endif %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Template for new line -->
+<template id="lineTemplate">
+    <div class="line-form" data-line-index="">
+        <div class="line-number">1</div>
+        <div class="line-actions">
+            <button type="button" class="btn-line-action btn-outline-danger" onclick="deleteLine(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label class="form-label required-field">
+                        <i class="fas fa-book"></i>الحساب
+                    </label>
+                    <select class="form-select account-select" name="lines-account" required>
+                        <option value="">اختر الحساب</option>
+                        {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.code }} - {{ account.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-comment"></i>البيان
+                    </label>
+                    <input type="text" class="form-control" name="lines-description" 
+                           placeholder="سيستخدم البيان الافتراضي إذا ترك فارغاً">
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-arrow-up text-success"></i>مبلغ مدين
+                    </label>
+                    <input type="number" class="form-control debit-amount" name="lines-debit" 
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-arrow-down text-danger"></i>مبلغ دائن
+                    </label>
+                    <input type="number" class="form-control credit-amount" name="lines-credit" 
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-hashtag"></i>المرجع
+                    </label>
+                    <input type="text" class="form-control" name="lines-reference" placeholder="اختياري">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-sitemap"></i>مركز التكلفة
+                    </label>
+                    <select class="form-select" name="lines-cost-center">
+                        <option value="">اختياري</option>
+                        {% for cost_center in cost_centers %}
+                            <option value="{{ cost_center.id }}">{{ cost_center.code }} - {{ cost_center.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="lines-required" checked>
+                    <label class="form-check-label">
+                        <i class="fas fa-exclamation-circle me-1"></i>سطر إجباري
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="lines-amount-editable" checked>
+                    <label class="form-check-label">
+                        <i class="fas fa-edit me-1"></i>المبلغ قابل للتعديل
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+let lineCounter = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // تهيئة Select2 للحسابات الموجودة
+    initializeSelect2();
+    
+    // إضافة سطر أولي إذا لم توجد سطور
+    if (document.querySelectorAll('.line-form').length === 0) {
+        addNewLine();
+        addNewLine(); // سطرين افتراضيين
+    }
+    
+    // تحديث ترقيم السطور
+    updateLineNumbers();
+    
+    // حساب التوازن الأولي
+    calculateBalance();
+});
+
+function initializeSelect2() {
+    $('.account-select').select2({
+        placeholder: 'ابحث عن الحساب...',
+        allowClear: true,
+        language: {
+            noResults: function() {
+                return "لا توجد نتائج";
+            },
+            searching: function() {
+                return "جاري البحث...";
+            }
+        }
+    });
+}
+
+function addNewLine() {
+    const template = document.getElementById('lineTemplate');
+    const clone = template.content.cloneNode(true);
+    const container = document.getElementById('linesContainer');
+    
+    lineCounter++;
+    const lineForm = clone.querySelector('.line-form');
+    lineForm.dataset.lineIndex = lineCounter;
+    
+    // إضافة event listeners للمبالغ
+    const debitInput = clone.querySelector('.debit-amount');
+    const creditInput = clone.querySelector('.credit-amount');
+    
+    debitInput.addEventListener('input', function() {
+        if (this.value) {
+            creditInput.value = '';
+        }
+        calculateBalance();
+    });
+    
+    creditInput.addEventListener('input', function() {
+        if (this.value) {
+            debitInput.value = '';
+        }
+        calculateBalance();
+    });
+    
+    container.appendChild(clone);
+    
+    // تهيئة Select2 للسطر الجديد
+    const newSelect = container.lastElementChild.querySelector('.account-select');
+    $(newSelect).select2({
+        placeholder: 'ابحث عن الحساب...',
+        allowClear: true,
+        language: {
+            noResults: function() {
+                return "لا توجد نتائج";
+            },
+            searching: function() {
+                return "جاري البحث...";
+            }
+        }
+    });
+    
+    updateLineNumbers();
+    calculateBalance();
+}
+
+function deleteLine(button) {
+    const lineForm = button.closest('.line-form');
+    const linesCount = document.querySelectorAll('.line-form').length;
+    
+    if (linesCount <= 2) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'تحذير',
+            text: 'يجب أن يحتوي القالب على سطرين على الأقل',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+    
+    Swal.fire({
+        title: 'حذف السطر',
+        text: 'هل تريد حذف هذا السطر؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            lineForm.remove();
+            updateLineNumbers();
+            calculateBalance();
+        }
+    });
+}
+
+function updateLineNumbers() {
+    const lines = document.querySelectorAll('.line-form');
+    lines.forEach((line, index) => {
+        const numberElement = line.querySelector('.line-number');
+        numberElement.textContent = index + 1;
+    });
+}
+
+function calculateBalance() {
+    const debitInputs = document.querySelectorAll('.debit-amount');
+    const creditInputs = document.querySelectorAll('.credit-amount');
+    
+    let totalDebit = 0;
+    let totalCredit = 0;
+    
+    debitInputs.forEach(input => {
+        const value = parseFloat(input.value) || 0;
+        totalDebit += value;
+    });
+    
+    creditInputs.forEach(input => {
+        const value = parseFloat(input.value) || 0;
+        totalCredit += value;
+    });
+    
+    const difference = Math.abs(totalDebit - totalCredit);
+    const isBalanced = difference < 0.01;
+    
+    // تحديث العرض
+    document.getElementById('totalDebit').textContent = totalDebit.toFixed(2);
+    document.getElementById('totalCredit').textContent = totalCredit.toFixed(2);
+    document.getElementById('difference').textContent = difference.toFixed(2);
+    
+    const balanceStatus = document.getElementById('balanceStatus');
+    const statusSpan = balanceStatus.querySelector('.balance-amount');
+    
+    if (isBalanced) {
+        statusSpan.textContent = 'متوازن';
+        statusSpan.className = 'balance-amount balanced';
+    } else {
+        statusSpan.textContent = 'غير متوازن';
+        statusSpan.className = 'balance-amount unbalanced';
+    }
+}
+
+function resetForm() {
+    Swal.fire({
+        title: 'إعادة تعيين النموذج',
+        text: 'هل تريد إعادة تعيين جميع البيانات؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، إعادة تعيين',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#6c757d',
+        cancelButtonColor: '#dc3545'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('templateForm').reset();
+            
+            // مسح جميع السطور
+            document.getElementById('linesContainer').innerHTML = '';
+            lineCounter = 0;
+            
+            // إضافة سطرين جديدين
+            addNewLine();
+            addNewLine();
+        }
+    });
+}
+
+// التحقق من صحة النموذج قبل الإرسال
+document.getElementById('templateForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // التحقق من البيانات الأساسية
+    const name = document.querySelector('[name="name"]').value.trim();
+    const defaultDescription = document.querySelector('[name="default_description"]').value.trim();
+    
+    if (!name || !defaultDescription) {
+        Swal.fire({
+            icon: 'error',
+            title: 'بيانات ناقصة',
+            text: 'يرجى ملء جميع الحقول المطلوبة',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+    
+    // التحقق من السطور
+    const lines = document.querySelectorAll('.line-form');
+    let validLines = 0;
+    let hasAmounts = false;
+    
+    for (let line of lines) {
+        const account = line.querySelector('.account-select').value;
+        const debit = parseFloat(line.querySelector('.debit-amount').value) || 0;
+        const credit = parseFloat(line.querySelector('.credit-amount').value) || 0;
+        
+        if (account && (debit > 0 || credit > 0)) {
+            validLines++;
+            hasAmounts = true;
+        }
+        
+        if (debit > 0 && credit > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ في السطور',
+                text: 'لا يمكن إدخال مبلغ في المدين والدائن معاً في نفس السطر',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
+    }
+    
+    if (validLines < 2) {
+        Swal.fire({
+            icon: 'error',
+            title: 'سطور غير كافية',
+            text: 'يجب أن يحتوي القالب على سطرين صحيحين على الأقل',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+    
+    // إرسال النموذج
+    Swal.fire({
+        title: 'جاري الحفظ...',
+        text: 'يرجى الانتظار',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    // تجميع بيانات السطور
+    const linesData = [];
+    lines.forEach((line, index) => {
+        const account = line.querySelector('.account-select').value;
+        const description = line.querySelector('[name="lines-description"]').value;
+        const debit = parseFloat(line.querySelector('.debit-amount').value) || 0;
+        const credit = parseFloat(line.querySelector('.credit-amount').value) || 0;
+        const reference = line.querySelector('[name="lines-reference"]').value;
+        const costCenter = line.querySelector('[name="lines-cost-center"]').value;
+        const isRequired = line.querySelector('[name="lines-required"]').checked;
+        const amountEditable = line.querySelector('[name="lines-amount-editable"]').checked;
+        
+        if (account && (debit > 0 || credit > 0)) {
+            linesData.push({
+                line_number: index + 1,
+                account: account,
+                description: description,
+                debit_amount: debit,
+                credit_amount: credit,
+                reference: reference,
+                default_cost_center: costCenter,
+                is_required: isRequired,
+                amount_editable: amountEditable
+            });
+        }
+    });
+    
+    // إضافة بيانات السطور كـ JSON
+    const linesInput = document.createElement('input');
+    linesInput.type = 'hidden';
+    linesInput.name = 'lines_data';
+    linesInput.value = JSON.stringify(linesData);
+    this.appendChild(linesInput);
+    
+    this.submit();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,811 @@
+{# templates/accounting/journal/journal_entry_template_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ template.name }} - تفاصيل قالب القيد{% endblock %}
+
+{% block extra_css %}
+<style>
+    .template-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border-left: 4px solid;
+    }
+
+    .detail-section {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e9ecef;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: #495057;
+        display: flex;
+        align-items: center;
+    }
+
+    .detail-label i {
+        margin-left: 0.5rem;
+        color: #6c757d;
+    }
+
+    .detail-value {
+        font-weight: 500;
+        color: #212529;
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+    }
+
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+        border: 2px solid #c3e6cb;
+    }
+
+    .status-inactive {
+        background: #f8d7da;
+        color: #721c24;
+        border: 2px solid #f5c6cb;
+    }
+
+    .lines-table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    }
+
+    .table-header {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1rem;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .lines-table table {
+        margin: 0;
+        width: 100%;
+    }
+
+    .lines-table th {
+        background: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+        padding: 1rem 0.75rem;
+    }
+
+    .lines-table td {
+        padding: 1rem 0.75rem;
+        border-bottom: 1px solid #f1f1f1;
+        vertical-align: middle;
+    }
+
+    .lines-table tr:hover {
+        background: rgba(13, 110, 253, 0.05);
+    }
+
+    .account-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .account-code {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-weight: 600;
+        color: #0d6efd;
+        font-size: 0.875rem;
+    }
+
+    .account-name {
+        color: #495057;
+        font-size: 0.95rem;
+        margin-top: 0.25rem;
+    }
+
+    .amount-cell {
+        text-align: center;
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-weight: 600;
+    }
+
+    .debit-amount {
+        color: #198754;
+        background: rgba(25, 135, 84, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .credit-amount {
+        color: #dc3545;
+        background: rgba(220, 53, 69, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .line-number {
+        background: #0d6efd;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.875rem;
+        margin: 0 auto;
+    }
+
+    .balance-summary {
+        background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        border: 2px solid #e1bee7;
+    }
+
+    .balance-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .balance-row:last-child {
+        border-bottom: none;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .balance-amount {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-weight: 600;
+    }
+
+    .balanced {
+        color: #198754;
+    }
+
+    .unbalanced {
+        color: #dc3545;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .feature-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        background: #e3f2fd;
+        color: #1976d2;
+        border-radius: 15px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin: 0.25rem;
+    }
+
+    .feature-badge i {
+        margin-left: 0.5rem;
+    }
+
+    .usage-stats {
+        background: linear-gradient(45deg, #fff3e0, #fce4ec);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #ffcc02;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #f57c00;
+        display: block;
+    }
+
+    .stat-label {
+        color: #5d4037;
+        font-weight: 500;
+        margin-top: 0.25rem;
+    }
+
+    .empty-lines {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .properties-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .property-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .property-card:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+    }
+
+    .property-card.enabled {
+        border-color: #198754;
+        background: linear-gradient(45deg, #f8fff8, #ffffff);
+    }
+
+    .property-card.disabled {
+        border-color: #dc3545;
+        background: linear-gradient(45deg, #fff8f8, #ffffff);
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for crumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">
+                        {{ crumb.title }}
+                    </li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Template Header -->
+    <div class="template-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-2">
+                    <i class="fas fa-layer-group me-3"></i>
+                    {{ template.name }}
+                    {% if template.code %}
+                        <span class="opacity-75">({{ template.code }})</span>
+                    {% endif %}
+                </h1>
+                {% if template.description %}
+                    <p class="mb-2 opacity-90">{{ template.description }}</p>
+                {% endif %}
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    {% if template.is_active %}
+                        <span class="status-badge status-active">
+                            <i class="fas fa-check-circle me-1"></i>نشط
+                        </span>
+                    {% else %}
+                        <span class="status-badge status-inactive">
+                            <i class="fas fa-times-circle me-1"></i>معطل
+                        </span>
+                    {% endif %}
+                    
+                    <span class="feature-badge">
+                        <i class="fas fa-tag"></i>{{ template.get_entry_type_display }}
+                    </span>
+                    
+                    {% if template.category %}
+                        <span class="feature-badge">
+                            <i class="fas fa-folder"></i>{{ template.category }}
+                        </span>
+                    {% endif %}
+                    
+                    {% if template.auto_balance %}
+                        <span class="feature-badge">
+                            <i class="fas fa-balance-scale"></i>توازن تلقائي
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="action-buttons">
+                    <a href="{% url 'accounting:journal_entry_create' %}?template={{ template.pk }}" 
+                       class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>استخدام القالب
+                    </a>
+                    {% if can_edit %}
+                        <a href="{% url 'accounting:journal_template_update' template.pk %}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-edit me-2"></i>تعديل
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Template Information -->
+            <div class="info-card" style="border-left-color: #0d6efd;">
+                <h4 class="mb-3">
+                    <i class="fas fa-info-circle me-2 text-primary"></i>
+                    معلومات القالب
+                </h4>
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-tag"></i>اسم القالب
+                        </span>
+                        <span class="detail-value">{{ template.name }}</span>
+                    </div>
+
+                    {% if template.code %}
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-barcode"></i>رمز القالب
+                        </span>
+                        <span class="detail-value">{{ template.code }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-cogs"></i>نوع القيد
+                        </span>
+                        <span class="detail-value">{{ template.get_entry_type_display }}</span>
+                    </div>
+
+                    {% if template.category %}
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-folder"></i>الفئة
+                        </span>
+                        <span class="detail-value">{{ template.category }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-sort-numeric-up"></i>ترتيب العرض
+                        </span>
+                        <span class="detail-value">{{ template.display_order }}</span>
+                    </div>
+
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-calendar-plus"></i>تاريخ الإنشاء
+                        </span>
+                        <span class="detail-value">{{ template.created_at|date:"j F Y - H:i" }}</span>
+                    </div>
+
+                    {% if template.updated_at != template.created_at %}
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-edit"></i>آخر تعديل
+                        </span>
+                        <span class="detail-value">{{ template.updated_at|date:"j F Y - H:i" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Default Values -->
+            <div class="info-card" style="border-left-color: #198754;">
+                <h4 class="mb-3">
+                    <i class="fas fa-file-alt me-2 text-success"></i>
+                    القيم الافتراضية
+                </h4>
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-comment"></i>البيان الافتراضي
+                        </span>
+                        <span class="detail-value">{{ template.default_description }}</span>
+                    </div>
+
+                    {% if template.default_reference %}
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-hashtag"></i>المرجع الافتراضي
+                        </span>
+                        <span class="detail-value">{{ template.default_reference }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Template Properties -->
+            <div class="info-card" style="border-left-color: #ffc107;">
+                <h4 class="mb-3">
+                    <i class="fas fa-sliders-h me-2 text-warning"></i>
+                    خصائص القالب
+                </h4>
+
+                <div class="properties-grid">
+                    <div class="property-card {% if template.auto_balance %}enabled{% else %}disabled{% endif %}">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-balance-scale fa-2x me-3 
+                               {% if template.auto_balance %}text-success{% else %}text-muted{% endif %}"></i>
+                            <div>
+                                <h6 class="mb-0">توازن تلقائي</h6>
+                                <small class="text-muted">
+                                    {% if template.auto_balance %}
+                                        مفعل - سيحسب المبلغ الأخير تلقائياً
+                                    {% else %}
+                                        معطل - يجب إدخال جميع المبالغ يدوياً
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="property-card {% if template.is_active %}enabled{% else %}disabled{% endif %}">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-toggle-{% if template.is_active %}on{% else %}off{% endif %} fa-2x me-3 
+                               {% if template.is_active %}text-success{% else %}text-muted{% endif %}"></i>
+                            <div>
+                                <h6 class="mb-0">حالة القالب</h6>
+                                <small class="text-muted">
+                                    {% if template.is_active %}
+                                        نشط - متاح للاستخدام
+                                    {% else %}
+                                        معطل - غير متاح للاستخدام
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Usage Statistics -->
+            <div class="usage-stats">
+                <h5 class="mb-3 text-center">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    إحصائيات الاستخدام
+                </h5>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="stat-item">
+                            <span class="stat-number">{{ usage_count|default:0 }}</span>
+                            <div class="stat-label">مرة استخدام</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-item">
+                            <span class="stat-number">{{ template.template_lines.count }}</span>
+                            <div class="stat-label">سطر في القالب</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="info-card" style="border-left-color: #6f42c1;">
+                <h5 class="mb-3">
+                    <i class="fas fa-bolt me-2 text-purple"></i>
+                    إجراءات سريعة
+                </h5>
+
+                <div class="d-grid gap-2">
+                    <a href="{% url 'accounting:journal_entry_create' %}?template={{ template.pk }}" 
+                       class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>إنشاء قيد من القالب
+                    </a>
+
+                    {% if can_edit %}
+                    <a href="{% url 'accounting:journal_template_update' template.pk %}" 
+                       class="btn btn-primary">
+                        <i class="fas fa-edit me-2"></i>تعديل القالب
+                    </a>
+                    {% endif %}
+
+                    <button type="button" class="btn btn-outline-secondary" 
+                            onclick="duplicateTemplate({{ template.pk }})">
+                        <i class="fas fa-copy me-2"></i>نسخ القالب
+                    </button>
+
+                    {% if can_delete %}
+                    <a href="{% url 'accounting:journal_template_delete' template.pk %}" 
+                       class="btn btn-outline-danger">
+                        <i class="fas fa-trash me-2"></i>حذف القالب
+                    </a>
+                    {% endif %}
+
+                    <a href="{% url 'accounting:journal_template_list' %}" 
+                       class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Lines -->
+    <div class="lines-table">
+        <div class="table-header">
+            <h4 class="mb-0">
+                <i class="fas fa-list me-2"></i>
+                سطور القالب
+                <span class="badge bg-primary ms-2">{{ template.template_lines.count }} سطر</span>
+            </h4>
+        </div>
+
+        {% if template.template_lines.exists %}
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="60">#</th>
+                        <th>الحساب</th>
+                        <th>البيان</th>
+                        <th width="120">مدين</th>
+                        <th width="120">دائن</th>
+                        <th width="100">مركز التكلفة</th>
+                        <th width="80">إجباري</th>
+                        <th width="80">قابل للتعديل</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in template.template_lines.all %}
+                    <tr>
+                        <td>
+                            <div class="line-number">{{ line.line_number }}</div>
+                        </td>
+                        <td>
+                            <div class="account-info">
+                                <span class="account-code">{{ line.account.code }}</span>
+                                <span class="account-name">{{ line.account.name }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if line.description %}
+                                {{ line.description }}
+                            {% else %}
+                                <em class="text-muted">البيان الافتراضي</em>
+                            {% endif %}
+                        </td>
+                        <td class="amount-cell">
+                            {% if line.debit_amount %}
+                                <span class="debit-amount">{{ line.debit_amount|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="amount-cell">
+                            {% if line.credit_amount %}
+                                <span class="credit-amount">{{ line.credit_amount|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if line.default_cost_center %}
+                                <span class="badge bg-info">{{ line.default_cost_center.code }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if line.is_required %}
+                                <i class="fas fa-check-circle text-success" title="إجباري"></i>
+                            {% else %}
+                                <i class="fas fa-times-circle text-muted" title="اختياري"></i>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if line.amount_editable %}
+                                <i class="fas fa-edit text-primary" title="قابل للتعديل"></i>
+                            {% else %}
+                                <i class="fas fa-lock text-muted" title="ثابت"></i>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Balance Summary -->
+            <div class="balance-summary">
+                <h6 class="mb-3">
+                    <i class="fas fa-calculator me-2"></i>
+                    ملخص التوازن
+                </h6>
+                <div class="balance-row">
+                    <span>إجمالي المدين:</span>
+                    <span class="balance-amount">{{ template.get_total_debit|floatformat:2 }}</span>
+                </div>
+                <div class="balance-row">
+                    <span>إجمالي الدائن:</span>
+                    <span class="balance-amount">{{ template.get_total_credit|floatformat:2 }}</span>
+                </div>
+                <div class="balance-row">
+                    <span>الفرق:</span>
+                    <span class="balance-amount">
+                        {% widthratio template.get_total_debit 1 1 as debit %}
+                        {% widthratio template.get_total_credit 1 1 as credit %}
+                        {% widthratio debit 1 1|sub:credit as difference %}
+                        {{ difference|floatformat:2 }}
+                    </span>
+                </div>
+                <div class="balance-row">
+                    <span>حالة التوازن:</span>
+                    <span class="balance-amount {% if template.is_balanced %}balanced{% else %}unbalanced{% endif %}">
+                        {% if template.is_balanced %}
+                            <i class="fas fa-check-circle me-1"></i>متوازن
+                        {% else %}
+                            <i class="fas fa-exclamation-triangle me-1"></i>غير متوازن
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        {% else %}
+            <div class="empty-lines">
+                <i class="fas fa-list-ul fa-3x mb-3 opacity-50"></i>
+                <h5>لا توجد سطور في القالب</h5>
+                <p class="text-muted">لم يتم إضافة أي سطور لهذا القالب بعد.</p>
+                {% if can_edit %}
+                    <a href="{% url 'accounting:journal_template_update' template.pk %}" 
+                       class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>إضافة سطور
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function duplicateTemplate(templateId) {
+    Swal.fire({
+        title: 'نسخ القالب',
+        html: `
+            <div class="text-start">
+                <p>هل تريد إنشاء نسخة من هذا القالب؟</p>
+                <div class="form-group mt-3">
+                    <label for="newTemplateName" class="form-label">اسم القالب الجديد:</label>
+                    <input type="text" id="newTemplateName" class="form-control" 
+                           value="نسخة من - {{ template.name }}" required>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-copy me-2"></i>نسخ القالب',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d',
+        customClass: {
+            popup: 'text-end'
+        },
+        preConfirm: () => {
+            const newName = document.getElementById('newTemplateName').value.trim();
+            if (!newName) {
+                Swal.showValidationMessage('يجب إدخال اسم للقالب الجديد');
+                return false;
+            }
+            return { name: newName };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // إرسال طلب النسخ
+            fetch(`{% url 'accounting:journal_template_duplicate' 0 %}`.replace('0', templateId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    new_name: result.value.name
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم النسخ بنجاح!',
+                        text: `تم إنشاء القالب الجديد: ${result.value.name}`,
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            location.reload();
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ!',
+                        text: data.message || 'حدث خطأ أثناء نسخ القالب',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ!',
+                    text: 'حدث خطأ أثناء نسخ القالب',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+
+// تحسين tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}
