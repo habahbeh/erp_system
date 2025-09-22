@@ -51,8 +51,13 @@ class Account(BaseModel):
     name = models.CharField(_('اسم الحساب'), max_length=200)
     name_en = models.CharField(_('الاسم اللاتيني'), max_length=200, blank=True)
 
-    # التصنيف والتسلسل
-    account_type = models.ForeignKey(AccountType, on_delete=models.PROTECT, verbose_name=_('نوع الحساب'))
+    # التصنيف والتسلسل - إضافة related_name
+    account_type = models.ForeignKey(
+        AccountType,
+        on_delete=models.PROTECT,
+        verbose_name=_('نوع الحساب'),
+        related_name='accounts'  # إضافة هذا السطر
+    )
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
                               related_name='children', verbose_name=_('الحساب الأب'))
 
