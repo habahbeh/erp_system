@@ -179,5 +179,11 @@ urlpatterns = [
     path('ajax/cost-centers/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
     path('ajax/cost-centers/search/', fiscal_views.cost_center_search_ajax, name='cost_center_search_ajax'),
 
+    # Ajax endpoints للفترات المحاسبية
+    path('ajax/periods/datatable/', period_datatable_ajax, name='period_datatable_ajax'),
+
+    # Ajax endpoints لمراكز التكلفة
+    path('ajax/cost-centers/datatable/', cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    path('ajax/cost-centers/<int:pk>/toggle-status/', toggle_cost_center_status, name='toggle_cost_center_status'),
 
 ]

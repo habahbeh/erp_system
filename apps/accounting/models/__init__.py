@@ -18,7 +18,7 @@ __all__ = [
     # Account models
     'AccountType', 'Account', 'CostCenter',
     # Fiscal models
-    'FiscalYear', 'AccountingPeriod'
+    'FiscalYear', 'AccountingPeriod',
     # Journal models
     'JournalEntryTemplate', 'JournalEntry', 'JournalEntryLine', 'JournalEntryTemplateLine',
     # Voucher models

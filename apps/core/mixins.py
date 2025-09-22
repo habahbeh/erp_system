@@ -239,3 +239,58 @@ class AjaxResponseMixin:
 
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
+
+
+class AutoBreadcrumbMixin:
+    """إنشاء Breadcrumb تلقائياً"""
+
+    def get_breadcrumbs(self):
+        """إنشاء breadcrumb تلقائياً حسب URL"""
+        breadcrumbs = [
+            {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+            {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+        ]
+
+        # إضافة breadcrumb حسب النوع
+        if hasattr(self, 'model'):
+            model_name = self.model._meta.verbose_name_plural
+            list_url = reverse(f'accounting:{self.model._meta.model_name}_list')
+            breadcrumbs.append({'title': model_name, 'url': list_url})
+
+            # إضافة العملية الحالية
+            if hasattr(self, 'object') and self.object:
+                if 'update' in self.request.resolver_match.url_name:
+                    breadcrumbs.append({'title': f'تعديل: {self.object}', 'url': ''})
+                elif 'detail' in self.request.resolver_match.url_name:
+                    breadcrumbs.append({'title': str(self.object), 'url': ''})
+            elif 'create' in self.request.resolver_match.url_name:
+                breadcrumbs.append({'title': 'إنشاء جديد', 'url': ''})
+
+        return breadcrumbs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['breadcrumbs'] = self.get_breadcrumbs()
+        return context
+
+
+# في apps/core/mixins.py - إضافة Mixin جديد
+class NotificationMixin:
+    """إضافة إشعارات محسنة"""
+
+    def success_message(self, message, extra_data=None):
+        """إشعار نجاح مع بيانات إضافية"""
+        messages.success(
+            self.request,
+            message,
+            extra_tags='toast-success' + (f' {extra_data}' if extra_data else '')
+        )
+
+    def warning_message(self, message, action_url=None):
+        """إشعار تحذير مع رابط إجراء"""
+        extra = f'action:{action_url}' if action_url else ''
+        messages.warning(
+            self.request,
+            message,
+            extra_tags=f'toast-warning {extra}'
+        )

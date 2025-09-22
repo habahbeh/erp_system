@@ -240,8 +240,114 @@ class FiscalYearDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 @require_http_methods(["GET"])
 def fiscal_year_datatable_ajax(request):
     """Ajax endpoint لجدول السنوات المالية"""
-    # سيتم تطوير هذا لاحقاً مع DataTables
-    pass
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': 'لا توجد شركة محددة'
+        })
+
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 10))
+    search_value = request.GET.get('search[value]', '')
+
+    try:
+        # البحث والفلترة
+        queryset = FiscalYear.objects.filter(
+            company=request.current_company
+        ).annotate(
+            periods_count=Count('periods')
+        )
+
+        # الفلاتر
+        status = request.GET.get('status')
+        if status == 'active':
+            queryset = queryset.filter(is_closed=False)
+        elif status == 'closed':
+            queryset = queryset.filter(is_closed=True)
+
+        # البحث
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(code__icontains=search_value)
+            )
+
+        # الترتيب
+        queryset = queryset.order_by('-start_date')
+
+        # العدد الإجمالي
+        total_records = FiscalYear.objects.filter(company=request.current_company).count()
+        filtered_records = queryset.count()
+
+        # الصفحات
+        queryset = queryset[start:start + length]
+
+        # إعداد البيانات
+        data = []
+        for fiscal_year in queryset:
+            # حالة السنة
+            status_badge = '<span class="badge bg-success">نشطة</span>' if not fiscal_year.is_closed else '<span class="badge bg-secondary">مقفلة</span>'
+
+            # الفترة
+            period_str = f"{fiscal_year.start_date.strftime('%Y/%m/%d')} - {fiscal_year.end_date.strftime('%Y/%m/%d')}"
+
+            # أزرار الإجراءات
+            actions = []
+
+            actions.append(f'''
+                <a href="{reverse('accounting:fiscal_year_detail', args=[fiscal_year.pk])}" 
+                   class="btn btn-outline-info btn-sm" title="عرض">
+                    <i class="fas fa-eye"></i>
+                </a>
+            ''')
+
+            if not fiscal_year.is_closed and request.user.has_perm('accounting.change_fiscalyear'):
+                actions.append(f'''
+                    <a href="{reverse('accounting:fiscal_year_update', args=[fiscal_year.pk])}" 
+                       class="btn btn-outline-primary btn-sm" title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            if not fiscal_year.periods.exists() and request.user.has_perm('accounting.delete_fiscalyear'):
+                actions.append(f'''
+                    <a href="{reverse('accounting:fiscal_year_delete', args=[fiscal_year.pk])}" 
+                       class="btn btn-outline-danger btn-sm" title="حذف">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                ''')
+
+            actions_html = ' '.join(actions)
+
+            data.append([
+                fiscal_year.code,
+                fiscal_year.name,
+                period_str,
+                f'<span class="badge bg-info">{fiscal_year.periods_count}</span>',
+                status_badge,
+                actions_html
+            ])
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': total_records,
+            'recordsFiltered': filtered_records,
+            'data': data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': f'خطأ في تحميل البيانات: {str(e)}'
+        })
 
 
 @login_required
@@ -745,8 +851,187 @@ def reopen_period_ajax(request, period_id):
 @require_http_methods(["GET"])
 def period_datatable_ajax(request):
     """Ajax endpoint لجدول الفترات المحاسبية"""
-    # سيتم تطوير هذا لاحقاً مع DataTables
-    pass
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': 'لا توجد شركة محددة'
+        })
+
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 10))
+    search_value = request.GET.get('search[value]', '')
+
+    # الفلاتر المخصصة
+    fiscal_year_id = request.GET.get('fiscal_year', '')
+    status = request.GET.get('status', '')
+    period_type = request.GET.get('period_type', '')
+
+    try:
+        # البحث والفلترة مع تحسين الأداء
+        queryset = AccountingPeriod.objects.filter(
+            company=request.current_company
+        ).select_related('fiscal_year').annotate(
+            journal_entries_count=Count('journal_entries', filter=Q(journal_entries__status='posted')),
+            draft_entries_count=Count('journal_entries', filter=Q(journal_entries__status='draft'))
+        )
+
+        # تطبيق الفلاتر
+        if fiscal_year_id:
+            queryset = queryset.filter(fiscal_year_id=fiscal_year_id)
+
+        if status == 'active':
+            queryset = queryset.filter(is_closed=False)
+        elif status == 'closed':
+            queryset = queryset.filter(is_closed=True)
+
+        if period_type == 'normal':
+            queryset = queryset.filter(is_adjustment=False)
+        elif period_type == 'adjustment':
+            queryset = queryset.filter(is_adjustment=True)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(fiscal_year__name__icontains=search_value) |
+                Q(fiscal_year__code__icontains=search_value)
+            )
+
+        # الترتيب
+        order_column = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]')
+
+        if order_column:
+            columns = ['fiscal_year__name', 'name', 'start_date', 'end_date', 'is_adjustment', 'is_closed']
+            if int(order_column) < len(columns):
+                order_field = columns[int(order_column)]
+                if order_dir == 'desc':
+                    order_field = '-' + order_field
+                queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('-fiscal_year__start_date', 'start_date')
+
+        # العد الإجمالي
+        total_records = AccountingPeriod.objects.filter(company=request.current_company).count()
+        filtered_records = queryset.count()
+
+        # الصفحات
+        queryset = queryset[start:start + length]
+
+        # إعداد البيانات
+        data = []
+        can_edit = request.user.has_perm('accounting.change_accountingperiod')
+        can_delete = request.user.has_perm('accounting.delete_accountingperiod')
+        can_view = request.user.has_perm('accounting.view_accountingperiod')
+
+        for period in queryset:
+            # حالة الفترة
+            if period.is_closed:
+                status_badge = '<span class="badge bg-secondary">مقفلة</span>'
+            else:
+                status_badge = '<span class="badge bg-success">نشطة</span>'
+
+            # نوع الفترة
+            if period.is_adjustment:
+                type_badge = '<span class="badge bg-warning">تسويات</span>'
+            else:
+                type_badge = '<span class="badge bg-primary">عادية</span>'
+
+            # مدة الفترة
+            duration = (period.end_date - period.start_date).days + 1
+            duration_display = f'{duration} يوم'
+
+            # إحصائيات القيود
+            entries_info = ''
+            if period.journal_entries_count > 0:
+                entries_info = f'<small class="text-success">{period.journal_entries_count} مرحل</small>'
+            if period.draft_entries_count > 0:
+                if entries_info:
+                    entries_info += '<br>'
+                entries_info += f'<small class="text-warning">{period.draft_entries_count} مسودة</small>'
+            if not entries_info:
+                entries_info = '<small class="text-muted">لا توجد قيود</small>'
+
+            # أزرار الإجراءات
+            actions = []
+
+            # عرض التفاصيل
+            if can_view:
+                actions.append(f'''
+                    <a href="{reverse('accounting:period_detail', args=[period.pk])}" 
+                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                ''')
+
+            # تعديل
+            if can_edit and not period.is_closed:
+                actions.append(f'''
+                    <a href="{reverse('accounting:period_update', args=[period.pk])}" 
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            # إقفال/إعادة فتح
+            if can_edit:
+                if not period.is_closed and period.draft_entries_count == 0:
+                    actions.append(f'''
+                        <button type="button" class="btn btn-outline-warning btn-sm" 
+                                onclick="closePeriod({period.pk})" title="إقفال الفترة" data-bs-toggle="tooltip">
+                            <i class="fas fa-lock"></i>
+                        </button>
+                    ''')
+                elif period.is_closed and not period.fiscal_year.is_closed:
+                    actions.append(f'''
+                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                onclick="reopenPeriod({period.pk})" title="إعادة فتح الفترة" data-bs-toggle="tooltip">
+                            <i class="fas fa-unlock"></i>
+                        </button>
+                    ''')
+
+            # حذف
+            if can_delete and not period.is_closed and period.journal_entries_count == 0 and period.draft_entries_count == 0:
+                actions.append(f'''
+                    <a href="{reverse('accounting:period_delete', args=[period.pk])}" 
+                       class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                ''')
+
+            actions_html = ' '.join(actions) if actions else '<span class="text-muted">-</span>'
+
+            data.append([
+                f'<a href="{reverse("accounting:fiscal_year_detail", args=[period.fiscal_year.pk])}" class="text-decoration-none">{period.fiscal_year.name}</a>',
+                f'<strong>{period.name}</strong><br>{type_badge}',
+                period.start_date.strftime('%Y/%m/%d'),
+                period.end_date.strftime('%Y/%m/%d'),
+                duration_display,
+                entries_info,
+                status_badge,
+                actions_html
+            ])
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': total_records,
+            'recordsFiltered': filtered_records,
+            'data': data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': f'خطأ في تحميل البيانات: {str(e)}'
+        })
 
 
 class CostCenterListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
@@ -982,8 +1267,275 @@ class CostCenterDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 @require_http_methods(["GET"])
 def cost_center_datatable_ajax(request):
     """Ajax endpoint لجدول مراكز التكلفة"""
-    # سيتم تطوير هذا لاحقاً مع DataTables
-    pass
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': 'لا توجد شركة محددة'
+        })
+
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 10))
+    search_value = request.GET.get('search[value]', '')
+
+    # الفلاتر المخصصة
+    cost_center_type = request.GET.get('cost_center_type', '')
+    level = request.GET.get('level', '')
+    status = request.GET.get('status', '')
+    parent_id = request.GET.get('parent', '')
+
+    try:
+        # البحث والفلترة مع تحسين الأداء
+        queryset = CostCenter.objects.filter(
+            company=request.current_company
+        ).select_related('parent', 'manager').annotate(
+            children_count=Count('children'),
+            journal_lines_count=Count('journal_lines', filter=Q(journal_lines__journal_entry__status='posted'))
+        )
+
+        # تطبيق الفلاتر
+        if cost_center_type:
+            queryset = queryset.filter(cost_center_type=cost_center_type)
+
+        if level:
+            queryset = queryset.filter(level=level)
+
+        if status == 'active':
+            queryset = queryset.filter(is_active=True)
+        elif status == 'inactive':
+            queryset = queryset.filter(is_active=False)
+
+        if parent_id:
+            if parent_id == 'null':  # مراكز رئيسية
+                queryset = queryset.filter(parent__isnull=True)
+            else:
+                queryset = queryset.filter(parent_id=parent_id)
+
+        # البحث العام
+        if search_value:
+            queryset = queryset.filter(
+                Q(code__icontains=search_value) |
+                Q(name__icontains=search_value) |
+                Q(description__icontains=search_value) |
+                Q(manager__first_name__icontains=search_value) |
+                Q(manager__last_name__icontains=search_value)
+            )
+
+        # الترتيب
+        order_column = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]')
+
+        if order_column:
+            columns = ['code', 'name', 'cost_center_type', 'parent__name', 'level', 'manager__first_name', 'is_active']
+            if int(order_column) < len(columns):
+                order_field = columns[int(order_column)]
+                if order_dir == 'desc':
+                    order_field = '-' + order_field
+                queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('code')
+
+        # العد الإجمالي
+        total_records = CostCenter.objects.filter(company=request.current_company).count()
+        filtered_records = queryset.count()
+
+        # الصفحات
+        queryset = queryset[start:start + length]
+
+        # إعداد البيانات
+        data = []
+        can_edit = request.user.has_perm('accounting.change_costcenter')
+        can_delete = request.user.has_perm('accounting.delete_costcenter')
+        can_view = request.user.has_perm('accounting.view_costcenter')
+
+        for cost_center in queryset:
+            # حالة مركز التكلفة
+            if cost_center.is_active:
+                status_badge = '<span class="badge bg-success">نشط</span>'
+            else:
+                status_badge = '<span class="badge bg-secondary">غير نشط</span>'
+
+            # نوع المركز
+            type_badges = {
+                'administration': '<span class="badge bg-primary">إدارة</span>',
+                'production': '<span class="badge bg-warning">إنتاج</span>',
+                'sales': '<span class="badge bg-success">مبيعات</span>',
+                'services': '<span class="badge bg-info">خدمات</span>',
+                'marketing': '<span class="badge bg-purple">تسويق</span>',
+                'maintenance': '<span class="badge bg-secondary">صيانة</span>',
+            }
+            type_badge = type_badges.get(cost_center.cost_center_type,
+                                       f'<span class="badge bg-light text-dark">{cost_center.get_cost_center_type_display()}</span>')
+
+            # المركز الأب
+            parent_display = ''
+            if cost_center.parent:
+                parent_display = f'<small class="text-muted">{cost_center.parent.code}</small><br>{cost_center.parent.name}'
+            else:
+                parent_display = '<span class="text-muted">-- مركز رئيسي --</span>'
+
+            # عدد المراكز الفرعية
+            children_info = ''
+            if cost_center.children_count > 0:
+                children_info = f' <span class="badge bg-info">{cost_center.children_count} فرعي</span>'
+
+            # اسم المركز مع المستوى الهرمي
+            indent = '&nbsp;&nbsp;&nbsp;' * (cost_center.level - 1)
+            cost_center_name = f'{indent}<strong>{cost_center.name}</strong>{children_info}'
+
+            # المدير
+            manager_display = ''
+            if cost_center.manager:
+                manager_display = f'<i class="fas fa-user text-primary"></i> {cost_center.manager.get_full_name()}'
+            else:
+                manager_display = '<span class="text-muted">-- غير محدد --</span>'
+
+            # إحصائيات الاستخدام
+            usage_info = ''
+            if cost_center.journal_lines_count > 0:
+                usage_info = f'<small class="text-success"><i class="fas fa-chart-line"></i> {cost_center.journal_lines_count} قيد</small>'
+            else:
+                usage_info = '<small class="text-muted">غير مستخدم</small>'
+
+            # الوصف (مختصر)
+            description = ''
+            if cost_center.description:
+                description = cost_center.description[:50] + ('...' if len(cost_center.description) > 50 else '')
+            else:
+                description = '<span class="text-muted">-- لا يوجد وصف --</span>'
+
+            # أزرار الإجراءات
+            actions = []
+
+            # عرض التفاصيل
+            if can_view:
+                actions.append(f'''
+                    <a href="{reverse('accounting:cost_center_detail', args=[cost_center.pk])}" 
+                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                ''')
+
+            # تعديل
+            if can_edit:
+                actions.append(f'''
+                    <a href="{reverse('accounting:cost_center_update', args=[cost_center.pk])}" 
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            # تفعيل/إلغاء تفعيل
+            if can_edit:
+                if cost_center.is_active:
+                    actions.append(f'''
+                        <button type="button" class="btn btn-outline-warning btn-sm" 
+                                onclick="toggleCostCenterStatus({cost_center.pk}, false)" 
+                                title="إلغاء التفعيل" data-bs-toggle="tooltip">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                    ''')
+                else:
+                    actions.append(f'''
+                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                onclick="toggleCostCenterStatus({cost_center.pk}, true)" 
+                                title="تفعيل" data-bs-toggle="tooltip">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    ''')
+
+            # حذف
+            if (can_delete and cost_center.children_count == 0 and
+                cost_center.journal_lines_count == 0):
+                actions.append(f'''
+                    <a href="{reverse('accounting:cost_center_delete', args=[cost_center.pk])}" 
+                       class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                ''')
+
+            actions_html = ' '.join(actions) if actions else '<span class="text-muted">-</span>'
+
+            data.append([
+                cost_center.code,
+                cost_center_name,
+                type_badge,
+                parent_display,
+                f'<span class="badge bg-light text-dark">المستوى {cost_center.level}</span>',
+                manager_display,
+                usage_info,
+                status_badge,
+                actions_html
+            ])
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': total_records,
+            'recordsFiltered': filtered_records,
+            'data': data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': f'خطأ في تحميل البيانات: {str(e)}'
+        })
+
+
+@login_required
+@permission_required_with_message('accounting.change_costcenter')
+@require_http_methods(["POST"])
+def toggle_cost_center_status(request, pk):
+    """تفعيل/إلغاء تفعيل مركز التكلفة"""
+
+    try:
+        cost_center = get_object_or_404(
+            CostCenter,
+            pk=pk,
+            company=request.current_company
+        )
+
+        new_status = request.POST.get('status') == 'true'
+        old_status = cost_center.is_active
+
+        cost_center.is_active = new_status
+        cost_center.save()
+
+        # تسجيل في ActivityLog
+        from apps.core.models import ActivityLog
+        ActivityLog.objects.create(
+            user=request.user,
+            company=request.current_company,
+            action='cost_center_status_changed',
+            object_type='cost_center',
+            object_id=cost_center.id,
+            description=f'تم {"تفعيل" if new_status else "إلغاء تفعيل"} مركز التكلفة: {cost_center.name}',
+            extra_data={
+                'cost_center_code': cost_center.code,
+                'old_status': old_status,
+                'new_status': new_status
+            }
+        )
+
+        status_text = "تفعيل" if new_status else "إلغاء تفعيل"
+        return JsonResponse({
+            'success': True,
+            'message': f'تم {status_text} مركز التكلفة {cost_center.name} بنجاح',
+            'new_status': new_status
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في تغيير حالة مركز التكلفة: {str(e)}'
+        })
 
 
 @login_required

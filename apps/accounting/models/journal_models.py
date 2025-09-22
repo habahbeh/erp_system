@@ -172,6 +172,8 @@ class JournalEntry(DocumentBaseModel):
         ]
 
     def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
         # توليد رقم القيد تلقائياً
         if not self.number:
             self.number = self.generate_number()
@@ -253,6 +255,20 @@ class JournalEntry(DocumentBaseModel):
 
             if not self.lines.exists():
                 raise ValidationError(_('لا يمكن ترحيل قيد بدون سطور'))
+
+        # التحقق الإضافي من الفترة المالية
+        if self.entry_date and self.period:
+            if not (self.period.start_date <= self.entry_date <= self.period.end_date):
+                raise ValidationError(_('تاريخ القيد خارج نطاق الفترة المحاسبية'))
+
+        # التحقق من السنة المالية
+        if self.entry_date and self.fiscal_year:
+            if not (self.fiscal_year.start_date <= self.entry_date <= self.fiscal_year.end_date):
+                raise ValidationError(_('تاريخ القيد خارج نطاق السنة المالية'))
+
+        # التحقق من إقفال الفترة
+        if self.period and self.period.is_closed and self.status != 'posted':
+            raise ValidationError(_('لا يمكن إنشاء قيود في فترة مقفلة'))
 
     @transaction.atomic
     def post(self, user=None):

@@ -44,4 +44,11 @@ __all__ = [
 
     # Report views
     'export_account_types', 'import_account_types', 'export_accounts', 'import_accounts',
+
+    # Report views
+    'GeneralLedgerView', 'TrialBalanceView', 'AccountStatementView',
+    'IncomeStatementView', 'BalanceSheetView', 'AccountComparisonView',
+    'export_general_ledger', 'export_trial_balance', 'export_account_statement',
+    'export_income_statement', 'export_balance_sheet', 'export_cost_centers',
+    'account_search_for_reports',
 ]
