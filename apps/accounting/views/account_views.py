@@ -20,46 +20,46 @@ from ..models import Account, AccountType
 from ..forms.account_forms import AccountForm, AccountFilterForm
 
 
-    class AccountListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
-        """قائمة الحسابات"""
+class AccountListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """قائمة الحسابات"""
 
-        template_name = 'accounting/accounts/account_list.html'
-        permission_required = 'accounting.view_account'
+    template_name = 'accounting/accounts/account_list.html'
+    permission_required = 'accounting.view_account'
 
-        def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
 
-            # إحصائيات سريعة مع تحسين الأداء
-            company = self.request.current_company
-            stats = Account.objects.filter(company=company).aggregate(
-                total=Count('id'),
-                active=Count('id', filter=Q(is_suspended=False)),
-                suspended=Count('id', filter=Q(is_suspended=True)),
-                parent_accounts=Count('id', filter=Q(children__isnull=False)),
-                leaf_accounts=Count('id', filter=Q(children__isnull=True)),
-                total_opening_balance=Sum('opening_balance')
-            )
+        # إحصائيات سريعة مع تحسين الأداء
+        company = self.request.current_company
+        stats = Account.objects.filter(company=company).aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_suspended=False)),
+            suspended=Count('id', filter=Q(is_suspended=True)),
+            parent_accounts=Count('id', filter=Q(children__isnull=False)),
+            leaf_accounts=Count('id', filter=Q(children__isnull=True)),
+            total_opening_balance=Sum('opening_balance')
+        )
 
-            context.update({
-                'title': _('دليل الحسابات'),
-                'can_add': self.request.user.has_perm('accounting.add_account'),
-                'can_edit': self.request.user.has_perm('accounting.change_account'),
-                'can_delete': self.request.user.has_perm('accounting.delete_account'),
-                'can_export': self.request.user.has_perm('accounting.view_account'),
-                'can_import': self.request.user.has_perm('accounting.add_account'),
-                'add_url': reverse('accounting:account_create'),
-                'export_url': reverse('accounting:export_accounts'),
-                'import_url': reverse('accounting:import_accounts'),
-                'hierarchy_url': reverse('accounting:account_hierarchy_ajax'),
-                'account_types': AccountType.objects.all(),
-                'stats': stats,
-                'breadcrumbs': [
-                    {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                    {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
-                    {'title': _('دليل الحسابات'), 'url': ''}
-                ],
-            })
-            return context
+        context.update({
+            'title': _('دليل الحسابات'),
+            'can_add': self.request.user.has_perm('accounting.add_account'),
+            'can_edit': self.request.user.has_perm('accounting.change_account'),
+            'can_delete': self.request.user.has_perm('accounting.delete_account'),
+            'can_export': self.request.user.has_perm('accounting.view_account'),
+            'can_import': self.request.user.has_perm('accounting.add_account'),
+            'add_url': reverse('accounting:account_create'),
+            'export_url': reverse('accounting:export_accounts'),
+            'import_url': reverse('accounting:import_accounts'),
+            'hierarchy_url': reverse('accounting:account_hierarchy_ajax'),
+            'account_types': AccountType.objects.all(),
+            'stats': stats,
+            'breadcrumbs': [
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+                {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
+                {'title': _('دليل الحسابات'), 'url': ''}
+            ],
+        })
+        return context
 
 
 class AccountCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
