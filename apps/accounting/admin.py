@@ -180,10 +180,15 @@ class AccountingPeriodInline(admin.TabularInline):
 @admin.register(FiscalYear)
 class FiscalYearAdmin(admin.ModelAdmin):
     list_display = ['code', 'name', 'start_date', 'end_date', 'is_closed', 'periods_count', 'duration_days']
-    list_filter = ['is_closed', 'company', 'start_date__year']
+    list_filter = ['is_closed', 'company']  # إزالة start_date__year
     search_fields = ['code', 'name']
     ordering = ['-start_date']
     inlines = [AccountingPeriodInline]
+
+    # إضافة custom filter للسنة إذا أردت
+    def get_list_filter(self, request):
+        list_filter = super().get_list_filter(request)
+        return list_filter + (YearListFilter,)  # إذا أردت إضافة فلتر السنة
 
     def periods_count(self, obj):
         count = obj.periods.count()
@@ -196,6 +201,21 @@ class FiscalYearAdmin(admin.ModelAdmin):
         return f'{duration} يوم'
 
     duration_days.short_description = 'المدة'
+
+
+# إذا كنت تريد إضافة فلتر للسنة، أضف هذا:
+class YearListFilter(admin.SimpleListFilter):
+    title = 'السنة'
+    parameter_name = 'year'
+
+    def lookups(self, request, model_admin):
+        years = set([d.start_date.year for d in model_admin.model.objects.all()])
+        return [(year, str(year)) for year in sorted(years, reverse=True)]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(start_date__year=self.value())
+        return queryset
 
 
 # ========== Accounting Period Admin ==========
