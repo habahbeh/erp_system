@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_http_methods  # أضف هذا السطر
 from django.views.generic import TemplateView
 from django.db.models import Q, Sum, Case, When, DecimalField, F
 from django.utils.translation import gettext_lazy as _
@@ -27,6 +28,8 @@ from ..models import Account, AccountType, JournalEntry, JournalEntryLine, Accou
 from ..forms.account_forms import AccountImportForm
 from dateutil.relativedelta import relativedelta
 
+from django.utils import timezone
+from ..models import FiscalYear, AccountingPeriod
 
 # ========== التقارير المحاسبية ==========
 
@@ -1750,3 +1753,211 @@ def export_cost_centers(request):
 
     wb.save(response)
     return response
+
+
+@login_required
+@permission_required_with_message('accounting.view_fiscalyear')
+@require_http_methods(["GET"])
+def export_fiscal_years(request):
+    """تصدير السنوات المالية إلى Excel"""
+
+    try:
+        if not hasattr(request, 'current_company') or not request.current_company:
+            messages.error(request, 'لا توجد شركة محددة')
+            return redirect('accounting:fiscal_year_list')
+
+        # تطبيق نفس فلاتر القائمة
+        queryset = FiscalYear.objects.filter(
+            company=request.current_company
+        ).select_related('created_by').prefetch_related('periods')
+
+        # تطبيق الفلاتر من GET parameters
+        status = request.GET.get('status')
+        if status == 'active':
+            queryset = queryset.filter(is_closed=False)
+        elif status == 'closed':
+            queryset = queryset.filter(is_closed=True)
+
+        year = request.GET.get('year')
+        if year:
+            queryset = queryset.filter(start_date__year=year)
+
+        search = request.GET.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | Q(code__icontains=search)
+            )
+
+        queryset = queryset.order_by('-start_date')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'السنوات المالية'
+
+        # إعداد الرأس
+        headers = [
+            'الرمز', 'اسم السنة المالية', 'تاريخ البداية', 'تاريخ النهاية',
+            'عدد الأيام', 'عدد الفترات', 'الحالة', 'أنشأ بواسطة', 'تاريخ الإنشاء'
+        ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+            cell.font = Font(bold=True, color='FFFFFF')
+
+        # إضافة البيانات
+        for row, fiscal_year in enumerate(queryset, 2):
+            duration = (fiscal_year.end_date - fiscal_year.start_date).days + 1
+            periods_count = fiscal_year.periods.count()
+            status_text = 'مقفلة' if fiscal_year.is_closed else 'نشطة'
+            created_by = fiscal_year.created_by.get_full_name() if fiscal_year.created_by else 'غير محدد'
+
+            row_data = [
+                fiscal_year.code,
+                fiscal_year.name,
+                fiscal_year.start_date.strftime('%Y/%m/%d'),
+                fiscal_year.end_date.strftime('%Y/%m/%d'),
+                duration,
+                periods_count,
+                status_text,
+                created_by,
+                fiscal_year.created_at.strftime('%Y/%m/%d %H:%M') if fiscal_year.created_at else ''
+            ]
+
+            for col, value in enumerate(row_data, 1):
+                ws.cell(row=row, column=col, value=value)
+
+        # تنسيق الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # إعداد الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f'السنوات_المالية_{request.current_company.name}_{timezone.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
+        return redirect('accounting:fiscal_year_list')
+
+
+@login_required
+@permission_required_with_message('accounting.view_accountingperiod')
+@require_http_methods(["GET"])
+def export_periods(request):
+    """تصدير الفترات المحاسبية إلى Excel"""
+
+    try:
+        if not hasattr(request, 'current_company') or not request.current_company:
+            messages.error(request, 'لا توجد شركة محددة')
+            return redirect('accounting:period_list')
+
+        # تطبيق نفس فلاتر القائمة
+        queryset = AccountingPeriod.objects.filter(
+            company=request.current_company
+        ).select_related('fiscal_year', 'created_by')
+
+        # تطبيق الفلاتر من GET parameters
+        fiscal_year_id = request.GET.get('fiscal_year')
+        if fiscal_year_id:
+            queryset = queryset.filter(fiscal_year_id=fiscal_year_id)
+
+        status = request.GET.get('status')
+        if status == 'active':
+            queryset = queryset.filter(is_closed=False)
+        elif status == 'closed':
+            queryset = queryset.filter(is_closed=True)
+
+        period_type = request.GET.get('period_type')
+        if period_type == 'normal':
+            queryset = queryset.filter(is_adjustment=False)
+        elif period_type == 'adjustment':
+            queryset = queryset.filter(is_adjustment=True)
+
+        search = request.GET.get('search')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        queryset = queryset.order_by('-fiscal_year__start_date', 'start_date')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'الفترات المحاسبية'
+
+        # إعداد الرأس
+        headers = [
+            'اسم الفترة', 'السنة المالية', 'تاريخ البداية', 'تاريخ النهاية',
+            'المدة (أيام)', 'نوع الفترة', 'الحالة', 'أنشأ بواسطة', 'تاريخ الإنشاء'
+        ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+            cell.font = Font(bold=True, color='FFFFFF')
+
+        # إضافة البيانات
+        for row, period in enumerate(queryset, 2):
+            duration = (period.end_date - period.start_date).days + 1
+            period_type_text = 'فترة تسويات' if period.is_adjustment else 'فترة عادية'
+            status_text = 'مقفلة' if period.is_closed else 'نشطة'
+            created_by = period.created_by.get_full_name() if period.created_by else 'غير محدد'
+
+            row_data = [
+                period.name,
+                period.fiscal_year.name,
+                period.start_date.strftime('%Y/%m/%d'),
+                period.end_date.strftime('%Y/%m/%d'),
+                duration,
+                period_type_text,
+                status_text,
+                created_by,
+                period.created_at.strftime('%Y/%m/%d %H:%M') if period.created_at else ''
+            ]
+
+            for col, value in enumerate(row_data, 1):
+                ws.cell(row=row, column=col, value=value)
+
+        # تنسيق الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # إعداد الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f'الفترات_المحاسبية_{request.current_company.name}_{timezone.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
+        return redirect('accounting:period_list')

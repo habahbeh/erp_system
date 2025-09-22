@@ -210,5 +210,7 @@ urlpatterns = [
     path('templates/<int:pk>/delete/', template_views.JournalEntryTemplateDeleteView.as_view(), name='template_delete'),
     path('templates/use/', template_views.UseTemplateView.as_view(), name='use_template'),
 
-
+    # ========== تصدير السنوات المالية والفترات المحاسبية ==========
+    path('fiscal-years/export/', report_views.export_fiscal_years, name='export_fiscal_years'),
+    path('periods/export/', report_views.export_periods, name='export_periods'),
 ]

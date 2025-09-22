@@ -99,16 +99,16 @@ class PaymentVoucherForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.request:
-            # فلترة العملات والحسابات للشركة الحالية
+            # فلترة العملات للشركة الحالية - إصلاح العلاقة
             self.fields['currency'].queryset = Currency.objects.filter(
-                company=self.request.current_company,
+                companies=self.request.current_company,  # تغيير من company إلى companies
                 is_active=True
             )
 
             # إعداد العملة الافتراضية
             try:
                 default_currency = Currency.objects.get(
-                    company=self.request.current_company,
+                    companies=self.request.current_company,  # تغيير من company إلى companies
                     is_base=True
                 )
                 self.fields['currency'].initial = default_currency
@@ -236,16 +236,16 @@ class ReceiptVoucherForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.request:
-            # فلترة العملات للشركة الحالية
+            # فلترة العملات للشركة الحالية - إصلاح العلاقة
             self.fields['currency'].queryset = Currency.objects.filter(
-                company=self.request.current_company,
+                companies=self.request.current_company,  # تغيير من company إلى companies
                 is_active=True
             )
 
             # إعداد العملة الافتراضية
             try:
                 default_currency = Currency.objects.get(
-                    company=self.request.current_company,
+                    companies=self.request.current_company,  # تغيير من company إلى companies
                     is_base=True
                 )
                 self.fields['currency'].initial = default_currency

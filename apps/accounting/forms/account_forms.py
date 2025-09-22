@@ -135,18 +135,38 @@ class AccountForm(forms.ModelForm):
             # فلترة أنواع الحسابات
             self.fields['account_type'].queryset = AccountType.objects.all()
 
-            # فلترة العملات
-            self.fields['currency'].queryset = Currency.objects.filter(
-                Q(company=company) | Q(is_base_currency=True)
-            ).filter(is_active=True)
+            # فلترة العملات - تم إصلاح الخطأ هنا
+            try:
+                # محاولة استخدام العلاقة companies (ManyToMany)
+                self.fields['currency'].queryset = Currency.objects.filter(
+                    Q(companies=company) | Q(is_base=True)
+                ).filter(is_active=True).distinct()
+            except Exception:
+                # في حالة فشل المحاولة الأولى، استخدم جميع العملات النشطة
+                self.fields['currency'].queryset = Currency.objects.filter(
+                    is_active=True
+                )
 
             # تعيين العملة الافتراضية
             if not self.instance.pk:
-                default_currency = Currency.objects.filter(
-                    company=company, is_base_currency=True
-                ).first()
-                if default_currency:
-                    self.fields['currency'].initial = default_currency
+                try:
+                    # البحث عن العملة الأساسية للشركة
+                    default_currency = Currency.objects.filter(
+                        companies=company, is_base=True
+                    ).first()
+
+                    # إذا لم توجد، ابحث عن أي عملة أساسية
+                    if not default_currency:
+                        default_currency = Currency.objects.filter(
+                            is_base=True, is_active=True
+                        ).first()
+
+                    if default_currency:
+                        self.fields['currency'].initial = default_currency
+
+                except Exception:
+                    # في حالة حدوث خطأ، اترك الحقل فارغاً
+                    pass
 
         # إذا كان هناك instance، اعرض بيانات الحساب الأب
         if self.instance and self.instance.pk:

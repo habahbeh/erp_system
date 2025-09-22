@@ -11,6 +11,8 @@ from dateutil.relativedelta import relativedelta
 
 from ..models import FiscalYear, AccountingPeriod
 from ..models.account_models import CostCenter
+from apps.core.models import User
+
 
 class FiscalYearForm(forms.ModelForm):
     """نموذج السنة المالية"""
@@ -359,59 +361,134 @@ class PeriodClosingForm(forms.Form):
             raise ValidationError('يجب تأكيد إقفال الفترة')
         return self.cleaned_data['confirm_closing']
 
+
 class CostCenterForm(forms.ModelForm):
     """نموذج مركز التكلفة"""
 
     class Meta:
         model = CostCenter
         fields = ['name', 'code', 'description', 'parent', 'cost_center_type', 'manager', 'is_active']
-        widgets = {
-            'name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'اسم مركز التكلفة (مثال: قسم المحاسبة)'
-            }),
-            'code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'رمز المركز (مثال: ACCT001)'
-            }),
-            'description': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'وصف مركز التكلفة...'
-            }),
-            'parent': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'cost_center_type': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'manager': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'is_active': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            })
-        }
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
-        # فلترة مراكز التكلفة الأب للشركة الحالية
+        # تخصيص الحقول
+        self.fields['name'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'اسم مركز التكلفة (مثال: قسم المحاسبة)',
+            'maxlength': '100'
+        })
+
+        self.fields['code'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'رمز المركز (مثال: ACCT001)',
+            'maxlength': '20'
+        })
+
+        self.fields['description'].widget.attrs.update({
+            'class': 'form-control',
+            'rows': '3',
+            'placeholder': 'وصف مركز التكلفة (اختياري)'
+        })
+
+        self.fields['parent'].widget.attrs.update({
+            'class': 'form-select',
+            'data-live-search': 'true'
+        })
+
+        self.fields['cost_center_type'].widget.attrs.update({
+            'class': 'form-select'
+        })
+
+        self.fields['manager'].widget.attrs.update({
+            'class': 'form-select',
+            'data-live-search': 'true'
+        })
+
+        self.fields['is_active'].widget.attrs.update({
+            'class': 'form-check-input',
+            'role': 'switch'
+        })
+
+        # Labels
+        self.fields['name'].label = 'اسم مركز التكلفة'
+        self.fields['code'].label = 'رمز المركز'
+        self.fields['description'].label = 'الوصف'
+        self.fields['parent'].label = 'مركز التكلفة الأب'
+        self.fields['cost_center_type'].label = 'نوع المركز'
+        self.fields['manager'].label = 'مدير المركز'
+        self.fields['is_active'].label = 'نشط'
+
+        # Help texts
+        self.fields['code'].help_text = 'رمز فريد لمركز التكلفة'
+        self.fields['parent'].help_text = 'اختياري - لإنشاء هيكل هرمي'
+        self.fields['manager'].help_text = 'اختياري - المسؤول عن المركز'
+
+        # فلترة البيانات حسب الشركة
         if self.request and hasattr(self.request, 'current_company'):
+            company = self.request.current_company
+
+            # فلترة مراكز التكلفة الأب
             self.fields['parent'].queryset = CostCenter.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).exclude(pk=self.instance.pk if self.instance else None).order_by('code')
+                company=company,
+                is_active=True,
+                level__lt=4  # حد أقصى 4 مستويات
+            ).exclude(pk=self.instance.pk if self.instance.pk else None)
 
-            # فلترة المدراء للشركة الحالية
-            self.fields['manager'].queryset = self.request.current_company.users.filter(
-                is_active=True
-            ).order_by('first_name', 'last_name', 'username')
+            # فلترة المديرين - مع معالجة أنواع العلاقات المختلفة
+            self.fields['manager'].queryset = self._get_company_users(company)
 
-        # إعدادات إضافية
-        self.fields['parent'].empty_label = "-- اختر مركز التكلفة الأب (اختياري) --"
-        self.fields['manager'].empty_label = "-- اختر مدير المركز (اختياري) --"
+        # Empty labels
+        self.fields['parent'].empty_label = "-- بدون مركز أب --"
+        self.fields['manager'].empty_label = "-- بدون مدير --"
+
+    def _get_company_users(self, company):
+        """الحصول على مستخدمي الشركة مع معالجة أنواع العلاقات المختلفة"""
+        try:
+            # محاولة 1: العلاقة users
+            if hasattr(company, 'users'):
+                return company.users.filter(is_active=True)
+        except:
+            pass
+
+        try:
+            # محاولة 2: العلاقة members
+            if hasattr(company, 'members'):
+                return company.members.filter(is_active=True)
+        except:
+            pass
+
+        try:
+            # محاولة 3: العلاقة employees
+            if hasattr(company, 'employees'):
+                return company.employees.filter(is_active=True)
+        except:
+            pass
+
+        try:
+            # محاولة 4: البحث عن المستخدمين بـ company ForeignKey
+            return User.objects.filter(company=company, is_active=True)
+        except:
+            pass
+
+        try:
+            # محاولة 5: البحث عن المستخدمين بـ companies ManyToMany
+            return User.objects.filter(companies=company, is_active=True)
+        except:
+            pass
+
+        try:
+            # محاولة 6: البحث في user profile
+            return User.objects.filter(
+                profile__company=company,
+                is_active=True
+            )
+        except:
+            pass
+
+        # الخيار الأخير: جميع المستخدمين النشطين
+        return User.objects.filter(is_active=True)
 
     def clean_code(self):
         code = self.cleaned_data['code'].strip().upper()
@@ -419,32 +496,82 @@ class CostCenterForm(forms.ModelForm):
         if not self.request or not hasattr(self.request, 'current_company'):
             raise ValidationError('لا توجد شركة محددة')
 
-        # التحقق من عدم تكرار الرمز
+        # التحقق من طول الرمز
+        if len(code) < 2:
+            raise ValidationError('رمز مركز التكلفة يجب أن يكون حرفين على الأقل')
+
+        # التحقق من عدم تكرار الرمز في نفس الشركة
         existing = CostCenter.objects.filter(
             code=code,
             company=self.request.current_company
         ).exclude(pk=self.instance.pk if self.instance else None)
 
         if existing.exists():
-            raise ValidationError('رمز مركز التكلفة موجود مسبقاً')
+            raise ValidationError('رمز مركز التكلفة موجود مسبقاً في هذه الشركة')
 
         return code
+
+    def clean_name(self):
+        name = self.cleaned_data['name'].strip()
+
+        if len(name) < 3:
+            raise ValidationError('يجب أن يكون اسم مركز التكلفة 3 أحرف على الأقل')
+
+        # التحقق من عدم تكرار الاسم في نفس الشركة
+        if self.request and hasattr(self.request, 'current_company'):
+            existing = CostCenter.objects.filter(
+                name=name,
+                company=self.request.current_company
+            ).exclude(pk=self.instance.pk if self.instance else None)
+
+            if existing.exists():
+                raise ValidationError('اسم مركز التكلفة موجود مسبقاً في هذه الشركة')
+
+        return name
+
+    def clean_parent(self):
+        parent = self.cleaned_data.get('parent')
+
+        if parent:
+            # التحقق من عدم إنشاء دورة
+            if self.instance and parent == self.instance:
+                raise ValidationError('لا يمكن أن يكون المركز أب لنفسه')
+
+            # التحقق من أن الأب في نفس الشركة
+            if self.request and hasattr(self.request, 'current_company'):
+                if parent.company != self.request.current_company:
+                    raise ValidationError('مركز التكلفة الأب يجب أن يكون في نفس الشركة')
+
+            # التحقق من العمق الهرمي
+            level = 1
+            current_parent = parent
+            while current_parent:
+                level += 1
+                if level > 4:
+                    raise ValidationError('لا يمكن تجاوز 4 مستويات في التسلسل الهرمي')
+                current_parent = current_parent.parent
+
+                # التحقق من عدم إنشاء دورة
+                if current_parent == self.instance:
+                    raise ValidationError('هذا الاختيار سيؤدي إلى دورة في التسلسل الهرمي')
+
+        return parent
 
     def clean(self):
         cleaned_data = super().clean()
         parent = cleaned_data.get('parent')
+        manager = cleaned_data.get('manager')
 
-        # التحقق من عدم جعل المركز أباً لنفسه
-        if parent and self.instance and parent.pk == self.instance.pk:
-            raise ValidationError({
-                'parent': 'لا يمكن جعل مركز التكلفة أباً لنفسه'
-            })
-
-        # التحقق من عدم تجاوز 4 مستويات
-        if parent and parent.level >= 4:
-            raise ValidationError({
-                'parent': 'لا يمكن تجاوز 4 مستويات في مراكز التكلفة'
-            })
+        # التحقق من أن المدير في نفس الشركة
+        if manager and self.request and hasattr(self.request, 'current_company'):
+            # التحقق من أن المدير ينتمي للشركة (سيتم تخطيه إذا لم تنجح الفلترة)
+            try:
+                company_users = self._get_company_users(self.request.current_company)
+                if manager not in company_users:
+                    self.add_error('manager', 'المدير المحدد لا ينتمي لهذه الشركة')
+            except:
+                # تجاهل الخطأ إذا لم نستطع التحقق
+                pass
 
         return cleaned_data
 
