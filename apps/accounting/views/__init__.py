@@ -3,6 +3,7 @@ from . import dashboard
 from .account_type_views import *
 from .account_views import *
 from .journal_views import *
+from .template_views import *
 from .voucher_views import *
 from .report_views import *
 from . import fiscal_views
@@ -24,6 +25,11 @@ __all__ = [
     'JournalEntryDetailView', 'JournalEntryDeleteView', 'QuickJournalEntryView',
     'journal_entry_datatable_ajax', 'account_autocomplete', 'post_journal_entry',
     'unpost_journal_entry', 'get_template_lines',
+
+    # Template views - إضافة جديدة
+    'JournalEntryTemplateListView', 'JournalEntryTemplateCreateView', 'JournalEntryTemplateUpdateView',
+    'JournalEntryTemplateDetailView', 'JournalEntryTemplateDeleteView', 'UseTemplateView',
+
 
     # Voucher views
     'PaymentVoucherListView', 'PaymentVoucherCreateView', 'PaymentVoucherUpdateView',

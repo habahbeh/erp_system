@@ -1,0 +1,200 @@
+{#apps/accounting/templates/accounting/templates/template_list.html#}
+{% extends "base.html" %}
+{% load static %}
+{% load accounting_tags %}
+
+{% block title %}قوالب القيود{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/datatables.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">{{ title }}</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    {% for crumb in breadcrumbs %}
+                        {% if forloop.last %}
+                            <li class="breadcrumb-item active">{{ crumb.title }}</li>
+                        {% else %}
+                            <li class="breadcrumb-item">
+                                <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                </ol>
+            </nav>
+        </div>
+        
+        <div class="btn-group">
+            {% if can_add %}
+            <a href="{% url 'accounting:template_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> إنشاء قالب جديد
+            </a>
+            {% endif %}
+            <a href="{% url 'accounting:use_template' %}" class="btn btn-success">
+                <i class="fas fa-magic"></i> استخدام قالب
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    {{ filter_form.entry_type.label_tag }}
+                    {{ filter_form.entry_type }}
+                </div>
+                <div class="col-md-3">
+                    {{ filter_form.status.label_tag }}
+                    {{ filter_form.status }}
+                </div>
+                <div class="col-md-3">
+                    {{ filter_form.category.label_tag }}
+                    {{ filter_form.category }}
+                </div>
+                <div class="col-md-3">
+                    {{ filter_form.search.label_tag }}
+                    {{ filter_form.search }}
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> بحث
+                    </button>
+                    <a href="{% url 'accounting:template_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> إلغاء الفلتر
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Templates List -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>اسم القالب</th>
+                            <th>النوع</th>
+                            <th>الفئة</th>
+                            <th>السطور</th>
+                            <th>متوازن</th>
+                            <th>الحالة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in templates %}
+                        <tr>
+                            <td>
+                                <div>
+                                    <strong>{{ template.name }}</strong>
+                                    {% if template.code %}
+                                        <small class="text-muted d-block">{{ template.code }}</small>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ template.get_entry_type_display }}</span>
+                            </td>
+                            <td>
+                                {% if template.category %}
+                                    <span class="badge bg-secondary">{{ template.category }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ template.template_lines.count }} سطر</span>
+                            </td>
+                            <td>
+                                {% if template.is_balanced %}
+                                    <span class="badge bg-success">متوازن</span>
+                                {% else %}
+                                    <span class="badge bg-warning">غير متوازن</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if template.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">معطل</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'accounting:template_detail' template.pk %}" 
+                                       class="btn btn-outline-info" title="عرض">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit %}
+                                    <a href="{% url 'accounting:template_update' template.pk %}" 
+                                       class="btn btn-outline-primary" title="تعديل">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if can_delete %}
+                                    <a href="{% url 'accounting:template_delete' template.pk %}" 
+                                       class="btn btn-outline-danger" title="حذف">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                <p>لا توجد قوالب متاحة</p>
+                                {% if can_add %}
+                                <a href="{% url 'accounting:template_create' %}" class="btn btn-primary">
+                                    إنشاء قالب جديد
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">&laquo; الأولى</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">السابقة</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">التالية</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">الأخيرة &raquo;</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -8,6 +8,8 @@ from .views import (
     account_views,
     # Journal Views
     journal_views,
+    # Template Views
+    template_views,
     # Voucher Views
     voucher_views,
     # Report Views
@@ -180,10 +182,33 @@ urlpatterns = [
     path('ajax/cost-centers/search/', fiscal_views.cost_center_search_ajax, name='cost_center_search_ajax'),
 
     # Ajax endpoints للفترات المحاسبية
-    path('ajax/periods/datatable/', period_datatable_ajax, name='period_datatable_ajax'),
+    # path('ajax/periods/datatable/', period_datatable_ajax, name='period_datatable_ajax'),
 
     # Ajax endpoints لمراكز التكلفة
-    path('ajax/cost-centers/datatable/', cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
-    path('ajax/cost-centers/<int:pk>/toggle-status/', toggle_cost_center_status, name='toggle_cost_center_status'),
+    # path('ajax/cost-centers/datatable/', cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    # path('ajax/cost-centers/<int:pk>/toggle-status/', toggle_cost_center_status, name='toggle_cost_center_status'),
+
+    path('ajax/periods/datatable/', fiscal_views.period_datatable_ajax, name='period_datatable_ajax'),
+    path('ajax/cost-centers/datatable/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    path('ajax/cost-centers/<int:pk>/toggle-status/', fiscal_views.toggle_cost_center_status, name='toggle_cost_center_status'),
+
+    # # هذه URLs غير موجودة في ملف urls.py
+    # path('templates/', TemplateListView.as_view(), name='template_list'),
+    # path('templates/create/', TemplateCreateView.as_view(), name='template_create'),
+    # path('templates/<int:pk>/', TemplateDetailView.as_view(), name='template_detail'),
+    # path('templates/<int:pk>/update/', TemplateUpdateView.as_view(), name='template_update'),
+    # path('templates/<int:pk>/delete/', TemplateDeleteView.as_view(), name='template_delete'),
+    # path('templates/<int:pk>/use/', UseTemplateView.as_view(), name='use_template'),
+    # path('templates/<int:pk>/lines/', TemplateLineManageView.as_view(), name='template_lines'),
+
+
+    #  Journal Entry Templates URLs - إضافة جديدة
+    path('templates/', template_views.JournalEntryTemplateListView.as_view(), name='template_list'),
+    path('templates/create/', template_views.JournalEntryTemplateCreateView.as_view(), name='template_create'),
+    path('templates/<int:pk>/', template_views.JournalEntryTemplateDetailView.as_view(), name='template_detail'),
+    path('templates/<int:pk>/update/', template_views.JournalEntryTemplateUpdateView.as_view(), name='template_update'),
+    path('templates/<int:pk>/delete/', template_views.JournalEntryTemplateDeleteView.as_view(), name='template_delete'),
+    path('templates/use/', template_views.UseTemplateView.as_view(), name='use_template'),
+
 
 ]
