@@ -58,5 +58,5 @@ __all__ = [
     'export_income_statement', 'export_balance_sheet', 'export_cost_centers',
     'account_search_for_reports',
 
-    'export_fiscal_years', 'export_periods',
+    'export_fiscal_years', 'export_periods', 'export_account_comparison'
 ]

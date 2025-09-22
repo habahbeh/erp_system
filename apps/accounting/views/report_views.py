@@ -1961,3 +1961,116 @@ def export_periods(request):
     except Exception as e:
         messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
         return redirect('accounting:period_list')
+
+
+@login_required
+@permission_required('accounting.view_account')
+def export_account_comparison(request):
+    """تصدير مقارنة الحسابات إلى Excel"""
+
+    account_ids = request.GET.getlist('account_ids')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    comparison_type = request.GET.get('comparison_type', 'current_period')
+
+    if not account_ids:
+        messages.error(request, 'يجب تحديد الحسابات أولاً')
+        return redirect('accounting:account_comparison')
+
+    try:
+        accounts = Account.objects.filter(
+            id__in=account_ids[:5],  # حد أقصى 5 حسابات
+            company=request.current_company
+        ).order_by('code')
+
+        if not accounts.exists():
+            messages.error(request, 'الحسابات غير موجودة')
+            return redirect('accounting:account_comparison')
+
+        # إنشاء ملف Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "مقارنة الحسابات"
+
+        # تنسيق الرأس
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="fd7e14", end_color="fd7e14", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # العنوان
+        ws.cell(row=1, column=1, value=f"مقارنة الحسابات - {request.current_company.name}")
+        ws.merge_cells(f'A1:{chr(65 + len(accounts))}1')
+        ws['A1'].font = Font(bold=True, size=16)
+        ws['A1'].alignment = header_alignment
+
+        ws.cell(row=2, column=1, value=f"للفترة من: {date_from} إلى {date_to}")
+        ws.merge_cells(f'A2:{chr(65 + len(accounts))}2')
+        ws['A2'].alignment = header_alignment
+
+        # عناوين الأعمدة
+        headers = ['البيان']
+        for account in accounts:
+            headers.append(account.name)
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=4, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # الحصول على بيانات المقارنة
+        view = AccountComparisonView()
+        view.request = request
+        comparison_data = view.get_comparison_data(accounts, date_from, date_to, comparison_type)
+
+        if comparison_data and 'accounts' in comparison_data:
+            row = 5
+
+            # البيانات
+            data_rows = [
+                ('الرصيد الافتتاحي', 'opening_balance'),
+                ('إجمالي المدين', 'total_debit'),
+                ('إجمالي الدائن', 'total_credit'),
+                ('صافي الحركة', 'net_movement'),
+                ('الرصيد الختامي', 'closing_balance'),
+                ('عدد الحركات', 'transaction_count')
+            ]
+
+            for label, field in data_rows:
+                ws.cell(row=row, column=1, value=label).font = Font(bold=True)
+
+                for col, account_data in enumerate(comparison_data['accounts'], 2):
+                    value = account_data.get(field, 0)
+                    if field == 'transaction_count':
+                        ws.cell(row=row, column=col, value=int(value))
+                    else:
+                        ws.cell(row=row, column=col, value=float(value))
+
+                row += 1
+
+        # تعديل عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"account_comparison_{date_from}_to_{date_to}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
+        return redirect('accounting:account_comparison')

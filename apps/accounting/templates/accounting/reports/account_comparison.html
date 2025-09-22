@@ -1,0 +1,400 @@
+<!-- apps/accounting/templates/accounting/reports/account_comparison.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.report-header {
+    background: linear-gradient(135deg, #fd7e14 0%, #e85d04 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+    padding: 1.5rem;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.comparison-table th {
+    background: #fd7e14;
+    color: white;
+    font-weight: 600;
+}
+
+.account-row {
+    border-bottom: 1px solid #dee2e6;
+}
+
+.account-name {
+    font-weight: 600;
+    color: #495057;
+}
+
+.amount-positive {
+    color: #198754;
+}
+
+.amount-negative {
+    color: #dc3545;
+}
+
+.variance-positive {
+    color: #198754;
+    font-weight: bold;
+}
+
+.variance-negative {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.total-row {
+    background: #f8f9fa;
+    font-weight: bold;
+    border-top: 2px solid #fd7e14;
+}
+
+.account-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: white;
+}
+
+.selected-account {
+    border-color: #fd7e14;
+    background: #fff8f0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="card shadow-sm mb-4">
+        <div class="report-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-balance-scale me-2"></i>{{ title }}
+                    </h2>
+                    <p class="mb-0 opacity-75">مقارنة أرصدة وحركات حسابات متعددة خلال فترات مختلفة</p>
+                </div>
+                <div>
+                    {% if comparison_data %}
+                    <button type="button" class="btn btn-outline-light" onclick="exportComparison()">
+                        <i class="fas fa-download me-2"></i>تصدير
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="printReport()">
+                        <i class="fas fa-print me-2"></i>طباعة
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <h6 class="mb-3">
+            <i class="fas fa-filter me-2"></i>معاملات المقارنة
+        </h6>
+
+        <form method="get" id="comparisonForm">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">الحسابات للمقارنة <span class="text-danger">*</span></label>
+                    <select name="account_ids" class="form-select" id="accountSelect" multiple required>
+                        {% for acc in accounts %}
+                            <option value="{{ acc.id }}" {% if acc.id|stringformat:"s" in selected_account_ids %}selected{% endif %}>
+                                {{ acc.code }} - {{ acc.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">يمكنك اختيار حتى 5 حسابات للمقارنة</div>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">من تاريخ</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}" required>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">إلى تاريخ</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}" required>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">نوع المقارنة</label>
+                    <select name="comparison_type" class="form-select">
+                        {% for type_value, type_name in comparison_types %}
+                            <option value="{{ type_value }}" {% if type_value == comparison_type %}selected{% endif %}>
+                                {{ type_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="fas fa-search me-2"></i>مقارنة
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if comparison_data %}
+    <!-- Selected Accounts Summary -->
+    <div class="row mb-4">
+        {% for account_data in comparison_data.accounts %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="account-card selected-account">
+                <h6 class="account-name">{{ account_data.account.name }}</h6>
+                <small class="text-muted">{{ account_data.account.code }} - {{ account_data.account.account_type.name }}</small>
+                <div class="mt-2">
+                    <div class="d-flex justify-content-between">
+                        <span>الرصيد الافتتاحي:</span>
+                        <strong>{{ account_data.opening_balance|floatformat:2 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>الرصيد الختامي:</span>
+                        <strong class="{% if account_data.closing_balance >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                            {{ account_data.closing_balance|floatformat:2 }}
+                        </strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>صافي الحركة:</span>
+                        <strong class="{% if account_data.net_movement >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                            {{ account_data.net_movement|floatformat:2 }}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover comparison-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>البيان</th>
+                            {% for account_data in comparison_data.accounts %}
+                                <th class="text-end">{{ account_data.account.name }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="account-row">
+                            <td><strong>الرصيد الافتتاحي</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end">{{ account_data.opening_balance|floatformat:2 }}</td>
+                            {% endfor %}
+                        </tr>
+
+                        <tr class="account-row">
+                            <td><strong>إجمالي المدين</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end amount-positive">{{ account_data.total_debit|floatformat:2 }}</td>
+                            {% endfor %}
+                        </tr>
+
+                        <tr class="account-row">
+                            <td><strong>إجمالي الدائن</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end amount-negative">{{ account_data.total_credit|floatformat:2 }}</td>
+                            {% endfor %}
+                        </tr>
+
+                        <tr class="account-row">
+                            <td><strong>صافي الحركة</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end {% if account_data.net_movement >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                                    {{ account_data.net_movement|floatformat:2 }}
+                                </td>
+                            {% endfor %}
+                        </tr>
+
+                        <tr class="total-row">
+                            <td><strong>الرصيد الختامي</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end">
+                                    <strong class="{% if account_data.closing_balance >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                                        {{ account_data.closing_balance|floatformat:2 }}
+                                    </strong>
+                                </td>
+                            {% endfor %}
+                        </tr>
+
+                        <tr class="account-row">
+                            <td><strong>عدد الحركات</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end">{{ account_data.transaction_count }}</td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- إضافة نسب مئوية إذا كانت متوفرة -->
+                        {% if comparison_data.show_percentages %}
+                        <tr class="account-row">
+                            <td><strong>نسبة النمو %</strong></td>
+                            {% for account_data in comparison_data.accounts %}
+                                <td class="text-end">
+                                    {% if account_data.growth_rate %}
+                                        <span class="{% if account_data.growth_rate >= 0 %}variance-positive{% else %}variance-negative{% endif %}">
+                                            {{ account_data.growth_rate|floatformat:1 }}%
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Summary -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>ملخص التحليل
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center p-3 border rounded">
+                                <h6>أعلى رصيد ختامي</h6>
+                                <h4 class="text-success">{{ comparison_data.highest_balance.account.name }}</h4>
+                                <small>{{ comparison_data.highest_balance.amount|floatformat:2 }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 border rounded">
+                                <h6>أكثر حركة</h6>
+                                <h4 class="text-info">{{ comparison_data.most_active.account.name }}</h4>
+                                <small>{{ comparison_data.most_active.count }} حركة</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 border rounded">
+                                <h6>أكبر نمو</h6>
+                                <h4 class="text-warning">{{ comparison_data.highest_growth.account.name }}</h4>
+                                <small>{{ comparison_data.highest_growth.rate|floatformat:1 }}%</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 border rounded">
+                                <h6>إجمالي الحسابات</h6>
+                                <h4 class="text-primary">{{ comparison_data.accounts|length }}</h4>
+                                <small>حساب محاسبي</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No Data Selected -->
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-balance-scale fa-3x mb-3"></i>
+        <h5>اختر الحسابات للمقارنة</h5>
+        <p>قم بتحديد الحسابات والفترة الزمنية لإجراء المقارنة</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // تهيئة Select2 للحسابات
+    $('#accountSelect').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'ابحث واختر الحسابات للمقارنة...',
+        allowClear: true,
+        maximumSelectionLength: 5
+    });
+
+    // تحديث تلقائي عند تغيير التواريخ
+    $('input[type="date"], select[name="comparison_type"]').on('change', function() {
+        if ($('#accountSelect').val() && $('#accountSelect').val().length > 0) {
+            // $('#comparisonForm').submit();
+        }
+    });
+
+    // تحقق من عدد الحسابات المختارة
+    $('#accountSelect').on('change', function() {
+        const selectedCount = $(this).val() ? $(this).val().length : 0;
+        if (selectedCount > 5) {
+            alert('يمكن اختيار حد أقصى 5 حسابات للمقارنة');
+            return false;
+        }
+    });
+});
+
+function exportComparison() {
+    const params = new URLSearchParams(window.location.search);
+    const exportUrl = '{% url "accounting:export_account_comparison" %}?' + params.toString();
+    window.open(exportUrl, '_blank');
+}
+
+function printReport() {
+    window.print();
+}
+</script>
+
+<style media="print">
+.filter-section, .btn, nav, .card-header .btn {
+    display: none !important;
+}
+
+.report-header {
+    background: #fd7e14 !important;
+    -webkit-print-color-adjust: exact;
+}
+
+.comparison-table th {
+    background: #fd7e14 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+}
+</style>
+{% endblock %}
