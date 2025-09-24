@@ -24,6 +24,11 @@ urlpatterns = [
     # ========== DASHBOARD ==========
     path('', dashboard.AccountingDashboardView.as_view(), name='dashboard'),
 
+    # Dashboard APIs
+    path('api/dashboard-stats/', dashboard.dashboard_stats_api, name='dashboard_stats_api'),
+    path('api/recent-entries/', dashboard.recent_entries_api, name='recent_entries_api'),
+    path('api/quick-tasks/', dashboard.quick_tasks_api, name='quick_tasks_api'),
+
     # ========== ACCOUNT TYPES ==========
     path('account-types/', account_type_views.AccountTypeListView.as_view(), name='account_type_list'),
     path('account-types/create/', account_type_views.AccountTypeCreateView.as_view(), name='account_type_create'),
@@ -198,4 +203,7 @@ urlpatterns = [
     path('reports/balance-sheet/export/', report_views.export_balance_sheet, name='export_balance_sheet'),
     path('reports/account-comparison/export/', report_views.export_account_comparison,
          name='export_account_comparison'),
+
+
+
 ]

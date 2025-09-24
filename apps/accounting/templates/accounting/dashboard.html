@@ -1,233 +1,685 @@
-{#apps/accounting/templates/accounting/dashboard.html#}
+{# apps/accounting/templates/accounting/dashboard.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
 {% block title %}لوحة المحاسبة{% endblock %}
 
 {% block extra_css %}
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
+:root {
+  --primary-color: #1976d2;
+  --primary-light: #42a5f5;
+  --primary-dark: #1565c0;
+  --secondary-color: #424242;
+  --success-color: #4caf50;
+  --warning-color: #ff9800;
+  --error-color: #f44336;
+  --info-color: #2196f3;
+  --surface-color: #ffffff;
+  --background-color: #f8f9fa;
+  --text-primary: #212121;
+  --text-secondary: #757575;
+  --border-color: #e0e0e0;
+  --shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  --shadow-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  --shadow-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+  --border-radius: 8px;
+  --border-radius-large: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.dashboard-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Header Section */
+.dashboard-header {
+  margin-bottom: 32px;
+  padding: 0;
+}
+
+.dashboard-title {
+  font-size: 2.125rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  letter-spacing: 0.0125em;
+}
+
+.dashboard-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+  font-weight: 400;
+}
+
+.company-info {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-color);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.company-info .material-icons {
+  font-size: 18px;
+  margin-left: 8px;
+  color: var(--primary-color);
+}
+
+/* Stats Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
 .stats-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 15px;
-    transition: transform 0.3s ease;
+  background: var(--surface-color);
+  border-radius: var(--border-radius-large);
+  padding: 24px;
+  box-shadow: var(--shadow-1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
 }
 
 .stats-card:hover {
-    transform: translateY(-5px);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-2px);
 }
 
-.quick-action-card {
-    border: none;
-    border-radius: 15px;
-    transition: all 0.3s ease;
+.stats-card-content {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
-.quick-action-card:hover {
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    transform: translateY(-3px);
+.stats-text {
+  flex: 1;
+}
+
+.stats-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stats-value {
+  font-size: 2rem;
+  font-weight: 300;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.stats-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.stats-icon .material-icons {
+  font-size: 24px;
+  color: var(--surface-color);
+}
+
+.stats-card.accounts .stats-icon { background: linear-gradient(135deg, var(--primary-color), var(--primary-light)); }
+.stats-card.entries .stats-icon { background: linear-gradient(135deg, var(--success-color), #66bb6a); }
+.stats-card.drafts .stats-icon { background: linear-gradient(135deg, var(--warning-color), #ffb74d); }
+.stats-card.posted .stats-icon { background: linear-gradient(135deg, var(--info-color), #42a5f5); }
+
+/* Quick Actions */
+.quick-actions {
+  margin-bottom: 40px;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin: 0 0 24px 0;
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.action-card {
+  background: var(--surface-color);
+  border-radius: var(--border-radius-large);
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--shadow-1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-card:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-4px);
+  text-decoration: none;
+  color: inherit;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary-color);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.action-card:hover::before {
+  transform: scaleX(1);
+}
+
+.action-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.action-icon .material-icons {
+  font-size: 32px;
+  color: var(--surface-color);
+}
+
+.action-card.quick .action-icon { background: linear-gradient(135deg, #ff6b35, #f7931e); }
+.action-card.detailed .action-icon { background: linear-gradient(135deg, var(--primary-color), var(--primary-light)); }
+.action-card.account .action-icon { background: linear-gradient(135deg, var(--success-color), #66bb6a); }
+.action-card.reports .action-icon { background: linear-gradient(135deg, #9c27b0, #e91e63); }
+
+.action-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.action-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.action-button {
+  background: var(--primary-color);
+  color: var(--surface-color);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-button:hover {
+  background: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+/* Content Grid */
+.content-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+}
+
+/* Recent Activities */
+.content-card {
+  background: var(--surface-color);
+  border-radius: var(--border-radius-large);
+  padding: 0;
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: #fafafa;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.card-title .material-icons {
+  font-size: 24px;
+  margin-left: 12px;
+  color: var(--primary-color);
+}
+
+.card-body {
+  padding: 24px;
+}
+
+/* Loading Spinner */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Quick Tasks */
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.task-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+}
+
+.task-item:hover {
+  background-color: #f5f5f5;
+  text-decoration: none;
+  color: inherit;
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+  font-size: 18px;
+}
+
+.task-icon.warning { background: rgba(255, 152, 0, 0.1); color: var(--warning-color); }
+.task-icon.primary { background: rgba(25, 118, 210, 0.1); color: var(--primary-color); }
+.task-icon.success { background: rgba(76, 175, 80, 0.1); color: var(--success-color); }
+.task-icon.info { background: rgba(33, 150, 243, 0.1); color: var(--info-color); }
+
+.task-content {
+  flex: 1;
+}
+
+.task-text {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Recent Entries Table */
+.entries-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.entries-table th,
+.entries-table td {
+  padding: 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.entries-table th {
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #fafafa;
+}
+
+.entries-table td {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.entry-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.entry-link:hover {
+  text-decoration: underline;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.success {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--success-color);
+}
+
+.status-badge.warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--warning-color);
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .dashboard-container {
+    padding: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .actions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-title {
+    font-size: 1.75rem;
+  }
+
+  .stats-card {
+    padding: 20px;
+  }
+
+  .action-card {
+    padding: 20px;
+  }
+
+  .stats-value {
+    font-size: 1.75rem;
+  }
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="dashboard-container">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-1">لوحة المحاسبة</h1>
-            <p class="text-muted mb-0">نظرة عامة على الأنشطة المحاسبية</p>
-        </div>
-        <div>
-            <span class="text-muted">{{ current_company.name }}</span>
+    <div class="dashboard-header fade-in">
+        <h1 class="dashboard-title">لوحة المحاسبة</h1>
+        <p class="dashboard-subtitle">نظرة شاملة على النشاط المحاسبي والمؤشرات المالية</p>
+        <div class="company-info">
+            <span class="material-icons">business</span>
+            <span>{{ current_company.name }}</span>
         </div>
     </div>
 
-    <!-- Stats Row -->
-    <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="fs-6 opacity-75">إجمالي الحسابات</div>
-                            <div class="fs-2 fw-bold" id="totalAccounts">-</div>
-                        </div>
-                        <div class="align-self-center opacity-75">
-                            <i class="fas fa-sitemap fa-2x"></i>
-                        </div>
-                    </div>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stats-card accounts slide-up" style="animation-delay: 0.1s">
+            <div class="stats-card-content">
+                <div class="stats-text">
+                    <div class="stats-label">إجمالي الحسابات</div>
+                    <div class="stats-value" id="totalAccounts">...</div>
+                </div>
+                <div class="stats-icon">
+                    <span class="material-icons">account_tree</span>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="fs-6 opacity-75">القيود هذا الشهر</div>
-                            <div class="fs-2 fw-bold" id="monthlyEntries">-</div>
-                        </div>
-                        <div class="align-self-center opacity-75">
-                            <i class="fas fa-book fa-2x"></i>
-                        </div>
-                    </div>
+        <div class="stats-card entries slide-up" style="animation-delay: 0.2s">
+            <div class="stats-card-content">
+                <div class="stats-text">
+                    <div class="stats-label">القيود هذا الشهر</div>
+                    <div class="stats-value" id="monthlyEntries">...</div>
+                </div>
+                <div class="stats-icon">
+                    <span class="material-icons">receipt_long</span>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="fs-6 opacity-75">مسودات القيود</div>
-                            <div class="fs-2 fw-bold" id="draftEntries">-</div>
-                        </div>
-                        <div class="align-self-center opacity-75">
-                            <i class="fas fa-edit fa-2x"></i>
-                        </div>
-                    </div>
+        <div class="stats-card drafts slide-up" style="animation-delay: 0.3s">
+            <div class="stats-card-content">
+                <div class="stats-text">
+                    <div class="stats-label">مسودات القيود</div>
+                    <div class="stats-value" id="draftEntries">...</div>
+                </div>
+                <div class="stats-icon">
+                    <span class="material-icons">draft</span>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="fs-6 opacity-75">القيود المرحلة</div>
-                            <div class="fs-2 fw-bold" id="postedEntries">-</div>
-                        </div>
-                        <div class="align-self-center opacity-75">
-                            <i class="fas fa-check-circle fa-2x"></i>
-                        </div>
-                    </div>
+        <div class="stats-card posted slide-up" style="animation-delay: 0.4s">
+            <div class="stats-card-content">
+                <div class="stats-text">
+                    <div class="stats-label">القيود المرحلة</div>
+                    <div class="stats-value" id="postedEntries">...</div>
+                </div>
+                <div class="stats-icon">
+                    <span class="material-icons">check_circle</span>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h4 class="mb-3">إجراءات سريعة</h4>
-        </div>
-
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card quick-action-card h-100">
-                <div class="card-body text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-bolt fa-3x text-warning"></i>
-                    </div>
-                    <h5 class="card-title">قيد سريع</h5>
-                    <p class="card-text text-muted">إنشاء قيد من سطرين بسرعة</p>
-                    <a href="{% url 'accounting:quick_journal_entry' %}" class="btn btn-warning">
-                        <i class="fas fa-plus me-2"></i>إنشاء قيد
-                    </a>
+    <div class="quick-actions">
+        <h2 class="section-title">إجراءات سريعة</h2>
+        <div class="actions-grid">
+            <a href="{% url 'accounting:quick_journal_entry' %}" class="action-card quick slide-up" style="animation-delay: 0.5s">
+                <div class="action-icon">
+                    <span class="material-icons">flash_on</span>
                 </div>
-            </div>
-        </div>
+                <h3 class="action-title">قيد سريع</h3>
+                <p class="action-description">إنشاء قيد من سطرين بسرعة وسهولة</p>
+                <button class="action-button">إنشاء قيد</button>
+            </a>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card quick-action-card h-100">
-                <div class="card-body text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-book fa-3x text-primary"></i>
-                    </div>
-                    <h5 class="card-title">قيد مفصل</h5>
-                    <p class="card-text text-muted">إنشاء قيد متعدد السطور</p>
-                    <a href="{% url 'accounting:journal_entry_create' %}" class="btn btn-primary">
-                        <i class="fas fa-plus me-2"></i>إنشاء قيد
-                    </a>
+            <a href="{% url 'accounting:journal_entry_create' %}" class="action-card detailed slide-up" style="animation-delay: 0.6s">
+                <div class="action-icon">
+                    <span class="material-icons">description</span>
                 </div>
-            </div>
-        </div>
+                <h3 class="action-title">قيد مفصل</h3>
+                <p class="action-description">إنشاء قيد متعدد السطور مع تفاصيل كاملة</p>
+                <button class="action-button">إنشاء قيد</button>
+            </a>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card quick-action-card h-100">
-                <div class="card-body text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-sitemap fa-3x text-success"></i>
-                    </div>
-                    <h5 class="card-title">إضافة حساب</h5>
-                    <p class="card-text text-muted">إضافة حساب جديد لدليل الحسابات</p>
-                    <a href="{% url 'accounting:account_create' %}" class="btn btn-success">
-                        <i class="fas fa-plus me-2"></i>إضافة حساب
-                    </a>
+            <a href="{% url 'accounting:account_create' %}" class="action-card account slide-up" style="animation-delay: 0.7s">
+                <div class="action-icon">
+                    <span class="material-icons">account_balance</span>
                 </div>
-            </div>
-        </div>
+                <h3 class="action-title">حساب جديد</h3>
+                <p class="action-description">إضافة حساب جديد إلى دليل الحسابات</p>
+                <button class="action-button">إضافة حساب</button>
+            </a>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card quick-action-card h-100">
-                <div class="card-body text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-chart-line fa-3x text-info"></i>
-                    </div>
-                    <h5 class="card-title">التقارير</h5>
-                    <p class="card-text text-muted">عرض التقارير المالية</p>
-                    <button class="btn btn-info" onclick="showComingSoon('التقارير المالية')">
-                        <i class="fas fa-chart-bar me-2"></i>عرض التقارير
-                    </button>
+            <a href="#" class="action-card reports slide-up" onclick="showComingSoon('التقارير المالية')" style="animation-delay: 0.8s">
+                <div class="action-icon">
+                    <span class="material-icons">analytics</span>
                 </div>
-            </div>
+                <h3 class="action-title">التقارير</h3>
+                <p class="action-description">عرض التقارير والتحليلات المالية</p>
+                <button class="action-button">عرض التقارير</button>
+            </a>
         </div>
     </div>
 
-    <!-- Recent Activities -->
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-clock me-2"></i>آخر القيود
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="recentEntries">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">جاري التحميل...</span>
-                            </div>
-                        </div>
+    <!-- Content Grid -->
+    <div class="content-grid">
+        <!-- Recent Activities -->
+        <div class="content-card slide-up" style="animation-delay: 0.9s">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <span class="material-icons">history</span>
+                    آخر القيود
+                </h3>
+            </div>
+            <div class="card-body">
+                <div id="recentEntries">
+                    <div class="loading-container">
+                        <div class="spinner"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-tasks me-2"></i>مهام سريعة
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a href="{% url 'accounting:journal_entry_list' %}?status=draft"
-                           class="list-group-item list-group-item-action">
-                            <i class="fas fa-edit text-warning me-2"></i>
-                            مراجعة المسودات
-                        </a>
-                        <a href="{% url 'accounting:journal_entry_list' %}"
-                           class="list-group-item list-group-item-action">
-                            <i class="fas fa-list text-primary me-2"></i>
-                            عرض جميع القيود
-                        </a>
-                        <a href="{% url 'accounting:account_list' %}"
-                           class="list-group-item list-group-item-action">
-                            <i class="fas fa-sitemap text-success me-2"></i>
-                            دليل الحسابات
-                        </a>
-                        <a href="#" onclick="showComingSoon('ميزان المراجعة')"
-                           class="list-group-item list-group-item-action">
-                            <i class="fas fa-balance-scale text-info me-2"></i>
-                            ميزان المراجعة
-                        </a>
-                    </div>
+        <!-- Quick Tasks -->
+        <div class="content-card slide-up" style="animation-delay: 1s">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <span class="material-icons">task</span>
+                    مهام سريعة
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="task-list">
+                    <a href="{% url 'accounting:journal_entry_list' %}?status=draft" class="task-item">
+                        <div class="task-icon warning">
+                            <span class="material-icons">edit</span>
+                        </div>
+                        <div class="task-content">
+                            <p class="task-text">مراجعة المسودات</p>
+                        </div>
+                    </a>
+
+                    <a href="{% url 'accounting:journal_entry_list' %}" class="task-item">
+                        <div class="task-icon primary">
+                            <span class="material-icons">list</span>
+                        </div>
+                        <div class="task-content">
+                            <p class="task-text">عرض جميع القيود</p>
+                        </div>
+                    </a>
+
+                    <a href="{% url 'accounting:account_list' %}" class="task-item">
+                        <div class="task-icon success">
+                            <span class="material-icons">account_tree</span>
+                        </div>
+                        <div class="task-content">
+                            <p class="task-text">دليل الحسابات</p>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="showComingSoon('ميزان المراجعة')" class="task-item">
+                        <div class="task-icon info">
+                            <span class="material-icons">balance</span>
+                        </div>
+                        <div class="task-content">
+                            <p class="task-text">ميزان المراجعة</p>
+                        </div>
+                    </a>
                 </div>
             </div>
         </div>
@@ -237,55 +689,346 @@
 
 {% block extra_js %}
 <script>
-$(document).ready(function() {
-    // تحميل الإحصائيات
-    loadDashboardStats();
-    loadRecentEntries();
+document.addEventListener('DOMContentLoaded', function() {
+    // تحميل جميع البيانات
+    Promise.all([
+        loadDashboardStats(),
+        loadRecentEntries(),
+        loadQuickTasks()
+    ]).then(() => {
+        console.log('تم تحميل جميع بيانات الداشبورد');
+    }).catch(error => {
+        console.error('خطأ في تحميل بيانات الداشبورد:', error);
+        showError('خطأ في تحميل البيانات');
+    });
+
+    // إضافة تأثيرات الحركة
+    addScrollAnimations();
 });
 
-function loadDashboardStats() {
-    // هذا مثال - يمكن ربطه بـ API حقيقي لاحقاً
-    $('#totalAccounts').text('25');
-    $('#monthlyEntries').text('12');
-    $('#draftEntries').text('3');
-    $('#postedEntries').text('9');
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/accounting/api/dashboard-stats/', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'خطأ غير معروف');
+        }
+
+        // تحديث الإحصائيات
+        animateCounter('totalAccounts', data.stats.accounts.total || 0);
+        animateCounter('monthlyEntries', data.stats.entries.monthly || 0);
+        animateCounter('draftEntries', data.stats.entries.draft || 0);
+        animateCounter('postedEntries', data.stats.entries.monthly_posted || 0);
+
+    } catch (error) {
+        console.error('خطأ في تحميل الإحصائيات:', error);
+        // عرض قيم افتراضية في حالة الخطأ
+        document.getElementById('totalAccounts').textContent = '--';
+        document.getElementById('monthlyEntries').textContent = '--';
+        document.getElementById('draftEntries').textContent = '--';
+        document.getElementById('postedEntries').textContent = '--';
+
+        showError('فشل في تحميل الإحصائيات');
+    }
 }
 
-function loadRecentEntries() {
-    // محاكاة تحميل آخر القيود
-    setTimeout(function() {
-        $('#recentEntries').html(`
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>رقم القيد</th>
-                            <th>التاريخ</th>
-                            <th>البيان</th>
-                            <th>المبلغ</th>
-                            <th>الحالة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><a href="#" class="text-decoration-none">JV202501001</a></td>
-                            <td>2025/01/20</td>
-                            <td>مشتريات بضاعة</td>
-                            <td class="text-end">1,500.00</td>
-                            <td><span class="badge bg-success">مرحل</span></td>
-                        </tr>
-                        <tr>
-                            <td><a href="#" class="text-decoration-none">JV202501002</a></td>
-                            <td>2025/01/20</td>
-                            <td>مبيعات نقدية</td>
-                            <td class="text-end">2,300.00</td>
-                            <td><span class="badge bg-warning">مسودة</span></td>
-                        </tr>
-                    </tbody>
-                </table>
+async function loadRecentEntries() {
+    try {
+        const response = await fetch('/accounting/api/recent-entries/?limit=5', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'خطأ غير معروف');
+        }
+
+        // بناء جدول القيود
+        const entriesHtml = generateEntriesTable(data.entries);
+        document.getElementById('recentEntries').innerHTML = entriesHtml;
+
+        // إضافة animation للجدول
+        const table = document.querySelector('.entries-table');
+        if (table) {
+            table.classList.add('fade-in');
+        }
+
+    } catch (error) {
+        console.error('خطأ في تحميل القيود:', error);
+        document.getElementById('recentEntries').innerHTML = `
+            <div class="text-center py-4">
+                <p class="text-muted">لا توجد قيود للعرض</p>
             </div>
-        `);
-    }, 1000);
+        `;
+        showError('فشل في تحميل آخر القيود');
+    }
 }
+
+async function loadQuickTasks() {
+    try {
+        const response = await fetch('/accounting/api/quick-tasks/', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'خطأ غير معروف');
+        }
+
+        // تحديث المهام السريعة
+        updateQuickTasks(data.tasks);
+
+    } catch (error) {
+        console.error('خطأ في تحميل المهام:', error);
+        showError('فشل في تحميل المهام السريعة');
+    }
+}
+
+function generateEntriesTable(entries) {
+    if (!entries || entries.length === 0) {
+        return `
+            <div class="text-center py-4">
+                <p class="text-muted">لا توجد قيود للعرض</p>
+            </div>
+        `;
+    }
+
+    let tableHtml = `
+        <table class="entries-table">
+            <thead>
+                <tr>
+                    <th>رقم القيد</th>
+                    <th>التاريخ</th>
+                    <th>البيان</th>
+                    <th>المبلغ</th>
+                    <th>الحالة</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    entries.forEach(entry => {
+        const statusClass = getStatusClass(entry.status);
+        const truncatedDescription = entry.description.length > 50
+            ? entry.description.substring(0, 50) + '...'
+            : entry.description;
+
+        tableHtml += `
+            <tr>
+                <td><a href="${entry.url}" class="entry-link">${entry.number}</a></td>
+                <td>${entry.date}</td>
+                <td>${truncatedDescription}</td>
+                <td>${formatNumber(entry.total_debit)}</td>
+                <td><span class="status-badge ${statusClass}">${entry.status_display}</span></td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    return tableHtml;
+}
+
+function updateQuickTasks(tasks) {
+    const tasksList = document.querySelector('.task-list');
+    if (!tasksList || !tasks || tasks.length === 0) return;
+
+    let tasksHtml = '';
+
+    tasks.forEach(task => {
+        const countDisplay = task.count !== null ? ` (${task.count})` : '';
+
+        tasksHtml += `
+            <a href="${task.url}" class="task-item">
+                <div class="task-icon ${task.color}">
+                    <span class="material-icons">${task.icon}</span>
+                </div>
+                <div class="task-content">
+                    <p class="task-text">${task.title}${countDisplay}</p>
+                </div>
+            </a>
+        `;
+    });
+
+    tasksList.innerHTML = tasksHtml;
+}
+
+function getStatusClass(status) {
+    const statusClasses = {
+        'posted': 'success',
+        'draft': 'warning',
+        'cancelled': 'error'
+    };
+    return statusClasses[status] || 'secondary';
+}
+
+function formatNumber(number) {
+    if (typeof number !== 'number') {
+        return '0.00';
+    }
+    return new Intl.NumberFormat('ar-SA', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(number);
+}
+
+function animateCounter(elementId, target) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    let current = 0;
+    const increment = Math.max(1, Math.ceil(target / 50));
+    const duration = 2000; // 2 seconds
+    const stepTime = Math.abs(Math.floor(duration / (target / increment)));
+
+    const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+            element.textContent = target;
+            clearInterval(timer);
+        } else {
+            element.textContent = current;
+        }
+    }, stepTime);
+}
+
+function addScrollAnimations() {
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animationPlayState = 'running';
+            }
+        });
+    }, observerOptions);
+
+    document.querySelectorAll('.slide-up').forEach(el => {
+        observer.observe(el);
+    });
+}
+
+function showError(message) {
+    console.warn(message);
+
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-warning fade-in';
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        max-width: 400px;
+    `;
+    errorDiv.textContent = message;
+
+    document.body.appendChild(errorDiv);
+
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 5000);
+}
+
+function showComingSoon(feature) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'info',
+            title: 'قريباً',
+            text: `سيتم إضافة ${feature} قريباً`,
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#1976d2'
+        });
+    } else {
+        alert(`سيتم إضافة ${feature} قريباً`);
+    }
+}
+
+// Ripple effect for action cards
+document.querySelectorAll('.action-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const ripple = document.createElement('span');
+        ripple.style.cssText = `
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.6);
+            transform: scale(0);
+            animation: ripple 0.6s linear;
+            left: ${x}px;
+            top: ${y}px;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+        `;
+
+        this.appendChild(ripple);
+
+        setTimeout(() => {
+            ripple.remove();
+        }, 600);
+    });
+});
+
+// CSS للـ ripple effect
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes ripple {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+
+    .alert {
+        padding: 12px 20px;
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        color: #856404;
+        font-size: 14px;
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}

@@ -1,5 +1,6 @@
 # apps/accounting/views/__init__.py
-from . import dashboard
+
+from .dashboard import *
 from .account_type_views import *
 from .account_views import *
 from .journal_views import *
@@ -11,6 +12,8 @@ from . import fiscal_views
 __all__ = [
     # Dashboard
     'dashboard',
+    'AccountingDashboardView', 'dashboard_stats_api',
+    'recent_entries_api', 'quick_tasks_api',
 
     # Account Type views
     'AccountTypeListView', 'AccountTypeCreateView', 'AccountTypeUpdateView', 'AccountTypeDeleteView',
