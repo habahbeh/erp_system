@@ -700,7 +700,7 @@ class Item(BaseModel):
     code = models.CharField(_('رمز الصنف'), max_length=50)
     name = models.CharField(_('اسم الصنف'), max_length=200)
     name_en = models.CharField(_('الاسم الإنجليزي'), max_length=200, blank=True)
-    sku = models.CharField(_('SKU'), max_length=100, blank=True)
+    catalog_number = models.CharField(_('رقم الكتالوج'), max_length=100, blank=True)
     barcode = models.CharField(_('الباركود'), max_length=100, blank=True, null=True)
 
     category = models.ForeignKey(ItemCategory, on_delete=models.PROTECT, related_name='items',
@@ -711,19 +711,6 @@ class Item(BaseModel):
                                         verbose_name=_('وحدة القياس'))
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, verbose_name=_('العملة'), related_name='items')
 
-    # المستودع الافتراضي - مطلوب للعمليات المخزنية
-    default_warehouse = models.ForeignKey(
-        Warehouse,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('المستودع الافتراضي'),
-        related_name='default_items'
-    )
-
-    # الأسعار والضرائب
-    # purchase_price = models.DecimalField(_('سعر الشراء'), max_digits=12, decimal_places=4, default=0)
-    # sale_price = models.DecimalField(_('سعر البيع'), max_digits=12, decimal_places=4, default=0)
     tax_rate = models.DecimalField(_('نسبة الضريبة %'), max_digits=5, decimal_places=2, default=16.0)
 
     # الوصف والمواصفات
@@ -799,7 +786,7 @@ class Item(BaseModel):
         verbose_name = _('صنف')
         verbose_name_plural = _('الأصناف')
         ordering = ['name']
-        unique_together = [['code', 'company'], ['sku', 'company'], ['barcode', 'company']]
+        unique_together = [['code', 'company'], ['catalog_number', 'company'], ['barcode', 'company']]
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -866,7 +853,7 @@ class ItemVariant(BaseModel):
 
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='variants', verbose_name=_('الصنف'))
     code = models.CharField(_('كود المتغير'), max_length=50)
-    sku = models.CharField(_('SKU المتغير'), max_length=100, blank=True)
+    catalog_number = models.CharField(_(' المتغير رقم الكتالوج'), max_length=100, blank=True)
     barcode = models.CharField(_('باركود المتغير'), max_length=100, blank=True)
     weight = models.DecimalField(_('الوزن الخاص'), max_digits=10, decimal_places=3, null=True, blank=True)
     image = models.ImageField(_('صورة المتغير'), upload_to='items/variants/', blank=True, null=True)

@@ -145,12 +145,12 @@ class ItemAdmin(admin.ModelAdmin):
     inlines = [ItemVariantInline]
     list_display = ['name', 'code', 'category', 'brand', 'company', 'has_variants', 'is_active']
     list_filter = ['category', 'brand', 'unit_of_measure', 'currency', 'has_variants', 'company', 'is_active']
-    search_fields = ['name', 'name_en', 'code', 'sku', 'barcode']
+    search_fields = ['name', 'name_en', 'code', 'catalog_number', 'barcode']
     readonly_fields = ['created_at', 'updated_at', 'created_by']
 
     fieldsets = [
         (_('المعلومات الأساسية'), {
-            'fields': ['code', 'name', 'name_en', 'sku', 'barcode']
+            'fields': ['code', 'name', 'name_en', 'catalog_number', 'barcode']
         }),
         (_('التصنيف والعلامة'), {
             'fields': ['category', 'brand']
@@ -213,7 +213,7 @@ class VariantValueAdmin(admin.ModelAdmin):
 class ItemVariantAdmin(admin.ModelAdmin):
     list_display = ['item', 'code', 'company', 'is_active']
     list_filter = ['company', 'is_active']
-    search_fields = ['item__name', 'code', 'sku', 'barcode']
+    search_fields = ['item__name', 'code', 'catalog_number', 'barcode']
     readonly_fields = ['created_at', 'updated_at', 'created_by']
 
 

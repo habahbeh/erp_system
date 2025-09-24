@@ -94,7 +94,7 @@ def item_datatable_ajax(request):
                 Q(name__icontains=search_value) |
                 Q(name_en__icontains=search_value) |
                 Q(code__icontains=search_value) |
-                Q(sku__icontains=search_value) |
+                Q(catalog_number__icontains=search_value) |
                 Q(barcode__icontains=search_value) |
                 Q(short_description__icontains=search_value)
             )
@@ -265,7 +265,7 @@ def item_autocomplete(request):
         Q(name_en__icontains=term) |
         Q(code__icontains=term) |
         Q(barcode__icontains=term) |
-        Q(sku__icontains=term)
+        Q(catalog_number__icontains=term)
     ).select_related('unit_of_measure', 'currency')[:10]
 
     results = []
@@ -298,7 +298,7 @@ def get_item_details(request, item_id):
             'name': item.name,
             'name_en': item.name_en,
             'barcode': item.barcode,
-            'sku': item.sku,
+            'catalog_number': item.catalog_number,
             'tax_rate': float(item.tax_rate),
             'unit': item.unit_of_measure.name,
             'currency_symbol': item.currency.symbol,

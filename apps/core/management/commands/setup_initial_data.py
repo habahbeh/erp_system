@@ -94,7 +94,7 @@ class Command(BaseCommand):
                 defaults={
                     'name': f'صنف تجريبي {i}',
                     'name_en': f'Test Item {i}',
-                    'sku': f'SKU00{i}',
+                    'catalog_number': f'catalog_number00{i}',
                     'barcode': f'123456789{i}',
                     'category': category,
                     'brand': brand,

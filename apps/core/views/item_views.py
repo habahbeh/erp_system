@@ -155,7 +155,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     item=self.object,
                     company=company,
                     code=variant_data['code'],
-                    sku=f"{self.object.sku or self.object.code}-{variant_data['index']:03d}" if self.object.sku else
+                    catalog_number=f"{self.object.catalog_number or self.object.code}-{variant_data['index']:03d}" if self.object.catalog_number else
                     variant_data['code'],
                     notes=f"متغير مولد تلقائياً: {variant_data['description']}"
                 )
@@ -342,7 +342,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     item=self.object,
                     company=company,
                     code=variant_data['code'],
-                    sku=f"{self.object.sku or self.object.code}-{variant_data['index']:03d}" if self.object.sku else
+                    catalog_number=f"{self.object.catalog_number or self.object.code}-{variant_data['index']:03d}" if self.object.catalog_number else
                     variant_data['code'],
                     notes=f"متغير مولد تلقائياً: {variant_data['description']}"
                 )

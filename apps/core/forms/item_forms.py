@@ -17,9 +17,9 @@ class ItemForm(forms.ModelForm):
         model = Item
         fields = [
             # المعلومات الأساسية
-            'code', 'name', 'name_en', 'sku', 'barcode',
+            'code', 'name', 'name_en', 'catalog_number', 'barcode',
             'category', 'brand', 'unit_of_measure', 'currency',
-            'default_warehouse', 'tax_rate',
+            'tax_rate',
             # حذف الحسابات المحاسبية مؤقتاً لحل المشاكل
             # 'sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account',
             'short_description', 'description', 'has_variants',
@@ -42,9 +42,9 @@ class ItemForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': _('رمز الصنف (سيتم توليده تلقائياً)')
             }),
-            'sku': forms.TextInput(attrs={
+            'catalog_number': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('SKU')
+                'placeholder': _('رقم الكتالوج (اختياري)')
             }),
             'barcode': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -64,9 +64,6 @@ class ItemForm(forms.ModelForm):
             'currency': forms.Select(attrs={
                 'class': 'form-select',
                 'required': True
-            }),
-            'default_warehouse': forms.Select(attrs={
-                'class': 'form-select'
             }),
             'tax_rate': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -179,13 +176,10 @@ class ItemForm(forms.ModelForm):
                 is_active=True
             ).order_by('name')
 
-            self.fields['default_warehouse'].queryset = Warehouse.objects.filter(
-                company=company, is_active=True
-            ).order_by('name')
 
         # إضافة empty_label للخيارات الاختيارية
         self.fields['brand'].empty_label = _('اختر العلامة التجارية')
-        self.fields['default_warehouse'].empty_label = _('اختر المستودع')
+
 
 
 class ItemCategoryForm(forms.ModelForm):
@@ -257,15 +251,15 @@ class ItemVariantForm(forms.ModelForm):
 
     class Meta:
         model = ItemVariant
-        fields = ['code', 'sku', 'barcode', 'weight', 'image', 'notes']
+        fields = ['code', 'catalog_number', 'barcode', 'weight', 'image', 'notes']
         widgets = {
             'code': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm',
                 'placeholder': _('سيتم توليده تلقائياً')
             }),
-            'sku': forms.TextInput(attrs={
+            'catalog_number': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm',
-                'placeholder': _('SKU المتغير')
+                'placeholder': _('المتغير رقم الكتالوج')
             }),
             'barcode': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm',
@@ -304,7 +298,7 @@ ItemVariantFormSet = inlineformset_factory(
     Item,
     ItemVariant,
     form=ItemVariantForm,
-    fields=['code', 'sku', 'barcode', 'weight', 'image', 'notes'],
+    fields=['code', 'catalog_number', 'barcode', 'weight', 'image', 'notes'],
     extra=0,  # لن نضيف متغيرات فارغة
     can_delete=True,
     max_num=50,  # حد أقصى 50 متغير

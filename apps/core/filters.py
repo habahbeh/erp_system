@@ -18,7 +18,7 @@ class ItemFilter(django_filters.FilterSet):
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم، الكود، SKU، الباركود...'),
+            'placeholder': _('البحث في الاسم، الكود، رقم الكتالوج، الباركود...'),
         })
     )
 
@@ -118,7 +118,7 @@ class ItemFilter(django_filters.FilterSet):
                 Q(name__icontains=value) |
                 Q(name_en__icontains=value) |
                 Q(code__icontains=value) |
-                Q(sku__icontains=value) |
+                Q(catalog_number__icontains=value) |
                 Q(barcode__icontains=value) |
                 Q(short_description__icontains=value) |
                 Q(manufacturer__icontains=value) |
