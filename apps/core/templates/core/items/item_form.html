@@ -649,6 +649,26 @@
 
 {% block extra_js %}
 <script>
+// تصحيح دالة generateVariantCode
+function generateVariantCode(index) {
+    // ✅ تصحيح: استخدام الحقول الصحيحة من النموذج
+    const itemCode = document.getElementById('id_item_code')?.value?.trim() || '';
+    const itemName = document.getElementById('id_name')?.value?.trim() || '';
+
+    // استخدام item_code إذا كان متوفر، وإلا استخدم اسم المادة مع تنظيف
+    let baseCode = '';
+    if (itemCode) {
+        baseCode = itemCode;
+    } else if (itemName) {
+        baseCode = itemName.replace(/\s+/g, '').substring(0, 10); // أول 10 أحرف
+    } else {
+        baseCode = 'ITM'; // كود افتراضي
+    }
+
+    return `${baseCode}-V${String(index).padStart(3, '0')}`;
+}
+
+// تصحيح باقي الكود للـ Variants
 document.addEventListener('DOMContentLoaded', function() {
     // Form elements
     const form = document.getElementById('itemForm');
@@ -675,10 +695,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextTabBtn = document.getElementById('nextTab');
     const prevTabBtn = document.getElementById('prevTab');
 
+    // ✅ تحقق من وجود العناصر قبل استخدامها
+    if (!hasVariantsCheckbox) {
+        console.error('has_variants checkbox not found');
+        return;
+    }
+
     // Update progress bar
     function updateProgress() {
-        const progress = ((currentTabIndex + 1) / totalTabs) * 100;
-        document.getElementById('formProgress').style.width = progress + '%';
+        const progressBar = document.getElementById('formProgress');
+        if (progressBar) {
+            const progress = ((currentTabIndex + 1) / totalTabs) * 100;
+            progressBar.style.width = progress + '%';
+        }
     }
 
     // Handle tab changes
@@ -692,36 +721,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update tab navigation buttons
     function updateTabButtons() {
-        prevTabBtn.disabled = currentTabIndex === 0;
-        nextTabBtn.disabled = currentTabIndex === totalTabs - 1;
+        if (prevTabBtn) prevTabBtn.disabled = currentTabIndex === 0;
+        if (nextTabBtn) nextTabBtn.disabled = currentTabIndex === totalTabs - 1;
     }
 
     // Next tab button
-    nextTabBtn.addEventListener('click', function() {
-        if (currentTabIndex < totalTabs - 1) {
-            tabButtons[currentTabIndex + 1].click();
-        }
-    });
+    if (nextTabBtn) {
+        nextTabBtn.addEventListener('click', function() {
+            if (currentTabIndex < totalTabs - 1) {
+                tabButtons[currentTabIndex + 1].click();
+            }
+        });
+    }
 
     // Previous tab button
-    prevTabBtn.addEventListener('click', function() {
-        if (currentTabIndex > 0) {
-            tabButtons[currentTabIndex - 1].click();
-        }
-    });
+    if (prevTabBtn) {
+        prevTabBtn.addEventListener('click', function() {
+            if (currentTabIndex > 0) {
+                tabButtons[currentTabIndex - 1].click();
+            }
+        });
+    }
 
     // === الوظائف الجديدة للمتغيرات ===
 
     // Variants functionality
     hasVariantsCheckbox.addEventListener('change', function() {
         if (this.checked) {
-            variantsContainer.style.display = 'block';
-            noVariantsMessage.style.display = 'none';
+            if (variantsContainer) variantsContainer.style.display = 'block';
+            if (noVariantsMessage) noVariantsMessage.style.display = 'none';
         } else {
-            variantsContainer.style.display = 'none';
-            noVariantsMessage.style.display = 'block';
+            if (variantsContainer) variantsContainer.style.display = 'none';
+            if (noVariantsMessage) noVariantsMessage.style.display = 'block';
             // إخفاء معاينة المتغيرات
-            generatedVariantsCard.style.display = 'none';
+            if (generatedVariantsCard) generatedVariantsCard.style.display = 'none';
             generatedVariants = [];
             updateVariantCount();
         }
@@ -746,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 checkbox.checked = false;
             });
             updateVariantCount();
-            generatedVariantsCard.style.display = 'none';
+            if (generatedVariantsCard) generatedVariantsCard.style.display = 'none';
             generatedVariants = [];
         });
     }
@@ -840,21 +873,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }, [[]]);
     }
 
-    // توليد كود المتغير
-    function generateVariantCode(index) {
-        const baseCode = document.getElementById('id_code').value ||
-                        document.getElementById('id_name').value?.replace(/\s+/g, '') || 'ITM';
-        return `${baseCode}-V${String(index).padStart(3, '0')}`;
-    }
-
     // توليد المتغيرات وعرضها
     function generateVariantCombinations() {
         generatedVariants = calculateCombinations();
 
         if (generatedVariants.length > 0) {
             displayVariantPreview();
-            generatedVariantsCard.style.display = 'block';
-            finalVariantCount.textContent = generatedVariants.length;
+            if (generatedVariantsCard) generatedVariantsCard.style.display = 'block';
+            if (finalVariantCount) finalVariantCount.textContent = generatedVariants.length;
         } else {
             alert('{% trans "يرجى اختيار خصائص وقيم للمتغيرات أولاً" %}');
         }
@@ -862,6 +888,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // عرض معاينة المتغيرات
     function displayVariantPreview() {
+        if (!variantsPreviewTable) return;
+
         let tableHTML = '';
 
         generatedVariants.forEach((variant, index) => {
@@ -883,9 +911,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // عرض المتغيرات الموجودة (للتحديث)
-    // عرض المتغيرات الموجودة (للتحديث) - نسخة محسنة
     function displayExistingVariants() {
-        if (!isUpdate) return;
+        if (!isUpdate || !variantsPreviewTable) return;
 
         // بيانات المتغيرات الموجودة من الخادم
         const existingVariantsData = [
@@ -941,58 +968,66 @@ document.addEventListener('DOMContentLoaded', function() {
             variant.code = generateVariantCode(newIndex + 1);
         });
         displayVariantPreview();
-        finalVariantCount.textContent = generatedVariants.length;
+        if (finalVariantCount) finalVariantCount.textContent = generatedVariants.length;
         updateVariantCount();
 
-        if (generatedVariants.length === 0) {
+        if (generatedVariants.length === 0 && generatedVariantsCard) {
             generatedVariantsCard.style.display = 'none';
         }
     };
 
     // Generate catalog_number
     document.getElementById('generatecatalog_number')?.addEventListener('click', function() {
-        const name = document.getElementById('id_name').value.trim();
-        if (name) {
+        const name = document.getElementById('id_name')?.value?.trim();
+        const catalogField = document.getElementById('id_catalog_number');
+        if (name && catalogField) {
             const catalog_number = name.replace(/\s+/g, '-').toUpperCase().substring(0, 20);
-            document.getElementById('id_catalog_number').value = catalog_number;
+            catalogField.value = catalog_number;
         }
     });
 
     // Generate Barcode
     document.getElementById('generateBarcode')?.addEventListener('click', function() {
-        const randomBarcode = Math.random().toString().slice(2, 15);
-        document.getElementById('id_barcode').value = randomBarcode;
+        const barcodeField = document.getElementById('id_barcode');
+        if (barcodeField) {
+            const randomBarcode = Math.random().toString().slice(2, 15);
+            barcodeField.value = randomBarcode;
+        }
     });
 
     // Form submission - إضافة بيانات المتغيرات
-    form.addEventListener('submit', function(event) {
-        // إضافة المتغيرات المولدة للفورم
-        if (hasVariantsCheckbox.checked && generatedVariants.length > 0) {
-            addVariantsToForm();
-        }
-
-        if (!form.checkValidity()) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            // Find first invalid field and switch to its tab
-            const firstInvalid = form.querySelector(':invalid');
-            if (firstInvalid) {
-                const tabPane = firstInvalid.closest('.tab-pane');
-                if (tabPane) {
-                    const tabButton = document.querySelector(`[data-bs-target="#${tabPane.id}"]`);
-                    if (tabButton) {
-                        tabButton.click();
-                    }
-                }
-                firstInvalid.focus();
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            // إضافة المتغيرات المولدة للفورم
+            if (hasVariantsCheckbox.checked && generatedVariants.length > 0) {
+                addVariantsToForm();
             }
-        }
-        form.classList.add('was-validated');
-    });
+
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                // Find first invalid field and switch to its tab
+                const firstInvalid = form.querySelector(':invalid');
+                if (firstInvalid) {
+                    const tabPane = firstInvalid.closest('.tab-pane');
+                    if (tabPane) {
+                        const tabButton = document.querySelector(`[data-bs-target="#${tabPane.id}"]`);
+                        if (tabButton) {
+                            tabButton.click();
+                        }
+                    }
+                    firstInvalid.focus();
+                }
+            }
+            form.classList.add('was-validated');
+        });
+    }
 
     // إضافة بيانات المتغيرات للفورم قبل الإرسال
     function addVariantsToForm() {
+        if (!form) return;
+
         // إزالة الحقول المخفية السابقة
         const oldHiddenInputs = form.querySelectorAll('input[name*="generated_variants"]');
         oldHiddenInputs.forEach(input => input.remove());
@@ -1010,9 +1045,9 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTabButtons();
 
     // Check initial variants state
-    if (hasVariantsCheckbox && hasVariantsCheckbox.checked) {
-        variantsContainer.style.display = 'block';
-        noVariantsMessage.style.display = 'none';
+    if (hasVariantsCheckbox.checked) {
+        if (variantsContainer) variantsContainer.style.display = 'block';
+        if (noVariantsMessage) noVariantsMessage.style.display = 'none';
     }
 
     // عرض المتغيرات الموجودة في حالة التعديل
