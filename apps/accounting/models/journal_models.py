@@ -412,12 +412,12 @@ class JournalEntryLine(models.Model):
 
     # للربط مع الشركاء
     partner_type = models.CharField(
-        _('نوع الشريك'),
+        _('نوع العميل'),
         max_length=20,
         choices=[('customer', _('عميل')), ('supplier', _('مورد')), ('employee', _('موظف')), ('other', _('أخرى'))],
         blank=True
     )
-    partner_id = models.IntegerField(_('معرف الشريك'), null=True, blank=True)
+    partner_id = models.IntegerField(_('معرف العميل'), null=True, blank=True)
 
     class Meta:
         verbose_name = _('سطر قيد يومية')

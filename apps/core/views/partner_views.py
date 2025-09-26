@@ -1,6 +1,6 @@
 # apps/core/views/partner_views.py
 """
-Views للشركاء التجاريين (العملاء والموردين)
+Views للعملاء (العملاء والموردين)
 """
 
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -31,14 +31,14 @@ class BusinessPartnerListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
             'add_url': reverse('core:partner_create'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الشركاء التجاريون'), 'url': ''}
+                {'title': _('العملاء'), 'url': ''}
             ],
         })
         return context
 
 
 class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, CreateView):
-    """إضافة شريك تجاري جديد"""
+    """إضافة عميل جديد"""
     model = BusinessPartner
     form_class = BusinessPartnerForm
     template_name = 'core/partners/partner_form.html'
@@ -53,13 +53,13 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('إضافة شريك تجاري جديد'),
+            'title': _('إضافة عميل جديد'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الشركاء التجاريون'), 'url': reverse('core:partner_list')},
+                {'title': _('العملاء'), 'url': reverse('core:partner_list')},
                 {'title': _('إضافة جديد'), 'url': ''}
             ],
-            'submit_text': _('حفظ الشريك'),
+            'submit_text': _('حفظ العميل'),
             'cancel_url': reverse('core:partner_list'),
         })
         return context
@@ -68,7 +68,7 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         response = super().form_valid(form)
         messages.success(
             self.request,
-            _('تم إضافة الشريك التجاري "%(name)s" بنجاح') % {'name': self.object.name}
+            _('تم إضافة العميل "%(name)s" بنجاح') % {'name': self.object.name}
         )
         return response
 
@@ -78,7 +78,7 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
 
 class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, UpdateView):
-    """تعديل شريك تجاري"""
+    """تعديل عميل"""
     model = BusinessPartner
     form_class = BusinessPartnerForm
     template_name = 'core/partners/partner_form.html'
@@ -93,10 +93,10 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('تعديل الشريك: %(name)s') % {'name': self.object.name},
+            'title': _('تعديل العميل: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الشركاء التجاريون'), 'url': reverse('core:partner_list')},
+                {'title': _('العملاء'), 'url': reverse('core:partner_list')},
                 {'title': _('تعديل'), 'url': ''}
             ],
             'submit_text': _('حفظ التعديلات'),
@@ -109,7 +109,7 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         response = super().form_valid(form)
         messages.success(
             self.request,
-            _('تم تحديث الشريك التجاري "%(name)s" بنجاح') % {'name': self.object.name}
+            _('تم تحديث العميل "%(name)s" بنجاح') % {'name': self.object.name}
         )
         return response
 
@@ -119,7 +119,7 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
 
 class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, DetailView):
-    """تفاصيل الشريك التجاري"""
+    """تفاصيل العميل"""
     model = BusinessPartner
     template_name = 'core/partners/partner_detail.html'
     context_object_name = 'partner'
@@ -128,12 +128,12 @@ class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('تفاصيل الشريك: %(name)s') % {'name': self.object.name},
+            'title': _('تفاصيل العميل: %(name)s') % {'name': self.object.name},
             'can_change': self.request.user.has_perm('core.change_businesspartner'),
             'can_delete': self.request.user.has_perm('core.delete_businesspartner'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الشركاء التجاريون'), 'url': reverse('core:partner_list')},
+                {'title': _('العملاء'), 'url': reverse('core:partner_list')},
                 {'title': _('التفاصيل'), 'url': ''}
             ],
             'edit_url': reverse('core:partner_update', kwargs={'pk': self.object.pk}),
@@ -143,7 +143,7 @@ class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
 
 class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, DeleteView):
-    """حذف شريك تجاري"""
+    """حذف عميل"""
     model = BusinessPartner
     template_name = 'core/partners/partner_confirm_delete.html'
     permission_required = 'core.delete_businesspartner'
@@ -152,10 +152,10 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('حذف الشريك: %(name)s') % {'name': self.object.name},
+            'title': _('حذف العميل: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الشركاء التجاريون'), 'url': reverse('core:partner_list')},
+                {'title': _('العملاء'), 'url': reverse('core:partner_list')},
                 {'title': _('حذف'), 'url': ''}
             ],
             'cancel_url': reverse('core:partner_list'),
@@ -170,12 +170,12 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
             response = super().delete(request, *args, **kwargs)
             messages.success(
                 request,
-                _('تم حذف الشريك التجاري "%(name)s" بنجاح') % {'name': partner_name}
+                _('تم حذف العميل "%(name)s" بنجاح') % {'name': partner_name}
             )
             return response
         except Exception as e:
             messages.error(
                 request,
-                _('لا يمكن حذف هذا الشريك لوجود بيانات مرتبطة به')
+                _('لا يمكن حذف هذا العميل لوجود بيانات مرتبطة به')
             )
             return redirect('core:partner_list')

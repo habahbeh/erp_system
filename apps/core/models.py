@@ -606,7 +606,7 @@ class BusinessPartner(BaseModel):
     ACCOUNT_TYPE_CHOICES = [('cash', _('نقدي')), ('credit', _('ذمم'))]
     TAX_STATUS_CHOICES = [('taxable', _('خاضع')), ('exempt', _('معفى')), ('export', _('تصدير'))]
 
-    partner_type = models.CharField(_('نوع الشريك'), max_length=10, choices=PARTNER_TYPES, default='customer')
+    partner_type = models.CharField(_('نوع العميل'), max_length=10, choices=PARTNER_TYPES, default='customer')
     code = models.CharField(_('الرمز'), max_length=50)
     name = models.CharField(_('الاسم'), max_length=200)
     name_en = models.CharField(_('الاسم الإنجليزي'), max_length=200, blank=True)
@@ -654,8 +654,8 @@ class BusinessPartner(BaseModel):
     notes = models.TextField(_('ملاحظات'), blank=True)
 
     class Meta:
-        verbose_name = _('شريك تجاري')
-        verbose_name_plural = _('الشركاء التجاريون')
+        verbose_name = _('عميل')
+        verbose_name_plural = _('العملاء')
         unique_together = [['company', 'code']]
         ordering = ['name']
 
@@ -669,7 +669,7 @@ class BusinessPartner(BaseModel):
         return self.partner_type in ['supplier', 'both']
 
     def generate_code(self):
-        """توليد كود الشريك التجاري"""
+        """توليد كود العميل"""
         if self.partner_type == 'customer':
             prefix = 'CUS'
         elif self.partner_type == 'supplier':

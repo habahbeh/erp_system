@@ -10,7 +10,7 @@ from ..models import BusinessPartner, User
 
 
 class BusinessPartnerForm(forms.ModelForm):
-    """نموذج إضافة/تعديل الشريك التجاري"""
+    """نموذج إضافة/تعديل العميل"""
 
     class Meta:
         model = BusinessPartner
@@ -32,7 +32,7 @@ class BusinessPartnerForm(forms.ModelForm):
             }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('اسم الشريك التجاري'),
+                'placeholder': _('اسم العميل'),
                 'required': True
             }),
             'name_en': forms.TextInput(attrs={
@@ -138,7 +138,7 @@ class BusinessPartnerForm(forms.ModelForm):
         self.fields['sales_representative'].empty_label = _('-- اختر المندوب --')
 
     def clean_code(self):
-        """التحقق من عدم تكرار رمز الشريك"""
+        """التحقق من عدم تكرار رمز العميل"""
         code = self.cleaned_data.get('code')
         if code and self.request:
             company = self.request.current_company

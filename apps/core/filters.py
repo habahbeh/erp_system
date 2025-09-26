@@ -286,7 +286,7 @@ class BusinessPartnerFilter(django_filters.FilterSet):
 
     partner_type = django_filters.ChoiceFilter(
         choices=BusinessPartner.PARTNER_TYPES,
-        label=_('نوع الشريك'),
+        label=_('نوع العميل'),
         empty_label=_('جميع الأنواع'),
         widget=forms.Select(attrs={'class': 'form-select'})
     )

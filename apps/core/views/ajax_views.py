@@ -346,14 +346,14 @@ def check_barcode(request):
 
 
 """
-Ajax Views للشركاء التجاريين
+Ajax Views للعملاء
 """
 
 @login_required
 @permission_required_with_message('core.view_businesspartner')
 @require_http_methods(["GET"])
 def partner_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للشركاء التجاريين"""
+    """Ajax endpoint للـ DataTable للعملاء"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -499,7 +499,7 @@ def partner_datatable_ajax(request):
                 actions += f'''
                     <a href="{reverse('core:partner_delete', kwargs={'pk': partner.pk})}" 
                        class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
-                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا الشريك؟')}')">
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا العميل؟')}')">
                         <i class="fas fa-trash"></i>
                     </a>
                 '''
@@ -511,11 +511,11 @@ def partner_datatable_ajax(request):
                 # الكود
                 f'<code class="text-primary fw-bold">{partner.code}</code>',
 
-                # اسم الشريك
+                # اسم العميل
                 f'<div><strong class="text-dark">{partner.name}</strong>' +
                 (f'<br><small class="text-muted">{partner.name_en}</small>' if partner.name_en else '') + '</div>',
 
-                # نوع الشريك
+                # نوع العميل
                 f'<span class="badge bg-primary fs-6">{partner.get_partner_type_display()}</span>',
 
                 # نوع الحساب
