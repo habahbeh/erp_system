@@ -10,7 +10,7 @@ from django.db.models import Q, Count
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission
+from ..models import Item, BusinessPartner, PartnerRepresentative, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission
 from ..decorators import permission_required_with_message
 from django.contrib.auth import get_user_model
 
@@ -349,11 +349,12 @@ def check_barcode(request):
 Ajax Views للعملاء
 """
 
+
 @login_required
 @permission_required_with_message('core.view_businesspartner')
 @require_http_methods(["GET"])
 def partner_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للعملاء"""
+    """Ajax endpoint للـ DataTable للعملاء مع دعم المندوبين المتعددين"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -365,23 +366,25 @@ def partner_datatable_ajax(request):
 
         # معالجة طلبات تحميل خيارات الفلاتر
         if request.GET.get('get_representatives'):
-            representatives = User.objects.filter(
-                company=request.current_company,
-                is_active=True
-            ).values('id', 'first_name', 'last_name').order_by('first_name', 'last_name')
+            try:
+                # الآن نجلب أسماء المندوبين من PartnerRepresentative
+                representatives = PartnerRepresentative.objects.filter(
+                    company=request.current_company,
+                    is_active=True
+                ).values('representative_name').distinct().order_by('representative_name')
 
-            # تنسيق البيانات
-            reps_data = []
-            for rep in representatives:
-                full_name = f"{rep['first_name']} {rep['last_name']}".strip()
-                if not full_name:
-                    full_name = f"مستخدم {rep['id']}"
-                reps_data.append({
-                    'id': rep['id'],
-                    'name': full_name
-                })
+                # تنسيق البيانات
+                reps_data = []
+                for rep in representatives:
+                    if rep['representative_name']:  # تأكد من وجود اسم
+                        reps_data.append({
+                            'id': rep['representative_name'],  # نستخدم الاسم كـ ID
+                            'name': rep['representative_name']
+                        })
 
-            return JsonResponse({'representatives': reps_data})
+                return JsonResponse({'representatives': reps_data})
+            except Exception as e:
+                return JsonResponse({'representatives': [], 'error': str(e)})
 
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
@@ -403,7 +406,8 @@ def partner_datatable_ajax(request):
         else:
             queryset = BusinessPartner.objects.all()
 
-        queryset = queryset.select_related('sales_representative')
+        # إزالة prefetch_related المعقد مؤقتاً
+        # queryset = queryset.prefetch_related('representatives__user')
 
         # تطبيق الفلاتر المخصصة
         if partner_type_filter:
@@ -413,7 +417,8 @@ def partner_datatable_ajax(request):
             queryset = queryset.filter(account_type=account_type_filter)
 
         if representative_filter:
-            queryset = queryset.filter(sales_representative_id=representative_filter)
+            # البحث في المندوبين المتعددين (بالاسم النصي)
+            queryset = queryset.filter(representatives__representative_name__icontains=representative_filter)
 
         if tax_status_filter:
             queryset = queryset.filter(tax_status=tax_status_filter)
@@ -425,7 +430,7 @@ def partner_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث العام - مبسط
         if search_value:
             queryset = queryset.filter(
                 Q(name__icontains=search_value) |
@@ -439,7 +444,9 @@ def partner_datatable_ajax(request):
                 Q(address__icontains=search_value) |
                 Q(city__icontains=search_value) |
                 Q(region__icontains=search_value)
-            )
+                # إزالة البحث في المندوبين مؤقتاً لتجنب الأخطاء
+                # Q(representatives__representative_name__icontains=search_value)
+            ).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -449,25 +456,29 @@ def partner_datatable_ajax(request):
 
         records_filtered = queryset.count()
 
-        # الترتيب
+        # الترتيب - مبسط
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['code', 'name', 'partner_type', 'account_type', 'sales_representative__first_name', 'phone',
-                   'is_active']
+        columns = ['code', 'name', 'partner_type', 'account_type', 'representatives', 'phone', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
             if order_dir == 'desc':
                 order_field = '-' + order_field
-            queryset = queryset.order_by(order_field)
+
+            # ترتيب بسيط بدون تعقيدات
+            if 'representatives' not in order_field:
+                queryset = queryset.order_by(order_field)
+            else:
+                queryset = queryset.order_by('name')  # ترتيب افتراضي
         else:
             queryset = queryset.order_by('name')
 
         # التقسيم للصفحات
         partners = queryset[start:start + length]
 
-        # تجهيز البيانات للإرسال
+        # تجهيز البيانات للإرسال - مبسط
         data = []
         for partner in partners:
             # التحقق من الصلاحيات
@@ -506,6 +517,27 @@ def partner_datatable_ajax(request):
 
             actions += '</div>'
 
+            # تجميع المندوبين - مبسط
+            try:
+                representatives = partner.representatives.all()
+                if representatives.exists():
+                    reps_list = []
+                    for rep in representatives[:2]:  # أول 2 مندوبين
+                        rep_name = rep.representative_name or "مندوب"
+                        if rep.is_primary:
+                            rep_name = f"<strong>{rep_name}</strong> ⭐"
+                        reps_list.append(rep_name)
+
+                    if representatives.count() > 2:
+                        reps_list.append(
+                            f"<small class='text-info'>+{representatives.count() - 2} {_('آخرين')}</small>")
+
+                    representatives_html = '<div>' + '<br>'.join(reps_list) + '</div>'
+                else:
+                    representatives_html = '<span class="text-muted">-</span>'
+            except Exception:
+                representatives_html = '<span class="text-muted">-</span>'
+
             # تجميع صف البيانات
             row = [
                 # الكود
@@ -521,9 +553,8 @@ def partner_datatable_ajax(request):
                 # نوع الحساب
                 f'<span class="badge bg-secondary fs-6">{partner.get_account_type_display()}</span>',
 
-                # المندوب
-                f'<span class="text-dark">{partner.sales_representative.get_full_name()}</span>' if partner.sales_representative
-                else '<span class="text-muted">-</span>',
+                # المندوبين
+                representatives_html,
 
                 # الهاتف
                 f'<div>' +
@@ -553,14 +584,13 @@ def partner_datatable_ajax(request):
     except Exception as e:
         import traceback
         return JsonResponse({
-            'error': str(e),
+            'error': f"Ajax Error: {str(e)}",
             'traceback': traceback.format_exc(),
             'draw': draw if 'draw' in locals() else 1,
             'recordsTotal': 0,
             'recordsFiltered': 0,
             'data': []
         }, status=500)
-
 
 
 # أضف هذا في نهاية ملف apps/core/views/ajax_views.py

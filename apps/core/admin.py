@@ -8,7 +8,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 from .models import (
     Currency, Company, Branch, User, UserProfile, Warehouse,
-    BusinessPartner, Item, ItemCategory, Brand, UnitOfMeasure,
+    BusinessPartner,PartnerRepresentative, Item, ItemCategory, Brand, UnitOfMeasure,
     VariantAttribute, VariantValue, ItemVariant, ItemVariantAttributeValue,
     NumberingSequence, CustomPermission, SystemSettings, AuditLog
 )
@@ -72,41 +72,108 @@ class WarehouseAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at', 'created_by']
 
 
+class PartnerRepresentativeInline(admin.TabularInline):
+    """إدراج المندوبين في صفحة العميل"""
+    model = PartnerRepresentative
+    extra = 1
+    fields = ('representative_name', 'phone', 'is_primary', 'notes')
+
+
 @admin.register(BusinessPartner)
 class BusinessPartnerAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'partner_type', 'account_type', 'company', 'is_active']
-    list_filter = ['partner_type', 'account_type', 'tax_status', 'company', 'is_active']
-    search_fields = ['name', 'name_en', 'code', 'tax_number', 'email', 'phone']
-    readonly_fields = ['created_at', 'updated_at', 'created_by']
-
-    fieldsets = [
-        (_('المعلومات الأساسية'), {
-            'fields': ['partner_type', 'code', 'name', 'name_en', 'account_type']
-        }),
-        (_('معلومات الاتصال'), {
-            'fields': ['contact_person', 'phone', 'mobile', 'fax', 'email']
-        }),
-        (_('العنوان'), {
-            'fields': ['address', 'city', 'region']
-        }),
-        (_('المعلومات الضريبية'), {
-            'fields': ['tax_number', 'tax_status', 'commercial_register']
-        }),
-        (_('حدود الائتمان'), {
-            'fields': ['credit_limit', 'credit_period']
-        }),
-        (_('إعدادات أخرى'), {
-            'fields': ['sales_representative', 'notes', 'is_active']
-        }),
+    """إدارة العملاء في الـ Admin"""
+    list_display = [
+        'code', 'name', 'partner_type', 'account_type',
+        'tax_status', 'get_representatives_count', 'is_active'
     ]
+    list_filter = [
+        'partner_type', 'account_type', 'tax_status',
+        'is_active', 'created_at', 'company'
+    ]
+    search_fields = [
+        'code', 'name', 'name_en', 'email', 'phone',
+        'mobile', 'tax_number', 'commercial_register'
+    ]
+    autocomplete_fields = ['company', 'created_by']
+
+    fieldsets = (
+        ('المعلومات الأساسية', {
+            'fields': (
+                'partner_type', 'code', 'name', 'name_en',
+                'account_type', 'company'
+            )
+        }),
+        ('معلومات الاتصال', {
+            'fields': (
+                'contact_person', 'phone', 'mobile', 'fax',
+                'email', 'address', 'city', 'region'
+            )
+        }),
+        ('المعلومات الضريبية', {
+            'fields': (
+                'tax_number', 'tax_status', 'commercial_register',
+                'tax_exemption_start_date', 'tax_exemption_end_date',
+                'tax_exemption_reason'
+            )
+        }),
+        ('حدود الائتمان', {
+            'fields': ('credit_limit', 'credit_period')
+        }),
+        ('المرفقات', {
+            'fields': (
+                'commercial_register_file', 'payment_letter_file',
+                'tax_exemption_file', 'other_attachments'
+            )
+        }),
+        ('أخرى', {
+            'fields': ('notes', 'is_active', 'created_by')
+        }),
+    )
+
+    inlines = [PartnerRepresentativeInline]
+
+    def get_representatives_count(self, obj):
+        """عدد المندوبين"""
+        return obj.representatives.count()
+
+    get_representatives_count.short_description = 'عدد المندوبين'
 
     def save_model(self, request, obj, form, change):
-        if not obj.company_id:
-            obj.company = Company.objects.first()  # أول شركة متاحة
-        if not obj.branch_id:
-            obj.branch = Branch.objects.filter(company=obj.company).first()
-        if not obj.created_by_id:
+        """حفظ مع إضافة المستخدم الحالي"""
+        if not change:  # إنشاء جديد
             obj.created_by = request.user
+            if not obj.company:
+                obj.company = request.user.company
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(PartnerRepresentative)
+class PartnerRepresentativeAdmin(admin.ModelAdmin):
+    """إدارة مندوبي العملاء"""
+    list_display = [
+        'partner', 'representative_name', 'phone', 'is_primary', 'is_active'
+    ]
+    list_filter = ['is_primary', 'is_active', 'company']
+    search_fields = [
+        'partner__name', 'representative_name', 'phone', 'notes'
+    ]
+    autocomplete_fields = ['partner', 'company']
+
+    fieldsets = (
+        ('معلومات المندوب', {
+            'fields': ('partner', 'representative_name', 'phone', 'is_primary')
+        }),
+        ('تفاصيل إضافية', {
+            'fields': ('notes', 'company', 'is_active')
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        """حفظ مع إضافة المستخدم الحالي"""
+        if not change:  # إنشاء جديد
+            obj.created_by = request.user
+            if not obj.company:
+                obj.company = request.user.company
         super().save_model(request, obj, form, change)
 
 

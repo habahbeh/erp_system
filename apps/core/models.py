@@ -600,11 +600,17 @@ class Brand(BaseModel):
 
 
 class BusinessPartner(BaseModel):
-    """العملاء - موحد للعملاء والموردين"""
+    """العملاء - موحد للعملاء والموردين مع المرفقات والمندوبين المتعددين"""
 
     PARTNER_TYPES = [('customer', _('عميل')), ('supplier', _('مورد')), ('both', _('عميل ومورد'))]
     ACCOUNT_TYPE_CHOICES = [('cash', _('نقدي')), ('credit', _('ذمم'))]
-    TAX_STATUS_CHOICES = [('taxable', _('خاضع')), ('exempt', _('معفى')), ('export', _('تصدير'))]
+
+    # تعديل خيارات الحالة الضريبية
+    TAX_STATUS_CHOICES = [
+        ('taxable', _('خاضع')),
+        ('non_taxable', _('غير خاضع')),  # تم تغيير من 'exempt' إلى 'non_taxable'
+        ('export', _('تصدير'))
+    ]
 
     partner_type = models.CharField(_('نوع العميل'), max_length=10, choices=PARTNER_TYPES, default='customer')
     code = models.CharField(_('الرمز'), max_length=50)
@@ -619,29 +625,56 @@ class BusinessPartner(BaseModel):
     fax = models.CharField(_('الفاكس'), max_length=20, blank=True)
     email = models.EmailField(_('البريد الإلكتروني'), blank=True)
 
-    # المندوب - مطلوب للمبيعات
-    sales_representative = models.ForeignKey(
-        'User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('اسم المندوب'),
-        related_name='assigned_partners'
-    )
+    # ملاحظة: sales_representative تم إزالته لاستبداله بنموذج منفصل للمندوبين المتعددين
 
     # العنوان
     address = models.TextField(_('العنوان'), blank=True)
     city = models.CharField(_('المدينة'), max_length=50, blank=True)
     region = models.CharField(_('المنطقة'), max_length=50, blank=True)
 
-    # معلومات ضريبية
+    # معلومات ضريبية مع فترة الإعفاء
     tax_number = models.CharField(_('الرقم الضريبي'), max_length=50, blank=True)
     tax_status = models.CharField(_('الحالة الضريبية'), max_length=20, choices=TAX_STATUS_CHOICES, default='taxable')
     commercial_register = models.CharField(_('السجل التجاري'), max_length=50, blank=True)
 
+    # حقول جديدة لفترة الإعفاء الضريبي
+    tax_exemption_start_date = models.DateField(_('تاريخ بداية الإعفاء'), null=True, blank=True)
+    tax_exemption_end_date = models.DateField(_('تاريخ انتهاء الإعفاء'), null=True, blank=True)
+    tax_exemption_reason = models.CharField(_('سبب الإعفاء'), max_length=200, blank=True)
+
     # حدود الائتمان
     credit_limit = models.DecimalField(_('حد الائتمان'), max_digits=12, decimal_places=2, default=0)
     credit_period = models.PositiveIntegerField(_('فترة الائتمان (أيام)'), default=30)
+
+    # المرفقات الأربعة المطلوبة
+    commercial_register_file = models.FileField(
+        _('ملف السجل التجاري'),
+        upload_to='partners/commercial_register/',
+        blank=True,
+        null=True,
+        help_text=_('ملف السجل التجاري للعميل')
+    )
+    payment_letter_file = models.FileField(
+        _('كتاب التسديد'),
+        upload_to='partners/payment_letters/',
+        blank=True,
+        null=True,
+        help_text=_('كتاب التسديد من البنك')
+    )
+    tax_exemption_file = models.FileField(
+        _('كتاب الإعفاء الضريبي'),
+        upload_to='partners/tax_exemptions/',
+        blank=True,
+        null=True,
+        help_text=_('كتاب الإعفاء الضريبي من الحكومة')
+    )
+    other_attachments = models.FileField(
+        _('مرفقات أخرى'),
+        upload_to='partners/other_attachments/',
+        blank=True,
+        null=True,
+        help_text=_('مرفقات إضافية')
+    )
 
     # حقول مخصصة
     custom_fields = models.JSONField(
@@ -668,6 +701,24 @@ class BusinessPartner(BaseModel):
     def is_supplier(self):
         return self.partner_type in ['supplier', 'both']
 
+    def is_tax_exempt_active(self):
+        """التحقق من صحة الإعفاء الضريبي حسب التاريخ"""
+        if self.tax_status != 'non_taxable':
+            return False
+
+        if not self.tax_exemption_start_date or not self.tax_exemption_end_date:
+            return False
+
+        from django.utils import timezone
+        today = timezone.now().date()
+        return self.tax_exemption_start_date <= today <= self.tax_exemption_end_date
+
+    def get_effective_tax_status(self):
+        """الحصول على الحالة الضريبية الفعلية مع مراعاة انتهاء فترة الإعفاء"""
+        if self.tax_status == 'non_taxable' and not self.is_tax_exempt_active():
+            return 'taxable'  # انتهت فترة الإعفاء، يصبح خاضع للضريبة
+        return self.tax_status
+
     def generate_code(self):
         """توليد كود العميل"""
         if self.partner_type == 'customer':
@@ -692,6 +743,45 @@ class BusinessPartner(BaseModel):
             new_number = 1
 
         return f"{prefix}{new_number:06d}"
+
+
+# نموذج جديد للمندوبين المتعددين
+class PartnerRepresentative(BaseModel):
+    """مندوبي العميل - يمكن للعميل الواحد أن يكون له عدة مندوبين"""
+
+    partner = models.ForeignKey(
+        BusinessPartner,
+        on_delete=models.CASCADE,
+        related_name='representatives',
+        verbose_name=_('العميل')
+    )
+    representative_name = models.CharField(
+        _('اسم المندوب'),
+        max_length=100,
+        help_text=_('اسم المندوب المسؤول عن هذا العميل')
+    )
+    phone = models.CharField(_('هاتف المندوب'), max_length=20, blank=True)
+    is_primary = models.BooleanField(_('المندوب الرئيسي'), default=False)
+    notes = models.TextField(_('ملاحظات'), blank=True)
+
+    class Meta:
+        verbose_name = _('مندوب العميل')
+        verbose_name_plural = _('مندوبي العملاء')
+        ordering = ['-is_primary', 'representative_name']
+
+    def __str__(self):
+        primary_text = _('(رئيسي)') if self.is_primary else ''
+        return f"{self.partner.name} - {self.representative_name} {primary_text}"
+
+    def save(self, *args, **kwargs):
+        # إذا كان هذا المندوب رئيسي، اجعل الآخرين غير رئيسيين
+        if self.is_primary:
+            PartnerRepresentative.objects.filter(
+                partner=self.partner,
+                is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+
+        super().save(*args, **kwargs)
 
 
 class Item(BaseModel):

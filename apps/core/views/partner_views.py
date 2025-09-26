@@ -1,6 +1,7 @@
-# apps/core/views/partner_views.py
+# في apps/core/views/partner_views.py - استبدال بالكامل
+
 """
-Views للعملاء (العملاء والموردين)
+Views للعملاء (العملاء والموردين) مع المرفقات والمندوبين المتعددين
 """
 
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -9,13 +10,12 @@ from django.urls import reverse_lazy, reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView, TemplateView
 from django.db.models import Q
-from django_filters.views import FilterView
 from django.shortcuts import redirect
+from django.db import transaction
 
-from ..models import BusinessPartner
-from ..forms.partner_forms import BusinessPartnerForm
+from ..models import BusinessPartner, PartnerRepresentative
+from ..forms.partner_forms import BusinessPartnerForm, PartnerRepresentativeFormSet
 from ..mixins import CompanyBranchMixin, AuditLogMixin
-from ..filters import BusinessPartnerFilter
 
 
 class BusinessPartnerListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, TemplateView):
@@ -37,8 +37,9 @@ class BusinessPartnerListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         return context
 
 
-class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, CreateView):
-    """إضافة عميل جديد"""
+class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+                                CreateView):
+    """إضافة عميل جديد مع المندوبين"""
     model = BusinessPartner
     form_class = BusinessPartnerForm
     template_name = 'core/partners/partner_form.html'
@@ -52,6 +53,17 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        if self.request.POST:
+            context['representative_formset'] = PartnerRepresentativeFormSet(
+                self.request.POST
+            )
+        else:
+            # للإنشاء الجديد - إنشاء FormSet فارغ
+            context['representative_formset'] = PartnerRepresentativeFormSet(
+                queryset=PartnerRepresentative.objects.none()
+            )
+
         context.update({
             'title': _('إضافة عميل جديد'),
             'breadcrumbs': [
@@ -65,20 +77,50 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         return context
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(
-            self.request,
-            _('تم إضافة العميل "%(name)s" بنجاح') % {'name': self.object.name}
-        )
-        return response
+        context = self.get_context_data()
+        representative_formset = context['representative_formset']
+
+        with transaction.atomic():
+            # حفظ العميل أولاً
+            self.object = form.save()
+
+            # ربط FormSet بالعميل المحفوظ
+            representative_formset.instance = self.object
+
+            if representative_formset.is_valid():
+                # حفظ المندوبين
+                representatives = representative_formset.save(commit=False)
+                for representative in representatives:
+                    representative.company = self.request.current_company
+                    representative.branch = self.request.current_branch
+                    representative.created_by = self.request.user
+                    representative.save()
+
+                # حذف المندوبين المحذوفين
+                for obj in representative_formset.deleted_objects:
+                    obj.delete()
+
+                messages.success(
+                    self.request,
+                    _('تم إضافة العميل "%(name)s" بنجاح مع %(count)d مندوب') % {
+                        'name': self.object.name,
+                        'count': len(representatives)
+                    }
+                )
+                return super().form_valid(form)
+            else:
+                # إذا فشل FormSet، احذف العميل المحفوظ
+                transaction.set_rollback(True)
+                return self.form_invalid(form)
 
     def form_invalid(self, form):
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))
         return super().form_invalid(form)
 
 
-class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, UpdateView):
-    """تعديل عميل"""
+class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+                                UpdateView):
+    """تعديل عميل مع المندوبين"""
     model = BusinessPartner
     form_class = BusinessPartnerForm
     template_name = 'core/partners/partner_form.html'
@@ -92,6 +134,20 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        if self.request.POST:
+            context['representative_formset'] = PartnerRepresentativeFormSet(
+                self.request.POST,
+                instance=self.object
+            )
+        else:
+            context['representative_formset'] = PartnerRepresentativeFormSet(
+                instance=self.object
+            )
+
         context.update({
             'title': _('تعديل العميل: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
@@ -106,12 +162,37 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
         return context
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(
-            self.request,
-            _('تم تحديث العميل "%(name)s" بنجاح') % {'name': self.object.name}
-        )
-        return response
+        context = self.get_context_data()
+        representative_formset = context['representative_formset']
+
+        with transaction.atomic():
+            # حفظ العميل
+            self.object = form.save()
+
+            if representative_formset.is_valid():
+                # حفظ المندوبين
+                representatives = representative_formset.save(commit=False)
+                for representative in representatives:
+                    if not representative.company:
+                        representative.company = self.request.current_company
+                    if not representative.branch:
+                        representative.branch = self.request.current_branch
+                    if not representative.created_by:
+                        representative.created_by = self.request.user
+                    representative.save()
+
+                # حذف المندوبين المحذوفين
+                for obj in representative_formset.deleted_objects:
+                    obj.delete()
+
+                messages.success(
+                    self.request,
+                    _('تم تحديث العميل "%(name)s" بنجاح') % {'name': self.object.name}
+                )
+                return super().form_valid(form)
+            else:
+                transaction.set_rollback(True)
+                return self.form_invalid(form)
 
     def form_invalid(self, form):
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))
@@ -119,7 +200,7 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
 
 class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, DetailView):
-    """تفاصيل العميل"""
+    """تفاصيل العميل مع المندوبين والمرفقات"""
     model = BusinessPartner
     template_name = 'core/partners/partner_detail.html'
     context_object_name = 'partner'
@@ -127,6 +208,10 @@ class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # جلب المندوبين
+        representatives = self.object.representatives.all().order_by('-is_primary', 'representative_name')
+
         context.update({
             'title': _('تفاصيل العميل: %(name)s') % {'name': self.object.name},
             'can_change': self.request.user.has_perm('core.change_businesspartner'),
@@ -138,11 +223,15 @@ class BusinessPartnerDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
             ],
             'edit_url': reverse('core:partner_update', kwargs={'pk': self.object.pk}),
             'delete_url': reverse('core:partner_delete', kwargs={'pk': self.object.pk}),
+            'representatives': representatives,
+            'effective_tax_status': self.object.get_effective_tax_status(),
+            'is_tax_exempt_active': self.object.is_tax_exempt_active(),
         })
         return context
 
 
-class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin, DeleteView):
+class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, AuditLogMixin,
+                                DeleteView):
     """حذف عميل"""
     model = BusinessPartner
     template_name = 'core/partners/partner_confirm_delete.html'
@@ -151,6 +240,10 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # عد المندوبين المرتبطين
+        representatives_count = self.object.representatives.count()
+
         context.update({
             'title': _('حذف العميل: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
@@ -159,6 +252,7 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 {'title': _('حذف'), 'url': ''}
             ],
             'cancel_url': reverse('core:partner_list'),
+            'representatives_count': representatives_count,
         })
         return context
 

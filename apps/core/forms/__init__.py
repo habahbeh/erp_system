@@ -4,7 +4,7 @@
 """
 
 from .item_forms import ItemForm, ItemCategoryForm
-from .partner_forms import BusinessPartnerForm
+from .partner_forms import BusinessPartnerForm, PartnerRepresentativeForm
 from .warehouse_forms import WarehouseForm
 from .brand_forms import BrandForm
 from .unit_forms import UnitOfMeasureForm
@@ -39,6 +39,7 @@ __all__ = [
     'ItemForm',
     'ItemCategoryForm',
     'BusinessPartnerForm',
+    'PartnerRepresentativeForm',
     'WarehouseForm',
     'BrandForm',
     'UnitOfMeasureForm',

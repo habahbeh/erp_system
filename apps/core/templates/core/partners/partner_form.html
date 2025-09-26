@@ -1,8 +1,41 @@
-{# apps/core/templates/core/partners/partner_form.html #}
+{# في apps/core/templates/core/partners/partner_form.html - استبدال بالكامل #}
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
 {% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.attachment-section .form-control {
+    border-left: 4px solid #28a745;
+}
+.tax-exemption-section {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 10px;
+}
+.representatives-section {
+    background-color: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 8px;
+    padding: 15px;
+}
+.representative-form {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #f8f9fa;
+}
+.btn-add-representative {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    border: none;
+    color: white;
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -27,16 +60,16 @@
             <h1 class="h3 mb-1">{{ title }}</h1>
             <p class="text-muted mb-0">
                 {% if is_update %}
-                    {% trans "تعديل بيانات العميل" %}
+                    {% trans "تعديل بيانات العميل مع المندوبين والمرفقات" %}
                 {% else %}
-                    {% trans "إضافة عميل جديد للشركة" %}
+                    {% trans "إضافة عميل جديد مع المندوبين والمرفقات" %}
                 {% endif %}
             </p>
         </div>
     </div>
 
     <!-- Form -->
-    <form method="post" class="needs-validation" novalidate>
+    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
         {% csrf_token %}
 
         <div class="row">
@@ -89,15 +122,6 @@
                                 {% if form.account_type.errors %}
                                     <div class="invalid-feedback d-block">{{ form.account_type.errors.0 }}</div>
                                 {% endif %}
-                            </div>
-
-                            <div class="col-md-6" id="sales_representative_field">
-                                <label class="form-label">{% trans "المندوب" %}</label>
-                                {{ form.sales_representative|add_class:"form-select" }}
-                                {% if form.sales_representative.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.sales_representative.errors.0 }}</div>
-                                {% endif %}
-                                <small class="form-text text-muted" id="representative_note">{% trans "مطلوب للعملاء" %}</small>
                             </div>
                         </div>
                     </div>
@@ -179,6 +203,109 @@
                     </div>
                 </div>
 
+                <!-- المندوبين -->
+                <div class="card shadow-sm mb-4 representatives-section">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-users"></i> {% trans "مندوبي الشركة" %}
+                            <button type="button" class="btn btn-sm btn-add-representative float-end" id="addRepresentative">
+                                <i class="fas fa-plus"></i> {% trans "إضافة مندوب" %}
+                            </button>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {{ representative_formset.management_form }}
+
+                        <div id="representative-formset">
+                            {% for form in representative_formset %}
+                                <div class="representative-form" data-form-index="{{ forloop.counter0 }}">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">{% trans "المندوب" %}</label>
+                                            {{ form.representative_name|add_class:"form-control" }}
+                                            {{ form.representative_name.errors }}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">{% trans "هاتف المندوب" %}</label>
+                                            {{ form.phone|add_class:"form-control" }}
+                                            {{ form.phone.errors }}
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">{% trans "رئيسي" %}</label>
+                                            <div class="form-check">
+                                                {{ form.is_primary|add_class:"form-check-input" }}
+                                                <label class="form-check-label">{% trans "مندوب رئيسي" %}</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">{% trans "حذف" %}</label>
+                                            <div class="form-check">
+                                                {{ form.DELETE }}
+                                                <label class="form-check-label text-danger">{% trans "حذف" %}</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">{% trans "ملاحظات" %}</label>
+                                            {{ form.notes|add_class:"form-control" }}
+                                            {{ form.notes.errors }}
+                                        </div>
+                                    </div>
+                                    {{ form.id }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">{% trans "يمكن إضافة حتى 10 مندوبين للعميل الواحد" %}</small>
+                    </div>
+                </div>
+
+                <!-- المرفقات -->
+                <div class="card shadow-sm mb-4 attachment-section">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-paperclip"></i> {% trans "المرفقات المطلوبة" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "ملف السجل التجاري" %}</label>
+                                {{ form.commercial_register_file|add_class:"form-control" }}
+                                {% if form.commercial_register_file.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.commercial_register_file.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "PDF, DOC, JPG المسموح" %}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "كتاب التسديد" %}</label>
+                                {{ form.payment_letter_file|add_class:"form-control" }}
+                                {% if form.payment_letter_file.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.payment_letter_file.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "كتاب التسديد من البنك" %}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "كتاب الإعفاء الضريبي" %}</label>
+                                {{ form.tax_exemption_file|add_class:"form-control" }}
+                                {% if form.tax_exemption_file.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.tax_exemption_file.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "مطلوب للحالة غير خاضع" %}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "مرفقات أخرى" %}</label>
+                                {{ form.other_attachments|add_class:"form-control" }}
+                                {% if form.other_attachments.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.other_attachments.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "مرفقات إضافية حسب الحاجة" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- الملاحظات -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-light">
@@ -204,7 +331,7 @@
             <div class="col-lg-4">
                 <!-- المعلومات الضريبية -->
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-warning text-dark">
+                    <div class="card-header bg-danger text-white">
                         <h6 class="card-title mb-0">
                             <i class="fas fa-receipt"></i> {% trans "المعلومات الضريبية" %}
                         </h6>
@@ -234,13 +361,42 @@
                                     <div class="invalid-feedback d-block">{{ form.commercial_register.errors.0 }}</div>
                                 {% endif %}
                             </div>
+
+                            <!-- قسم فترة الإعفاء الضريبي -->
+                            <div class="col-12 tax-exemption-section" id="tax-exemption-section" style="display: none;">
+                                <h6 class="text-warning"><i class="fas fa-calendar-alt"></i> {% trans "فترة الإعفاء الضريبي" %}</h6>
+
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label">{% trans "تاريخ البداية" %}</label>
+                                        {{ form.tax_exemption_start_date|add_class:"form-control" }}
+                                        {% if form.tax_exemption_start_date.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.tax_exemption_start_date.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">{% trans "تاريخ النهاية" %}</label>
+                                        {{ form.tax_exemption_end_date|add_class:"form-control" }}
+                                        {% if form.tax_exemption_end_date.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.tax_exemption_end_date.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">{% trans "سبب الإعفاء" %}</label>
+                                        {{ form.tax_exemption_reason|add_class:"form-control" }}
+                                        {% if form.tax_exemption_reason.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.tax_exemption_reason.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- حدود الائتمان -->
                 <div class="card shadow-sm mb-4" id="credit_section">
-                    <div class="card-header bg-danger text-white">
+                    <div class="card-header bg-secondary text-white">
                         <h6 class="card-title mb-0">
                             <i class="fas fa-credit-card"></i> {% trans "حدود الائتمان" %}
                         </h6>
@@ -292,7 +448,7 @@
 
 {% block extra_js %}
 <script>
-// Form validation
+// تفعيل نماذج التحقق
 (function() {
     'use strict';
     window.addEventListener('load', function() {
@@ -309,28 +465,83 @@
     }, false);
 })();
 
-// Toggle partner type fields
+// إظهار/إخفاء قسم الإعفاء الضريبي
+function toggleTaxExemptionFields() {
+    const taxStatus = document.getElementById('id_tax_status').value;
+    const exemptionSection = document.getElementById('tax-exemption-section');
+
+    if (taxStatus === 'non_taxable') {
+        exemptionSection.style.display = 'block';
+    } else {
+        exemptionSection.style.display = 'none';
+    }
+}
+
+// إظهار/إخفاء حقول نوع العميل
 function togglePartnerTypeFields() {
     const partnerType = document.getElementById('id_partner_type').value;
-    const repField = document.getElementById('sales_representative_field');
     const creditSection = document.getElementById('credit_section');
-    const repNote = document.getElementById('representative_note');
-    
+
     if (partnerType === 'customer' || partnerType === 'both') {
-        repField.style.display = 'block';
-        repNote.textContent = '{% trans "مطلوب للعملاء" %}';
-        repNote.className = 'form-text text-warning';
         creditSection.style.display = 'block';
     } else {
-        repField.style.display = 'block';
-        repNote.textContent = '{% trans "اختياري للموردين" %}';
-        repNote.className = 'form-text text-muted';
         creditSection.style.display = 'none';
     }
 }
 
-// Initial call
+// إضافة مندوب جديد
+let formsetIndex = {{ representative_formset.total_form_count }};
+
+document.getElementById('addRepresentative').addEventListener('click', function() {
+    if (formsetIndex >= 10) {
+        alert('{% trans "الحد الأقصى 10 مندوبين" %}');
+        return;
+    }
+
+    const emptyForm = `
+        <div class="representative-form" data-form-index="${formsetIndex}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "اسم المندوب" %}</label>
+                    <input name="representatives-${formsetIndex}-representative_name" type="text" class="form-control" placeholder="{% trans 'اسم المندوب' %}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "هاتف المندوب" %}</label>
+                    <input name="representatives-${formsetIndex}-phone" type="text" class="form-control" placeholder="{% trans 'هاتف المندوب' %}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "رئيسي" %}</label>
+                    <div class="form-check">
+                        <input name="representatives-${formsetIndex}-is_primary" type="checkbox" class="form-check-input">
+                        <label class="form-check-label">{% trans "مندوب رئيسي" %}</label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "حذف" %}</label>
+                    <div class="form-check">
+                        <input name="representatives-${formsetIndex}-DELETE" type="checkbox" class="form-check-input">
+                        <label class="form-check-label text-danger">{% trans "حذف" %}</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">{% trans "ملاحظات" %}</label>
+                    <textarea name="representatives-${formsetIndex}-notes" class="form-control" rows="2" placeholder="{% trans 'ملاحظات خاصة بالمندوب' %}"></textarea>
+                </div>
+            </div>
+            <input type="hidden" name="representatives-${formsetIndex}-id">
+        </div>
+    `;
+
+    document.getElementById('representative-formset').insertAdjacentHTML('beforeend', emptyForm);
+
+    // تحديث عدد النماذج
+    formsetIndex++;
+    document.getElementById('id_representatives-TOTAL_FORMS').value = formsetIndex;
+});
+
+// استدعاء التحققات عند تحميل الصفحة
 document.addEventListener('DOMContentLoaded', function() {
+    toggleTaxExemptionFields();
     togglePartnerTypeFields();
 });
 </script>

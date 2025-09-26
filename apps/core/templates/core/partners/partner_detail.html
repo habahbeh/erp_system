@@ -1,4 +1,4 @@
-{# apps/core/templates/core/partners/partner_detail.html #}
+{#apps/core/templates/core/partners/partner_detail.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
@@ -32,6 +32,19 @@
                 <span class="badge bg-primary fs-6">{{ partner.code }}</span>
                 <span class="badge bg-secondary fs-6">{{ partner.get_partner_type_display }}</span>
                 <span class="badge bg-info fs-6">{{ partner.get_account_type_display }}</span>
+
+                <!-- حالة الإعفاء الضريبي -->
+                {% if partner.tax_status == 'non_taxable' %}
+                    {% if is_tax_exempt_active %}
+                        <span class="badge bg-success">
+                            <i class="fas fa-shield-alt"></i> {% trans "معفى حالياً" %}
+                        </span>
+                    {% else %}
+                        <span class="badge bg-warning">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "انتهى الإعفاء" %}
+                        </span>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
         <div class="d-flex gap-2">
@@ -76,19 +89,23 @@
                             </p>
                         </div>
 
-                        {% if partner.sales_representative %}
-                        <div class="col-md-6">
-                            <h6 class="text-muted mb-1">{% trans "المندوب" %}</h6>
-                            <p class="mb-0">{{ partner.sales_representative.get_full_name }}</p>
-                        </div>
-                        {% endif %}
-
                         <div class="col-md-6">
                             <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
                             {% if partner.is_active %}
                                 <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
                             {% else %}
                                 <span class="badge bg-secondary fs-6">{% trans "غير نشط" %}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة الضريبية الفعلية" %}</h6>
+                            {% if effective_tax_status == 'taxable' %}
+                                <span class="badge bg-danger fs-6">{% trans "خاضع للضريبة" %}</span>
+                            {% elif effective_tax_status == 'non_taxable' %}
+                                <span class="badge bg-success fs-6">{% trans "غير خاضع" %}</span>
+                            {% else %}
+                                <span class="badge bg-info fs-6">{% trans "تصدير" %}</span>
                             {% endif %}
                         </div>
                     </div>
@@ -170,6 +187,114 @@
                 </div>
             </div>
 
+            <!-- المندوبين -->
+            {% if representatives %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-users"></i> {% trans "مندوبي الشركة" %} ({{ representatives.count }})
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for rep in representatives %}
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">
+                                                {{ rep.user.get_full_name }}
+                                                {% if rep.is_primary %}
+                                                    <span class="badge bg-warning text-dark">{% trans "رئيسي" %}</span>
+                                                {% endif %}
+                                            </h6>
+                                            {% if rep.phone %}
+                                                <small class="text-muted">
+                                                    <i class="fas fa-phone"></i> {{ rep.phone }}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <i class="fas fa-user-tie fa-2x text-info"></i>
+                                        </div>
+                                    </div>
+                                    {% if rep.notes %}
+                                        <small class="text-muted">{{ rep.notes }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- المرفقات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-paperclip"></i> {% trans "المرفقات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "السجل التجاري" %}</span>
+                                {% if partner.commercial_register_file %}
+                                    <a href="{{ partner.commercial_register_file.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-download"></i> {% trans "تحميل" %}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير متوفر" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "كتاب التسديد" %}</span>
+                                {% if partner.payment_letter_file %}
+                                    <a href="{{ partner.payment_letter_file.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-download"></i> {% trans "تحميل" %}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير متوفر" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "كتاب الإعفاء الضريبي" %}</span>
+                                {% if partner.tax_exemption_file %}
+                                    <a href="{{ partner.tax_exemption_file.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-download"></i> {% trans "تحميل" %}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير متوفر" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "مرفقات أخرى" %}</span>
+                                {% if partner.other_attachments %}
+                                    <a href="{{ partner.other_attachments.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-download"></i> {% trans "تحميل" %}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير متوفر" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- الملاحظات -->
             {% if partner.notes %}
             <div class="card shadow-sm mb-4">
@@ -188,9 +313,8 @@
         <!-- الشريط الجانبي -->
         <div class="col-lg-4">
             <!-- المعلومات الضريبية -->
-            {% if partner.tax_number or partner.commercial_register %}
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-warning text-dark">
+                <div class="card-header bg-danger text-white">
                     <h6 class="card-title mb-0">
                         <i class="fas fa-receipt"></i> {% trans "المعلومات الضريبية" %}
                     </h6>
@@ -208,6 +332,42 @@
                         <span class="badge bg-info">{{ partner.get_tax_status_display }}</span>
                     </div>
 
+                    <!-- تفاصيل الإعفاء الضريبي -->
+                    {% if partner.tax_status == 'non_taxable' %}
+                    <div class="mt-3 p-2 bg-light rounded">
+                        <h6 class="text-warning mb-2">
+                            <i class="fas fa-calendar-alt"></i> {% trans "فترة الإعفاء" %}
+                        </h6>
+
+                        {% if partner.tax_exemption_start_date %}
+                        <small class="d-block">
+                            <strong>{% trans "من:" %}</strong> {{ partner.tax_exemption_start_date|date:"d/m/Y" }}
+                        </small>
+                        {% endif %}
+
+                        {% if partner.tax_exemption_end_date %}
+                        <small class="d-block">
+                            <strong>{% trans "إلى:" %}</strong> {{ partner.tax_exemption_end_date|date:"d/m/Y" }}
+                        </small>
+                        {% endif %}
+
+                        {% if partner.tax_exemption_reason %}
+                        <small class="d-block">
+                            <strong>{% trans "السبب:" %}</strong> {{ partner.tax_exemption_reason }}
+                        </small>
+                        {% endif %}
+
+                        {% if not is_tax_exempt_active and partner.tax_exemption_end_date %}
+                        <div class="alert alert-warning mt-2 mb-0 py-1">
+                            <small>
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {% trans "انتهت فترة الإعفاء - سيتم حساب الضريبة" %}
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                     {% if partner.commercial_register %}
                     <div class="d-flex justify-content-between align-items-center mb-0">
                         <span>{% trans "السجل التجاري" %}</span>
@@ -216,12 +376,11 @@
                     {% endif %}
                 </div>
             </div>
-            {% endif %}
 
             <!-- حدود الائتمان -->
             {% if partner.is_customer %}
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-danger text-white">
+                <div class="card-header bg-secondary text-white">
                     <h6 class="card-title mb-0">
                         <i class="fas fa-credit-card"></i> {% trans "حدود الائتمان" %}
                     </h6>
@@ -296,6 +455,13 @@
                             <small class="text-muted">{% trans "المستحق للدفع" %}</small>
                         </div>
                         {% endif %}
+
+                        <div class="col-12">
+                            <hr>
+                            <small class="text-muted">
+                                <i class="fas fa-users"></i> {{ representatives.count }} {% trans "مندوب" %}
+                            </small>
+                        </div>
                     </div>
                     <hr>
                     <small class="text-muted">{% trans "البيانات المالية قيد التطوير" %}</small>
