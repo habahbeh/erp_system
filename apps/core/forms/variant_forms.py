@@ -1,6 +1,6 @@
 # apps/core/forms/variant_forms.py
 """
-نماذج خصائص ومتغيرات الأصناف
+نماذج خصائص ومتغيرات المواد
 """
 
 from django import forms

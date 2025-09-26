@@ -143,20 +143,20 @@ class ItemVariantInline(admin.TabularInline):
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
     inlines = [ItemVariantInline]
-    list_display = ['name', 'code', 'category', 'brand', 'company', 'has_variants', 'is_active']
+    list_display = ['name', 'code','item_code', 'category', 'brand', 'company', 'has_variants', 'is_active']
     list_filter = ['category', 'brand', 'unit_of_measure', 'currency', 'has_variants', 'company', 'is_active']
     search_fields = ['name', 'name_en', 'code', 'catalog_number', 'barcode']
     readonly_fields = ['created_at', 'updated_at', 'created_by']
 
     fieldsets = [
         (_('المعلومات الأساسية'), {
-            'fields': ['code', 'name', 'name_en', 'catalog_number', 'barcode']
+            'fields': ['code','item_code', 'name', 'name_en', 'catalog_number', 'barcode']
         }),
         (_('التصنيف والعلامة'), {
             'fields': ['category', 'brand']
         }),
         (_('وحدة القياس والعملة'), {
-            'fields': ['unit_of_measure', 'currency', 'default_warehouse']
+            'fields': ['unit_of_measure', 'currency']
         }),
         (_('الحسابات المحاسبية'), {
             'fields': ['sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account']

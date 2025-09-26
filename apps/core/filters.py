@@ -11,7 +11,7 @@ from .models import Warehouse
 
 
 class ItemFilter(django_filters.FilterSet):
-    """فلتر الأصناف"""
+    """فلتر المواد"""
 
     search = django_filters.CharFilter(
         method='filter_search',
@@ -128,7 +128,7 @@ class ItemFilter(django_filters.FilterSet):
 
 
 class ItemCategoryFilter(django_filters.FilterSet):
-    """فلتر تصنيفات الأصناف"""
+    """فلتر تصنيفات المواد"""
 
     search = django_filters.CharFilter(
         method='filter_search',
@@ -273,7 +273,7 @@ class UnitOfMeasureFilter(django_filters.FilterSet):
 
 
 class BusinessPartnerFilter(django_filters.FilterSet):
-    """فلتر الشركاء التجاريين"""
+    """فلتر العملاء"""
 
     search = django_filters.CharFilter(
         method='filter_search',

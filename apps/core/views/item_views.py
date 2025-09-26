@@ -26,14 +26,14 @@ from ..filters import ItemFilter, ItemCategoryFilter
 
 
 class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
-    """قائمة الأصناف مع DataTable"""
+    """قائمة المواد مع DataTable"""
     template_name = 'core/items/item_list.html'
     permission_required = 'core.view_item'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('إدارة الأصناف'),
+            'title': _('إدارة المواد'),
             'can_add': self.request.user.has_perm('core.add_item'),
             'add_url': reverse('core:item_create'),
         })
@@ -41,7 +41,7 @@ class ItemListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, Te
 
 
 class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إضافة صنف جديد"""
+    """إضافة مادة جديد"""
     model = Item
     form_class = ItemForm
     template_name = 'core/items/item_form.html'
@@ -81,13 +81,13 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         ).prefetch_related('values').order_by('sort_order', 'name')
 
         context.update({
-            'title': _('إضافة صنف جديد'),
+            'title': _('إضافة مادة جديد'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الأصناف'), 'url': reverse('core:item_list')},
+                {'title': _('المواد'), 'url': reverse('core:item_list')},
                 {'title': _('إضافة جديد'), 'url': ''}
             ],
-            'submit_text': _('حفظ الصنف'),
+            'submit_text': _('حفظ المادة'),
             'cancel_url': reverse('core:item_list'),
             'is_update': False,  # للتمييز بين إضافة وتعديل
         })
@@ -98,10 +98,10 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         attribute_form = context['attribute_form']
 
         if form.is_valid():
-            # حفظ الصنف أولاً
+            # حفظ المادة أولاً
             response = super().form_valid(form)
 
-            # إذا كان الصنف له متغيرات
+            # إذا كان المادة له متغيرات
             if self.object.has_variants:
                 # الحصول على بيانات المتغيرات المولدة من JavaScript
                 generated_variants_json = self.request.POST.get('generated_variants', '[]')
@@ -115,7 +115,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
                         messages.success(
                             self.request,
-                            _('تم إضافة الصنف "%(name)s" مع %(count)d متغير بنجاح') % {
+                            _('تم إضافة المادة "%(name)s" مع %(count)d متغير بنجاح') % {
                                 'name': self.object.name,
                                 'count': len(created_variants)
                             }
@@ -123,19 +123,19 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     else:
                         messages.warning(
                             self.request,
-                            _('تم إضافة الصنف "%(name)s" بدون متغيرات') % {
+                            _('تم إضافة المادة "%(name)s" بدون متغيرات') % {
                                 'name': self.object.name
                             }
                         )
                 except json.JSONDecodeError:
                     messages.error(
                         self.request,
-                        _('خطأ في بيانات المتغيرات. تم حفظ الصنف بدون متغيرات.')
+                        _('خطأ في بيانات المتغيرات. تم حفظ المادة بدون متغيرات.')
                     )
             else:
                 messages.success(
                     self.request,
-                    _('تم إضافة الصنف "%(name)s" بنجاح') % {'name': self.object.name}
+                    _('تم إضافة المادة "%(name)s" بنجاح') % {'name': self.object.name}
                 )
 
             return response
@@ -197,7 +197,7 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
 
 class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل صنف"""
+    """تعديل مادة"""
     model = Item
     form_class = ItemForm
     template_name = 'core/items/item_form.html'
@@ -246,10 +246,10 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         ).all()
 
         context.update({
-            'title': _('تعديل الصنف: %(name)s') % {'name': self.object.name},
+            'title': _('تعديل المادة: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الأصناف'), 'url': reverse('core:item_list')},
+                {'title': _('المواد'), 'url': reverse('core:item_list')},
                 {'title': _('تعديل'), 'url': ''}
             ],
             'submit_text': _('حفظ التعديلات'),
@@ -266,7 +266,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         if form.is_valid():
             response = super().form_valid(form)
 
-            # إذا كان الصنف له متغيرات
+            # إذا كان المادة له متغيرات
             if self.object.has_variants:
                 generated_variants_json = self.request.POST.get('generated_variants', '')
 
@@ -282,7 +282,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
                             messages.success(
                                 self.request,
-                                _('تم تحديث الصنف "%(name)s" مع %(count)d متغير جديد') % {
+                                _('تم تحديث المادة "%(name)s" مع %(count)d متغير جديد') % {
                                     'name': self.object.name,
                                     'count': len(created_variants)
                                 }
@@ -290,20 +290,20 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         else:
                             messages.success(
                                 self.request,
-                                _('تم تحديث الصنف "%(name)s" - المتغيرات لم تتغير') % {
+                                _('تم تحديث المادة "%(name)s" - المتغيرات لم تتغير') % {
                                     'name': self.object.name
                                 }
                             )
                     except json.JSONDecodeError:
                         messages.warning(
                             self.request,
-                            _('تم تحديث الصنف بدون تعديل المتغيرات بسبب خطأ في البيانات')
+                            _('تم تحديث المادة بدون تعديل المتغيرات بسبب خطأ في البيانات')
                         )
                 else:
                     # لا توجد بيانات متغيرات جديدة - ابقِ على المتغيرات الموجودة
                     messages.success(
                         self.request,
-                        _('تم تحديث الصنف "%(name)s" - المتغيرات لم تتغير') % {
+                        _('تم تحديث المادة "%(name)s" - المتغيرات لم تتغير') % {
                             'name': self.object.name
                         }
                     )
@@ -314,7 +314,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     self.object.variants.all().delete()
                     messages.success(
                         self.request,
-                        _('تم تحديث الصنف "%(name)s" وحذف %(count)d متغير') % {
+                        _('تم تحديث المادة "%(name)s" وحذف %(count)d متغير') % {
                             'name': self.object.name,
                             'count': deleted_count
                         }
@@ -322,7 +322,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                 else:
                     messages.success(
                         self.request,
-                        _('تم تحديث الصنف "%(name)s" بنجاح') % {'name': self.object.name}
+                        _('تم تحديث المادة "%(name)s" بنجاح') % {'name': self.object.name}
                     )
 
             return response
@@ -380,7 +380,7 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
 
 class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """تفاصيل الصنف"""
+    """تفاصيل المادة"""
     model = Item
     template_name = 'core/items/item_detail.html'
     context_object_name = 'item'
@@ -398,12 +398,12 @@ class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         ).all()
 
         context.update({
-            'title': _('تفاصيل الصنف: %(name)s') % {'name': self.object.name},
+            'title': _('تفاصيل المادة: %(name)s') % {'name': self.object.name},
             'can_change': self.request.user.has_perm('core.change_item'),
             'can_delete': self.request.user.has_perm('core.delete_item'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الأصناف'), 'url': reverse('core:item_list')},
+                {'title': _('المواد'), 'url': reverse('core:item_list')},
                 {'title': _('التفاصيل'), 'url': ''}
             ],
             'edit_url': reverse('core:item_update', kwargs={'pk': self.object.pk}),
@@ -415,7 +415,7 @@ class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
 
 class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, DeleteView):
-    """حذف صنف"""
+    """حذف مادة"""
     model = Item
     template_name = 'core/items/item_confirm_delete.html'
     permission_required = 'core.delete_item'
@@ -424,10 +424,10 @@ class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('حذف الصنف: %(name)s') % {'name': self.object.name},
+            'title': _('حذف المادة: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('الأصناف'), 'url': reverse('core:item_list')},
+                {'title': _('المواد'), 'url': reverse('core:item_list')},
                 {'title': _('حذف'), 'url': ''}
             ],
             'cancel_url': reverse('core:item_list'),
@@ -443,21 +443,21 @@ class ItemDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             response = super().delete(request, *args, **kwargs)
             messages.success(
                 request,
-                _('تم حذف الصنف "%(name)s" بنجاح') % {'name': item_name}
+                _('تم حذف المادة "%(name)s" بنجاح') % {'name': item_name}
             )
             return response
         except Exception as e:
             messages.error(
                 request,
-                _('لا يمكن حذف هذا الصنف لوجود بيانات مرتبطة به')
+                _('لا يمكن حذف هذا المادة لوجود بيانات مرتبطة به')
             )
             return redirect('core:item_list')
 
 
-# ===== تصنيفات الأصناف =====
+# ===== تصنيفات المواد =====
 
 class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FilterView):
-    """قائمة تصنيفات الأصناف"""
+    """قائمة تصنيفات المواد"""
     model = ItemCategory
     template_name = 'core/items/category_list.html'
     context_object_name = 'categories'
@@ -468,13 +468,13 @@ class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('إدارة تصنيفات الأصناف'),
+            'title': _('إدارة تصنيفات المواد'),
             'can_add': self.request.user.has_perm('core.add_itemcategory'),
             'can_change': self.request.user.has_perm('core.change_itemcategory'),
             'can_delete': self.request.user.has_perm('core.delete_itemcategory'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('تصنيفات الأصناف'), 'url': ''}
+                {'title': _('تصنيفات المواد'), 'url': ''}
             ],
             'add_url': reverse('core:category_create'),
         })
@@ -514,7 +514,7 @@ class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
             'title': _('إضافة تصنيف جديد'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('تصنيفات الأصناف'), 'url': reverse('core:category_list')},
+                {'title': _('تصنيفات المواد'), 'url': reverse('core:category_list')},
                 {'title': _('إضافة جديد'), 'url': ''}
             ],
             'submit_text': _('حفظ التصنيف'),
@@ -550,7 +550,7 @@ class ItemCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
             'title': _('تعديل التصنيف: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('تصنيفات الأصناف'), 'url': reverse('core:category_list')},
+                {'title': _('تصنيفات المواد'), 'url': reverse('core:category_list')},
                 {'title': _('تعديل'), 'url': ''}
             ],
             'submit_text': _('حفظ التعديلات'),
@@ -581,7 +581,7 @@ class ItemCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Compan
             'title': _('حذف التصنيف: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('تصنيفات الأصناف'), 'url': reverse('core:category_list')},
+                {'title': _('تصنيفات المواد'), 'url': reverse('core:category_list')},
                 {'title': _('حذف'), 'url': ''}
             ],
             'cancel_url': reverse('core:category_list'),

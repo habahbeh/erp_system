@@ -13,7 +13,7 @@ urlpatterns = [
     path('switch-company/<int:company_id>/', views.switch_company, name='switch_company'),
     path('ajax/company/<int:company_id>/branches/', views.get_company_branches, name='company_branches'),
 
-    # الأصناف
+    # المواد
     path('items/', views.ItemListView.as_view(), name='item_list'),
     path('items/<int:pk>/', views.ItemDetailView.as_view(), name='item_detail'),
     path('items/create/', views.ItemCreateView.as_view(), name='item_create'),
@@ -21,13 +21,13 @@ urlpatterns = [
     path('items/<int:pk>/delete/', views.ItemDeleteView.as_view(), name='item_delete'),
 
 
-    # تصنيفات الأصناف
+    # تصنيفات المواد
     path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
     path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),
     path('categories/<int:pk>/update/', views.ItemCategoryUpdateView.as_view(), name='category_update'),
     path('categories/<int:pk>/delete/', views.ItemCategoryDeleteView.as_view(), name='category_delete'),
 
-    # الشركاء التجاريون
+    # العملاء
     path('partners/', views.BusinessPartnerListView.as_view(), name='partner_list'),
     path('partners/<int:pk>/', views.BusinessPartnerDetailView.as_view(), name='partner_detail'),
     path('partners/create/', views.BusinessPartnerCreateView.as_view(), name='partner_create'),
@@ -182,13 +182,13 @@ urlpatterns = [
 #     # path('warehouses/<int:pk>/update/', views.WarehouseUpdateView.as_view(), name='warehouse_update'),
 #     # path('warehouses/<int:pk>/delete/', views.WarehouseDeleteView.as_view(), name='warehouse_delete'),
 #     #
-#     # # الشركاء التجاريين
+#     # # العملاء
 #     # path('partners/', views.BusinessPartnerListView.as_view(), name='partner_list'),
 #     # path('partners/create/', views.BusinessPartnerCreateView.as_view(), name='partner_create'),
 #     # path('partners/<int:pk>/update/', views.BusinessPartnerUpdateView.as_view(), name='partner_update'),
 #     # path('partners/<int:pk>/delete/', views.BusinessPartnerDeleteView.as_view(), name='partner_delete'),
 #     #
-#     # # الأصناف
+#     # # المواد
 #     path('items/', views.ItemListView.as_view(), name='item_list'),
 #     path('items/<int:pk>/', views.ItemDetailView.as_view(), name='item_detail'),
 #     path('items/create/', views.ItemCreateView.as_view(), name='item_create'),
@@ -196,7 +196,7 @@ urlpatterns = [
 #     path('items/<int:pk>/delete/', views.ItemDeleteView.as_view(), name='item_delete'),
 #
 #     #
-#     # # تصنيفات الأصناف
+#     # # تصنيفات المواد
 #     path('categories/', views.ItemCategoryListView.as_view(), name='category_list'),
 #     path('categories/create/', views.ItemCategoryCreateView.as_view(), name='category_create'),
 #     path('categories/<int:pk>/update/', views.ItemCategoryUpdateView.as_view(), name='category_update'),
@@ -256,7 +256,7 @@ urlpatterns = [
 #     # path('variant-values/<int:pk>/update/', views.VariantValueUpdateView.as_view(), name='variant_value_update'),
 #     # path('variant-values/<int:pk>/delete/', views.VariantValueDeleteView.as_view(), name='variant_value_delete'),
 #     #
-#     # # متغيرات الأصناف
+#     # # متغيرات المواد
 #     # path('item-variants/', views.ItemVariantListView.as_view(), name='item_variant_list'),
 #     # path('item-variants/create/', views.ItemVariantCreateView.as_view(), name='item_variant_create'),
 #     # path('item-variants/<int:pk>/update/', views.ItemVariantUpdateView.as_view(), name='item_variant_update'),

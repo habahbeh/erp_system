@@ -1,7 +1,7 @@
 # apps/inventory/models.py
 """
 نماذج المخازن
-يحتوي على: سندات الإدخال/الإخراج، التحويلات بين المخازن، الجرد، حركة الأصناف
+يحتوي على: سندات الإدخال/الإخراج، التحويلات بين المخازن، الجرد، حركة المواد
 """
 
 from django.db import models
@@ -489,7 +489,7 @@ class StockTransferLine(models.Model):
 
 
 class StockMovement(models.Model):
-    """حركة الأصناف"""
+    """حركة المواد"""
 
     MOVEMENT_TYPES = [
         ('in', _('إدخال')),
@@ -596,8 +596,8 @@ class StockMovement(models.Model):
     )
 
     class Meta:
-        verbose_name = _('حركة صنف')
-        verbose_name_plural = _('حركة الأصناف')
+        verbose_name = _('حركة مادة')
+        verbose_name_plural = _('حركة المواد')
         ordering = ['-date']
         indexes = [
             models.Index(fields=['item', 'warehouse', '-date']),

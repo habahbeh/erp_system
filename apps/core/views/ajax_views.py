@@ -69,7 +69,7 @@ def item_datatable_ajax(request):
         if request.current_company:
             queryset = Item.objects.filter(company=request.current_company)
         else:
-            # للتجريب - جلب جميع الأصناف
+            # للتجريب - جلب جميع المواد
             queryset = Item.objects.all()
 
         queryset = queryset.select_related('category', 'brand', 'unit_of_measure', 'currency')
@@ -93,7 +93,7 @@ def item_datatable_ajax(request):
             queryset = queryset.filter(
                 Q(name__icontains=search_value) |
                 Q(name_en__icontains=search_value) |
-                Q(code__icontains=search_value) |
+                Q(item_code__icontains=search_value) |
                 Q(catalog_number__icontains=search_value) |
                 Q(barcode__icontains=search_value) |
                 Q(short_description__icontains=search_value)
@@ -114,7 +114,7 @@ def item_datatable_ajax(request):
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['code', 'name', 'category__name', 'brand__name', 'unit_of_measure__name', 'is_active']
+        columns = ['item_code', 'name', 'category__name', 'brand__name', 'unit_of_measure__name', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
@@ -159,7 +159,7 @@ def item_datatable_ajax(request):
                 actions += f'''
                     <a href="{reverse('core:item_delete', kwargs={'pk': item.pk})}" 
                        class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
-                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا الصنف؟')}')">
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذا المادة؟')}')">
                         <i class="fas fa-trash"></i>
                     </a>
                 '''
@@ -168,31 +168,32 @@ def item_datatable_ajax(request):
 
             # تجميع صف البيانات
             row = [
-                # الكود والباركود
-                f'<div><code class="text-primary fw-bold">{item.code}</code>' +
+                # الكود - عرض item_code إذا كان متوفر، وإلا code
+                f'<div>' +
+                (f'<code class="text-primary fw-bold">{item.item_code}</code>' if item.item_code
+                 else f'<code class="text-muted">{item.code}</code>') +
                 (
-                    f'<br><small class="text-muted"><i class="fas fa-barcode"></i> {item.barcode}</small>' if item.barcode else '') + '</div>',
+                    f'<br><small class="text-success"><i class="fas fa-bookmark"></i> {item.catalog_number}</small>' if item.catalog_number else '') +
+                (
+                    f'<br><small class="text-muted"><i class="fas fa-barcode"></i> {item.barcode}</small>' if item.barcode else '') +
+                '</div>',
 
-                # اسم الصنف
+                # اسم المادة - لا تغيير
                 f'<div><strong class="text-dark">{item.name}</strong>' +
                 (f'<br><small class="text-muted">{item.name_en}</small>' if item.name_en else '') + '</div>',
 
-                # التصنيف
+                # باقي الأعمدة كما هي...
                 f'<span class="badge bg-secondary fs-6">{item.category.name}</span>' if item.category
                 else '<span class="text-muted">-</span>',
 
-                # العلامة التجارية
                 f'<span class="text-dark">{item.brand.name}</span>' if item.brand
                 else '<span class="text-muted">-</span>',
 
-                # وحدة القياس
                 f'<span class="badge bg-light text-dark">{item.unit_of_measure.name}</span>',
 
-                # الحالة
                 f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if item.is_active
                 else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
 
-                # الإجراءات
                 actions
             ]
 
@@ -223,7 +224,7 @@ def item_datatable_ajax(request):
 
 @login_required
 def partner_autocomplete(request):
-    """البحث السريع في الشركاء التجاريين"""
+    """البحث السريع في العملاء"""
     term = request.GET.get('term', '').strip()
 
     if len(term) < 2:
@@ -251,7 +252,7 @@ def partner_autocomplete(request):
 
 @login_required
 def item_autocomplete(request):
-    """البحث السريع في الأصناف"""
+    """البحث السريع في المواد"""
     term = request.GET.get('term', '').strip()
 
     if len(term) < 2:
@@ -283,7 +284,7 @@ def item_autocomplete(request):
 
 @login_required
 def get_item_details(request, item_id):
-    """الحصول على تفاصيل صنف معين"""
+    """الحصول على تفاصيل مادة معين"""
     try:
         item = Item.objects.select_related(
             'category', 'brand', 'unit_of_measure', 'currency'
@@ -311,7 +312,7 @@ def get_item_details(request, item_id):
         return JsonResponse(data)
 
     except Item.DoesNotExist:
-        return JsonResponse({'error': _('الصنف غير موجود')}, status=404)
+        return JsonResponse({'error': _('المادة غير موجود')}, status=404)
 
 @login_required
 def check_barcode(request):
@@ -327,7 +328,7 @@ def check_barcode(request):
         barcode=barcode
     )
 
-    # استثناء الصنف الحالي في حالة التعديل
+    # استثناء المادة الحالي في حالة التعديل
     if item_id:
         try:
             queryset = queryset.exclude(id=int(item_id))

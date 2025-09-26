@@ -111,7 +111,7 @@ class AuditLogMixin:
 
 
 class CompanyMixin:
-    """مايكسين للموديلات التي تحتاج company فقط (مثل الأصناف)"""
+    """مايكسين للموديلات التي تحتاج company فقط (مثل المواد)"""
 
     @property
     def current_company(self):

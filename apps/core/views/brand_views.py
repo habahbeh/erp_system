@@ -157,7 +157,7 @@ class BrandDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # عدد الأصناف المرتبطة
+        # عدد المواد المرتبطة
         items_count = self.object.items.filter(company=self.request.current_company).count()
 
         context.update({

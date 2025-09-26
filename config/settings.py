@@ -9,6 +9,18 @@ import os
 
 import sys
 
+import django.db.backends.mysql.base as mysql_base
+
+def dummy_check(*args, **kwargs):
+    return None
+
+mysql_base.DatabaseWrapper.check_database_version_supported = dummy_check
+
+from django.db.backends.mysql.features import DatabaseFeatures
+DatabaseFeatures.can_return_columns_from_insert = False
+DatabaseFeatures.can_return_rows_from_bulk_insert = False
+
+
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -65,27 +77,28 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'config.urls'
 
 # قاعدة البيانات
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': config('DB_NAME'),
-#         'USER': config('DB_USER'),
-#         'PASSWORD': config('DB_PASSWORD'),
-#         'HOST': config('DB_HOST'),
-#         'PORT': config('DB_PORT'),
-#         'OPTIONS': {
-#             'charset': 'utf8mb4',
-#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-#         }
-#     }
-# }
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': config('DB_NAME'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST'),
+        'PORT': config('DB_PORT'),
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    'ATOMIC_REQUESTS': False,
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 # إعدادات اللغة

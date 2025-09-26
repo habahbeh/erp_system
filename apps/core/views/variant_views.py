@@ -1,6 +1,6 @@
 # apps/core/views/variant_views.py
 """
-Views لخصائص ومتغيرات الأصناف
+Views لخصائص ومتغيرات المواد
 """
 
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -274,7 +274,7 @@ class VariantAttributeDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
         values_count = self.object.values.count()
 
         # عدد المتغيرات المستخدمة
-        # TODO: إضافة عدد متغيرات الأصناف التي تستخدم هذه الخاصية
+        # TODO: إضافة عدد متغيرات المواد التي تستخدم هذه الخاصية
         used_in_variants = 0
 
         context.update({

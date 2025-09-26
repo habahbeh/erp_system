@@ -541,7 +541,7 @@ class UnitOfMeasure(BaseModel):
 
 
 class ItemCategory(BaseModel):
-    """تصنيفات الأصناف - 4 مستويات"""
+    """تصنيفات المواد - 4 مستويات"""
 
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children',
                                verbose_name=_('التصنيف الأب'))
@@ -560,8 +560,8 @@ class ItemCategory(BaseModel):
     )
 
     class Meta:
-        verbose_name = _('تصنيف الأصناف')
-        verbose_name_plural = _('تصنيفات الأصناف')
+        verbose_name = _('تصنيف المواد')
+        verbose_name_plural = _('تصنيفات المواد')
         unique_together = [['company', 'code']]
         ordering = ['level', 'name']
 
@@ -600,7 +600,7 @@ class Brand(BaseModel):
 
 
 class BusinessPartner(BaseModel):
-    """الشركاء التجاريين - موحد للعملاء والموردين"""
+    """العملاء - موحد للعملاء والموردين"""
 
     PARTNER_TYPES = [('customer', _('عميل')), ('supplier', _('مورد')), ('both', _('عميل ومورد'))]
     ACCOUNT_TYPE_CHOICES = [('cash', _('نقدي')), ('credit', _('ذمم'))]
@@ -695,12 +695,13 @@ class BusinessPartner(BaseModel):
 
 
 class Item(BaseModel):
-    """الأصناف"""
+    """المواد"""
 
-    code = models.CharField(_('رمز الصنف'), max_length=50)
-    name = models.CharField(_('اسم الصنف'), max_length=200)
+    code = models.CharField(_('رمز المادة'), max_length=50)
+    item_code = models.CharField(_('رمز الكود'), max_length=100, blank=True, null=True)  # يدوي
+    name = models.CharField(_('اسم المادة'), max_length=200)
     name_en = models.CharField(_('الاسم الإنجليزي'), max_length=200, blank=True)
-    catalog_number = models.CharField(_('رقم الكتالوج'), max_length=100, blank=True)
+    catalog_number = models.CharField(_('رقم الكتالوج'), max_length=100, blank=True, null=True)
     barcode = models.CharField(_('الباركود'), max_length=100, blank=True, null=True)
 
     category = models.ForeignKey(ItemCategory, on_delete=models.PROTECT, related_name='items',
@@ -733,7 +734,7 @@ class Item(BaseModel):
     model_number = models.CharField(_('رقم الموديل'), max_length=100, blank=True)
 
     # الملفات والصور
-    image = models.ImageField(_('صورة الصنف'), upload_to='items/images/', blank=True, null=True)
+    image = models.ImageField(_('صورة المادة'), upload_to='items/images/', blank=True, null=True)
     attachment = models.FileField(_('ملف مرفق'), upload_to='items/attachments/', blank=True, null=True)
     attachment_name = models.CharField(_('اسم المرفق'), max_length=100, blank=True)
 
@@ -783,10 +784,10 @@ class Item(BaseModel):
     )
 
     class Meta:
-        verbose_name = _('صنف')
-        verbose_name_plural = _('الأصناف')
+        verbose_name = _('مادة')
+        verbose_name_plural = _('المواد')
         ordering = ['name']
-        unique_together = [['code', 'company'], ['catalog_number', 'company'], ['barcode', 'company']]
+        unique_together = [['code', 'company'], ['barcode', 'company']]
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -849,19 +850,19 @@ class VariantValue(BaseModel):
 
 
 class ItemVariant(BaseModel):
-    """متغيرات الأصناف"""
+    """متغيرات المواد"""
 
-    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='variants', verbose_name=_('الصنف'))
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='variants', verbose_name=_('المادة'))
     code = models.CharField(_('كود المتغير'), max_length=50)
-    catalog_number = models.CharField(_(' المتغير رقم الكتالوج'), max_length=100, blank=True)
+    catalog_number = models.CharField(_(' المتغير رقم الكتالوج'), max_length=100, blank=True, null=True)
     barcode = models.CharField(_('باركود المتغير'), max_length=100, blank=True)
     weight = models.DecimalField(_('الوزن الخاص'), max_digits=10, decimal_places=3, null=True, blank=True)
     image = models.ImageField(_('صورة المتغير'), upload_to='items/variants/', blank=True, null=True)
     notes = models.TextField(_('ملاحظات المتغير'), blank=True)
 
     class Meta:
-        verbose_name = _('متغير الصنف')
-        verbose_name_plural = _('متغيرات الأصناف')
+        verbose_name = _('متغير المادة')
+        verbose_name_plural = _('متغيرات المواد')
         ordering = ['item', 'code']
         unique_together = [['item', 'code']]
 
@@ -880,7 +881,7 @@ class ItemVariant(BaseModel):
 
 
 class ItemVariantAttributeValue(BaseModel):
-    """ربط متغير الصنف بقيم الخصائص"""
+    """ربط متغير المادة بقيم الخصائص"""
 
     variant = models.ForeignKey(ItemVariant, on_delete=models.CASCADE, related_name='variant_attribute_values',
                                 verbose_name=_('المتغير'))

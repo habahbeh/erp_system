@@ -1,6 +1,6 @@
 # apps/core/forms/item_forms.py
 """
-نماذج الأصناف والتصنيفات والعلامات التجارية
+نماذج المواد والتصنيفات والعلامات التجارية
 """
 
 from django import forms
@@ -11,13 +11,13 @@ from ..models import Item, ItemCategory, Brand, ItemVariant
 
 
 class ItemForm(forms.ModelForm):
-    """نموذج إضافة/تعديل الصنف"""
+    """نموذج إضافة/تعديل المادة"""
 
     class Meta:
         model = Item
         fields = [
             # المعلومات الأساسية
-            'code', 'name', 'name_en', 'catalog_number', 'barcode',
+            'item_code', 'name', 'name_en', 'catalog_number', 'barcode',
             'category', 'brand', 'unit_of_measure', 'currency',
             'tax_rate',
             # حذف الحسابات المحاسبية مؤقتاً لحل المشاكل
@@ -29,18 +29,18 @@ class ItemForm(forms.ModelForm):
             'notes', 'additional_notes'
         ]
         widgets = {
+            'item_code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('رمز الكود (اختياري)')
+            }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': _('اسم الصنف'),
+                'placeholder': _('اسم المادة'),
                 'required': True
             }),
             'name_en': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': _('الاسم الإنجليزي')
-            }),
-            'code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': _('رمز الصنف (سيتم توليده تلقائياً)')
             }),
             'catalog_number': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -183,7 +183,7 @@ class ItemForm(forms.ModelForm):
 
 
 class ItemCategoryForm(forms.ModelForm):
-    """نموذج إضافة/تعديل تصنيف الأصناف"""
+    """نموذج إضافة/تعديل تصنيف المواد"""
 
     class Meta:
         model = ItemCategory
@@ -239,7 +239,7 @@ class ItemCategoryForm(forms.ModelForm):
 
 
 class ItemVariantForm(forms.ModelForm):
-    """نموذج متغير الصنف المحسن"""
+    """نموذج متغير المادة المحسن"""
 
     # إضافة حقول للخصائص
     variant_attributes = forms.ModelMultipleChoiceField(

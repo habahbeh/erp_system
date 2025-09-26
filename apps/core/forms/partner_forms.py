@@ -1,6 +1,6 @@
 # apps/core/forms/partner_forms.py
 """
-نماذج الشركاء التجاريين (العملاء والموردين)
+نماذج العملاء (العملاء والموردين)
 """
 
 from django import forms

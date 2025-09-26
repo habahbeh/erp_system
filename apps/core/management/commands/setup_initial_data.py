@@ -92,7 +92,7 @@ class Command(BaseCommand):
                 company=company,
                 code=f'ITM00{i}',
                 defaults={
-                    'name': f'صنف تجريبي {i}',
+                    'name': f'مادة تجريبي {i}',
                     'name_en': f'Test Item {i}',
                     'catalog_number': f'catalog_number00{i}',
                     'barcode': f'123456789{i}',
@@ -104,7 +104,7 @@ class Command(BaseCommand):
                     'purchase_price': 10.00 + i,
                     'sale_price': 15.00 + i,
                     'tax_rate': 16.0,
-                    'short_description': f'وصف مختصر للصنف رقم {i}'
+                    'short_description': f'وصف مختصر للمادة رقم {i}'
                 }
             )
 

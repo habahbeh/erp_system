@@ -19,14 +19,14 @@ from ..filters import BusinessPartnerFilter
 
 
 class BusinessPartnerListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, TemplateView):
-    """قائمة الشركاء التجاريين مع DataTable"""
+    """قائمة العملاء مع DataTable"""
     template_name = 'core/partners/partner_list.html'
     permission_required = 'core.view_businesspartner'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('إدارة الشركاء التجاريين'),
+            'title': _('إدارة العملاء'),
             'can_add': self.request.user.has_perm('core.add_businesspartner'),
             'add_url': reverse('core:partner_create'),
             'breadcrumbs': [
