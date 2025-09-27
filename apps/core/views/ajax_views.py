@@ -1,6 +1,6 @@
 # apps/core/views/ajax_views.py
 """
-Ajax Views للاستجابة السريعة
+Ajax Views للاستجابة السريعة مع البحث الذكي بالمقاطع الجزئية
 """
 
 from django.http import JsonResponse
@@ -10,17 +10,57 @@ from django.db.models import Q, Count
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, PartnerRepresentative, ItemCategory, Brand, Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission
+from ..models import Item, BusinessPartner, PartnerRepresentative, ItemCategory, Brand, Warehouse, UnitOfMeasure, \
+    Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission
 from ..decorators import permission_required_with_message
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+
+def smart_search_query(search_fields, value):
+    """
+    دالة البحث الذكي الموحدة للـ Ajax
+    تدعم البحث بالمقاطع الجزئية المتعددة
+
+    مثال: "مف عش كب" يجد "مفتاح عشرة كبير"
+
+    Args:
+        search_fields: قائمة بحقول البحث
+        value: النص المراد البحث عنه
+
+    Returns:
+        Q object مع شروط البحث
+    """
+    if not value or not search_fields:
+        return Q()
+
+    # تنظيف النص وتقسيمه إلى مقاطع
+    search_terms = value.strip().split()
+    if not search_terms:
+        return Q()
+
+    # بناء شروط البحث لكل مقطع
+    main_query = Q()
+
+    for term in search_terms:
+        # شروط البحث لهذا المقطع في جميع الحقول
+        term_query = Q()
+        for field in search_fields:
+            term_query |= Q(**{f"{field}__icontains": term})
+
+        # إضافة شروط هذا المقطع للشروط الرئيسية
+        # جميع المقاطع يجب أن تكون موجودة (AND)
+        main_query &= term_query
+
+    return main_query
+
+
 @login_required
 @permission_required_with_message('core.view_item')
 @require_http_methods(["GET"])
 def item_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable مع تشخيص المشاكل"""
+    """Ajax endpoint للـ DataTable مع البحث الذكي للمواد"""
     try:
         # تشخيص المشاكل
         debug_info = {
@@ -65,7 +105,7 @@ def item_datatable_ajax(request):
         brand_filter = request.GET.get('brand', '')
         status_filter = request.GET.get('status', '')
 
-        # الحصول على البيانات - تجريب بدون فلترة الشركة أولاً
+        # الحصول على البيانات
         if request.current_company:
             queryset = Item.objects.filter(company=request.current_company)
         else:
@@ -88,16 +128,22 @@ def item_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي الجديد
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(item_code__icontains=search_value) |
-                Q(catalog_number__icontains=search_value) |
-                Q(barcode__icontains=search_value) |
-                Q(short_description__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'code',
+                'item_code',  # الحقل الجديد
+                'catalog_number',
+                'barcode',
+                'short_description',
+                'manufacturer',
+                'model_number'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -178,11 +224,11 @@ def item_datatable_ajax(request):
                     f'<br><small class="text-muted"><i class="fas fa-barcode"></i> {item.barcode}</small>' if item.barcode else '') +
                 '</div>',
 
-                # اسم المادة - لا تغيير
+                # اسم المادة
                 f'<div><strong class="text-dark">{item.name}</strong>' +
                 (f'<br><small class="text-muted">{item.name_en}</small>' if item.name_en else '') + '</div>',
 
-                # باقي الأعمدة كما هي...
+                # باقي الأعمدة
                 f'<span class="badge bg-secondary fs-6">{item.category.name}</span>' if item.category
                 else '<span class="text-muted">-</span>',
 
@@ -205,6 +251,12 @@ def item_datatable_ajax(request):
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
             'data': data,
+            'search_info': {  # معلومات إضافية للبحث
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            },
             'debug': debug_info  # إضافة معلومات التشخيص
         }
 
@@ -224,20 +276,30 @@ def item_datatable_ajax(request):
 
 @login_required
 def partner_autocomplete(request):
-    """البحث السريع في العملاء"""
+    """البحث السريع في العملاء مع البحث الذكي"""
     term = request.GET.get('term', '').strip()
 
     if len(term) < 2:
         return JsonResponse([])
 
-    partners = BusinessPartner.objects.filter(
-        company=request.current_company,
-        is_active=True
-    ).filter(
-        Q(name__icontains=term) |
-        Q(name_en__icontains=term) |
-        Q(code__icontains=term)
-    )[:10]
+    # البحث الذكي في العملاء
+    search_fields = ['name', 'name_en', 'code']
+    smart_query = smart_search_query(search_fields, term)
+
+    if smart_query:
+        partners = BusinessPartner.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).filter(smart_query)[:10]
+    else:
+        partners = BusinessPartner.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).filter(
+            Q(name__icontains=term) |
+            Q(name_en__icontains=term) |
+            Q(code__icontains=term)
+        )[:10]
 
     results = []
     for partner in partners:
@@ -252,29 +314,38 @@ def partner_autocomplete(request):
 
 @login_required
 def item_autocomplete(request):
-    """البحث السريع في المواد"""
+    """البحث السريع في المواد مع البحث الذكي"""
     term = request.GET.get('term', '').strip()
 
     if len(term) < 2:
         return JsonResponse([])
 
-    items = Item.objects.filter(
-        company=request.current_company,
-        is_active=True
-    ).filter(
-        Q(name__icontains=term) |
-        Q(name_en__icontains=term) |
-        Q(code__icontains=term) |
-        Q(barcode__icontains=term) |
-        Q(catalog_number__icontains=term)
-    ).select_related('unit_of_measure', 'currency')[:10]
+    # البحث الذكي في المواد
+    search_fields = ['name', 'name_en', 'code', 'item_code', 'barcode', 'catalog_number']
+    smart_query = smart_search_query(search_fields, term)
+
+    if smart_query:
+        items = Item.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).filter(smart_query).select_related('unit_of_measure', 'currency')[:10]
+    else:
+        items = Item.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).filter(
+            Q(name__icontains=term) |
+            Q(name_en__icontains=term) |
+            Q(code__icontains=term) |
+            Q(barcode__icontains=term) |
+            Q(catalog_number__icontains=term)
+        ).select_related('unit_of_measure', 'currency')[:10]
 
     results = []
     for item in items:
         results.append({
             'id': item.id,
-            'text': f"{item.code} - {item.name}",
-            # 'price': float(item.sale_price),
+            'text': f"{item.item_code or item.code} - {item.name}",
             'unit': item.unit_of_measure.name,
             'currency': item.currency.symbol
         })
@@ -296,6 +367,7 @@ def get_item_details(request, item_id):
         data = {
             'id': item.id,
             'code': item.code,
+            'item_code': item.item_code,  # الحقل الجديد
             'name': item.name,
             'name_en': item.name_en,
             'barcode': item.barcode,
@@ -313,6 +385,7 @@ def get_item_details(request, item_id):
 
     except Item.DoesNotExist:
         return JsonResponse({'error': _('المادة غير موجود')}, status=404)
+
 
 @login_required
 def check_barcode(request):
@@ -343,18 +416,11 @@ def check_barcode(request):
     })
 
 
-
-
-"""
-Ajax Views للعملاء
-"""
-
-
 @login_required
 @permission_required_with_message('core.view_businesspartner')
 @require_http_methods(["GET"])
 def partner_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للعملاء مع دعم المندوبين المتعددين"""
+    """Ajax endpoint للـ DataTable للعملاء مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -367,18 +433,16 @@ def partner_datatable_ajax(request):
         # معالجة طلبات تحميل خيارات الفلاتر
         if request.GET.get('get_representatives'):
             try:
-                # الآن نجلب أسماء المندوبين من PartnerRepresentative
                 representatives = PartnerRepresentative.objects.filter(
                     company=request.current_company,
                     is_active=True
                 ).values('representative_name').distinct().order_by('representative_name')
 
-                # تنسيق البيانات
                 reps_data = []
                 for rep in representatives:
-                    if rep['representative_name']:  # تأكد من وجود اسم
+                    if rep['representative_name']:
                         reps_data.append({
-                            'id': rep['representative_name'],  # نستخدم الاسم كـ ID
+                            'id': rep['representative_name'],
                             'name': rep['representative_name']
                         })
 
@@ -406,9 +470,6 @@ def partner_datatable_ajax(request):
         else:
             queryset = BusinessPartner.objects.all()
 
-        # إزالة prefetch_related المعقد مؤقتاً
-        # queryset = queryset.prefetch_related('representatives__user')
-
         # تطبيق الفلاتر المخصصة
         if partner_type_filter:
             queryset = queryset.filter(partner_type=partner_type_filter)
@@ -417,7 +478,6 @@ def partner_datatable_ajax(request):
             queryset = queryset.filter(account_type=account_type_filter)
 
         if representative_filter:
-            # البحث في المندوبين المتعددين (بالاسم النصي)
             queryset = queryset.filter(representatives__representative_name__icontains=representative_filter)
 
         if tax_status_filter:
@@ -430,23 +490,25 @@ def partner_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام - مبسط
+        # البحث الذكي الجديد للعملاء
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(code__icontains=search_value) |
-                Q(contact_person__icontains=search_value) |
-                Q(phone__icontains=search_value) |
-                Q(mobile__icontains=search_value) |
-                Q(email__icontains=search_value) |
-                Q(tax_number__icontains=search_value) |
-                Q(address__icontains=search_value) |
-                Q(city__icontains=search_value) |
-                Q(region__icontains=search_value)
-                # إزالة البحث في المندوبين مؤقتاً لتجنب الأخطاء
-                # Q(representatives__representative_name__icontains=search_value)
-            ).distinct()
+            search_fields = [
+                'name',
+                'name_en',
+                'code',
+                'contact_person',
+                'phone',
+                'mobile',
+                'email',
+                'tax_number',
+                'commercial_register',
+                'address',
+                'city',
+                'region'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -456,7 +518,7 @@ def partner_datatable_ajax(request):
 
         records_filtered = queryset.count()
 
-        # الترتيب - مبسط
+        # الترتيب
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
@@ -471,14 +533,14 @@ def partner_datatable_ajax(request):
             if 'representatives' not in order_field:
                 queryset = queryset.order_by(order_field)
             else:
-                queryset = queryset.order_by('name')  # ترتيب افتراضي
+                queryset = queryset.order_by('name')
         else:
             queryset = queryset.order_by('name')
 
         # التقسيم للصفحات
         partners = queryset[start:start + length]
 
-        # تجهيز البيانات للإرسال - مبسط
+        # تجهيز البيانات للإرسال
         data = []
         for partner in partners:
             # التحقق من الصلاحيات
@@ -517,12 +579,12 @@ def partner_datatable_ajax(request):
 
             actions += '</div>'
 
-            # تجميع المندوبين - مبسط
+            # تجميع المندوبين
             try:
                 representatives = partner.representatives.all()
                 if representatives.exists():
                     reps_list = []
-                    for rep in representatives[:2]:  # أول 2 مندوبين
+                    for rep in representatives[:2]:
                         rep_name = rep.representative_name or "مندوب"
                         if rep.is_primary:
                             rep_name = f"<strong>{rep_name}</strong> ⭐"
@@ -576,7 +638,13 @@ def partner_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {  # معلومات إضافية للبحث
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -593,13 +661,11 @@ def partner_datatable_ajax(request):
         }, status=500)
 
 
-# أضف هذا في نهاية ملف apps/core/views/ajax_views.py
-
 @login_required
 @permission_required_with_message('core.view_warehouse')
 @require_http_methods(["GET"])
 def warehouse_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للمستودعات"""
+    """Ajax endpoint للـ DataTable للمستودعات مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -665,15 +731,18 @@ def warehouse_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي للمستودعات
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(code__icontains=search_value) |
-                Q(address__icontains=search_value) |
-                Q(phone__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'code',
+                'address',
+                'phone'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -774,7 +843,13 @@ def warehouse_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -790,11 +865,12 @@ def warehouse_datatable_ajax(request):
             'data': []
         }, status=500)
 
+
 @login_required
 @permission_required_with_message('core.view_brand')
 @require_http_methods(["GET"])
 def brand_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للعلامات التجارية"""
+    """Ajax endpoint للـ DataTable للعلامات التجارية مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -842,15 +918,18 @@ def brand_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي للعلامات التجارية
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(description__icontains=search_value) |
-                Q(country__icontains=search_value) |
-                Q(website__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'description',
+                'country',
+                'website'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -864,7 +943,7 @@ def brand_datatable_ajax(request):
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['name', 'name_en', 'country', 'website', 'is_active']
+        columns = ['name', 'country', 'logo', 'website', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
@@ -948,7 +1027,13 @@ def brand_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -964,11 +1049,12 @@ def brand_datatable_ajax(request):
             'data': []
         }, status=500)
 
+
 @login_required
 @permission_required_with_message('core.view_unitofmeasure')
 @require_http_methods(["GET"])
 def unit_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable لوحدات القياس"""
+    """Ajax endpoint للـ DataTable لوحدات القياس مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -998,13 +1084,16 @@ def unit_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي لوحدات القياس
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(code__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'code'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -1018,7 +1107,7 @@ def unit_datatable_ajax(request):
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['code', 'name', 'name_en', 'is_active']
+        columns = ['code', 'name', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
@@ -1093,7 +1182,13 @@ def unit_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1114,7 +1209,7 @@ def unit_datatable_ajax(request):
 @permission_required_with_message('core.view_currency')
 @require_http_methods(["GET"])
 def currency_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للعملات"""
+    """Ajax endpoint للـ DataTable للعملات مع البحث الذكي"""
     try:
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
@@ -1138,14 +1233,17 @@ def currency_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي للعملات
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(code__icontains=search_value) |
-                Q(symbol__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'code',
+                'symbol'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         records_total = Currency.objects.count()
@@ -1240,7 +1338,13 @@ def currency_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1257,12 +1361,11 @@ def currency_datatable_ajax(request):
         }, status=500)
 
 
-
 @login_required
 @permission_required_with_message('core.view_branch')
 @require_http_methods(["GET"])
 def branch_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للفروع"""
+    """Ajax endpoint للـ DataTable للفروع مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -1299,15 +1402,18 @@ def branch_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي للفروع
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(code__icontains=search_value) |
-                Q(phone__icontains=search_value) |
-                Q(email__icontains=search_value) |
-                Q(address__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'code',
+                'phone',
+                'email',
+                'address'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -1407,7 +1513,13 @@ def branch_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1424,12 +1536,11 @@ def branch_datatable_ajax(request):
         }, status=500)
 
 
-
 @login_required
 @permission_required_with_message('core.view_variantattribute')
 @require_http_methods(["GET"])
 def variant_attribute_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable لخصائص المتغيرات"""
+    """Ajax endpoint للـ DataTable لخصائص المتغيرات مع البحث الذكي"""
     try:
         # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
         if not hasattr(request, 'current_company') or not request.current_company:
@@ -1464,13 +1575,16 @@ def variant_attribute_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي لخصائص المتغيرات
         if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(name_en__icontains=search_value) |
-                Q(display_name__icontains=search_value)
-            )
+            search_fields = [
+                'name',
+                'name_en',
+                'display_name'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         if request.current_company:
@@ -1580,7 +1694,13 @@ def variant_attribute_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1597,15 +1717,15 @@ def variant_attribute_datatable_ajax(request):
         }, status=500)
 
 
-
 @login_required
 @permission_required_with_message('auth.view_user')
 @require_http_methods(["GET"])
 def user_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للمستخدمين"""
+    """Ajax endpoint للـ DataTable للمستخدمين مع البحث الذكي"""
     try:
         # معالجة طلبات تحميل خيارات الفلاتر
         if request.GET.get('get_companies'):
+            from apps.core.models import Company
             companies = Company.objects.filter(is_active=True).values('id', 'name').order_by('name')
             return JsonResponse({'companies': list(companies)})
 
@@ -1662,16 +1782,19 @@ def user_datatable_ajax(request):
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
 
-        # البحث العام
+        # البحث الذكي للمستخدمين
         if search_value:
-            queryset = queryset.filter(
-                Q(username__icontains=search_value) |
-                Q(first_name__icontains=search_value) |
-                Q(last_name__icontains=search_value) |
-                Q(email__icontains=search_value) |
-                Q(emp_number__icontains=search_value) |
-                Q(phone__icontains=search_value)
-            )
+            search_fields = [
+                'username',
+                'first_name',
+                'last_name',
+                'email',
+                'emp_number',
+                'phone'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي (حسب الصلاحيات)
         if request.user.is_superuser:
@@ -1794,7 +1917,13 @@ def user_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1815,7 +1944,7 @@ def user_datatable_ajax(request):
 @permission_required_with_message('core.view_userprofile')
 @require_http_methods(["GET"])
 def profile_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable لملفات المستخدمين"""
+    """Ajax endpoint للـ DataTable لملفات المستخدمين مع البحث الذكي"""
     try:
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
@@ -1837,15 +1966,18 @@ def profile_datatable_ajax(request):
         queryset = queryset.select_related('user', 'user__company', 'user__branch')
         queryset = queryset.prefetch_related('allowed_branches', 'allowed_warehouses')
 
-        # البحث العام
+        # البحث الذكي لملفات المستخدمين
         if search_value:
-            queryset = queryset.filter(
-                Q(user__username__icontains=search_value) |
-                Q(user__first_name__icontains=search_value) |
-                Q(user__last_name__icontains=search_value) |
-                Q(user__email__icontains=search_value) |
-                Q(user__company__name__icontains=search_value)
-            )
+            search_fields = [
+                'user__username',
+                'user__first_name',
+                'user__last_name',
+                'user__email',
+                'user__company__name'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي (حسب الصلاحيات)
         if request.user.is_superuser:
@@ -1976,7 +2108,13 @@ def profile_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -1993,13 +2131,11 @@ def profile_datatable_ajax(request):
         }, status=500)
 
 
-# إضافة هذا في نهاية ملف apps/core/views/ajax_views.py
-
 @login_required
 @permission_required_with_message('core.view_custompermission')
 @require_http_methods(["GET"])
 def permission_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable للصلاحيات المخصصة"""
+    """Ajax endpoint للـ DataTable للصلاحيات المخصصة مع البحث الذكي"""
     try:
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
@@ -2009,15 +2145,6 @@ def permission_datatable_ajax(request):
 
         # الحصول على البيانات
         queryset = CustomPermission.objects.all()
-
-        # البحث العام
-        if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(code__icontains=search_value) |
-                Q(description__icontains=search_value) |
-                Q(category__icontains=search_value)
-            )
 
         # فلترة حسب التصنيف
         category_filter = request.GET.get('category', '')
@@ -2034,6 +2161,18 @@ def permission_datatable_ajax(request):
         if status_filter:
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
+
+        # البحث الذكي للصلاحيات المخصصة
+        if search_value:
+            search_fields = [
+                'name',
+                'code',
+                'description',
+                'category'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         records_total = CustomPermission.objects.count()
@@ -2134,7 +2273,13 @@ def permission_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)
@@ -2155,7 +2300,7 @@ def permission_datatable_ajax(request):
 @permission_required_with_message('core.view_permissiongroup')
 @require_http_methods(["GET"])
 def group_datatable_ajax(request):
-    """Ajax endpoint للـ DataTable لمجموعات الصلاحيات"""
+    """Ajax endpoint للـ DataTable لمجموعات الصلاحيات مع البحث الذكي"""
     try:
         # معاملات DataTable
         draw = int(request.GET.get('draw', 1))
@@ -2167,18 +2312,21 @@ def group_datatable_ajax(request):
         queryset = PermissionGroup.objects.all()
         queryset = queryset.prefetch_related('permissions', 'django_permissions')
 
-        # البحث العام
-        if search_value:
-            queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(description__icontains=search_value)
-            )
-
         # فلترة حسب الحالة
         status_filter = request.GET.get('is_active', '')
         if status_filter:
             is_active = status_filter == '1'
             queryset = queryset.filter(is_active=is_active)
+
+        # البحث الذكي لمجموعات الصلاحيات
+        if search_value:
+            search_fields = [
+                'name',
+                'description'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
 
         # العدد الكلي
         records_total = PermissionGroup.objects.count()
@@ -2276,7 +2424,13 @@ def group_datatable_ajax(request):
             'draw': draw,
             'recordsTotal': records_total,
             'recordsFiltered': records_filtered,
-            'data': data
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
         }
 
         return JsonResponse(response)

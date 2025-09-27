@@ -1,24 +1,62 @@
 # apps/core/filters.py
 """
-Django Filters للبحث والتصفية
+Django Filters للبحث والتصفية - محدث بالبحث الذكي
 """
 
 import django_filters
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User, UnitOfMeasure, Currency, Company, Branch
-from .models import Warehouse
+from django.db.models import Q
+from .models import Item, ItemCategory, Brand, UnitOfMeasure, Currency, Warehouse, BusinessPartner, User, Company, \
+    Branch
+
+
+def smart_search_filter(queryset, search_fields, value):
+    """
+    دالة البحث الذكي الموحدة
+    تدعم البحث بالمقاطع الجزئية المتعددة
+
+    Args:
+        queryset: الاستعلام الأساسي
+        search_fields: قائمة بحقول البحث
+        value: النص المراد البحث عنه
+
+    Returns:
+        queryset محدث بشروط البحث
+    """
+    if not value or not search_fields:
+        return queryset
+
+    # تنظيف النص وتقسيمه إلى مقاطع
+    search_terms = value.strip().split()
+    if not search_terms:
+        return queryset
+
+    # بناء شروط البحث لكل مقطع
+    main_query = Q()
+
+    for term in search_terms:
+        # شروط البحث لهذا المقطع في جميع الحقول
+        term_query = Q()
+        for field in search_fields:
+            term_query |= Q(**{f"{field}__icontains": term})
+
+        # إضافة شروط هذا المقطع للشروط الرئيسية
+        # جميع المقاطع يجب أن تكون موجودة (AND)
+        main_query &= term_query
+
+    return queryset.filter(main_query).distinct()
 
 
 class ItemFilter(django_filters.FilterSet):
-    """فلتر المواد"""
+    """فلتر المواد - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم، الكود، رقم الكتالوج، الباركود...'),
+            'placeholder': _('البحث بالمقاطع: مف عش كب للبحث عن "مفتاح عشرة كبير"'),
         })
     )
 
@@ -50,14 +88,6 @@ class ItemFilter(django_filters.FilterSet):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    default_warehouse = django_filters.ModelChoiceFilter(
-        queryset=Warehouse.objects.none(),
-        label=_('المستودع'),
-        empty_label=_('كل المستودعات'),
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
-
-
     has_variants = django_filters.BooleanFilter(
         label=_('له متغيرات'),
         widget=forms.Select(
@@ -78,8 +108,7 @@ class ItemFilter(django_filters.FilterSet):
         model = Item
         fields = [
             'search', 'category', 'brand', 'unit_of_measure',
-            'currency', 'default_warehouse',
-            'has_variants', 'is_active'
+            'currency', 'has_variants', 'is_active'
         ]
 
     def __init__(self, *args, **kwargs):
@@ -106,36 +135,31 @@ class ItemFilter(django_filters.FilterSet):
                 is_active=True
             ).order_by('name')
 
-            self.filters['default_warehouse'].queryset = Warehouse.objects.filter(
-                company=company, is_active=True
-            ).order_by('name')
-
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value) |
-                Q(catalog_number__icontains=value) |
-                Q(barcode__icontains=value) |
-                Q(short_description__icontains=value) |
-                Q(manufacturer__icontains=value) |
-                Q(model_number__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للمواد"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code',
+            'item_code',  # الحقل الجديد
+            'catalog_number',
+            'barcode',
+            'short_description',
+            'manufacturer',
+            'model_number'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
 
 class ItemCategoryFilter(django_filters.FilterSet):
-    """فلتر تصنيفات المواد"""
+    """فلتر تصنيفات المواد - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم أو الكود...'),
+            'placeholder': _('البحث بالمقاطع: كم هو للبحث عن "كمبيوتر هواوي"'),
         })
     )
 
@@ -178,27 +202,25 @@ class ItemCategoryFilter(django_filters.FilterSet):
             ).order_by('level', 'name')
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value) |
-                Q(description__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للتصنيفات"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code',
+            'description'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
 
 class BrandFilter(django_filters.FilterSet):
-    """فلتر العلامات التجارية"""
+    """فلتر العلامات التجارية - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في اسم العلامة...'),
+            'placeholder': _('البحث بالمقاطع: سام كور للبحث عن "سامسونغ كوريا"'),
         })
     )
 
@@ -212,6 +234,24 @@ class BrandFilter(django_filters.FilterSet):
         })
     )
 
+    has_logo = django_filters.BooleanFilter(
+        method='filter_has_logo',
+        label=_('له شعار'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
+    has_website = django_filters.BooleanFilter(
+        method='filter_has_website',
+        label=_('له موقع إلكتروني'),
+        widget=forms.Select(
+            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
+            attrs={'class': 'form-select'}
+        )
+    )
+
     is_active = django_filters.BooleanFilter(
         label=_('الحالة'),
         widget=forms.Select(
@@ -222,29 +262,45 @@ class BrandFilter(django_filters.FilterSet):
 
     class Meta:
         model = Brand
-        fields = ['search', 'country', 'is_active']
+        fields = ['search', 'country', 'has_logo', 'has_website', 'is_active']
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(description__icontains=value)
-            ).distinct()
+        """البحث الذكي في عدة حقول للعلامات التجارية"""
+        search_fields = [
+            'name',
+            'name_en',
+            'description',
+            'country',
+            'website'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
+
+    def filter_has_logo(self, queryset, name, value):
+        """فلترة حسب وجود شعار"""
+        if value is True:
+            return queryset.exclude(logo__exact='')
+        elif value is False:
+            return queryset.filter(logo__exact='')
+        return queryset
+
+    def filter_has_website(self, queryset, name, value):
+        """فلترة حسب وجود موقع إلكتروني"""
+        if value is True:
+            return queryset.exclude(website__exact='')
+        elif value is False:
+            return queryset.filter(website__exact='')
         return queryset
 
 
 class UnitOfMeasureFilter(django_filters.FilterSet):
-    """فلتر وحدات القياس"""
+    """فلتر وحدات القياس - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم أو الرمز...'),
+            'placeholder': _('البحث بالمقاطع: كي جر للبحث عن "كيلو جرام"'),
         })
     )
 
@@ -260,27 +316,29 @@ class UnitOfMeasureFilter(django_filters.FilterSet):
         model = UnitOfMeasure
         fields = ['search', 'is_active']
 
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول لوحدات القياس"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
 
 class BusinessPartnerFilter(django_filters.FilterSet):
-    """فلتر العملاء"""
+    """فلتر العملاء - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم، الكود، الهاتف، البريد...'),
+            'placeholder': _('البحث بالمقاطع: شر تج عم للبحث عن "شركة التجارة العمومية"'),
         })
     )
 
@@ -369,24 +427,22 @@ class BusinessPartnerFilter(django_filters.FilterSet):
             ).order_by('first_name', 'last_name')
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value) |
-                Q(contact_person__icontains=value) |
-                Q(phone__icontains=value) |
-                Q(mobile__icontains=value) |
-                Q(email__icontains=value) |
-                Q(tax_number__icontains=value) |
-                Q(commercial_register__icontains=value) |
-                Q(address__icontains=value) |
-                Q(city__icontains=value) |
-                Q(region__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للعملاء"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code',
+            'contact_person',
+            'phone',
+            'mobile',
+            'email',
+            'tax_number',
+            'commercial_register',
+            'address',
+            'city',
+            'region'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
     def filter_has_credit_limit(self, queryset, name, value):
         """فلترة حسب وجود حد ائتمان"""
@@ -398,14 +454,14 @@ class BusinessPartnerFilter(django_filters.FilterSet):
 
 
 class WarehouseFilter(django_filters.FilterSet):
-    """فلتر المستودعات"""
+    """فلتر المستودعات - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في اسم المستودع...'),
+            'placeholder': _('البحث بالمقاطع: مست رئ للبحث عن "مستودع رئيسي"'),
         })
     )
 
@@ -457,150 +513,26 @@ class WarehouseFilter(django_filters.FilterSet):
             ).order_by('first_name', 'last_name')
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value) |
-                Q(address__icontains=value) |
-                Q(phone__icontains=value)
-            ).distinct()
-        return queryset
-
-# أضف هذا في نهاية ملف apps/core/filters.py
-
-class BrandFilter(django_filters.FilterSet):
-    """فلتر العلامات التجارية"""
-
-    search = django_filters.CharFilter(
-        method='filter_search',
-        label=_('البحث'),
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': _('البحث في اسم العلامة...'),
-        })
-    )
-
-    country = django_filters.CharFilter(
-        field_name='country',
-        lookup_expr='icontains',
-        label=_('بلد المنشأ'),
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': _('بلد المنشأ')
-        })
-    )
-
-    has_logo = django_filters.BooleanFilter(
-        method='filter_has_logo',
-        label=_('له شعار'),
-        widget=forms.Select(
-            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
-            attrs={'class': 'form-select'}
-        )
-    )
-
-    has_website = django_filters.BooleanFilter(
-        method='filter_has_website',
-        label=_('له موقع إلكتروني'),
-        widget=forms.Select(
-            choices=[(None, _('الكل')), (True, _('نعم')), (False, _('لا'))],
-            attrs={'class': 'form-select'}
-        )
-    )
-
-    is_active = django_filters.BooleanFilter(
-        label=_('الحالة'),
-        widget=forms.Select(
-            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
-            attrs={'class': 'form-select'}
-        )
-    )
-
-    class Meta:
-        model = Brand
-        fields = ['search', 'country', 'has_logo', 'has_website', 'is_active']
-
-    def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(description__icontains=value) |
-                Q(country__icontains=value) |
-                Q(website__icontains=value)
-            ).distinct()
-        return queryset
-
-    def filter_has_logo(self, queryset, name, value):
-        """فلترة حسب وجود شعار"""
-        if value is True:
-            return queryset.exclude(logo__exact='')
-        elif value is False:
-            return queryset.filter(logo__exact='')
-        return queryset
-
-    def filter_has_website(self, queryset, name, value):
-        """فلترة حسب وجود موقع إلكتروني"""
-        if value is True:
-            return queryset.exclude(website__exact='')
-        elif value is False:
-            return queryset.filter(website__exact='')
-        return queryset
-
-class UnitOfMeasureFilter(django_filters.FilterSet):
-    """فلتر وحدات القياس"""
-
-    search = django_filters.CharFilter(
-        method='filter_search',
-        label=_('البحث'),
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': _('البحث في الاسم أو الرمز...'),
-        })
-    )
-
-    is_active = django_filters.BooleanFilter(
-        label=_('الحالة'),
-        widget=forms.Select(
-            choices=[(None, _('الكل')), (True, _('نشط')), (False, _('غير نشط'))],
-            attrs={'class': 'form-select'}
-        )
-    )
-
-    class Meta:
-        model = UnitOfMeasure
-        fields = ['search', 'is_active']
-
-    def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop('request', None)
-        super().__init__(*args, **kwargs)
-
-    def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للمستودعات"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code',
+            'address',
+            'phone'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
 
 class CurrencyFilter(django_filters.FilterSet):
-    """فلتر العملات"""
+    """فلتر العملات - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم أو الرمز...'),
+            'placeholder': _('البحث بالمقاطع: دي أر للبحث عن "دينار أردني"'),
         })
     )
 
@@ -625,27 +557,25 @@ class CurrencyFilter(django_filters.FilterSet):
         fields = ['search', 'is_base', 'is_active']
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(name__icontains=value) |
-                Q(name_en__icontains=value) |
-                Q(code__icontains=value) |
-                Q(symbol__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للعملات"""
+        search_fields = [
+            'name',
+            'name_en',
+            'code',
+            'symbol'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
 
 class UserFilter(django_filters.FilterSet):
-    """فلتر المستخدمين"""
+    """فلتر المستخدمين - محدث بالبحث الذكي"""
 
     search = django_filters.CharFilter(
         method='filter_search',
         label=_('البحث'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('البحث في الاسم، اسم المستخدم، البريد...'),
+            'placeholder': _('البحث بالمقاطع: أح مح للبحث عن "أحمد محمد"'),
         })
     )
 
@@ -704,18 +634,16 @@ class UserFilter(django_filters.FilterSet):
         self.filters['branch'].queryset = Branch.objects.filter(is_active=True).order_by('name')
 
     def filter_search(self, queryset, name, value):
-        """البحث في عدة حقول"""
-        if value:
-            from django.db.models import Q
-            return queryset.filter(
-                Q(username__icontains=value) |
-                Q(first_name__icontains=value) |
-                Q(last_name__icontains=value) |
-                Q(email__icontains=value) |
-                Q(emp_number__icontains=value) |
-                Q(phone__icontains=value)
-            ).distinct()
-        return queryset
+        """البحث الذكي في عدة حقول للمستخدمين"""
+        search_fields = [
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'emp_number',
+            'phone'
+        ]
+        return smart_search_filter(queryset, search_fields, value)
 
     def filter_role(self, queryset, name, value):
         """فلترة حسب الدور"""
@@ -727,14 +655,16 @@ class UserFilter(django_filters.FilterSet):
             return queryset.filter(is_staff=False, is_superuser=False)
         return queryset
 
+
 # تحديث __all__ في نهاية الملف
 __all__ = [
+    'smart_search_filter',  # الدالة الجديدة
     'ItemFilter',
     'ItemCategoryFilter',
     'BrandFilter',
     'UnitOfMeasureFilter',
     'BusinessPartnerFilter',
     'WarehouseFilter',
-    'UserFilter',  # إضافة جديد
+    'CurrencyFilter',
+    'UserFilter',
 ]
-
