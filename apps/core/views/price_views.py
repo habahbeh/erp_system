@@ -220,29 +220,21 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # الحصول على المادة
         item_id = self.kwargs.get('item_id')
-        item = get_object_or_404(
-            Item,
-            pk=item_id,
-            company=self.request.current_company
-        )
+        item = get_object_or_404(Item, pk=item_id, company=self.request.current_company)
 
-        # الحصول على جميع قوائم الأسعار النشطة
         price_lists = PriceList.objects.filter(
             company=self.request.current_company,
             is_active=True
         ).order_by('name')
 
-        # تجهيز البيانات حسب نوع المادة
+        # ✅ التعديل الأساسي: تغيير هيكل البيانات
         if item.has_variants:
-            # جلب جميع المتغيرات
             variants = item.variants.filter(is_active=True).select_related('company')
 
-            # لكل متغير، جمع أسعاره في جميع قوائم الأسعار
             variants_data = []
             for variant in variants:
-                variant_prices = {}
+                prices_dict = {}
                 for price_list in price_lists:
                     try:
                         price_item = PriceListItem.objects.get(
@@ -251,19 +243,18 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                             variant=variant,
                             is_active=True
                         )
-                        variant_prices[price_list.id] = price_item.price
+                        prices_dict[str(price_list.id)] = str(price_item.price)
                     except PriceListItem.DoesNotExist:
-                        variant_prices[price_list.id] = None
+                        prices_dict[str(price_list.id)] = ''
 
                 variants_data.append({
                     'variant': variant,
-                    'prices': variant_prices
+                    'prices': prices_dict  # ✅ dict بسيط {price_list_id: price}
                 })
 
             context['variants_data'] = variants_data
         else:
-            # مادة بدون متغيرات - أسعار واحدة لكل قائمة
-            item_prices = {}
+            prices_dict = {}
             for price_list in price_lists:
                 try:
                     price_item = PriceListItem.objects.get(
@@ -272,17 +263,16 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         variant__isnull=True,
                         is_active=True
                     )
-                    item_prices[price_list.id] = price_item.price
+                    prices_dict[str(price_list.id)] = str(price_item.price)
                 except PriceListItem.DoesNotExist:
-                    item_prices[price_list.id] = None
+                    prices_dict[str(price_list.id)] = ''
 
-            context['item_prices'] = item_prices
+            context['prices'] = prices_dict  # ✅ {price_list_id: price}
 
         context.update({
             'item': item,
             'price_lists': price_lists,
             'title': _('إدارة أسعار: %(name)s') % {'name': item.name},
-            'can_change': self.request.user.has_perm('core.change_pricelistitem'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('المواد'), 'url': reverse('core:item_list')},
