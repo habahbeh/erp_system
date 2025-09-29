@@ -284,105 +284,126 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
 
 def update_item_prices(request, item_id):
-    """حفظ أسعار مادة معين في جميع قوائم الأسعار - POST endpoint"""
+    """حفظ أسعار مادة معين في جميع قوائم الأسعار"""
     if request.method != 'POST':
-        return redirect('core:item_list')
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
 
     if not request.user.has_perm('core.change_pricelistitem'):
-        messages.error(request, _('ليس لديك صلاحية تعديل الأسعار'))
-        return redirect('core:item_prices', item_id=item_id)
+        return JsonResponse({'success': False, 'error': 'ليس لديك صلاحية'}, status=403)
 
-    # الحصول على المادة
-    item = get_object_or_404(
-        Item,
-        pk=item_id,
-        company=request.current_company
-    )
+    item = get_object_or_404(Item, pk=item_id, company=request.current_company)
 
     try:
-        # حذف الأسعار القديمة للمادة
+        # حذف الأسعار القديمة
         PriceListItem.objects.filter(item=item).delete()
 
         updated_count = 0
+        errors = []
 
         if item.has_variants:
             # معالجة أسعار المتغيرات
-            variants = item.variants.filter(is_active=True)
+            for key, value in request.POST.items():
+                if not key.startswith('price_'):
+                    continue
 
-            for variant in variants:
-                # البحث عن الأسعار في POST data
-                for key, value in request.POST.items():
-                    # تنسيق الحقل: price_{price_list_id}_{variant_id}
-                    if key.startswith(f'price_') and f'_{variant.id}' in key:
-                        try:
-                            price_list_id = key.split('_')[1]
-                            price_value = Decimal(value) if value else None
+                try:
+                    # تنسيق: price_<price_list_id>_<variant_id>
+                    parts = key.split('_')
+                    if len(parts) != 3:
+                        continue
 
-                            if price_value and price_value > 0:
-                                price_list = PriceList.objects.get(
-                                    pk=price_list_id,
-                                    company=request.current_company
-                                )
+                    price_list_id = int(parts[1])
+                    variant_id = int(parts[2])
 
-                                PriceListItem.objects.create(
-                                    price_list=price_list,
-                                    item=item,
-                                    variant=variant,
-                                    price=price_value
-                                )
-                                updated_count += 1
-                        except (ValueError, PriceList.DoesNotExist, IndexError):
-                            continue
+                    if not value or value.strip() == '':
+                        continue
+
+                    price_value = Decimal(value.strip())
+
+                    if price_value <= 0:
+                        continue
+
+                    # التحقق من وجود قائمة الأسعار والمتغير
+                    price_list = PriceList.objects.get(
+                        pk=price_list_id,
+                        company=request.current_company
+                    )
+
+                    variant = ItemVariant.objects.get(
+                        pk=variant_id,
+                        item=item
+                    )
+
+                    # إنشاء السعر
+                    PriceListItem.objects.create(
+                        price_list=price_list,
+                        item=item,
+                        variant=variant,
+                        price=price_value
+                    )
+                    updated_count += 1
+
+                except (ValueError, PriceList.DoesNotExist, ItemVariant.DoesNotExist, IndexError) as e:
+                    errors.append(f"خطأ في {key}: {str(e)}")
+                    continue
         else:
             # معالجة أسعار مادة بدون متغيرات
             for key, value in request.POST.items():
-                # تنسيق الحقل: price_{price_list_id}
-                if key.startswith('price_'):
-                    try:
-                        price_list_id = key.split('_')[1]
-                        price_value = Decimal(value) if value else None
+                if not key.startswith('price_'):
+                    continue
 
-                        if price_value and price_value > 0:
-                            price_list = PriceList.objects.get(
-                                pk=price_list_id,
-                                company=request.current_company
-                            )
+                try:
+                    price_list_id = int(key.split('_')[1])
 
-                            PriceListItem.objects.create(
-                                price_list=price_list,
-                                item=item,
-                                variant=None,
-                                price=price_value
-                            )
-                            updated_count += 1
-                    except (ValueError, PriceList.DoesNotExist):
+                    if not value or value.strip() == '':
                         continue
 
-        messages.success(
-            request,
-            _('تم تحديث %(count)d سعر بنجاح') % {'count': updated_count}
-        )
+                    price_value = Decimal(value.strip())
+
+                    if price_value <= 0:
+                        continue
+
+                    price_list = PriceList.objects.get(
+                        pk=price_list_id,
+                        company=request.current_company
+                    )
+
+                    PriceListItem.objects.create(
+                        price_list=price_list,
+                        item=item,
+                        variant=None,
+                        price=price_value
+                    )
+                    updated_count += 1
+
+                except (ValueError, PriceList.DoesNotExist) as e:
+                    errors.append(f"خطأ في {key}: {str(e)}")
+                    continue
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم تحديث {updated_count} سعر بنجاح',
+            'updated_count': updated_count,
+            'errors': errors if errors else None
+        })
 
     except Exception as e:
-        messages.error(
-            request,
-            _('حدث خطأ أثناء حفظ الأسعار: %(error)s') % {'error': str(e)}
-        )
-
-    return redirect('core:item_prices', item_id=item_id)
+        return JsonResponse({
+            'success': False,
+            'error': f'حدث خطأ: {str(e)}'
+        }, status=500)
 
 
 # ===== إدارة أمواد قائمة أسعار معينة =====
 
 class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
-    """صفحة إدارة جميع المواد في قائمة أسعار معينة"""
+    """صفحة إدارة أصناف قائمة أسعار - بـ DataTable"""
     template_name = 'core/price_lists/price_list_items.html'
     permission_required = 'core.view_pricelistitem'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # الحصول على قائمة الأسعار
         price_list_id = self.kwargs.get('pk')
         price_list = get_object_or_404(
             PriceList,
@@ -390,63 +411,15 @@ class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             company=self.request.current_company
         )
 
-        # جلب المواد النشطة في الشركة
-        items = Item.objects.filter(
-            company=self.request.current_company,
-            is_active=True
-        ).select_related('category', 'unit_of_measure').prefetch_related('variants')
-
-        # تجهيز البيانات
-        items_data = []
-        for item in items:
-            if item.has_variants:
-                # لكل متغير
-                for variant in item.variants.filter(is_active=True):
-                    try:
-                        price_item = PriceListItem.objects.get(
-                            price_list=price_list,
-                            item=item,
-                            variant=variant
-                        )
-                        current_price = price_item.price
-                    except PriceListItem.DoesNotExist:
-                        current_price = None
-
-                    items_data.append({
-                        'item': item,
-                        'variant': variant,
-                        'current_price': current_price,
-                        'display_name': f"{item.name} - {variant.code}"
-                    })
-            else:
-                # مادة بدون متغيرات
-                try:
-                    price_item = PriceListItem.objects.get(
-                        price_list=price_list,
-                        item=item,
-                        variant__isnull=True
-                    )
-                    current_price = price_item.price
-                except PriceListItem.DoesNotExist:
-                    current_price = None
-
-                items_data.append({
-                    'item': item,
-                    'variant': None,
-                    'current_price': current_price,
-                    'display_name': item.name
-                })
-
         context.update({
             'price_list': price_list,
-            'items_data': items_data,
-            'title': _('إدارة أمواد قائمة: %(name)s') % {'name': price_list.name},
+            'title': _('إدارة أصناف: %(name)s') % {'name': price_list.name},
             'can_change': self.request.user.has_perm('core.change_pricelistitem'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('قوائم الأسعار'), 'url': reverse('core:price_list_list')},
                 {'title': price_list.name, 'url': reverse('core:price_list_detail', kwargs={'pk': price_list.pk})},
-                {'title': _('إدارة المواد'), 'url': ''}
+                {'title': _('إدارة الأصناف'), 'url': ''}
             ],
         })
         return context
@@ -532,3 +505,67 @@ def bulk_update_prices(request, price_list_id):
         messages.error(request, _('يرجى تصحيح الأخطاء في النموذج'))
 
     return redirect('core:price_list_items', pk=price_list_id)
+
+
+def update_price_list_items(request, pk):
+    """حفظ أسعار جميع المواد في قائمة أسعار معينة"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    if not request.user.has_perm('core.change_pricelistitem'):
+        return JsonResponse({'success': False, 'error': 'ليس لديك صلاحية'}, status=403)
+
+    price_list = get_object_or_404(PriceList, pk=pk, company=request.current_company)
+
+    try:
+        # حذف الأسعار القديمة لهذه القائمة
+        PriceListItem.objects.filter(price_list=price_list).delete()
+
+        updated_count = 0
+
+        for key, value in request.POST.items():
+            if not key.startswith('price_'):
+                continue
+
+            try:
+                # تنسيق: price_<item_id> أو price_<item_id>_<variant_id>
+                parts = key.split('_')
+                item_id = int(parts[1])
+                variant_id = int(parts[2]) if len(parts) == 3 else None
+
+                if not value or value.strip() == '':
+                    continue
+
+                price_value = Decimal(value.strip())
+
+                if price_value <= 0:
+                    continue
+
+                item = Item.objects.get(pk=item_id, company=request.current_company)
+
+                variant = None
+                if variant_id:
+                    variant = ItemVariant.objects.get(pk=variant_id, item=item)
+
+                PriceListItem.objects.create(
+                    price_list=price_list,
+                    item=item,
+                    variant=variant,
+                    price=price_value
+                )
+                updated_count += 1
+
+            except (ValueError, Item.DoesNotExist, ItemVariant.DoesNotExist):
+                continue
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم تحديث {updated_count} سعر بنجاح',
+            'updated_count': updated_count
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'حدث خطأ: {str(e)}'
+        }, status=500)

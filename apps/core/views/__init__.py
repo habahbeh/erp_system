@@ -62,7 +62,7 @@ from .permission_views import (
 from .price_views import (
     PriceListListView, PriceListCreateView, PriceListUpdateView,
     PriceListDeleteView, PriceListDetailView, PriceListItemsView,
-    ItemPricesView, update_item_prices, bulk_update_prices
+    ItemPricesView, update_item_prices, bulk_update_prices, update_price_list_items
 )
 
 from .ajax_views import (
@@ -70,7 +70,7 @@ from .ajax_views import (
     brand_datatable_ajax, unit_datatable_ajax, currency_datatable_ajax,
     branch_datatable_ajax, variant_attribute_datatable_ajax, user_datatable_ajax,
     profile_datatable_ajax, permission_datatable_ajax, group_datatable_ajax,
-    price_list_datatable_ajax  # ✅ إضافة Ajax view للأسعار
+    price_list_datatable_ajax  , price_list_items_ajax
 )
 
 
@@ -193,6 +193,7 @@ __all__ = [
     'ItemPricesView',
     'update_item_prices',
     'bulk_update_prices',
+    'update_price_list_items',
 
     # Ajax Views
     'item_datatable_ajax',
@@ -207,5 +208,6 @@ __all__ = [
     'profile_datatable_ajax',
     'permission_datatable_ajax',
     'group_datatable_ajax',
-    'price_list_datatable_ajax',  # ✅ Ajax للأسعار
+    'price_list_datatable_ajax',
+    'price_list_items_ajax',
 ]

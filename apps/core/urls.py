@@ -156,9 +156,11 @@ urlpatterns = [
 
     # التحديث الجماعي
     path('price-lists/<int:price_list_id>/bulk-update/', views.bulk_update_prices, name='bulk_update_prices'),
-
+    path('price-lists/<int:pk>/items/update/', views.update_price_list_items, name='price_list_items_update'),
     # Ajax
     path('ajax/price-lists/datatable/', views.price_list_datatable_ajax, name='price_list_datatable_ajax'),
+    path('price-lists/<int:pk>/items/ajax/', views.price_list_items_ajax, name='price_list_items_ajax'),
+
 
 
 ]
