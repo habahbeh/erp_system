@@ -149,6 +149,152 @@
     </div>
 </div>
 
+        <!-- ✅ قسم الأسعار الجديد -->
+{% if price_lists_count > 0 %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-tags"></i> {% trans "الأسعار في قوائم الأسعار" %}
+        </h6>
+        {% if can_change %}
+        <a href="{% url 'core:item_prices' item.id %}" class="btn btn-light btn-sm">
+            <i class="fas fa-edit"></i> {% trans "إدارة الأسعار" %}
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if item.has_variants %}
+            <!-- أسعار المتغيرات -->
+            {% if variants_with_prices %}
+                {% for variant_info in variants_with_prices %}
+                <div class="mb-4 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="d-flex align-items-center mb-3">
+                        <h6 class="mb-0 text-dark">
+                            <i class="fas fa-cube text-primary"></i>
+                            {{ variant_info.variant.code }}
+                        </h6>
+                        {% if variant_info.variant.variant_attribute_values.all %}
+                        <div class="ms-3">
+                            {% for attr_val in variant_info.variant.variant_attribute_values.all %}
+                                <span class="badge bg-light text-dark border">
+                                    {{ attr_val.attribute.name }}: <strong>{{ attr_val.value.display_value|default:attr_val.value.value }}</strong>
+                                </span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if variant_info.prices %}
+                    <div class="row g-2">
+                        {% for price_item in variant_info.prices %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-2 bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="text-muted d-block">{{ price_item.price_list.name }}</small>
+                                        <strong class="text-success fs-5">
+                                            {{ price_item.price }} {{ price_item.price_list.currency.symbol }}
+                                        </strong>
+                                    </div>
+                                    {% if price_item.price_list.is_default %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-star"></i>
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <small>
+                            <i class="fas fa-exclamation-triangle"></i>
+                            {% trans "لا توجد أسعار محددة لهذا المتغير" %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "لا توجد أسعار محددة للمتغيرات" %}
+                </div>
+            {% endif %}
+        {% else %}
+            <!-- أسعار المادة العادي -->
+            {% if item_prices %}
+            <div class="row g-3">
+                {% for price_item in item_prices %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="text-dark mb-0">{{ price_item.price_list.name }}</h6>
+                                {% if price_item.price_list.is_default %}
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-star"></i> {% trans "افتراضي" %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-baseline">
+                                <h3 class="text-success mb-0">{{ price_item.price }}</h3>
+                                <span class="text-muted ms-2">{{ price_item.price_list.currency.symbol }}</span>
+                            </div>
+                            <small class="text-muted">
+                                {{ price_item.price_list.currency.name }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-warning mb-0">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                    <div>
+                        <h6 class="mb-1">{% trans "لا توجد أسعار محددة" %}</h6>
+                        <p class="mb-0 small">{% trans "لم يتم تحديد أسعار لهذا المادة في أي قائمة أسعار" %}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+
+        {% if can_change %}
+        <div class="text-center mt-3 pt-3 border-top">
+            <a href="{% url 'core:item_prices' item.id %}" class="btn btn-outline-info">
+                <i class="fas fa-cog"></i> {% trans "إدارة جميع الأسعار" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<!-- رسالة عدم وجود قوائم أسعار -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-tags"></i> {% trans "الأسعار" %}
+        </h6>
+    </div>
+    <div class="card-body text-center py-4">
+        <i class="fas fa-exclamation-circle fa-3x text-muted mb-3"></i>
+        <h6 class="text-muted">{% trans "لا توجد قوائم أسعار" %}</h6>
+        <p class="text-muted small mb-3">
+            {% trans "يرجى إنشاء قائمة أسعار أولاً لتتمكن من تحديد أسعار المواد" %}
+        </p>
+        {% if perms.core.add_pricelist %}
+
+        <a href="{% url 'core:price_list_create' %}" class="btn btn-sm btn-warning">
+            <i class="fas fa-plus"></i> {% trans "إنشاء قائمة أسعار" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
             <!-- الوصف -->
             {% if item.short_description or item.description %}
             <div class="card shadow-sm mb-4">

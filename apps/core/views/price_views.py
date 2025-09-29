@@ -223,6 +223,7 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         item_id = self.kwargs.get('item_id')
         item = get_object_or_404(Item, pk=item_id, company=self.request.current_company)
 
+        # ✅ جلب جميع قوائم الأسعار النشطة
         price_lists = PriceList.objects.filter(
             company=self.request.current_company,
             is_active=True
@@ -230,25 +231,32 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
         if item.has_variants:
             # للمواد بمتغيرات
-            variants = item.variants.filter(is_active=True).select_related('company')
+            variants = item.variants.filter(is_active=True).select_related('company').prefetch_related(
+                'variant_attribute_values__attribute',
+                'variant_attribute_values__value'
+            )
 
             variants_data = []
             for variant in variants:
-                # جلب جميع أسعار هذا المتغير
+                # ✅ جلب جميع أسعار هذا المتغير مع prefetch
                 variant_prices = PriceListItem.objects.filter(
                     item=item,
-                    variant=variant,
-                    is_active=True
+                    variant=variant
+                    # ✅ إزالة فلتر is_active للسماح برؤية جميع الأسعار
                 ).select_related('price_list')
 
-                # تحويل إلى dictionary بسيط
+                # ✅ تحويل إلى dictionary - استخدام str بدلاً من float
                 prices_dict = {}
                 for price_item in variant_prices:
-                    prices_dict[price_item.price_list.id] = float(price_item.price)
+                    # ✅ تحويل السعر لـ string مع 3 منازل عشرية
+                    prices_dict[price_item.price_list.id] = str(price_item.price)
+
+                # ✅ طباعة debug للتحقق
+                print(f"Variant {variant.code} prices: {prices_dict}")
 
                 variants_data.append({
                     'variant': variant,
-                    'prices_dict': prices_dict  # ✅ اسم واضح
+                    'prices_dict': prices_dict
                 })
 
             context['variants_data'] = variants_data
@@ -256,16 +264,19 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             # للمواد بدون متغيرات
             item_prices = PriceListItem.objects.filter(
                 item=item,
-                variant__isnull=True,
-                is_active=True
+                variant__isnull=True
+                # ✅ إزالة فلتر is_active
             ).select_related('price_list')
 
-            # تحويل إلى dictionary
+            # ✅ تحويل إلى dictionary - string بدلاً من float
             prices_dict = {}
             for price_item in item_prices:
-                prices_dict[price_item.price_list.id] = float(price_item.price)
+                prices_dict[price_item.price_list.id] = str(price_item.price)
 
-            context['prices_dict'] = prices_dict  # ✅ اسم واضح
+            # ✅ طباعة debug
+            print(f"Item {item.name} prices: {prices_dict}")
+
+            context['prices_dict'] = prices_dict
 
         context.update({
             'item': item,

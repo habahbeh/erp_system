@@ -1,7 +1,9 @@
 # apps/core/templatetags/price_filters.py
 from django import template
+from decimal import Decimal
 
 register = template.Library()
+
 
 
 @register.filter(name='get_value')
@@ -33,12 +35,25 @@ def get_item(dictionary, key):
     """
     return get_value(dictionary, key)
 
+
+
+
 @register.filter(name='dict_value')
 def dict_value(dictionary, key):
-    """Get value from dictionary"""
+    """Get value from dictionary - supports int/str keys"""
     if not dictionary:
         return ''
+
     try:
-        return dictionary.get(int(key), '')
-    except:
+        # ✅ محاولة الوصول بالمفتاح كما هو أولاً
+        if key in dictionary:
+            return dictionary[key]
+
+        # ✅ محاولة تحويله لـ int
+        int_key = int(key)
+        if int_key in dictionary:
+            return dictionary[int_key]
+
+        return ''
+    except (ValueError, TypeError, KeyError):
         return ''

@@ -398,6 +398,40 @@ class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             'variant_attribute_values__value'
         ).all()
 
+        # ✅ جلب الأسعار
+        from apps.core.models import PriceList, PriceListItem
+
+        # جلب جميع قوائم الأسعار النشطة
+        price_lists = PriceList.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('is_default', 'name')  # القائمة الافتراضية أولاً
+
+        # جلب أسعار هذا المادة
+        if self.object.has_variants:
+            # للمواد بمتغيرات - جلب أسعار كل متغير
+            variants_with_prices = []
+            for variant in variants:
+                variant_prices = PriceListItem.objects.filter(
+                    item=self.object,
+                    variant=variant
+                ).select_related('price_list').order_by('price_list__is_default', 'price_list__name')
+
+                variants_with_prices.append({
+                    'variant': variant,
+                    'prices': variant_prices
+                })
+
+            context['variants_with_prices'] = variants_with_prices
+        else:
+            # للمواد بدون متغيرات
+            item_prices = PriceListItem.objects.filter(
+                item=self.object,
+                variant__isnull=True
+            ).select_related('price_list').order_by('price_list__is_default', 'price_list__name')
+
+            context['item_prices'] = item_prices
+
         context.update({
             'title': _('تفاصيل المادة: %(name)s') % {'name': self.object.name},
             'can_change': self.request.user.has_perm('core.change_item'),
@@ -411,6 +445,8 @@ class ItemDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             'delete_url': reverse('core:item_delete', kwargs={'pk': self.object.pk}),
             'variants': variants,
             'variants_count': variants.count(),
+            'price_lists': price_lists,  # ✅ إضافة قوائم الأسعار
+            'price_lists_count': price_lists.count(),  # ✅ عدد القوائم
         })
         return context
 

@@ -1,0 +1,186 @@
+{# apps/core/templates/core/price_lists/price_list_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Delete Confirmation Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "تأكيد الحذف" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Warning Message -->
+                    <div class="alert alert-warning border-0" role="alert">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="alert-heading mb-1">{% trans "تحذير!" %}</h6>
+                                <p class="mb-0">{% trans "هل أنت متأكد من حذف قائمة الأسعار؟" %}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Price List Info -->
+                    <div class="mb-4">
+                        <h5 class="text-dark mb-3">{% trans "معلومات قائمة الأسعار" %}</h5>
+                        
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted" width="40%">{% trans "اسم القائمة" %}:</td>
+                                    <td><strong>{{ object.name }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">{% trans "الرمز" %}:</td>
+                                    <td><code class="bg-light text-primary px-2 py-1 rounded">{{ object.code }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">{% trans "العملة" %}:</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ object.currency.name }} ({{ object.currency.symbol }})</span>
+                                    </td>
+                                </tr>
+                                {% if object.is_default %}
+                                <tr>
+                                    <td class="text-muted">{% trans "نوع القائمة" %}:</td>
+                                    <td>
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-star"></i> {% trans "قائمة افتراضية" %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Related Data Warning -->
+                    {% if items_count > 0 %}
+                    <div class="alert alert-danger border-0" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-database"></i>
+                            {% trans "بيانات مرتبطة" %}
+                        </h6>
+                        <p class="mb-2">{% trans "هذه القائمة تحتوي على:" %}</p>
+                        <ul class="mb-0">
+                            <li>
+                                <strong>{{ items_count }}</strong> 
+                                {% trans "سعر/أسعار للأصناف" %}
+                            </li>
+                        </ul>
+                        <hr>
+                        <p class="mb-0 small">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            {% trans "سيتم حذف جميع الأسعار المرتبطة بهذه القائمة نهائياً!" %}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Default Price List Warning -->
+                    {% if object.is_default %}
+                    <div class="alert alert-danger border-0" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-ban"></i>
+                            {% trans "قائمة افتراضية" %}
+                        </h6>
+                        <p class="mb-0">
+                            {% trans "هذه قائمة أسعار افتراضية ولا يمكن حذفها. يرجى تعيين قائمة أخرى كافتراضية أولاً." %}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Confirmation Form -->
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+                            
+                            {% if not object.is_default %}
+                            <button type="submit" class="btn btn-danger" id="confirmDeleteBtn">
+                                <i class="fas fa-trash"></i>
+                                {% trans "نعم، احذف القائمة" %}
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-danger" disabled>
+                                <i class="fas fa-ban"></i>
+                                {% trans "لا يمكن الحذف" %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Additional Info Card -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "ملاحظة هامة" %}
+                    </h6>
+                    <p class="small text-muted mb-0">
+                        {% trans "الحذف عملية نهائية ولا يمكن التراجع عنها. تأكد من أنك لا تحتاج هذه البيانات قبل المتابعة." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تأكيد إضافي قبل الحذف
+    $('#deleteForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        Swal.fire({
+            title: '{% trans "هل أنت متأكد؟" %}',
+            text: '{% trans "لن تتمكن من التراجع عن هذا الإجراء!" %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '{% trans "نعم، احذف!" %}',
+            cancelButtonText: '{% trans "إلغاء" %}',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // إرسال النموذج
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
