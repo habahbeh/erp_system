@@ -10,11 +10,21 @@ from django.db.models import Q, Count
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from ..models import Item, BusinessPartner, PartnerRepresentative, ItemCategory, Brand, Warehouse, UnitOfMeasure, \
-    Currency, Branch, VariantAttribute, UserProfile, PermissionGroup, CustomPermission,  PriceList, PriceListItem, \
-    ItemVariant
+from ..models import (
+    Item, BusinessPartner, PartnerRepresentative, ItemCategory, Brand,
+    Warehouse, UnitOfMeasure, Currency, Branch, VariantAttribute,
+    UserProfile, PermissionGroup, CustomPermission, PriceList,
+    PriceListItem, ItemVariant
+)
+
+
 from ..decorators import permission_required_with_message
 from django.contrib.auth import get_user_model
+
+
+from django.shortcuts import get_object_or_404
+from decimal import Decimal
+import json
 
 User = get_user_model()
 
@@ -2635,77 +2645,104 @@ def price_list_datatable_ajax(request):
         }, status=500)
 
 
-# apps/core/views/ajax_views.py - أضف في النهاية
-
 @login_required
 @require_http_methods(["GET", "POST"])
 def price_list_items_ajax(request, pk):
     """Ajax endpoint لجلب وحفظ أسعار الأصناف في قائمة أسعار"""
 
-    price_list = get_object_or_404(PriceList, pk=pk, company=request.current_company)
+    try:
+        price_list = get_object_or_404(PriceList, pk=pk, company=request.current_company)
 
-    # GET: جلب البيانات للـ DataTable
-    if request.method == 'GET':
-        draw = int(request.GET.get('draw', 1))
-        start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 25))
-        search_value = request.GET.get('search[value]', '').strip()
+        # GET: جلب البيانات للـ DataTable
+        if request.method == 'GET':
+            draw = int(request.GET.get('draw', 1))
+            start = int(request.GET.get('start', 0))
+            length = int(request.GET.get('length', 25))
+            search_value = request.GET.get('search[value]', '').strip()
 
-        # الاستعلام الأساسي
-        items = Item.objects.filter(
-            company=request.current_company,
-            is_active=True
-        ).select_related('category', 'unit_of_measure').prefetch_related('variants')
+            # الاستعلام الأساسي
+            items = Item.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).select_related('category', 'unit_of_measure').prefetch_related('variants')
 
-        # البحث
-        if search_value:
-            items = items.filter(
-                Q(name__icontains=search_value) |
-                Q(item_code__icontains=search_value) |
-                Q(code__icontains=search_value)
-            )
+            # البحث
+            if search_value:
+                items = items.filter(
+                    Q(name__icontains=search_value) |
+                    Q(item_code__icontains=search_value) |
+                    Q(code__icontains=search_value)
+                )
 
-        records_total = Item.objects.filter(
-            company=request.current_company,
-            is_active=True
-        ).count()
+            records_total = Item.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).count()
 
-        records_filtered = items.count()
+            records_filtered = items.count()
 
-        # الترتيب والتقسيم
-        items = items.order_by('name')[start:start + length]
+            # الترتيب والتقسيم
+            items = items.order_by('name')[start:start + length]
 
-        # تجهيز البيانات
-        data = []
-        for item in items:
-            if item.has_variants:
-                # صنف بمتغيرات
-                for variant in item.variants.filter(is_active=True):
-                    # جلب السعر الحالي
+            # تجهيز البيانات
+            data = []
+            for item in items:
+                if item.has_variants:
+                    # صنف بمتغيرات
+                    for variant in item.variants.filter(is_active=True):
+                        # جلب السعر الحالي
+                        try:
+                            price_item = PriceListItem.objects.get(
+                                price_list=price_list,
+                                item=item,
+                                variant=variant
+                            )
+                            current_price = str(price_item.price)
+                        except PriceListItem.DoesNotExist:
+                            current_price = ''
+
+                        # تجميع خصائص المتغير
+                        variant_attrs = ' - '.join([
+                            f"{av.value.display_value or av.value.value}"
+                            for av in variant.variant_attribute_values.all()
+                        ]) if variant.variant_attribute_values.exists() else _('بدون خصائص')
+
+                        data.append([
+                            f'<strong>{item.name}</strong><br><small class="text-muted">{item.item_code or item.code}</small>',
+                            f'<span class="badge bg-info">{variant.code}</span><br><small>{variant_attrs}</small>',
+                            f'''<div class="input-group input-group-sm">
+                                <input type="number" 
+                                       class="form-control price-input text-center fw-bold" 
+                                       data-item-id="{item.id}" 
+                                       data-variant-id="{variant.id}"
+                                       value="{current_price}"
+                                       step="0.001" 
+                                       min="0" 
+                                       placeholder="0.000"
+                                       style="font-size: 1.1rem;">
+                                <span class="input-group-text">{price_list.currency.symbol}</span>
+                            </div>''',
+                            f'<button type="button" class="btn btn-sm btn-outline-danger clear-price"><i class="fas fa-times"></i></button>'
+                        ])
+                else:
+                    # صنف عادي
                     try:
                         price_item = PriceListItem.objects.get(
                             price_list=price_list,
                             item=item,
-                            variant=variant
+                            variant__isnull=True
                         )
                         current_price = str(price_item.price)
                     except PriceListItem.DoesNotExist:
                         current_price = ''
 
-                    # تجميع خصائص المتغير
-                    variant_attrs = ' - '.join([
-                        f"{av.value.display_value or av.value.value}"
-                        for av in variant.variant_attribute_values.all()
-                    ])
-
                     data.append([
                         f'<strong>{item.name}</strong><br><small class="text-muted">{item.item_code or item.code}</small>',
-                        f'<span class="badge bg-info">{variant.code}</span><br><small>{variant_attrs}</small>',
+                        '<span class="badge bg-secondary">عادي</span>',
                         f'''<div class="input-group input-group-sm">
                             <input type="number" 
                                    class="form-control price-input text-center fw-bold" 
-                                   data-item-id="{item.id}" 
-                                   data-variant-id="{variant.id}"
+                                   data-item-id="{item.id}"
                                    value="{current_price}"
                                    step="0.001" 
                                    min="0" 
@@ -2715,82 +2752,61 @@ def price_list_items_ajax(request, pk):
                         </div>''',
                         f'<button type="button" class="btn btn-sm btn-outline-danger clear-price"><i class="fas fa-times"></i></button>'
                     ])
-            else:
-                # صنف عادي
-                try:
-                    price_item = PriceListItem.objects.get(
-                        price_list=price_list,
-                        item=item,
-                        variant__isnull=True
-                    )
-                    current_price = str(price_item.price)
-                except PriceListItem.DoesNotExist:
-                    current_price = ''
-
-                data.append([
-                    f'<strong>{item.name}</strong><br><small class="text-muted">{item.item_code or item.code}</small>',
-                    '<span class="badge bg-secondary">عادي</span>',
-                    f'''<div class="input-group input-group-sm">
-                        <input type="number" 
-                               class="form-control price-input text-center fw-bold" 
-                               data-item-id="{item.id}"
-                               value="{current_price}"
-                               step="0.001" 
-                               min="0" 
-                               placeholder="0.000"
-                               style="font-size: 1.1rem;">
-                        <span class="input-group-text">{price_list.currency.symbol}</span>
-                    </div>''',
-                    f'<button type="button" class="btn btn-sm btn-outline-danger clear-price"><i class="fas fa-times"></i></button>'
-                ])
-
-        return JsonResponse({
-            'draw': draw,
-            'recordsTotal': records_total,
-            'recordsFiltered': records_filtered,
-            'data': data
-        })
-
-    # POST: حفظ الأسعار
-    elif request.method == 'POST':
-        try:
-            prices_data = json.loads(request.body)
-
-            # حذف الأسعار القديمة لهذه القائمة فقط
-            PriceListItem.objects.filter(price_list=price_list).delete()
-
-            updated_count = 0
-
-            for price_data in prices_data:
-                item_id = price_data.get('item_id')
-                variant_id = price_data.get('variant_id')
-                price_value = price_data.get('price')
-
-                if not price_value or Decimal(price_value) <= 0:
-                    continue
-
-                item = Item.objects.get(pk=item_id, company=request.current_company)
-                variant = None
-
-                if variant_id:
-                    variant = ItemVariant.objects.get(pk=variant_id, item=item)
-
-                PriceListItem.objects.create(
-                    price_list=price_list,
-                    item=item,
-                    variant=variant,
-                    price=Decimal(price_value)
-                )
-                updated_count += 1
 
             return JsonResponse({
-                'success': True,
-                'message': f'تم تحديث {updated_count} سعر بنجاح',
-                'updated_count': updated_count
+                'draw': draw,
+                'recordsTotal': records_total,
+                'recordsFiltered': records_filtered,
+                'data': data
             })
 
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
+        # POST: حفظ الأسعار
+        elif request.method == 'POST':
+            try:
+                prices_data = json.loads(request.body)
+
+                # حذف الأسعار القديمة لهذه القائمة فقط
+                PriceListItem.objects.filter(price_list=price_list).delete()
+
+                updated_count = 0
+
+                for price_data in prices_data:
+                    item_id = price_data.get('item_id')
+                    variant_id = price_data.get('variant_id')
+                    price_value = price_data.get('price')
+
+                    if not price_value or Decimal(price_value) <= 0:
+                        continue
+
+                    item = Item.objects.get(pk=item_id, company=request.current_company)
+                    variant = None
+
+                    if variant_id:
+                        variant = ItemVariant.objects.get(pk=variant_id, item=item)
+
+                    PriceListItem.objects.create(
+                        price_list=price_list,
+                        item=item,
+                        variant=variant,
+                        price=Decimal(price_value)
+                    )
+                    updated_count += 1
+
+                return JsonResponse({
+                    'success': True,
+                    'message': f'تم تحديث {updated_count} سعر بنجاح',
+                    'updated_count': updated_count
+                })
+
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': str(e)
+                }, status=500)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)

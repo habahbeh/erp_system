@@ -228,46 +228,44 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             is_active=True
         ).order_by('name')
 
-        # ✅ التعديل الأساسي: تغيير هيكل البيانات
         if item.has_variants:
+            # للمواد بمتغيرات
             variants = item.variants.filter(is_active=True).select_related('company')
 
             variants_data = []
             for variant in variants:
+                # جلب جميع أسعار هذا المتغير
+                variant_prices = PriceListItem.objects.filter(
+                    item=item,
+                    variant=variant,
+                    is_active=True
+                ).select_related('price_list')
+
+                # تحويل إلى dictionary بسيط
                 prices_dict = {}
-                for price_list in price_lists:
-                    try:
-                        price_item = PriceListItem.objects.get(
-                            price_list=price_list,
-                            item=item,
-                            variant=variant,
-                            is_active=True
-                        )
-                        prices_dict[str(price_list.id)] = str(price_item.price)
-                    except PriceListItem.DoesNotExist:
-                        prices_dict[str(price_list.id)] = ''
+                for price_item in variant_prices:
+                    prices_dict[price_item.price_list.id] = float(price_item.price)
 
                 variants_data.append({
                     'variant': variant,
-                    'prices': prices_dict  # ✅ dict بسيط {price_list_id: price}
+                    'prices_dict': prices_dict  # ✅ اسم واضح
                 })
 
             context['variants_data'] = variants_data
         else:
-            prices_dict = {}
-            for price_list in price_lists:
-                try:
-                    price_item = PriceListItem.objects.get(
-                        price_list=price_list,
-                        item=item,
-                        variant__isnull=True,
-                        is_active=True
-                    )
-                    prices_dict[str(price_list.id)] = str(price_item.price)
-                except PriceListItem.DoesNotExist:
-                    prices_dict[str(price_list.id)] = ''
+            # للمواد بدون متغيرات
+            item_prices = PriceListItem.objects.filter(
+                item=item,
+                variant__isnull=True,
+                is_active=True
+            ).select_related('price_list')
 
-            context['prices'] = prices_dict  # ✅ {price_list_id: price}
+            # تحويل إلى dictionary
+            prices_dict = {}
+            for price_item in item_prices:
+                prices_dict[price_item.price_list.id] = float(price_item.price)
+
+            context['prices_dict'] = prices_dict  # ✅ اسم واضح
 
         context.update({
             'item': item,

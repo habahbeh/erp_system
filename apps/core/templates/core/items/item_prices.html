@@ -1,195 +1,445 @@
-{# apps/core/templates/core/items/item_prices.html - محسّن #}
+{# apps/core/templates/core/items/item_prices.html - NO CUSTOM FILTERS #}
 {% extends 'base/base.html' %}
-{% load i18n static price_filters %}
+{% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
 <style>
-/* تحسينات التصميم */
-.price-card {
-    border: 2px solid #e3f2fd;
-    border-radius: 12px;
-    transition: all 0.3s ease;
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+/* Google Material Design Style */
+:root {
+    --google-blue: #1a73e8;
+    --google-blue-hover: #1765cc;
+    --google-grey: #5f6368;
+    --google-border: #dadce0;
+    --google-bg: #f8f9fa;
 }
 
-.price-card:hover {
-    border-color: #2196F3;
-    box-shadow: 0 8px 24px rgba(33, 150, 243, 0.15);
-    transform: translateY(-2px);
+body {
+    font-family: 'Roboto', 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #fff;
 }
 
-.price-list-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1rem;
-    border-radius: 8px 8px 0 0;
-    margin-bottom: 1rem;
+.material-header {
+    background: white;
+    border-bottom: 1px solid var(--google-border);
+    padding: 24px 0;
+    margin-bottom: 24px;
 }
 
-.price-input-group {
-    position: relative;
-    margin-bottom: 1rem;
+.material-header h1 {
+    font-size: 28px;
+    font-weight: 400;
+    color: #202124;
+    margin-bottom: 4px;
 }
 
-.price-input {
-    font-size: 1.2rem;
-    font-weight: 600;
-    text-align: center;
-    border: 2px solid #e0e0e0;
+.material-header .subtitle {
+    font-size: 14px;
+    color: var(--google-grey);
+}
+
+.material-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 16px;
+    background: var(--google-bg);
+    font-size: 14px;
+    color: var(--google-grey);
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+
+.material-chip i {
+    font-size: 18px;
+    margin-left: 8px;
+    color: var(--google-grey);
+}
+
+.material-card {
+    background: white;
+    border: 1px solid var(--google-border);
     border-radius: 8px;
-    padding: 0.75rem;
-    transition: all 0.3s ease;
+    padding: 0;
+    margin-bottom: 24px;
+    transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.price-input:focus {
-    border-color: #2196F3;
-    box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25);
-    transform: scale(1.02);
+.material-card:hover {
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
 }
 
-.price-input:valid {
-    border-color: #4CAF50;
+.material-card-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--google-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.currency-badge {
+.material-card-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #202124;
+    margin: 0;
+}
+
+.material-card-body {
+    padding: 24px;
+}
+
+.material-input-group {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.material-input-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--google-grey);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.material-input {
+    width: 100%;
+    height: 56px;
+    padding: 0 16px 0 52px;
+    border: 1px solid var(--google-border);
+    border-radius: 4px;
+    font-size: 16px;
+    color: #202124;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: white;
+}
+
+.material-input:hover {
+    border-color: var(--google-grey);
+}
+
+.material-input:focus {
+    outline: none;
+    border-color: var(--google-blue);
+    box-shadow: 0 0 0 1px var(--google-blue);
+}
+
+.material-input.has-value {
+    border-color: #1e8e3e;
+}
+
+.currency-prefix {
     position: absolute;
-    left: 10px;
+    left: 16px;
     top: 50%;
     transform: translateY(-50%);
-    background: #2196F3;
-    color: white;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-weight: bold;
+    font-size: 16px;
+    color: var(--google-grey);
+    font-weight: 500;
+    pointer-events: none;
 }
 
-.variant-badge {
-    display: inline-block;
-    padding: 0.35rem 0.65rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    border-radius: 6px;
-    margin: 0.2rem;
-}
-
-.save-button {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    padding: 1rem 3rem;
-    font-size: 1.1rem;
-    border-radius: 50px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { transform: translateX(-50%) scale(1); }
-    50% { transform: translateX(-50%) scale(1.05); }
-}
-
-.section-divider {
-    border-top: 3px solid #e3f2fd;
-    margin: 2rem 0;
-    position: relative;
-}
-
-.section-divider::before {
-    content: '•';
-    position: absolute;
-    top: -12px;
-    left: 50%;
-    transform: translateX(-50%);
+.material-variant-section {
     background: white;
-    padding: 0 1rem;
-    color: #2196F3;
-    font-size: 1.5rem;
-}
-
-/* تحسين المتغيرات */
-.variant-container {
-    background: #f8f9fa;
-    border-left: 4px solid #667eea;
-    padding: 1.5rem;
+    border: 1px solid var(--google-border);
     border-radius: 8px;
-    margin-bottom: 1.5rem;
-    transition: all 0.3s ease;
+    padding: 24px;
+    margin-bottom: 24px;
 }
 
-.variant-container:hover {
-    background: #e3f2fd;
-    border-left-color: #2196F3;
+.material-variant-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--google-border);
 }
 
-/* أيقونات ملونة */
-.icon-primary { color: #2196F3; }
-.icon-success { color: #4CAF50; }
-.icon-warning { color: #FF9800; }
-.icon-info { color: #00BCD4; }
-
-/* رسالة النجاح المحسنة */
-.success-animation {
-    animation: successPulse 0.6s ease;
+.variant-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: #202124;
+    display: flex;
+    align-items: center;
 }
 
-@keyframes successPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+.variant-title i {
+    color: var(--google-blue);
+    margin-left: 8px;
+}
+
+.variant-attributes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.variant-attribute-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 14px;
+    background: #e8f0fe;
+    color: var(--google-blue);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.material-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.material-stat-card {
+    background: white;
+    border: 1px solid var(--google-border);
+    border-radius: 8px;
+    padding: 20px;
+    transition: box-shadow 0.2s;
+}
+
+.material-stat-card:hover {
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 400;
+    color: #202124;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--google-grey);
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.stat-icon.blue { background: #e8f0fe; color: var(--google-blue); }
+.stat-icon.green { background: #e6f4ea; color: #1e8e3e; }
+.stat-icon.orange { background: #fef7e0; color: #f29900; }
+
+.material-btn {
+    height: 36px;
+    padding: 0 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.material-btn-primary {
+    background: var(--google-blue);
+    color: white;
+}
+
+.material-btn-primary:hover {
+    background: var(--google-blue-hover);
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.material-btn-text {
+    background: transparent;
+    color: var(--google-blue);
+}
+
+.material-btn-text:hover {
+    background: rgba(26, 115, 232, 0.04);
+}
+
+.material-fab {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 56px;
+    padding: 0 32px;
+    background: var(--google-blue);
+    color: white;
+    border: none;
+    border-radius: 28px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.2s;
+    z-index: 1000;
+}
+
+.material-fab:hover {
+    box-shadow: 0 2px 4px 0 rgba(60,64,67,0.3), 0 8px 12px 6px rgba(60,64,67,0.15);
+    transform: translateX(-50%) translateY(-2px);
+}
+
+.material-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #fef7e0;
+    color: #f29900;
+}
+
+.material-empty-state {
+    text-align: center;
+    padding: 80px 24px;
+    background: white;
+    border: 1px solid var(--google-border);
+    border-radius: 8px;
+}
+
+.material-empty-state .icon {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 24px;
+    background: var(--google-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--google-grey);
+    font-size: 40px;
+}
+
+.material-empty-state h3 {
+    font-size: 22px;
+    font-weight: 400;
+    color: #202124;
+    margin-bottom: 8px;
+}
+
+.material-empty-state p {
+    font-size: 14px;
+    color: var(--google-grey);
+    margin-bottom: 24px;
+}
+
+.material-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.material-breadcrumb a {
+    color: var(--google-blue);
+    text-decoration: none;
+}
+
+.material-breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.material-breadcrumb .separator {
+    color: var(--google-grey);
+}
+
+.material-breadcrumb .active {
+    color: var(--google-grey);
+}
+
+@media (max-width: 768px) {
+    .material-stats { grid-template-columns: 1fr; }
+    .material-card-body { padding: 16px; }
 }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-            {% for breadcrumb in breadcrumbs %}
-                {% if forloop.last %}
-                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
-                {% else %}
-                    <li class="breadcrumb-item">
-                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
-                    </li>
-                {% endif %}
-            {% endfor %}
-        </ol>
-    </nav>
+    <!-- Breadcrumb -->
+    <div class="material-breadcrumb">
+        <a href="{% url 'core:dashboard' %}">الرئيسية</a>
+        <span class="separator">›</span>
+        <a href="{% url 'core:item_list' %}">المواد</a>
+        <span class="separator">›</span>
+        <a href="{% url 'core:item_detail' item.pk %}">{{ item.name }}</a>
+        <span class="separator">›</span>
+        <span class="active">إدارة الأسعار</span>
+    </div>
 
-    <!-- Header المحسّن -->
-    <div class="price-card p-4 mb-4">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="h3 mb-2">
-                    <i class="fas fa-money-bill-wave icon-success"></i>
-                    {{ title }}
-                </h1>
-                <p class="text-muted mb-2">{{ item.name }}</p>
-                <div class="d-flex gap-2 flex-wrap">
-                    <span class="badge bg-primary fs-6">
-                        <i class="fas fa-barcode"></i> {{ item.item_code|default:item.code }}
+    <!-- Header -->
+    <div class="material-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>إدارة أسعار المادة</h1>
+                <p class="subtitle">تحديد أسعار المادة في جميع قوائم الأسعار</p>
+
+                <div class="mt-3">
+                    <span class="material-chip">
+                        <i class="fas fa-box"></i>
+                        {{ item.name }}
+                    </span>
+                    <span class="material-chip">
+                        <i class="fas fa-barcode"></i>
+                        {{ item.item_code|default:item.code }}
                     </span>
                     {% if item.category %}
-                        <span class="badge bg-secondary fs-6">
-                            <i class="fas fa-folder"></i> {{ item.category.name }}
-                        </span>
+                    <span class="material-chip">
+                        <i class="fas fa-folder"></i>
+                        {{ item.category.name }}
+                    </span>
                     {% endif %}
-                    <span class="badge bg-info fs-6">
-                        <i class="fas fa-coins"></i> {{ item.currency.name }}
+                    <span class="material-chip">
+                        <i class="fas fa-coins"></i>
+                        {{ item.currency.name }}
                     </span>
                 </div>
             </div>
-            <div class="col-md-4 text-end">
-                <a href="{% url 'core:item_detail' item.pk %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-right"></i> {% trans "العودة للمادة" %}
-                </a>
+
+            <a href="{% url 'core:item_detail' item.pk %}" class="material-btn material-btn-text">
+                <i class="fas fa-arrow-right me-2"></i>
+                العودة للمادة
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="material-stats">
+        <div class="material-stat-card">
+            <div class="stat-icon blue">
+                <i class="fas fa-list"></i>
             </div>
+            <div class="stat-value">{{ price_lists.count }}</div>
+            <div class="stat-label">قوائم أسعار نشطة</div>
+        </div>
+
+        <div class="material-stat-card">
+            <div class="stat-icon green">
+                <i class="fas fa-tags"></i>
+            </div>
+            <div class="stat-value">
+                {% if item.has_variants %}{{ variants_data|length }}{% else %}1{% endif %}
+            </div>
+            <div class="stat-label">متغيرات المادة</div>
+        </div>
+
+        <div class="material-stat-card">
+            <div class="stat-icon orange">
+                <i class="fas fa-calculator"></i>
+            </div>
+            <div class="stat-value">{{ item.currency.symbol }}</div>
+            <div class="stat-label">عملة التسعير</div>
         </div>
     </div>
 
@@ -197,92 +447,116 @@
     <form method="post" id="pricesForm">
         {% csrf_token %}
 
-        {% if item.has_variants %}
-            <!-- عرض المتغيرات -->
-            {% for variant_data in variants_data %}
-            <div class="variant-container">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">
-                        <i class="fas fa-cube icon-primary"></i>
-                        {{ variant_data.variant.code }}
-                    </h5>
-                    {% if variant_data.variant.variant_attribute_values.all %}
-                    <div class="d-flex gap-1 flex-wrap">
-                        {% for attr_val in variant_data.variant.variant_attribute_values.all %}
-                            <span class="variant-badge bg-light text-dark border">
-                                {{ attr_val.value.display_value|default:attr_val.value.value }}
-                            </span>
+        {% if price_lists %}
+            {% if item.has_variants %}
+                <!-- Variants -->
+                {% for variant_info in variants_data %}
+                <div class="material-variant-section">
+                    <div class="material-variant-header">
+                        <div>
+                            <div class="variant-title">
+                                <i class="fas fa-cube"></i>
+                                {{ variant_info.variant.code }}
+                            </div>
+
+                            {% if variant_info.variant.variant_attribute_values.all %}
+                            <div class="variant-attributes mt-2">
+                                {% for attr_val in variant_info.variant.variant_attribute_values.all %}
+                                    <span class="variant-attribute-chip">
+                                        {{ attr_val.attribute.name }}: {{ attr_val.value.display_value|default:attr_val.value.value }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if variant_info.variant.catalog_number %}
+                        <span class="material-chip">{{ variant_info.variant.catalog_number }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="row g-4">
+                        {% for price_list in price_lists %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="material-card">
+                                <div class="material-card-header">
+                                    <h3 class="material-card-title">{{ price_list.name }}</h3>
+                                    {% if price_list.is_default %}
+                                        <span class="material-badge">افتراضي</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="material-card-body">
+                                    <div class="material-input-group">
+                                        <label>السعر ({{ price_list.currency.name }})</label>
+                                        <div style="position: relative;">
+                                            <span class="currency-prefix">{{ price_list.currency.symbol }}</span>
+                                            <input type="number"
+                                                   class="material-input"
+                                                   name="price_{{ price_list.id }}_{{ variant_info.variant.id }}"
+                                                   value="{{ variant_info.prices_dict|dict_value:price_list.id }}"
+                                                   step="0.001"
+                                                   min="0"
+                                                   placeholder="0.000">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {% endfor %}
                     </div>
-                    {% endif %}
                 </div>
+                {% endfor %}
 
-                <div class="row g-3">
+            {% else %}
+                <!-- Regular Item -->
+                <div class="row g-4">
                     {% for price_list in price_lists %}
                     <div class="col-md-6 col-lg-4">
-                        <div class="price-card p-3">
-                            <label class="form-label fw-bold text-primary">
-                                <i class="fas fa-list icon-info"></i>
-                                {{ price_list.name }}
+                        <div class="material-card">
+                            <div class="material-card-header">
+                                <h3 class="material-card-title">{{ price_list.name }}</h3>
                                 {% if price_list.is_default %}
-                                    <span class="badge bg-warning text-dark ms-1">افتراضي</span>
+                                    <span class="material-badge">افتراضي</span>
                                 {% endif %}
-                            </label>
-                            <div class="price-input-group">
-                                <input type="number"
-                                       class="form-control price-input"
-                                       name="price_{{ price_list.id }}_{{ variant_data.variant.id }}"
-                                       value="{{ variant_data.prices|get_item:price_list.id }}"
-                                       step="0.001"
-                                       min="0"
-                                       placeholder="0.000">
-                                <span class="currency-badge">{{ price_list.currency.symbol }}</span>
+                            </div>
+
+                            <div class="material-card-body">
+                                <div class="material-input-group">
+                                    <label>السعر ({{ price_list.currency.name }})</label>
+                                    <div style="position: relative;">
+                                        <span class="currency-prefix">{{ price_list.currency.symbol }}</span>
+                                        <input type="number"
+                                               class="material-input"
+                                               name="price_{{ price_list.id }}"
+                                               value="{{ prices_dict|dict_value:price_list.id }}"
+                                               step="0.001"
+                                               min="0"
+                                               placeholder="0.000">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
-            </div>
-
-            {% if not forloop.last %}
-                <div class="section-divider"></div>
             {% endif %}
-            {% endfor %}
 
+            <button type="submit" class="material-fab">
+                <i class="fas fa-save me-2"></i>
+                حفظ جميع الأسعار
+            </button>
         {% else %}
-            <!-- مادة بدون متغيرات -->
-            <div class="row g-3">
-                {% for price_list in price_lists %}
-                <div class="col-md-6 col-lg-4">
-                    <div class="price-card p-4">
-                        <label class="form-label fw-bold text-primary mb-3">
-                            <i class="fas fa-list icon-info"></i>
-                            {{ price_list.name }}
-                            {% if price_list.is_default %}
-                                <span class="badge bg-warning text-dark ms-2">افتراضي</span>
-                            {% endif %}
-                        </label>
-                        <div class="price-input-group">
-                            <input type="number"
-                                   class="form-control price-input"
-                                   name="price_{{ price_list.id }}"
-                                   value="{{ prices|get_item:price_list.id }}"
-                                   step="0.001"
-                                   min="0"
-                                   placeholder="0.000">
-                            <span class="currency-badge">{{ price_list.currency.symbol }}</span>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
+            <div class="material-empty-state">
+                <div class="icon"><i class="fas fa-list"></i></div>
+                <h3>لا توجد قوائم أسعار</h3>
+                <p>يرجى إنشاء قائمة أسعار أولاً قبل تحديد الأسعار</p>
+                <a href="{% url 'core:price_list_create' %}" class="material-btn material-btn-primary">
+                    <i class="fas fa-plus me-2"></i>
+                    إنشاء قائمة أسعار
+                </a>
             </div>
         {% endif %}
-
-        <!-- زر الحفظ الثابت -->
-        <button type="submit" class="btn btn-success save-button">
-            <i class="fas fa-save me-2"></i>
-            {% trans "حفظ جميع الأسعار" %}
-        </button>
     </form>
 </div>
 {% endblock %}
@@ -290,25 +564,28 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // تحسين تجربة الإدخال
-    $('.price-input').on('input', function() {
-        if ($(this).val()) {
-            $(this).addClass('is-valid');
-        } else {
-            $(this).removeClass('is-valid');
+    $('.material-input').each(function() {
+        if ($(this).val() && parseFloat($(this).val()) > 0) {
+            $(this).addClass('has-value');
         }
     });
 
-    // حفظ النموذج
+    $('.material-input').on('input', function() {
+        if ($(this).val() && parseFloat($(this).val()) > 0) {
+            $(this).addClass('has-value');
+        } else {
+            $(this).removeClass('has-value');
+        }
+    });
+
     $('#pricesForm').on('submit', function(e) {
         e.preventDefault();
 
-        // عرض loader
         Swal.fire({
-            title: '{% trans "جاري الحفظ..." %}',
-            html: '<div class="spinner-border text-primary" role="status"></div>',
+            title: 'جاري الحفظ...',
             allowOutsideClick: false,
-            showConfirmButton: false
+            showConfirmButton: false,
+            didOpen: () => { Swal.showLoading(); }
         });
 
         $.ajax({
@@ -318,54 +595,23 @@ $(document).ready(function() {
             success: function(response) {
                 Swal.fire({
                     icon: 'success',
-                    title: '{% trans "تم الحفظ بنجاح" %}',
-                    html: `
-                        <div class="success-animation">
-                            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                            <p class="mb-0">${response.message}</p>
-                        </div>
-                    `,
-                    confirmButtonText: '{% trans "حسناً" %}',
-                    confirmButtonColor: '#4CAF50'
-                }).then(() => {
-                    // إضافة تأثير بصري للنجاح
-                    $('.price-input').each(function() {
-                        if ($(this).val()) {
-                            $(this).addClass('border-success').effect('highlight', {color: '#C8E6C9'}, 1000);
-                        }
-                    });
+                    title: 'تم الحفظ بنجاح',
+                    text: response.message,
+                    confirmButtonColor: '#1a73e8'
+                });
+                $('.material-input').each(function() {
+                    if ($(this).val() && parseFloat($(this).val()) > 0) {
+                        $(this).addClass('has-value');
+                    }
                 });
             },
             error: function(xhr) {
                 Swal.fire({
                     icon: 'error',
-                    title: '{% trans "خطأ" %}',
-                    text: xhr.responseJSON?.error || '{% trans "حدث خطأ أثناء الحفظ" %}',
-                    confirmButtonText: '{% trans "حسناً" %}',
-                    confirmButtonColor: '#f44336'
+                    title: 'خطأ',
+                    text: xhr.responseJSON?.error || 'حدث خطأ أثناء الحفظ',
+                    confirmButtonColor: '#1a73e8'
                 });
-            }
-        });
-    });
-
-    // تحسين: نسخ السعر لجميع القوائم
-    $('.price-input').on('contextmenu', function(e) {
-        e.preventDefault();
-
-        const value = $(this).val();
-        if (!value) return;
-
-        Swal.fire({
-            title: 'نسخ هذا السعر؟',
-            text: `هل تريد نسخ السعر ${value} لجميع قوائم الأسعار الأخرى؟`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'نعم، انسخ',
-            cancelButtonText: 'إلغاء'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('.price-input').val(value).addClass('is-valid');
-                Swal.fire('تم!', 'تم نسخ السعر لجميع القوائم', 'success');
             }
         });
     });
