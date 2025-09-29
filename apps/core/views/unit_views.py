@@ -14,6 +14,7 @@ from django.shortcuts import redirect
 from ..models import UnitOfMeasure
 from ..forms.unit_forms import UnitOfMeasureForm
 from ..mixins import CompanyMixin, AuditLogMixin
+from django.http import JsonResponse
 
 
 class UnitOfMeasureListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
@@ -62,8 +63,21 @@ class UnitOfMeasureCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         })
         return context
 
+    def get_template_names(self):
+        if self.request.GET.get('modal') or self.request.headers.get('X-Requested-With'):
+            return ['core/units/unit_form_modal.html']
+        return ['core/units/unit_form.html']
+
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        if self.request.headers.get('X-Requested-With'):
+            return JsonResponse({
+                'success': True,
+                'unit_id': self.object.id,
+                'unit_name': self.object.name
+            })
+
         messages.success(
             self.request,
             _('تم إضافة وحدة القياس "%(name)s" بنجاح') % {'name': self.object.name}
@@ -71,6 +85,17 @@ class UnitOfMeasureCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         return response
 
     def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With'):
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = error_list[0] if error_list else ''
+
+            return JsonResponse({
+                'success': False,
+                'error': 'يرجى تصحيح الأخطاء',
+                'errors': errors
+            })
+
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))
         return super().form_invalid(form)
 

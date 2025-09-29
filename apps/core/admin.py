@@ -10,7 +10,7 @@ from .models import (
     Currency, Company, Branch, User, UserProfile, Warehouse,
     BusinessPartner,PartnerRepresentative, Item, ItemCategory, Brand, UnitOfMeasure,
     VariantAttribute, VariantValue, ItemVariant, ItemVariantAttributeValue,
-    NumberingSequence, CustomPermission, SystemSettings, AuditLog
+    NumberingSequence, CustomPermission, SystemSettings, AuditLog, PriceList, PriceListItem
 )
 
 
@@ -322,4 +322,16 @@ class AuditLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+@admin.register(PriceList)
+class PriceListAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'currency', 'is_default', 'is_active', 'company']
+    list_filter = ['currency', 'is_default', 'is_active', 'company']
+    search_fields = ['name', 'code']
+
+@admin.register(PriceListItem)
+class PriceListItemAdmin(admin.ModelAdmin):
+    list_display = ['price_list', 'item', 'variant', 'price', 'is_active']
+    list_filter = ['price_list', 'is_active']
+    search_fields = ['item__name', 'variant__code']
 

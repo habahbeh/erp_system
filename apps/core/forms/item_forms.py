@@ -157,10 +157,39 @@ class ItemForm(forms.ModelForm):
             company = Company.objects.first()
 
         if company:
+
+
             # فلترة الخيارات حسب الشركة
-            self.fields['category'].queryset = ItemCategory.objects.filter(
+            # self.fields['category'].queryset = ItemCategory.objects.filter(
+            #     company=company, is_active=True
+            # ).order_by('level', 'name')
+
+            categories = ItemCategory.objects.filter(
                 company=company, is_active=True
             ).order_by('level', 'name')
+
+            # إنشاء خيارات مع اسم التصنيف + مؤشر المستوى
+            category_choices = [('', _('اختر التصنيف'))]
+            for category in categories:
+                # إضافة مؤشر المستوى بجانب الاسم
+                if category.level == 1:
+                    level_badge = "● مستوى 1"
+                    level_color = "🔵"
+                elif category.level == 2:
+                    level_badge = "● مستوى 2"
+                    level_color = "🟢"
+                elif category.level == 3:
+                    level_badge = "● مستوى 3"
+                    level_color = "🟡"
+                else:
+                    level_badge = "● مستوى 4"
+                    level_color = "🔴"
+
+                # عرض: اسم التصنيف + (مستوى X)
+                display_name = f"{category.name} ({level_badge})"
+                category_choices.append((category.id, display_name))
+
+            self.fields['category'].choices = category_choices
 
             self.fields['brand'].queryset = Brand.objects.filter(
                 company=company, is_active=True

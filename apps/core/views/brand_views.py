@@ -16,6 +16,7 @@ from ..models import Brand
 from ..forms.brand_forms import BrandForm
 from ..mixins import CompanyMixin, AuditLogMixin
 from ..filters import BrandFilter
+from django.http import JsonResponse
 
 
 class BrandListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
@@ -64,8 +65,21 @@ class BrandCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
         })
         return context
 
+    def get_template_names(self):
+        if self.request.GET.get('modal') or self.request.headers.get('X-Requested-With'):
+            return ['core/brands/brand_form_modal.html']
+        return ['core/brands/brand_form.html']
+
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        if self.request.headers.get('X-Requested-With'):
+            return JsonResponse({
+                'success': True,
+                'brand_id': self.object.id,
+                'brand_name': self.object.name
+            })
+
         messages.success(
             self.request,
             _('تم إضافة العلامة التجارية "%(name)s" بنجاح') % {'name': self.object.name}
@@ -73,6 +87,17 @@ class BrandCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
         return response
 
     def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With'):
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = error_list[0] if error_list else ''
+
+            return JsonResponse({
+                'success': False,
+                'error': 'يرجى تصحيح الأخطاء',
+                'errors': errors
+            })
+
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))
         return super().form_invalid(form)
 

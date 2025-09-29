@@ -23,6 +23,8 @@ from .user_profile_forms import (  # إضافة جديد
     UserProfileForm, BulkUserProfileForm, UserPermissionsForm
 )
 
+from .price_forms import PriceListForm, PriceListItemForm, BulkPriceUpdateForm
+
 from django import forms
 
 class BaseForm(forms.ModelForm):
@@ -60,4 +62,6 @@ __all__ = [
     'UserProfileForm',
     'BulkUserProfileForm',
     'UserPermissionsForm',
+
+    'PriceListForm', 'PriceListItemForm', 'BulkPriceUpdateForm'
 ]

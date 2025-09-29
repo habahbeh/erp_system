@@ -93,6 +93,69 @@
     color: #ea4335;
     font-weight: bold;
 }
+
+/* تحسين عرض التصنيفات مع المستوى */
+.category-select option {
+    padding: 8px 12px;
+    font-size: 14px;
+}
+
+/* تحسين Select2 للتصنيفات */
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 10px 15px;
+    font-size: 14px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* تمييز المستويات بالألوان */
+.select2-results__option[data-level="1"] {
+    border-left: 4px solid #2196F3;
+    background-color: #e3f2fd;
+}
+
+.select2-results__option[data-level="2"] {
+    border-left: 4px solid #4CAF50;
+    background-color: #e8f5e8;
+}
+
+.select2-results__option[data-level="3"] {
+    border-left: 4px solid #FF9800;
+    background-color: #fff3e0;
+}
+
+.select2-results__option[data-level="4"] {
+    border-left: 4px solid #F44336;
+    background-color: #ffebee;
+}
+
+.select2-results__option--highlighted {
+    background-color: #0d6efd !important;
+    color: white !important;
+    border-left-color: white !important;
+}
+
+/* تحسين الخيار المحدد */
+.select2-container--bootstrap-5 .select2-selection__rendered {
+    font-weight: 500;
+    color: #333;
+}
+
+/* أيقونة المستوى في النتائج */
+.level-indicator {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+}
+
+.level-1 { background-color: #2196F3; }
+.level-2 { background-color: #4CAF50; }
+.level-3 { background-color: #FF9800; }
+.level-4 { background-color: #F44336; }
+
 </style>
 {% endblock %}
 
@@ -235,23 +298,40 @@
 
                         <div class="col-md-6">
                             <label class="form-label required-field">{% trans "التصنيف" %}</label>
-                            {{ form.category|add_class:"form-select" }}
+                            <div class="input-group">
+                                {{ form.category|add_class:"form-select category-select" }}
+                                <button type="button" class="btn btn-outline-success" id="addCategoryBtn">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             {% if form.category.errors %}
                                 <div class="invalid-feedback">{{ form.category.errors.0 }}</div>
                             {% endif %}
                         </div>
 
+                        <!-- العلامة التجارية -->
                         <div class="col-md-6">
                             <label class="form-label">{% trans "العلامة التجارية" %}</label>
-                            {{ form.brand|add_class:"form-select" }}
+                            <div class="input-group">
+                                {{ form.brand|add_class:"form-select brand-select" }}
+                                <button type="button" class="btn btn-outline-success" id="addBrandBtn">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             {% if form.brand.errors %}
                                 <div class="invalid-feedback">{{ form.brand.errors.0 }}</div>
                             {% endif %}
                         </div>
 
+                        <!-- وحدة القياس -->
                         <div class="col-md-6">
                             <label class="form-label required-field">{% trans "وحدة القياس" %}</label>
-                            {{ form.unit_of_measure|add_class:"form-select" }}
+                            <div class="input-group">
+                                {{ form.unit_of_measure|add_class:"form-select unit-select" }}
+                                <button type="button" class="btn btn-outline-success" id="addUnitBtn">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             {% if form.unit_of_measure.errors %}
                                 <div class="invalid-feedback">{{ form.unit_of_measure.errors.0 }}</div>
                             {% endif %}
@@ -262,9 +342,15 @@
                 <!-- Tab 2: Pricing & Tax -->
                 <div class="tab-pane fade" id="pricing-content" role="tabpanel">
                     <div class="row g-4">
+                        <!-- العملة -->
                         <div class="col-md-6">
                             <label class="form-label required-field">{% trans "العملة" %}</label>
-                            {{ form.currency|add_class:"form-select" }}
+                            <div class="input-group">
+                                {{ form.currency|add_class:"form-select currency-select" }}
+                                <button type="button" class="btn btn-outline-success" id="addCurrencyBtn">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             {% if form.currency.errors %}
                                 <div class="invalid-feedback">{{ form.currency.errors.0 }}</div>
                             {% endif %}
@@ -645,6 +731,137 @@
         </div>
     </div>
 </div>
+
+
+
+    <!-- Modal إضافة تصنيف -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="categoryModalLabel">
+                    <i class="fas fa-tags me-2"></i>إضافة تصنيف جديد
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="categoryFormContainer">
+                    <!-- سيتم تحميل النموذج هنا -->
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                        <p class="mt-2 text-muted">جاري تحميل النموذج...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-success" id="saveCategoryBtn">
+                    <i class="fas fa-save me-1"></i>حفظ التصنيف
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
+    <!-- Modal العلامة التجارية -->
+<div class="modal fade" id="brandModal" tabindex="-1" aria-labelledby="brandModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="brandModalLabel">
+                    <i class="fas fa-certificate me-2"></i>إضافة علامة تجارية جديدة
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="brandFormContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <p class="mt-2 text-muted">جاري تحميل النموذج...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-info" id="saveBrandBtn">
+                    <i class="fas fa-save me-1"></i>حفظ العلامة التجارية
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal وحدة القياس -->
+<div class="modal fade" id="unitModal" tabindex="-1" aria-labelledby="unitModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="unitModalLabel">
+                    <i class="fas fa-ruler me-2"></i>إضافة وحدة قياس جديدة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="unitFormContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-warning" role="status"></div>
+                        <p class="mt-2 text-muted">جاري تحميل النموذج...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-warning" id="saveUnitBtn">
+                    <i class="fas fa-save me-1"></i>حفظ الوحدة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal العملة -->
+<div class="modal fade" id="currencyModal" tabindex="-1" aria-labelledby="currencyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="currencyModalLabel">
+                    <i class="fas fa-coins me-2"></i>إضافة عملة جديدة
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="currencyFormContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-success" role="status"></div>
+                        <p class="mt-2 text-muted">جاري تحميل النموذج...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-success" id="saveCurrencyBtn">
+                    <i class="fas fa-save me-1"></i>حفظ العملة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1054,6 +1271,322 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isUpdate) {
         setTimeout(displayExistingVariants, 100);
     }
+});
+
+</script>
+
+
+<script>
+$(document).ready(function() {
+    // تفعيل Select2 لجميع القوائم
+    $('.category-select, .brand-select, .unit-select, .currency-select').select2({
+        theme: 'bootstrap-5',
+        language: 'ar',
+        allowClear: true,
+        width: '100%'
+    });
+
+    // تخصيص placeholders
+   $('.category-select').select2('destroy').select2({
+    theme: 'bootstrap-5',
+    language: 'ar',
+    placeholder: 'ابحث عن التصنيف...',
+    allowClear: true,
+    width: '100%',
+    dropdownParent: $('.category-select').parent(),
+    templateResult: function(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        var text = option.text;
+        var $option = $('<div></div>');
+
+        // استخراج اسم التصنيف والمستوى
+        var match = text.match(/^(.*?)\s*\(● مستوى (\d+)\)$/);
+        if (match) {
+            var categoryName = match[1];
+            var level = match[2];
+
+            // إنشاء العرض
+            $option.html(
+                '<span style="font-weight: 500;">' + categoryName + '</span>' +
+                '<span class="level-indicator level-' + level + '" style="float: left;">مستوى ' + level + '</span>'
+            );
+
+            // إضافة data attribute للتمييز
+            $option.attr('data-level', level);
+        } else {
+            $option.text(text);
+        }
+
+        return $option;
+    },
+    templateSelection: function(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        // عرض مبسط للخيار المحدد - اسم التصنيف فقط
+        var text = option.text;
+        var match = text.match(/^(.*?)\s*\(● مستوى \d+\)$/);
+        if (match) {
+            return match[1]; // إرجاع اسم التصنيف فقط
+        }
+
+        return text;
+    }
+});
+
+    $('.brand-select').select2('destroy').select2({
+        theme: 'bootstrap-5',
+        language: 'ar',
+        placeholder: 'ابحث عن العلامة التجارية...',
+        allowClear: true,
+        width: '100%',
+        dropdownParent: $('.brand-select').parent()
+    });
+
+    $('.unit-select').select2('destroy').select2({
+        theme: 'bootstrap-5',
+        language: 'ar',
+        placeholder: 'ابحث عن وحدة القياس...',
+        width: '100%',
+        dropdownParent: $('.unit-select').parent()
+    });
+
+    $('.currency-select').select2('destroy').select2({
+        theme: 'bootstrap-5',
+        language: 'ar',
+        placeholder: 'ابحث عن العملة...',
+        width: '100%',
+        dropdownParent: $('.currency-select').parent()
+    });
+
+    // أزرار فتح المودالز
+    $('#addCategoryBtn').click(() => openModal('category', 'التصنيف'));
+    $('#addBrandBtn').click(() => openModal('brand', 'العلامة التجارية'));
+    $('#addUnitBtn').click(() => openModal('unit', 'وحدة القياس'));
+    $('#addCurrencyBtn').click(() => openModal('currency', 'العملة'));
+
+    // أزرار الحفظ
+    $('#saveCategoryBtn').click(() => saveFromModal('category'));
+    $('#saveBrandBtn').click(() => saveFromModal('brand'));
+    $('#saveUnitBtn').click(() => saveFromModal('unit'));
+    $('#saveCurrencyBtn').click(() => saveFromModal('currency'));
+});
+
+// فتح المودال وتحميل النموذج
+function openModal(type, typeName) {
+    const urls = {
+        'category': "{% url 'core:category_create' %}",
+        'brand': "{% url 'core:brand_create' %}",
+        'unit': "{% url 'core:unit_create' %}",
+        'currency': "{% url 'core:currency_create' %}"
+    };
+
+    $(`#${type}Modal`).modal('show');
+    loadForm(type, urls[type]);
+}
+
+// تحميل النموذج
+function loadForm(type, url) {
+    $.get(url + '?modal=1')
+        .done(function(data) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(data, 'text/html');
+            const form = doc.querySelector('form');
+
+            if (form) {
+                // إزالة أزرار الإجراءات
+                const actionButtons = form.querySelector('.card:last-child');
+                if (actionButtons) actionButtons.remove();
+
+                $(`#${type}FormContainer`).html(form.outerHTML);
+                $(`#${type}FormContainer .form-control, #${type}FormContainer .form-select`).addClass('form-control-sm');
+                $(`#${type}FormContainer form`).attr('id', `modal${type.charAt(0).toUpperCase() + type.slice(1)}Form`);
+
+                setupFormEvents(type);
+            } else {
+                $(`#${type}FormContainer`).html('<div class="alert alert-danger">خطأ في تحميل النموذج</div>');
+            }
+        })
+        .fail(function() {
+            $(`#${type}FormContainer`).html('<div class="alert alert-danger">فشل في تحميل النموذج</div>');
+        });
+}
+
+// إعداد أحداث النماذج
+function setupFormEvents(type) {
+    const formId = `#modal${type.charAt(0).toUpperCase() + type.slice(1)}Form`;
+
+    // أحداث خاصة بكل نوع
+    if (type === 'category') {
+        $(`${formId} #id_name`).on('blur', function() {
+            var codeField = $(`${formId} #id_code`);
+            if (!codeField.val()) {
+                var name = $(this).val().trim();
+                if (name) {
+                    var code = name.replace(/\s+/g, '-').replace(/[^\w\u0600-\u06FF-]/g, '').substring(0, 10).toUpperCase();
+                    var randomNum = Math.floor(Math.random() * 1000);
+                    codeField.val(code + '-' + randomNum);
+                }
+            }
+        });
+    } else if (type === 'unit') {
+        $(`${formId} #id_name`).on('blur', function() {
+            var codeField = $(`${formId} #id_code`);
+            if (!codeField.val()) {
+                var name = $(this).val().trim();
+                if (name) {
+                    var code = name.substring(0, 5).toUpperCase();
+                    codeField.val(code);
+                }
+            }
+        });
+    } else if (type === 'currency') {
+        $(`${formId} #id_name`).on('blur', function() {
+            var codeField = $(`${formId} #id_code`);
+            if (!codeField.val()) {
+                var name = $(this).val().trim();
+                if (name) {
+                    var code = name.substring(0, 3).toUpperCase();
+                    codeField.val(code);
+                }
+            }
+        });
+    }
+
+    // إرسال عند الضغط على Enter
+    $(formId).on('keypress', function(e) {
+        if (e.which === 13 && !e.shiftKey) {
+            e.preventDefault();
+            saveFromModal(type);
+        }
+    });
+}
+
+// حفظ من المودال
+function saveFromModal(type) {
+    const formId = `#modal${type.charAt(0).toUpperCase() + type.slice(1)}Form`;
+    const form = $(formId);
+
+    if (!form.length) {
+        Swal.fire('خطأ', 'لم يتم العثور على النموذج', 'error');
+        return;
+    }
+
+    const urls = {
+        'category': "{% url 'core:category_create' %}",
+        'brand': "{% url 'core:brand_create' %}",
+        'unit': "{% url 'core:unit_create' %}",
+        'currency': "{% url 'core:currency_create' %}"
+    };
+
+    const formData = new FormData(form[0]);
+    const submitBtn = $(`#save${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+
+    submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...');
+
+    form.find('.is-invalid').removeClass('is-invalid');
+    form.find('.invalid-feedback').remove();
+
+    $.ajax({
+        url: urls[type],
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .done(function(data) {
+        if (data.success) {
+            addNewOptionToSelect(type, data);
+            $(`#${type}Modal`).modal('hide');
+            form[0].reset();
+        } else {
+            if (data.errors) {
+                Object.keys(data.errors).forEach(field => {
+                    const fieldElement = form.find('#id_' + field);
+                    if (fieldElement.length) {
+                        fieldElement.addClass('is-invalid');
+                        fieldElement.after(`<div class="invalid-feedback">${data.errors[field]}</div>`);
+                    }
+                });
+            } else {
+                Swal.fire('خطأ', data.error || 'حدث خطأ غير معروف', 'error');
+            }
+        }
+    })
+    .fail(function(xhr) {
+        Swal.fire('خطأ', 'فشل في الحفظ', 'error');
+    })
+    .always(function() {
+        const originalTexts = {
+            'category': '<i class="fas fa-save me-1"></i>حفظ التصنيف',
+            'brand': '<i class="fas fa-save me-1"></i>حفظ العلامة التجارية',
+            'unit': '<i class="fas fa-save me-1"></i>حفظ الوحدة',
+            'currency': '<i class="fas fa-save me-1"></i>حفظ العملة'
+        };
+        submitBtn.prop('disabled', false).html(originalTexts[type]);
+    });
+}
+
+// إضافة خيار جديد للقائمة
+function addNewOptionToSelect(type, data) {
+    const selectors = {
+        'category': '.category-select',
+        'brand': '.brand-select',
+        'unit': '.unit-select',
+        'currency': '.currency-select'
+    };
+
+    const names = {
+        'category': 'category_name',
+        'brand': 'brand_name',
+        'unit': 'unit_name',
+        'currency': 'currency_name'
+    };
+
+    const ids = {
+        'category': 'category_id',
+        'brand': 'brand_id',
+        'unit': 'unit_id',
+        'currency': 'currency_id'
+    };
+
+    const select = $(selectors[type]);
+    const newOption = new Option(data[names[type]], data[ids[type]], true, true);
+    select.append(newOption).trigger('change');
+
+    const typeNames = {
+        'category': 'التصنيف',
+        'brand': 'العلامة التجارية',
+        'unit': 'وحدة القياس',
+        'currency': 'العملة'
+    };
+
+    Swal.fire({
+        icon: 'success',
+        title: 'تم بنجاح',
+        text: `تم إضافة ${typeNames[type]} "${data[names[type]]}" بنجاح`,
+        timer: 3000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
+}
+
+// إعادة تعيين المودالز عند الإغلاق
+$('.modal').on('hidden.bs.modal', function() {
+    const modalId = $(this).attr('id');
+    const type = modalId.replace('Modal', '');
+    $(`#${type}FormContainer`).html(
+        '<div class="text-center py-4">' +
+        '<div class="spinner-border" role="status"></div>' +
+        '<p class="mt-2 text-muted">جاري تحميل النموذج...</p>' +
+        '</div>'
+    );
 });
 </script>
 {% endblock %}

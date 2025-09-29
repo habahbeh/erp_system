@@ -12,7 +12,7 @@ from django.urls import reverse
 
 
 class BaseModel(models.Model):
-    """النموذج الأساسي الموحد - للأصناف والبيانات الأساسية"""
+    """النموذج الأساسي الموحد - للأمواد والبيانات الأساسية"""
 
     company = models.ForeignKey('core.Company', on_delete=models.CASCADE, verbose_name=_('الشركة'))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ الإنشاء'))
@@ -1108,3 +1108,212 @@ class PermissionGroup(models.Model):
             categories[perm.category].append(perm)
 
         return categories
+
+
+class PriceList(BaseModel):
+    """قوائم الأسعار - مثل: جملة، تجزئة، VIP"""
+
+    name = models.CharField(_('اسم القائمة'), max_length=100)
+    code = models.CharField(_('رمز القائمة'), max_length=20)
+    description = models.TextField(_('الوصف'), blank=True)
+    is_default = models.BooleanField(_('قائمة افتراضية'), default=False)
+    currency = models.ForeignKey(
+        Currency,
+        on_delete=models.PROTECT,
+        verbose_name=_('العملة'),
+        related_name='price_lists'
+    )
+
+    class Meta:
+        verbose_name = _('قائمة أسعار')
+        verbose_name_plural = _('قوائم الأسعار')
+        unique_together = [['company', 'code']]
+        ordering = ['name']
+
+    def save(self, *args, **kwargs):
+        """تأكد من وجود قائمة افتراضية واحدة فقط"""
+        if self.is_default:
+            PriceList.objects.filter(
+                company=self.company,
+                is_default=True
+            ).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class PriceListItem(models.Model):
+    """أسعار الأمواد في كل قائمة"""
+
+    price_list = models.ForeignKey(
+        PriceList,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name=_('قائمة الأسعار')
+    )
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='price_list_items',
+        verbose_name=_('المادة')
+    )
+    variant = models.ForeignKey(
+        ItemVariant,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='price_list_items',
+        verbose_name=_('المتغير')
+    )
+    price = models.DecimalField(
+        _('السعر'),
+        max_digits=15,
+        decimal_places=3
+    )
+    min_quantity = models.DecimalField(
+        _('الكمية الأدنى'),
+        max_digits=10,
+        decimal_places=3,
+        default=1
+    )
+    start_date = models.DateField(
+        _('تاريخ البداية'),
+        null=True,
+        blank=True
+    )
+    end_date = models.DateField(
+        _('تاريخ النهاية'),
+        null=True,
+        blank=True
+    )
+    is_active = models.BooleanField(_('نشط'), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('سعر مادة')
+        verbose_name_plural = _('أسعار الأمواد')
+        unique_together = [['price_list', 'item', 'variant']]
+        ordering = ['item__name', 'variant__code']
+        indexes = [
+            models.Index(fields=['price_list', 'item']),
+            models.Index(fields=['is_active', 'start_date', 'end_date']),
+        ]
+
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        from django.core.exceptions import ValidationError
+
+        # إذا كان المادة له متغيرات، يجب تحديد متغير
+        if self.item.has_variants and not self.variant:
+            raise ValidationError(
+                _('يجب تحديد متغير للمادة الذي له متغيرات')
+            )
+
+        # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
+        if not self.item.has_variants and self.variant:
+            raise ValidationError(
+                _('لا يمكن تحديد متغير لمادة بدون متغيرات')
+            )
+
+        # التحقق من تواريخ الصلاحية
+        if self.start_date and self.end_date:
+            if self.end_date < self.start_date:
+                raise ValidationError(
+                    _('تاريخ النهاية يجب أن يكون بعد تاريخ البداية')
+                )
+
+    def is_valid_date(self, check_date=None):
+        """التحقق من صلاحية السعر في تاريخ معين"""
+        from django.utils import timezone
+
+        if not check_date:
+            check_date = timezone.now().date()
+
+        if not self.is_active:
+            return False
+
+        if self.start_date and check_date < self.start_date:
+            return False
+
+        if self.end_date and check_date > self.end_date:
+            return False
+
+        return True
+
+    def __str__(self):
+        variant_str = f" - {self.variant.code}" if self.variant else ""
+        return f"{self.price_list.name}: {self.item.name}{variant_str} - {self.price}"
+
+
+# دالة مساعدة للحصول على سعر مادة
+def get_item_price(item, variant=None, price_list=None, quantity=1, check_date=None):
+    """
+    الحصول على سعر مادة أو متغير من قائمة أسعار معينة
+
+    Args:
+        item: المادة
+        variant: المتغير (اختياري)
+        price_list: قائمة الأسعار (إذا لم تحدد، ستستخدم القائمة الافتراضية)
+        quantity: الكمية (للتحقق من الكمية الأدنى)
+        check_date: تاريخ التحقق (افتراضياً اليوم)
+
+    Returns:
+        Decimal: السعر أو 0 إذا لم يوجد
+    """
+    from decimal import Decimal
+    from django.utils import timezone
+
+    if not check_date:
+        check_date = timezone.now().date()
+
+    # إذا لم تحدد قائمة أسعار، استخدم الافتراضية
+    if not price_list:
+        try:
+            price_list = PriceList.objects.filter(
+                company=item.company,
+                is_default=True,
+                is_active=True
+            ).first()
+
+            if not price_list:
+                # إذا لم توجد قائمة افتراضية، استخدم أول قائمة نشطة
+                price_list = PriceList.objects.filter(
+                    company=item.company,
+                    is_active=True
+                ).first()
+
+            if not price_list:
+                return Decimal('0.000')
+        except:
+            return Decimal('0.000')
+
+    try:
+        # البحث عن السعر
+        query = PriceListItem.objects.filter(
+            price_list=price_list,
+            item=item,
+            is_active=True
+        )
+
+        # إضافة شرط المتغير
+        if variant:
+            query = query.filter(variant=variant)
+        else:
+            query = query.filter(variant__isnull=True)
+
+        # البحث عن سعر صالح في التاريخ المحدد مع الكمية المناسبة
+        prices = query.filter(
+            min_quantity__lte=quantity
+        ).order_by('-min_quantity')
+
+        for price_item in prices:
+            if price_item.is_valid_date(check_date):
+                return price_item.price
+
+        # إذا لم يوجد سعر صالح، أرجع 0
+        return Decimal('0.000')
+
+    except PriceListItem.DoesNotExist:
+        return Decimal('0.000')

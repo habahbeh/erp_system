@@ -14,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView, TemplateView
 from django.db.models import Q
 from django_filters.views import FilterView
+from django.http import JsonResponse
 
 from ..models import (
     Item, ItemCategory, Brand, UnitOfMeasure, VariantAttribute,
@@ -496,7 +497,6 @@ class ItemCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 
 
 class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إضافة تصنيف جديد"""
     model = ItemCategory
     form_class = ItemCategoryForm
     template_name = 'core/items/category_form.html'
@@ -508,27 +508,65 @@ class ItemCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         kwargs['request'] = self.request
         return kwargs
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'title': _('إضافة تصنيف جديد'),
-            'breadcrumbs': [
-                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
-                {'title': _('تصنيفات المواد'), 'url': reverse('core:category_list')},
-                {'title': _('إضافة جديد'), 'url': ''}
-            ],
-            'submit_text': _('حفظ التصنيف'),
-            'cancel_url': reverse('core:category_list'),
-        })
-        return context
+    def get_template_names(self):
+        # استخدام template مبسط للمودال
+        if self.request.GET.get('modal') or self.request.headers.get('X-Requested-With'):
+            return ['core/items/category_form_modal.html']
+        return ['core/items/category_form.html']
 
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        # إذا كان الطلب AJAX
+        if self.request.headers.get('X-Requested-With'):
+            return JsonResponse({
+                'success': True,
+                'category_id': self.object.id,
+                'category_name': self.object.name
+            })
+
         messages.success(
             self.request,
             _('تم إضافة التصنيف "%(name)s" بنجاح') % {'name': self.object.name}
         )
         return response
+
+    def form_invalid(self, form):
+        # إذا كان الطلب AJAX
+        if self.request.headers.get('X-Requested-With'):
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = error_list[0] if error_list else ''
+
+            return JsonResponse({
+                'success': False,
+                'error': 'يرجى تصحيح الأخطاء',
+                'errors': errors
+            })
+
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # إذا كان مودال، تبسيط المحتوى
+        if self.request.GET.get('modal'):
+            context.update({
+                'title': _('إضافة تصنيف جديد'),
+                'is_modal': True,
+            })
+        else:
+            context.update({
+                'title': _('إضافة تصنيف جديد'),
+                'breadcrumbs': [
+                    {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+                    {'title': _('تصنيفات المواد'), 'url': reverse('core:category_list')},
+                    {'title': _('إضافة جديد'), 'url': ''}
+                ],
+                'submit_text': _('حفظ التصنيف'),
+                'cancel_url': reverse('core:category_list'),
+            })
+        return context
 
 
 class ItemCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):

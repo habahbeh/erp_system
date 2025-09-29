@@ -1,9 +1,8 @@
-# apps/core/views/__init__.py - التحديث النهائي
+# apps/core/views/__init__.py - التحديث النهائي مع Price Views
 """
 استيراد جميع الـ Views
 """
 
-# from .base_views import dashboard, switch_branch
 from .base_views import dashboard, dashboard_ajax, switch_company, get_company_branches
 from .item_views import (
     ItemListView, ItemCreateView, ItemUpdateView, ItemDeleteView, ItemDetailView,
@@ -43,7 +42,7 @@ from .user_views import (
     UserListView, UserCreateView, UserUpdateView,
     UserDeleteView, UserDetailView, change_password_view
 )
-from .user_profile_views import (  # إضافة جديد
+from .user_profile_views import (
     UserProfileListView, UserProfileDetailView, UserProfileUpdateView,
     BulkUserProfileUpdateView, user_permissions_view, create_missing_profiles, UserProfileDeleteView
 )
@@ -51,8 +50,7 @@ from .variant_views import (
     VariantAttributeListView, VariantAttributeCreateView, VariantAttributeUpdateView,
     VariantAttributeDeleteView, VariantAttributeDetailView
 )
-
-from .permission_views import (  # إضافة جديد
+from .permission_views import (
     CustomPermissionListView, CustomPermissionCreateView, CustomPermissionUpdateView,
     CustomPermissionDeleteView, CustomPermissionDetailView,
     PermissionGroupListView, PermissionGroupCreateView, PermissionGroupUpdateView,
@@ -60,20 +58,28 @@ from .permission_views import (  # إضافة جديد
     BulkPermissionAssignView, CopyUserPermissionsView, create_default_permission_groups
 )
 
+# ✅ إضافة Price Views الجديدة
+from .price_views import (
+    PriceListListView, PriceListCreateView, PriceListUpdateView,
+    PriceListDeleteView, PriceListDetailView, PriceListItemsView,
+    ItemPricesView, update_item_prices, bulk_update_prices
+)
+
 from .ajax_views import (
     item_datatable_ajax, partner_datatable_ajax, warehouse_datatable_ajax,
     brand_datatable_ajax, unit_datatable_ajax, currency_datatable_ajax,
     branch_datatable_ajax, variant_attribute_datatable_ajax, user_datatable_ajax,
-    profile_datatable_ajax, permission_datatable_ajax, group_datatable_ajax
+    profile_datatable_ajax, permission_datatable_ajax, group_datatable_ajax,
+    price_list_datatable_ajax  # ✅ إضافة Ajax view للأسعار
 )
-
 
 
 __all__ = [
     # Base Views
     'dashboard',
-    # 'switch_branch',
     'dashboard_ajax',
+    'switch_company',
+    'get_company_branches',
 
     # Item Views
     'ItemListView',
@@ -146,7 +152,7 @@ __all__ = [
     'UserDetailView',
     'change_password_view',
 
-    # User Profile Views - إضافة جديد
+    # User Profile Views
     'UserProfileListView',
     'UserProfileDetailView',
     'UserProfileUpdateView',
@@ -177,6 +183,17 @@ __all__ = [
     'CopyUserPermissionsView',
     'create_default_permission_groups',
 
+    # ✅ Price Views الجديدة
+    'PriceListListView',
+    'PriceListCreateView',
+    'PriceListUpdateView',
+    'PriceListDeleteView',
+    'PriceListDetailView',
+    'PriceListItemsView',
+    'ItemPricesView',
+    'update_item_prices',
+    'bulk_update_prices',
+
     # Ajax Views
     'item_datatable_ajax',
     'partner_datatable_ajax',
@@ -190,4 +207,5 @@ __all__ = [
     'profile_datatable_ajax',
     'permission_datatable_ajax',
     'group_datatable_ajax',
+    'price_list_datatable_ajax',  # ✅ Ajax للأسعار
 ]

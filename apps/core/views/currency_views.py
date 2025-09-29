@@ -14,6 +14,7 @@ from django.shortcuts import redirect
 from ..models import Currency
 from ..forms.currency_forms import CurrencyForm
 from ..mixins import AuditLogMixin
+from django.http import JsonResponse
 
 
 class CurrencyListView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
@@ -62,8 +63,21 @@ class CurrencyCreateView(LoginRequiredMixin, PermissionRequiredMixin, AuditLogMi
         })
         return context
 
+    def get_template_names(self):
+        if self.request.GET.get('modal') or self.request.headers.get('X-Requested-With'):
+            return ['core/currencies/currency_form_modal.html']
+        return ['core/currencies/currency_form.html']
+
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        if self.request.headers.get('X-Requested-With'):
+            return JsonResponse({
+                'success': True,
+                'currency_id': self.object.id,
+                'currency_name': self.object.name
+            })
+
         messages.success(
             self.request,
             _('تم إضافة العملة "%(name)s" بنجاح') % {'name': self.object.name}
@@ -71,6 +85,17 @@ class CurrencyCreateView(LoginRequiredMixin, PermissionRequiredMixin, AuditLogMi
         return response
 
     def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With'):
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = error_list[0] if error_list else ''
+
+            return JsonResponse({
+                'success': False,
+                'error': 'يرجى تصحيح الأخطاء',
+                'errors': errors
+            })
+
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))
         return super().form_invalid(form)
 

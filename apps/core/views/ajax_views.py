@@ -2445,3 +2445,190 @@ def group_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': []
         }, status=500)
+
+
+@login_required
+@permission_required_with_message('core.view_pricelist')
+@require_http_methods(["GET"])
+def price_list_datatable_ajax(request):
+    """Ajax endpoint للـ DataTable لقوائم الأسعار مع البحث الذكي"""
+    try:
+        # إذا لم يكن هناك شركة حالية، استخدم شركة المستخدم
+        if not hasattr(request, 'current_company') or not request.current_company:
+            if hasattr(request.user, 'company') and request.user.company:
+                request.current_company = request.user.company
+            else:
+                from apps.core.models import Company
+                request.current_company = Company.objects.first()
+
+        # معاملات DataTable
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 25))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # فلاتر مخصصة
+        currency_filter = request.GET.get('currency', '')
+        status_filter = request.GET.get('status', '')
+
+        # الحصول على البيانات
+        from apps.core.models import PriceList
+
+        if request.current_company:
+            queryset = PriceList.objects.filter(company=request.current_company)
+        else:
+            queryset = PriceList.objects.all()
+
+        queryset = queryset.select_related('currency', 'company')
+
+        # تطبيق الفلاتر المخصصة
+        if currency_filter:
+            queryset = queryset.filter(currency_id=currency_filter)
+
+        if status_filter:
+            is_active = status_filter == '1'
+            queryset = queryset.filter(is_active=is_active)
+
+        # البحث الذكي لقوائم الأسعار
+        if search_value:
+            search_fields = [
+                'name',
+                'code',
+                'description'
+            ]
+            smart_query = smart_search_query(search_fields, search_value)
+            if smart_query:
+                queryset = queryset.filter(smart_query).distinct()
+
+        # العدد الكلي
+        if request.current_company:
+            records_total = PriceList.objects.filter(company=request.current_company).count()
+        else:
+            records_total = PriceList.objects.count()
+
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        columns = ['code', 'name', 'currency__name', 'items_count', 'is_default', 'is_active']
+
+        if 0 <= order_column < len(columns):
+            order_field = columns[order_column]
+            if order_dir == 'desc':
+                order_field = '-' + order_field
+            queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('name')
+
+        # إضافة عدد الأصناف
+        from django.db.models import Count
+        queryset = queryset.annotate(items_count=Count('items'))
+
+        # التقسيم للصفحات
+        price_lists = queryset[start:start + length]
+
+        # تجهيز البيانات للإرسال
+        data = []
+        for price_list in price_lists:
+            # التحقق من الصلاحيات
+            can_change = request.user.has_perm('core.change_pricelist')
+            can_delete = request.user.has_perm('core.delete_pricelist')
+
+            # تكوين أزرار الإجراءات
+            actions = '<div class="btn-group btn-group-sm" role="group">'
+
+            # زر العرض
+            actions += f'''
+                <a href="{reverse('core:price_list_detail', kwargs={'pk': price_list.pk})}" 
+                   class="btn btn-outline-info btn-sm" title="{_('عرض')}">
+                    <i class="fas fa-eye"></i>
+                </a>
+            '''
+
+            # زر إدارة الأصناف
+            actions += f'''
+                <a href="{reverse('core:price_list_items', kwargs={'pk': price_list.pk})}" 
+                   class="btn btn-outline-primary btn-sm" title="{_('إدارة الأصناف')}">
+                    <i class="fas fa-list"></i>
+                </a>
+            '''
+
+            # زر التعديل
+            if can_change:
+                actions += f'''
+                    <a href="{reverse('core:price_list_update', kwargs={'pk': price_list.pk})}" 
+                       class="btn btn-outline-warning btn-sm" title="{_('تعديل')}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''
+
+            # زر الحذف (ممنوع للقائمة الافتراضية)
+            if can_delete and not price_list.is_default:
+                actions += f'''
+                    <a href="{reverse('core:price_list_delete', kwargs={'pk': price_list.pk})}" 
+                       class="btn btn-outline-danger btn-sm" title="{_('حذف')}"
+                       onclick="return confirm('{_('هل أنت متأكد من حذف هذه القائمة؟')}')">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                '''
+
+            actions += '</div>'
+
+            # تجميع صف البيانات
+            row = [
+                # الكود
+                f'<code class="text-primary fw-bold">{price_list.code}</code>',
+
+                # اسم القائمة
+                f'<div><strong class="text-dark">{price_list.name}</strong>' +
+                (
+                    f'<br><small class="text-muted">{price_list.description[:50]}...</small>' if price_list.description else '') +
+                '</div>',
+
+                # العملة
+                f'<span class="badge bg-info fs-6">{price_list.currency.code}</span>',
+
+                # عدد الأصناف
+                f'<span class="badge bg-primary">{price_list.items_count} {_("صنف")}</span>',
+
+                # قائمة افتراضية
+                f'<span class="badge bg-success"><i class="fas fa-star"></i> {_("افتراضية")}</span>' if price_list.is_default
+                else f'<span class="badge bg-secondary">{_("عادية")}</span>',
+
+                # الحالة
+                f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if price_list.is_active
+                else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',
+
+                # الإجراءات
+                actions
+            ]
+
+            data.append(row)
+
+        response = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data,
+            'search_info': {
+                'search_value': search_value,
+                'search_terms': search_value.split() if search_value else [],
+                'total_results': records_filtered,
+                'smart_search_enabled': bool(search_value)
+            }
+        }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'draw': draw if 'draw' in locals() else 1,
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': []
+        }, status=500)
