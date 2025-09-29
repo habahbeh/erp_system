@@ -1,0 +1,293 @@
+{# apps/core/templates/core/price_lists/price_list_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ object.name }}</h1>
+            <p class="text-muted mb-1">{{ object.description|default:"" }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-primary fs-6">{{ object.code }}</span>
+                <span class="badge bg-info fs-6">{{ object.currency.name }} ({{ object.currency.symbol }})</span>
+                {% if object.is_default %}
+                    <span class="badge bg-warning text-dark fs-6">
+                        <i class="fas fa-star"></i> {% trans "قائمة افتراضية" %}
+                    </span>
+                {% endif %}
+                {% if object.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            <a href="{{ items_url }}" class="btn btn-primary">
+                <i class="fas fa-list"></i> {% trans "إدارة المواد" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:price_list_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات القائمة -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات قائمة الأسعار" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رمز القائمة" %}</h6>
+                            <p class="mb-0 fs-5"><code class="bg-light text-primary px-2 py-1 rounded">{{ object.code }}</code></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم القائمة" %}</h6>
+                            <p class="mb-0 fs-5">{{ object.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "العملة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ object.currency.name }} ({{ object.currency.symbol }})</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع القائمة" %}</h6>
+                            {% if object.is_default %}
+                                <span class="badge bg-warning text-dark fs-6">
+                                    <i class="fas fa-star"></i> {% trans "قائمة افتراضية" %}
+                                </span>
+                                <small class="text-muted d-block mt-1">{% trans "تستخدم تلقائياً عند عدم تحديد قائمة" %}</small>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{% trans "قائمة عادية" %}</span>
+                            {% endif %}
+                        </div>
+
+                        {% if object.description %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "الوصف" %}</h6>
+                            <p class="mb-0">{{ object.description }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- إحصائيات المواد -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات المواد" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ items_count }}</h3>
+                                <small class="text-muted">{% trans "إجمالي المواد" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ active_items_count }}</h3>
+                                <small class="text-muted">{% trans "أمواد نشطة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ variants_count }}</h3>
+                                <small class="text-muted">{% trans "متغيرات" %}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if can_change %}
+                    <div class="text-center mt-4">
+                        <a href="{{ items_url }}" class="btn btn-primary">
+                            <i class="fas fa-cog"></i> {% trans "إدارة أمواد هذه القائمة" %}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- آخر المواد المضافة -->
+            {% if recent_items %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-clock"></i> {% trans "آخر المواد المضافة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "المادة" %}</th>
+                                    <th>{% trans "السعر" %}</th>
+                                    <th>{% trans "تاريخ الإضافة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for price_item in recent_items %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ price_item.item.name }}</strong>
+                                        {% if price_item.variant %}
+                                            <br><small class="text-muted">متغير: {{ price_item.variant.code }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge bg-success">{{ price_item.price }} {{ object.currency.symbol }}</span></td>
+                                    <td><small class="text-muted">{{ price_item.created_at|date:"d/m/Y" }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{{ items_url }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع المواد" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ object.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if object.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong> {{ object.created_by.get_full_name|default:object.created_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_change %}
+                        <a href="{{ items_url }}" class="btn btn-outline-primary">
+                            <i class="fas fa-list"></i> {% trans "إدارة المواد" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-success" onclick="showComingSoon('تصدير القائمة')">
+                            <i class="fas fa-file-export"></i> {% trans "تصدير القائمة" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-info" onclick="showComingSoon('استيراد أسعار')">
+                            <i class="fas fa-file-import"></i> {% trans "استيراد أسعار" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-warning" onclick="showComingSoon('تحديث جماعي')">
+                            <i class="fas fa-sync"></i> {% trans "تحديث جماعي" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- نصائح -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "نصائح" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "يمكن تحديث الأسعار دون التأثير على الفواتير القديمة" %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "القائمة الافتراضية تستخدم عند عدم تحديد قائمة محددة" %}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-check text-success"></i>
+                            {% trans "يمكن تطبيق تواريخ صلاحية للأسعار" %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showComingSoon(feature) {
+    Swal.fire({
+        icon: 'info',
+        title: '{% trans "قريباً" %}',
+        text: `{% trans "وحدة" %} ${feature} {% trans "قيد التطوير وستكون متاحة قريباً" %}`,
+        confirmButtonText: '{% trans "حسناً" %}',
+        confirmButtonColor: '#0d6efd'
+    });
+}
+</script>
+{% endblock %}

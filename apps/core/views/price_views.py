@@ -1,6 +1,6 @@
 # apps/core/views/price_views.py
 """
-Views لقوائم الأسعار وأسعار الأصناف - ملف كامل
+Views لقوائم الأسعار وأسعار المواد - ملف كامل
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -210,17 +210,17 @@ class PriceListDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMi
             return redirect('core:price_list_list')
 
 
-# ===== إدارة أسعار الأصناف =====
+# ===== إدارة أسعار المواد =====
 
 class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
-    """صفحة إدارة أسعار صنف معين في جميع قوائم الأسعار"""
+    """صفحة إدارة أسعار مادة معين في جميع قوائم الأسعار"""
     template_name = 'core/items/item_prices.html'
     permission_required = 'core.view_pricelistitem'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # الحصول على الصنف
+        # الحصول على المادة
         item_id = self.kwargs.get('item_id')
         item = get_object_or_404(
             Item,
@@ -234,7 +234,7 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             is_active=True
         ).order_by('name')
 
-        # تجهيز البيانات حسب نوع الصنف
+        # تجهيز البيانات حسب نوع المادة
         if item.has_variants:
             # جلب جميع المتغيرات
             variants = item.variants.filter(is_active=True).select_related('company')
@@ -262,7 +262,7 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
             context['variants_data'] = variants_data
         else:
-            # صنف بدون متغيرات - أسعار واحدة لكل قائمة
+            # مادة بدون متغيرات - أسعار واحدة لكل قائمة
             item_prices = {}
             for price_list in price_lists:
                 try:
@@ -294,7 +294,7 @@ class ItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
 
 def update_item_prices(request, item_id):
-    """حفظ أسعار صنف معين في جميع قوائم الأسعار - POST endpoint"""
+    """حفظ أسعار مادة معين في جميع قوائم الأسعار - POST endpoint"""
     if request.method != 'POST':
         return redirect('core:item_list')
 
@@ -302,7 +302,7 @@ def update_item_prices(request, item_id):
         messages.error(request, _('ليس لديك صلاحية تعديل الأسعار'))
         return redirect('core:item_prices', item_id=item_id)
 
-    # الحصول على الصنف
+    # الحصول على المادة
     item = get_object_or_404(
         Item,
         pk=item_id,
@@ -310,7 +310,7 @@ def update_item_prices(request, item_id):
     )
 
     try:
-        # حذف الأسعار القديمة للصنف
+        # حذف الأسعار القديمة للمادة
         PriceListItem.objects.filter(item=item).delete()
 
         updated_count = 0
@@ -344,7 +344,7 @@ def update_item_prices(request, item_id):
                         except (ValueError, PriceList.DoesNotExist, IndexError):
                             continue
         else:
-            # معالجة أسعار صنف بدون متغيرات
+            # معالجة أسعار مادة بدون متغيرات
             for key, value in request.POST.items():
                 # تنسيق الحقل: price_{price_list_id}
                 if key.startswith('price_'):
@@ -382,10 +382,10 @@ def update_item_prices(request, item_id):
     return redirect('core:item_prices', item_id=item_id)
 
 
-# ===== إدارة أصناف قائمة أسعار معينة =====
+# ===== إدارة أمواد قائمة أسعار معينة =====
 
 class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
-    """صفحة إدارة جميع الأصناف في قائمة أسعار معينة"""
+    """صفحة إدارة جميع المواد في قائمة أسعار معينة"""
     template_name = 'core/price_lists/price_list_items.html'
     permission_required = 'core.view_pricelistitem'
 
@@ -400,7 +400,7 @@ class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             company=self.request.current_company
         )
 
-        # جلب الأصناف النشطة في الشركة
+        # جلب المواد النشطة في الشركة
         items = Item.objects.filter(
             company=self.request.current_company,
             is_active=True
@@ -429,7 +429,7 @@ class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
                         'display_name': f"{item.name} - {variant.code}"
                     })
             else:
-                # صنف بدون متغيرات
+                # مادة بدون متغيرات
                 try:
                     price_item = PriceListItem.objects.get(
                         price_list=price_list,
@@ -450,13 +450,13 @@ class PriceListItemsView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
         context.update({
             'price_list': price_list,
             'items_data': items_data,
-            'title': _('إدارة أصناف قائمة: %(name)s') % {'name': price_list.name},
+            'title': _('إدارة أمواد قائمة: %(name)s') % {'name': price_list.name},
             'can_change': self.request.user.has_perm('core.change_pricelistitem'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('قوائم الأسعار'), 'url': reverse('core:price_list_list')},
                 {'title': price_list.name, 'url': reverse('core:price_list_detail', kwargs={'pk': price_list.pk})},
-                {'title': _('إدارة الأصناف'), 'url': ''}
+                {'title': _('إدارة المواد'), 'url': ''}
             ],
         })
         return context

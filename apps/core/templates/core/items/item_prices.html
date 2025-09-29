@@ -1,0 +1,286 @@
+{# apps/core/templates/core/items/item_prices.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.price-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.price-table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    padding: 15px;
+}
+
+.price-table td {
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.price-input {
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.variant-card {
+    border-left: 4px solid #667eea;
+    transition: all 0.3s ease;
+}
+
+.variant-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.sticky-save-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-money-bill-wave text-success"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted mb-1">{{ item.name }}</p>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge bg-primary">{{ item.item_code|default:item.code }}</span>
+                {% if item.category %}
+                    <span class="badge bg-secondary">{{ item.category.name }}</span>
+                {% endif %}
+                <span class="badge bg-info">{{ item.currency.name }}</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'core:item_detail' item.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "العودة للمادة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" id="pricesForm">
+        {% csrf_token %}
+
+        {% if item.has_variants %}
+            <!-- المادة له متغيرات -->
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle"></i>
+                {% trans "هذا المادة له متغيرات، يمكنك تحديد سعر مختلف لكل متغير في كل قائمة أسعار" %}
+            </div>
+
+            {% for variant in item.variants.all %}
+            <div class="card variant-card shadow-sm mb-4">
+                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6 class="mb-0 text-white">
+                        <i class="fas fa-cube"></i>
+                        {% trans "متغير" %}: {{ variant.code }}
+                    </h6>
+                    {% if variant.variant_attribute_values.all %}
+                    <div class="d-flex gap-1 flex-wrap mt-2">
+                        {% for attr_val in variant.variant_attribute_values.all %}
+                            <span class="badge bg-white text-dark">
+                                {{ attr_val.attribute.name }}: {{ attr_val.value.display_value|default:attr_val.value.value }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover price-table mb-0">
+                        <thead>
+                            <tr>
+                                <th width="40%">
+                                    <i class="fas fa-list"></i> {% trans "قائمة السعر" %}
+                                </th>
+                                <th width="50%">
+                                    <i class="fas fa-dollar-sign"></i> {% trans "السعر" %}
+                                </th>
+                                <th width="10%" class="text-center">
+                                    <i class="fas fa-cog"></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for price_list in price_lists %}
+                            <tr>
+                                <td>
+                                    <strong>{{ price_list.name }}</strong>
+                                    <br><small class="text-muted">{{ price_list.code }}</small>
+                                    {% if price_list.is_default %}
+                                        <span class="badge bg-warning text-dark ms-2">افتراضي</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="input-group">
+                                        <input type="number" 
+                                               class="form-control price-input" 
+                                               name="price_{{ price_list.id }}_{{ variant.id }}"
+                                               value="{% if variant.id in prices and price_list.id in prices|get_item:variant.id %}{{ prices|get_item:variant.id|get_item:price_list.id }}{% endif %}"
+                                               step="0.001" 
+                                               min="0"
+                                               placeholder="0.000">
+                                        <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearPrice(this)">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+
+        {% else %}
+            <!-- المادة العادي (بدون متغيرات) -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6 class="mb-0 text-white">
+                        <i class="fas fa-list"></i> {% trans "أسعار المادة في قوائم الأسعار المختلفة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover price-table mb-0">
+                        <thead>
+                            <tr>
+                                <th width="40%">
+                                    <i class="fas fa-list"></i> {% trans "قائمة السعر" %}
+                                </th>
+                                <th width="50%">
+                                    <i class="fas fa-dollar-sign"></i> {% trans "السعر" %}
+                                </th>
+                                <th width="10%" class="text-center">
+                                    <i class="fas fa-cog"></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for price_list in price_lists %}
+                            <tr>
+                                <td>
+                                    <strong>{{ price_list.name }}</strong>
+                                    <br><small class="text-muted">{{ price_list.code }}</small>
+                                    {% if price_list.is_default %}
+                                        <span class="badge bg-warning text-dark ms-2">افتراضي</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="input-group">
+                                        <input type="number" 
+                                               class="form-control price-input" 
+                                               name="price_{{ price_list.id }}"
+                                               value="{% if price_list.id in prices %}{{ prices|get_item:price_list.id }}{% endif %}"
+                                               step="0.001" 
+                                               min="0"
+                                               placeholder="0.000">
+                                        <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearPrice(this)">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Sticky Save Button -->
+        <button type="submit" class="btn btn-success btn-lg sticky-save-btn">
+            <i class="fas fa-save"></i> {% trans "حفظ جميع الأسعار" %}
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// مسح السعر
+function clearPrice(btn) {
+    $(btn).closest('tr').find('input.price-input').val('');
+}
+
+// حفظ النموذج
+$(document).ready(function() {
+    $('#pricesForm').on('submit', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            title: '{% trans "جاري الحفظ..." %}',
+            text: '{% trans "يرجى الانتظار" %}',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        $.ajax({
+            url: '{% url "core:update_item_prices" item.pk %}',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '{% trans "تم الحفظ بنجاح" %}',
+                    text: response.message || '{% trans "تم تحديث الأسعار بنجاح" %}',
+                    confirmButtonText: '{% trans "حسناً" %}'
+                }).then(() => {
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '{% trans "خطأ" %}',
+                    text: xhr.responseJSON?.error || '{% trans "حدث خطأ أثناء الحفظ" %}',
+                    confirmButtonText: '{% trans "حسناً" %}'
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

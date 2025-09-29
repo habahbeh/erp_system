@@ -1,0 +1,209 @@
+{# apps/core/templates/core/price_lists/price_list_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if is_update %}
+                    {% trans "تعديل بيانات قائمة الأسعار" %}
+                {% else %}
+                    {% trans "إضافة قائمة أسعار جديدة" %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- المعلومات الأساسية -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info-circle"></i> {% trans "معلومات قائمة الأسعار" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required-field">{% trans "رمز القائمة" %}</label>
+                                {{ form.code|add_class:"form-control" }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{{ form.code.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required-field">{% trans "اسم القائمة" %}</label>
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required-field">{% trans "العملة" %}</label>
+                                {{ form.currency|add_class:"form-select" }}
+                                {% if form.currency.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.currency.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="form-check">
+                                    {{ form.is_default|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.is_default.id_for_label }}">
+                                        {{ form.is_default.label }}
+                                    </label>
+                                    <small class="form-text text-muted d-block">{{ form.is_default.help_text }}</small>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الوصف" %}</label>
+                                {{ form.description|add_class:"form-control" }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <div class="col-lg-4">
+                <!-- معلومات النظام -->
+                {% if is_update and object %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                                <strong>{{ object.created_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                                <strong>{{ object.updated_at|date:"d/m/Y H:i" }}</strong>
+                            </div>
+                            {% if object.created_by %}
+                            <div class="col-12 text-center">
+                                <small class="text-muted d-block">{% trans "أنشأ بواسطة" %}</small>
+                                <strong>{{ object.created_by.get_full_name|default:object.created_by.username }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- نصائح -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-lightbulb text-warning"></i> {% trans "نصائح" %}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "رمز القائمة يجب أن يكون قصير وواضح (مثل: WHOLESALE, RETAIL)" %}
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "القائمة الافتراضية تستخدم تلقائياً عند عدم تحديد قائمة" %}
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-check text-success"></i>
+                                {% trans "يمكن تعطيل القائمة مؤقتاً بدلاً من حذفها" %}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.required-field::after {
+    content: ' *';
+    color: #dc3545;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

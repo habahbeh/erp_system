@@ -1,0 +1,326 @@
+{# apps/core/templates/core/price_lists/price_list_items.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.item-price-card {
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.item-price-card:hover {
+    border-left-color: #0d6efd;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateX(-5px);
+}
+
+.price-input {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.variant-group {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-1">{% trans "قائمة الأسعار" %}: <strong>{{ price_list.name }}</strong></p>
+            <span class="badge bg-primary">{{ price_list.code }}</span>
+            <span class="badge bg-info">{{ price_list.currency.name }}</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success" id="saveAllBtn">
+                <i class="fas fa-save"></i> {% trans "حفظ جميع التغييرات" %}
+            </button>
+            <a href="{% url 'core:price_list_detail' price_list.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- البحث والفلترة -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "البحث في المواد" %}</label>
+                    <input type="text" class="form-control" id="searchItems" placeholder="{% trans 'ابحث بالاسم أو الكود...' %}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "التصنيف" %}</label>
+                    <select class="form-select" id="categoryFilter">
+                        <option value="">{% trans "جميع التصنيفات" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "عرض" %}</label>
+                    <select class="form-select" id="displayFilter">
+                        <option value="all">{% trans "جميع المواد" %}</option>
+                        <option value="with_price">{% trans "بسعر فقط" %}</option>
+                        <option value="without_price">{% trans "بدون سعر فقط" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- قائمة المواد -->
+    <form id="pricesForm" method="post">
+        {% csrf_token %}
+        
+        <div id="itemsContainer">
+            {% for item in items %}
+            <div class="card item-price-card shadow-sm mb-3" data-item-id="{{ item.id }}" data-category="{{ item.category.id }}" data-has-price="{% if item.current_price %}true{% else %}false{% endif %}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-5">
+                            <h6 class="mb-1">{{ item.name }}</h6>
+                            <small class="text-muted">
+                                <i class="fas fa-tag"></i> {{ item.item_code|default:item.code }}
+                                {% if item.category %}
+                                    • <i class="fas fa-folder"></i> {{ item.category.name }}
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        <div class="col-md-7">
+                            {% if item.has_variants %}
+                                <!-- مادة بمتغيرات -->
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#variants_{{ item.id }}">
+                                    <i class="fas fa-layer-group"></i> 
+                                    {% trans "عرض المتغيرات" %} ({{ item.variants.count }})
+                                </button>
+
+                                <div class="collapse mt-3" id="variants_{{ item.id }}">
+                                    {% for variant in item.variants.all %}
+                                    <div class="variant-group">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-6">
+                                                <small class="text-muted d-block">{{ variant.code }}</small>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    {% for attr_val in variant.variant_attribute_values.all %}
+                                                        <span class="badge bg-light text-dark border">
+                                                            {{ attr_val.value.display_value|default:attr_val.value.value }}
+                                                        </span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="input-group">
+                                                    <input type="number" 
+                                                           class="form-control price-input" 
+                                                           name="price_{{ item.id }}_{{ variant.id }}"
+                                                           value="{{ variant.current_price|default:'' }}"
+                                                           step="0.001" 
+                                                           min="0"
+                                                           placeholder="0.000">
+                                                    <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <!-- مادة عادي -->
+                                <div class="input-group">
+                                    <input type="number" 
+                                           class="form-control price-input" 
+                                           name="price_{{ item.id }}"
+                                           value="{{ item.current_price|default:'' }}"
+                                           step="0.001" 
+                                           min="0"
+                                           placeholder="0.000">
+                                    <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                    <button type="button" class="btn btn-outline-danger" onclick="clearPrice(this)">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5">
+                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">{% trans "لا توجد أصناف" %}</h5>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- أزرار الحفظ -->
+        {% if items %}
+        <div class="card shadow-sm sticky-bottom">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            {% trans "تأكد من حفظ التغييرات قبل المغادرة" %}
+                        </small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="reset" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> {% trans "إعادة تعيين" %}
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> {% trans "حفظ التغييرات" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // البحث في المواد
+    $('#searchItems').on('keyup', function() {
+        var searchText = $(this).val().toLowerCase();
+        filterItems();
+    });
+
+    // فلترة حسب التصنيف
+    $('#categoryFilter').on('change', function() {
+        filterItems();
+    });
+
+    // فلترة حسب وجود السعر
+    $('#displayFilter').on('change', function() {
+        filterItems();
+    });
+
+    // مسح الفلاتر
+    $('#clearFilters').on('click', function() {
+        $('#searchItems').val('');
+        $('#categoryFilter').val('');
+        $('#displayFilter').val('all');
+        filterItems();
+    });
+
+    // دالة الفلترة
+    function filterItems() {
+        var searchText = $('#searchItems').val().toLowerCase();
+        var categoryId = $('#categoryFilter').val();
+        var displayType = $('#displayFilter').val();
+
+        $('.item-price-card').each(function() {
+            var $card = $(this);
+            var itemText = $card.find('h6').text().toLowerCase();
+            var itemCategory = $card.data('category');
+            var hasPrice = $card.data('has-price') === true;
+
+            var matchSearch = searchText === '' || itemText.includes(searchText);
+            var matchCategory = categoryId === '' || itemCategory == categoryId;
+            var matchDisplay = displayType === 'all' || 
+                              (displayType === 'with_price' && hasPrice) ||
+                              (displayType === 'without_price' && !hasPrice);
+
+            if (matchSearch && matchCategory && matchDisplay) {
+                $card.show();
+            } else {
+                $card.hide();
+            }
+        });
+    }
+
+    // حفظ النموذج
+    $('#pricesForm').on('submit', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            title: '{% trans "جاري الحفظ..." %}',
+            text: '{% trans "يرجى الانتظار" %}',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        $.ajax({
+            url: '{% url "core:price_list_items_update" price_list.pk %}',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '{% trans "تم الحفظ بنجاح" %}',
+                    text: response.message || '{% trans "تم تحديث الأسعار بنجاح" %}',
+                    confirmButtonText: '{% trans "حسناً" %}'
+                }).then(() => {
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '{% trans "خطأ" %}',
+                    text: xhr.responseJSON?.error || '{% trans "حدث خطأ أثناء الحفظ" %}',
+                    confirmButtonText: '{% trans "حسناً" %}'
+                });
+            }
+        });
+    });
+
+    // تحميل التصنيفات للفلتر
+    loadCategories();
+});
+
+// مسح السعر
+function clearPrice(btn) {
+    $(btn).closest('.input-group').find('input').val('');
+}
+
+// تحميل التصنيفات
+function loadCategories() {
+    $.get('{% url "core:item_datatable_ajax" %}?get_categories=1', function(data) {
+        var select = $('#categoryFilter');
+        if (data.categories) {
+            $.each(data.categories, function(i, cat) {
+                select.append('<option value="' + cat.id + '">' + cat.name + '</option>');
+            });
+        }
+    });
+}
+</script>
+{% endblock %}
