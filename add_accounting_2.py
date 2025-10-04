@@ -868,3 +868,283 @@ print(f"صافي الربح: {net_profit:,.2f} دينار")
 print(f"هامش الربح الإجمالي: {(gross_profit / total_revenue * 100) if total_revenue > 0 else 0:.2f}%")
 print(f"هامش الربح الصافي: {(net_profit / total_revenue * 100) if total_revenue > 0 else 0:.2f}%")
 print("=" * 80)
+
+
+
+
+
+
+
+# مركز التكلفة
+
+from django.db import connection, transaction
+from apps.accounting.models.account_models import CostCenter
+from apps.core.models import Company, User
+
+# إعادة الاتصال بقاعدة البيانات
+try:
+    connection.ensure_connection()
+except:
+    connection.connect()
+
+# الحصول على الشركة والمستخدم
+try:
+    company = Company.objects.first()
+    if not company:
+        print("❌ لا توجد شركة في النظام")
+        exit()
+
+    user = User.objects.filter(is_superuser=True).first()
+    if not user:
+        user = User.objects.first()
+
+    print(f"🏢 الشركة: {company.name}")
+    print(f"👤 المستخدم: {user.username}")
+    print("=" * 60)
+except Exception as e:
+    print(f"❌ خطأ في الاتصال: {e}")
+    from django.db import connection
+
+    connection.close()
+    connection.connect()
+    company = Company.objects.first()
+    user = User.objects.first()
+
+# بدء إنشاء البيانات
+with transaction.atomic():
+    print("\n📊 إنشاء المراكز الرئيسية...")
+
+    # 1. الإدارة العامة
+    admin_center, created = CostCenter.objects.get_or_create(
+        company=company,
+        code='ADM',
+        defaults={
+            'name': 'الإدارة العامة',
+            'cost_center_type': 'administration',
+            'manager': user,
+            'description': 'المركز الرئيسي للإدارة العامة',
+            'is_active': True,
+            'created_by': user
+        }
+    )
+    print(f"   {'✅' if created else '⚠️ '} {admin_center.code} - {admin_center.name}")
+
+    # 2. الإنتاج
+    production_center, created = CostCenter.objects.get_or_create(
+        company=company,
+        code='PROD',
+        defaults={
+            'name': 'قسم الإنتاج',
+            'cost_center_type': 'production',
+            'manager': user,
+            'description': 'المركز الرئيسي للإنتاج',
+            'is_active': True,
+            'created_by': user
+        }
+    )
+    print(f"   {'✅' if created else '⚠️ '} {production_center.code} - {production_center.name}")
+
+    # 3. المبيعات
+    sales_center, created = CostCenter.objects.get_or_create(
+        company=company,
+        code='SALES',
+        defaults={
+            'name': 'قسم المبيعات',
+            'cost_center_type': 'sales',
+            'manager': user,
+            'description': 'المركز الرئيسي للمبيعات',
+            'is_active': True,
+            'created_by': user
+        }
+    )
+    print(f"   {'✅' if created else '⚠️ '} {sales_center.code} - {sales_center.name}")
+
+    # 4. التسويق
+    marketing_center, created = CostCenter.objects.get_or_create(
+        company=company,
+        code='MKT',
+        defaults={
+            'name': 'قسم التسويق',
+            'cost_center_type': 'marketing',
+            'manager': user,
+            'description': 'المركز الرئيسي للتسويق',
+            'is_active': True,
+            'created_by': user
+        }
+    )
+    print(f"   {'✅' if created else '⚠️ '} {marketing_center.code} - {marketing_center.name}")
+
+    # 5. الصيانة
+    maintenance_center, created = CostCenter.objects.get_or_create(
+        company=company,
+        code='MAINT',
+        defaults={
+            'name': 'قسم الصيانة',
+            'cost_center_type': 'maintenance',
+            'manager': user,
+            'description': 'المركز الرئيسي للصيانة',
+            'is_active': True,
+            'created_by': user
+        }
+    )
+    print(f"   {'✅' if created else '⚠️ '} {maintenance_center.code} - {maintenance_center.name}")
+
+    print("\n📂 إنشاء الأقسام الفرعية...")
+
+    # الإدارة - الموارد البشرية
+    hr_center, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-HR',
+        defaults={'name': 'قسم الموارد البشرية', 'cost_center_type': 'administration', 'parent': admin_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {hr_center.code} - {hr_center.name}")
+
+    # الإدارة - المحاسبة
+    acc_center, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-ACC',
+        defaults={'name': 'قسم المحاسبة', 'cost_center_type': 'administration', 'parent': admin_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {acc_center.code} - {acc_center.name}")
+
+    # الإدارة - تقنية المعلومات
+    it_center, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-IT',
+        defaults={'name': 'قسم تقنية المعلومات', 'cost_center_type': 'services', 'parent': admin_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {it_center.code} - {it_center.name}")
+
+    # الإنتاج - خط 1
+    prod1, _ = CostCenter.objects.get_or_create(
+        company=company, code='PROD-L1',
+        defaults={'name': 'خط الإنتاج الأول', 'cost_center_type': 'production', 'parent': production_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {prod1.code} - {prod1.name}")
+
+    # الإنتاج - خط 2
+    prod2, _ = CostCenter.objects.get_or_create(
+        company=company, code='PROD-L2',
+        defaults={'name': 'خط الإنتاج الثاني', 'cost_center_type': 'production', 'parent': production_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {prod2.code} - {prod2.name}")
+
+    # الإنتاج - الجودة
+    qc, _ = CostCenter.objects.get_or_create(
+        company=company, code='PROD-QC',
+        defaults={'name': 'مراقبة الجودة', 'cost_center_type': 'production', 'parent': production_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {qc.code} - {qc.name}")
+
+    # المبيعات - التجزئة
+    retail, _ = CostCenter.objects.get_or_create(
+        company=company, code='SALES-RET',
+        defaults={'name': 'مبيعات التجزئة', 'cost_center_type': 'sales', 'parent': sales_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {retail.code} - {retail.name}")
+
+    # المبيعات - الجملة
+    wholesale, _ = CostCenter.objects.get_or_create(
+        company=company, code='SALES-WHO',
+        defaults={'name': 'مبيعات الجملة', 'cost_center_type': 'sales', 'parent': sales_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {wholesale.code} - {wholesale.name}")
+
+    # المبيعات - التصدير
+    export, _ = CostCenter.objects.get_or_create(
+        company=company, code='SALES-EXP',
+        defaults={'name': 'مبيعات التصدير', 'cost_center_type': 'sales', 'parent': sales_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {export.code} - {export.name}")
+
+    # التسويق - الرقمي
+    digital, _ = CostCenter.objects.get_or_create(
+        company=company, code='MKT-DIG',
+        defaults={'name': 'التسويق الرقمي', 'cost_center_type': 'marketing', 'parent': marketing_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {digital.code} - {digital.name}")
+
+    # التسويق - التقليدي
+    trad, _ = CostCenter.objects.get_or_create(
+        company=company, code='MKT-TRAD',
+        defaults={'name': 'التسويق التقليدي', 'cost_center_type': 'marketing', 'parent': marketing_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {trad.code} - {trad.name}")
+
+    # الصيانة - المعدات
+    eq_maint, _ = CostCenter.objects.get_or_create(
+        company=company, code='MAINT-EQ',
+        defaults={'name': 'صيانة المعدات', 'cost_center_type': 'maintenance', 'parent': maintenance_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {eq_maint.code} - {eq_maint.name}")
+
+    # الصيانة - المباني
+    bld_maint, _ = CostCenter.objects.get_or_create(
+        company=company, code='MAINT-BLD',
+        defaults={'name': 'صيانة المباني', 'cost_center_type': 'maintenance', 'parent': maintenance_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {bld_maint.code} - {bld_maint.name}")
+
+    print("\n📁 إنشاء المستوى الثالث...")
+
+    # الموارد البشرية - التوظيف
+    rec, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-HR-REC',
+        defaults={'name': 'قسم التوظيف', 'cost_center_type': 'administration', 'parent': hr_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {rec.code} - {rec.name}")
+
+    # الموارد البشرية - التدريب
+    trn, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-HR-TRN',
+        defaults={'name': 'قسم التدريب', 'cost_center_type': 'administration', 'parent': hr_center, 'manager': user,
+                  'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {trn.code} - {trn.name}")
+
+    # المحاسبة - الدائنة
+    pay, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-ACC-PAY',
+        defaults={'name': 'الحسابات الدائنة', 'cost_center_type': 'administration', 'parent': acc_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {pay.code} - {pay.name}")
+
+    # المحاسبة - المدينة
+    rec_acc, _ = CostCenter.objects.get_or_create(
+        company=company, code='ADM-ACC-REC',
+        defaults={'name': 'الحسابات المدينة', 'cost_center_type': 'administration', 'parent': acc_center,
+                  'manager': user, 'is_active': True, 'created_by': user}
+    )
+    print(f"   ✅ {rec_acc.code} - {rec_acc.name}")
+
+print("\n" + "=" * 60)
+total = CostCenter.objects.filter(company=company).count()
+print(f"✅ إجمالي مراكز التكلفة: {total}")
+
+print("\n📊 توزيع حسب المستوى:")
+for level in range(1, 5):
+    count = CostCenter.objects.filter(company=company, level=level).count()
+    if count > 0:
+        print(f"   المستوى {level}: {count} مركز")
+
+print("\n✅ تم بنجاح!")
+
+
+
+
+
+
+
+

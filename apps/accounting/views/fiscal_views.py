@@ -1298,33 +1298,114 @@ class CostCenterUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
         return context
 
 
-class CostCenterDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
-    """حذف مركز التكلفة"""
 
+class CostCenterDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
+    """حذف مركز تكلفة"""
     model = CostCenter
     template_name = 'accounting/fiscal/cost_center_confirm_delete.html'
-    permission_required = 'accounting.delete_costcenter'
     success_url = reverse_lazy('accounting:cost_center_list')
+    permission_required = 'accounting.delete_costcenter'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cost_center = self.get_object()
+
+        # عنوان الصفحة
+        context['title'] = f'حذف مركز التكلفة - {cost_center.name}'
+
+        # Breadcrumbs
+        context['breadcrumbs'] = [
+            {'title': 'لوحة التحكم', 'url': reverse('accounting:dashboard')},
+            {'title': 'مراكز التكلفة', 'url': reverse('accounting:cost_center_list')},
+            {'title': cost_center.name, 'url': reverse('accounting:cost_center_detail', args=[cost_center.pk])},
+            {'title': 'حذف', 'url': ''}
+        ]
+
+        # التحقق من المراكز الفرعية
+        children_count = cost_center.children.count()
+        context['has_children'] = children_count > 0
+        context['children_count'] = children_count
+
+        # التحقق من الاستخدام في القيود المحاسبية
+        # تأكد من اسم الحقل الصحيح في JournalEntry model
+        try:
+            from apps.accounting.models import JournalEntry
+            # إذا كان الحقل اسمه cost_center
+            usage_count = JournalEntry.objects.filter(cost_center=cost_center).count()
+        except:
+            # إذا لم يكن هناك ربط
+            usage_count = 0
+
+        context['usage_count'] = usage_count
+        context['can_delete'] = (children_count == 0 and usage_count == 0)
+
+        # الصلاحيات
+        context['can_edit'] = self.request.user.has_perm('accounting.change_costcenter')
+        context['can_view'] = self.request.user.has_perm('accounting.view_costcenter')
+
+        return context
 
     def get_queryset(self):
-        return CostCenter.objects.filter(company=self.request.current_company)
+        """التأكد من أن المركز يخص الشركة الحالية"""
+        return super().get_queryset().filter(company=self.request.current_company)
 
     def delete(self, request, *args, **kwargs):
-        self.object = self.get_object()
+        """التحقق قبل الحذف"""
+        cost_center = self.get_object()
 
-        # التحقق من إمكانية الحذف
-        from ..models import JournalEntryLine
+        # التحقق من المراكز الفرعية
+        if cost_center.children.exists():
+            messages.error(
+                request,
+                f'لا يمكن حذف مركز التكلفة "{cost_center.name}" لأنه يحتوي على {cost_center.children.count()} مركز فرعي. '
+                'يرجى حذف أو نقل المراكز الفرعية أولاً.'
+            )
+            return redirect('accounting:cost_center_detail', pk=cost_center.pk)
 
-        if JournalEntryLine.objects.filter(cost_center=self.object).exists():
-            messages.error(request, 'لا يمكن حذف مركز التكلفة لوجود قيود محاسبية مرتبطة')
-            return redirect('accounting:cost_center_detail', pk=self.object.pk)
+        # التحقق من الاستخدام في القيود
+        try:
+            from apps.accounting.models import JournalEntry
+            usage_count = JournalEntry.objects.filter(cost_center=cost_center).count()
 
-        if self.object.children.exists():
-            messages.error(request, 'لا يمكن حذف مركز التكلفة لوجود مراكز فرعية تابعة له')
-            return redirect('accounting:cost_center_detail', pk=self.object.pk)
+            if usage_count > 0:
+                messages.error(
+                    request,
+                    f'لا يمكن حذف مركز التكلفة "{cost_center.name}" لأنه مستخدم في {usage_count} قيد محاسبي. '
+                    'يرجى حذف أو تحديث القيود أولاً.'
+                )
+                return redirect('accounting:cost_center_detail', pk=cost_center.pk)
+        except:
+            pass
 
-        cost_center_name = self.object.name
-        messages.success(request, f'تم حذف مركز التكلفة {cost_center_name} بنجاح')
+        # حفظ الاسم قبل الحذف
+        cost_center_name = cost_center.name
+
+        # تسجيل في ActivityLog
+        try:
+            from apps.core.models import ActivityLog
+            ActivityLog.objects.create(
+                user=request.user,
+                company=request.current_company,
+                action='delete_cost_center',
+                object_type='cost_center',
+                object_id=cost_center.pk,
+                description=f'حذف مركز التكلفة: {cost_center_name} ({cost_center.code})',
+                extra_data={
+                    'name': cost_center_name,
+                    'code': cost_center.code,
+                    'type': cost_center.cost_center_type,
+                    'level': cost_center.level
+                }
+            )
+        except Exception as e:
+            print(f"Error logging activity: {e}")
+
+        # الحذف
+        messages.success(
+            request,
+            f'تم حذف مركز التكلفة "{cost_center_name}" بنجاح'
+        )
+
         return super().delete(request, *args, **kwargs)
 
 
@@ -1344,52 +1425,57 @@ def cost_center_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
+    # ✅ إذا كان الطلب لجلب قائمة المراكز الأب للفلتر
+    if request.GET.get('get_parents'):
+        parents = CostCenter.objects.filter(
+            company=request.current_company,
+            level=1
+        ).order_by('name').values('id', 'name')
+
+        return JsonResponse({
+            'parents': list(parents)
+        })
+
     draw = int(request.GET.get('draw', 1))
     start = int(request.GET.get('start', 0))
     length = int(request.GET.get('length', 10))
     search_value = request.GET.get('search[value]', '')
 
     # الفلاتر المخصصة
-    cost_center_type = request.GET.get('cost_center_type', '')
-    level = request.GET.get('level', '')
-    status = request.GET.get('status', '')
-    parent_id = request.GET.get('parent', '')
+    type_filter = request.GET.get('type', '')
+    level_filter = request.GET.get('level', '')
+    status_filter = request.GET.get('status', '')
+    parent_filter = request.GET.get('parent', '')
+    search_filter = request.GET.get('search_filter', '')
 
     try:
-        # البحث والفلترة مع تحسين الأداء
+        # البحث والفلترة
         queryset = CostCenter.objects.filter(
             company=request.current_company
-        ).select_related('parent', 'manager').annotate(
-            children_count=Count('children'),
-            journal_lines_count=Count('journal_lines', filter=Q(journal_lines__journal_entry__status='posted'))
-        )
+        ).select_related('parent', 'manager')
 
         # تطبيق الفلاتر
-        if cost_center_type:
-            queryset = queryset.filter(cost_center_type=cost_center_type)
+        if type_filter:
+            queryset = queryset.filter(cost_center_type=type_filter)
 
-        if level:
-            queryset = queryset.filter(level=level)
+        if level_filter:
+            queryset = queryset.filter(level=int(level_filter))
 
-        if status == 'active':
+        if status_filter == 'active':
             queryset = queryset.filter(is_active=True)
-        elif status == 'inactive':
+        elif status_filter == 'inactive':
             queryset = queryset.filter(is_active=False)
 
-        if parent_id:
-            if parent_id == 'null':  # مراكز رئيسية
-                queryset = queryset.filter(parent__isnull=True)
-            else:
-                queryset = queryset.filter(parent_id=parent_id)
+        if parent_filter:
+            queryset = queryset.filter(parent_id=parent_filter)
 
         # البحث العام
-        if search_value:
+        if search_value or search_filter:
+            search_term = search_value or search_filter
             queryset = queryset.filter(
-                Q(code__icontains=search_value) |
-                Q(name__icontains=search_value) |
-                Q(description__icontains=search_value) |
-                Q(manager__first_name__icontains=search_value) |
-                Q(manager__last_name__icontains=search_value)
+                Q(name__icontains=search_term) |
+                Q(code__icontains=search_term) |
+                Q(description__icontains=search_term)
             )
 
         # الترتيب
@@ -1397,14 +1483,15 @@ def cost_center_datatable_ajax(request):
         order_dir = request.GET.get('order[0][dir]')
 
         if order_column:
-            columns = ['code', 'name', 'cost_center_type', 'parent__name', 'level', 'manager__first_name', 'is_active']
-            if int(order_column) < len(columns):
-                order_field = columns[int(order_column)]
+            columns = ['code', 'name', 'cost_center_type', 'parent__name', 'level', None, 'is_active']
+            col_index = int(order_column)
+            if col_index < len(columns) and columns[col_index]:
+                order_field = columns[col_index]
                 if order_dir == 'desc':
                     order_field = '-' + order_field
                 queryset = queryset.order_by(order_field)
         else:
-            queryset = queryset.order_by('code')
+            queryset = queryset.order_by('level', 'code')
 
         # العد الإجمالي
         total_records = CostCenter.objects.filter(company=request.current_company).count()
@@ -1419,69 +1506,50 @@ def cost_center_datatable_ajax(request):
         can_delete = request.user.has_perm('accounting.delete_costcenter')
         can_view = request.user.has_perm('accounting.view_costcenter')
 
-        for cost_center in queryset:
-            # حالة مركز التكلفة
-            if cost_center.is_active:
-                status_badge = '<span class="badge bg-success">نشط</span>'
-            else:
-                status_badge = '<span class="badge bg-secondary">غير نشط</span>'
-
+        for center in queryset:
             # نوع المركز
-            type_badges = {
-                'administration': '<span class="badge bg-primary">إدارة</span>',
-                'production': '<span class="badge bg-warning">إنتاج</span>',
-                'sales': '<span class="badge bg-success">مبيعات</span>',
-                'services': '<span class="badge bg-info">خدمات</span>',
-                'marketing': '<span class="badge bg-purple">تسويق</span>',
-                'maintenance': '<span class="badge bg-secondary">صيانة</span>',
+            type_colors = {
+                'administration': 'primary',
+                'production': 'success',
+                'sales': 'info',
+                'services': 'secondary',
+                'marketing': 'purple',
+                'maintenance': 'warning'
             }
-            type_badge = type_badges.get(cost_center.cost_center_type,
-                                       f'<span class="badge bg-light text-dark">{cost_center.get_cost_center_type_display()}</span>')
+            type_color = type_colors.get(center.cost_center_type, 'secondary')
+            type_badge = f'<span class="badge bg-{type_color}">{center.get_cost_center_type_display()}</span>'
 
             # المركز الأب
-            parent_display = ''
-            if cost_center.parent:
-                parent_display = f'<small class="text-muted">{cost_center.parent.code}</small><br>{cost_center.parent.name}'
-            else:
-                parent_display = '<span class="text-muted">-- مركز رئيسي --</span>'
+            parent_text = '--'
+            if center.parent:
+                parent_text = f'<a href="{reverse("accounting:cost_center_detail", args=[center.parent.pk])}" class="text-decoration-none text-muted">{center.parent.name}</a>'
 
-            # عدد المراكز الفرعية
-            children_info = ''
-            if cost_center.children_count > 0:
-                children_info = f' <span class="badge bg-info">{cost_center.children_count} فرعي</span>'
-
-            # اسم المركز مع المستوى الهرمي
-            indent = '&nbsp;&nbsp;&nbsp;' * (cost_center.level - 1)
-            cost_center_name = f'{indent}<strong>{cost_center.name}</strong>{children_info}'
+            # المستوى
+            level_badge = f'<span class="badge bg-info">المستوى {center.level}</span>'
 
             # المدير
-            manager_display = ''
-            if cost_center.manager:
-                manager_display = f'<i class="fas fa-user text-primary"></i> {cost_center.manager.get_full_name()}'
-            else:
-                manager_display = '<span class="text-muted">-- غير محدد --</span>'
+            manager_text = '--'
+            if center.manager:
+                manager_text = f'<small>{center.manager.get_full_name() or center.manager.username}</small>'
 
-            # إحصائيات الاستخدام
-            usage_info = ''
-            if cost_center.journal_lines_count > 0:
-                usage_info = f'<small class="text-success"><i class="fas fa-chart-line"></i> {cost_center.journal_lines_count} قيد</small>'
+            # الحالة
+            if center.is_active:
+                status_badge = '<span class="badge bg-success">نشط</span>'
             else:
-                usage_info = '<small class="text-muted">غير مستخدم</small>'
+                status_badge = '<span class="badge bg-danger">غير نشط</span>'
 
-            # الوصف (مختصر)
-            description = ''
-            if cost_center.description:
-                description = cost_center.description[:50] + ('...' if len(cost_center.description) > 50 else '')
-            else:
-                description = '<span class="text-muted">-- لا يوجد وصف --</span>'
+            # اسم المركز مع المسافات الهرمية
+            indent = '&nbsp;&nbsp;&nbsp;&nbsp;' * (center.level - 1)
+            icon = '<i class="fas fa-level-down-alt text-muted me-1"></i>' if center.level > 1 else ''
+            name_html = f'{indent}{icon}<a href="{reverse("accounting:cost_center_detail", args=[center.pk])}" class="text-decoration-none fw-bold">{center.name}</a>'
 
             # أزرار الإجراءات
             actions = []
 
-            # عرض التفاصيل
+            # عرض
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('accounting:cost_center_detail', args=[cost_center.pk])}" 
+                    <a href="{reverse('accounting:cost_center_detail', args=[center.pk])}" 
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
@@ -1490,36 +1558,16 @@ def cost_center_datatable_ajax(request):
             # تعديل
             if can_edit:
                 actions.append(f'''
-                    <a href="{reverse('accounting:cost_center_update', args=[cost_center.pk])}" 
-                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                    <a href="{reverse('accounting:cost_center_update', args=[center.pk])}" 
+                       class="btn btn-outline-warning btn-sm" title="تعديل" data-bs-toggle="tooltip">
                         <i class="fas fa-edit"></i>
                     </a>
                 ''')
 
-            # تفعيل/إلغاء تفعيل
-            if can_edit:
-                if cost_center.is_active:
-                    actions.append(f'''
-                        <button type="button" class="btn btn-outline-warning btn-sm" 
-                                onclick="toggleCostCenterStatus({cost_center.pk}, false)" 
-                                title="إلغاء التفعيل" data-bs-toggle="tooltip">
-                            <i class="fas fa-pause"></i>
-                        </button>
-                    ''')
-                else:
-                    actions.append(f'''
-                        <button type="button" class="btn btn-outline-success btn-sm" 
-                                onclick="toggleCostCenterStatus({cost_center.pk}, true)" 
-                                title="تفعيل" data-bs-toggle="tooltip">
-                            <i class="fas fa-play"></i>
-                        </button>
-                    ''')
-
             # حذف
-            if (can_delete and cost_center.children_count == 0 and
-                cost_center.journal_lines_count == 0):
+            if can_delete and not center.children.exists():
                 actions.append(f'''
-                    <a href="{reverse('accounting:cost_center_delete', args=[cost_center.pk])}" 
+                    <a href="{reverse('accounting:cost_center_delete', args=[center.pk])}" 
                        class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
                         <i class="fas fa-trash"></i>
                     </a>
@@ -1528,13 +1576,12 @@ def cost_center_datatable_ajax(request):
             actions_html = ' '.join(actions) if actions else '<span class="text-muted">-</span>'
 
             data.append([
-                cost_center.code,
-                cost_center_name,
+                f'<code>{center.code}</code>',
+                name_html,
                 type_badge,
-                parent_display,
-                f'<span class="badge bg-light text-dark">المستوى {cost_center.level}</span>',
-                manager_display,
-                usage_info,
+                parent_text,
+                level_badge,
+                manager_text,
                 status_badge,
                 actions_html
             ])
@@ -1547,6 +1594,9 @@ def cost_center_datatable_ajax(request):
         })
 
     except Exception as e:
+        import traceback
+        print(f"Error in cost_center_datatable_ajax: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': 0,

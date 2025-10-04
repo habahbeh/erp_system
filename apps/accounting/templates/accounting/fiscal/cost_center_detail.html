@@ -1,164 +1,214 @@
-<!-- apps/accounting/templates/accounting/fiscal/cost_center_detail.html -->
+{# apps/accounting/templates/accounting/fiscal/cost_center_detail.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h2 class="mb-1">{{ title }}</h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    {% for crumb in breadcrumbs %}
-                        {% if forloop.last %}
-                            <li class="breadcrumb-item active">{{ crumb.title }}</li>
-                        {% else %}
-                            <li class="breadcrumb-item">
-                                <a href="{{ crumb.url }}">{{ crumb.title }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">{{ cost_center.name }}</h1>
+            <p class="text-muted mb-1">
+                <code>{{ cost_center.code }}</code>
+            </p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge
+                    {% if cost_center.cost_center_type == 'administration' %}bg-primary
+                    {% elif cost_center.cost_center_type == 'production' %}bg-success
+                    {% elif cost_center.cost_center_type == 'sales' %}bg-info
+                    {% elif cost_center.cost_center_type == 'services' %}bg-secondary
+                    {% elif cost_center.cost_center_type == 'marketing' %}bg-purple
+                    {% elif cost_center.cost_center_type == 'maintenance' %}bg-warning
+                    {% else %}bg-secondary{% endif %} fs-6">
+                    <i class="fas fa-tag"></i> {{ cost_center.get_cost_center_type_display }}
+                </span>
+
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-layer-group"></i> المستوى {{ cost_center.level }}
+                </span>
+
+                {% if cost_center.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
         </div>
-
-        <div class="btn-group">
+        <div class="d-flex gap-2">
             {% if can_edit %}
-            <a href="{% url 'accounting:cost_center_update' cost_center.pk %}" class="btn btn-primary">
-                <i class="fas fa-edit me-2"></i>تعديل
+            <a href="{% url 'accounting:cost_center_update' cost_center.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
-
             {% if can_delete %}
-            <a href="{% url 'accounting:cost_center_delete' cost_center.pk %}" class="btn btn-outline-danger">
-                <i class="fas fa-trash me-2"></i>حذف
+            <a href="{% url 'accounting:cost_center_delete' cost_center.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
             </a>
             {% endif %}
+            <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
         </div>
     </div>
 
     <div class="row">
         <!-- Main Info -->
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>معلومات مركز التكلفة
-                    </h5>
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات مركز التكلفة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-4">
                         <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th width="40%">اسم المركز:</th>
-                                    <td><strong>{{ cost_center.name }}</strong></td>
-                                </tr>
-                                <tr>
-                                    <th>الرمز:</th>
-                                    <td><code>{{ cost_center.code }}</code></td>
-                                </tr>
-                                <tr>
-                                    <th>نوع المركز:</th>
-                                    <td>
-                                        <span class="badge
-                                            {% if cost_center.cost_center_type == 'administration' %}bg-primary
-                                            {% elif cost_center.cost_center_type == 'production' %}bg-success
-                                            {% elif cost_center.cost_center_type == 'sales' %}bg-info
-                                            {% elif cost_center.cost_center_type == 'services' %}bg-warning
-                                            {% elif cost_center.cost_center_type == 'marketing' %}bg-purple
-                                            {% else %}bg-secondary{% endif %}">
-                                            {{ cost_center.get_cost_center_type_display }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>المستوى:</th>
-                                    <td>
-                                        <span class="badge bg-info">المستوى {{ cost_center.level }}</span>
-                                    </td>
-                                </tr>
-                            </table>
+                            <h6 class="text-muted mb-1">{% trans "اسم المركز" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ cost_center.name }}</strong></p>
                         </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th width="40%">المركز الأب:</th>
-                                    <td>
-                                        {% if cost_center.parent %}
-                                            <a href="{% url 'accounting:cost_center_detail' cost_center.parent.pk %}"
-                                               class="text-decoration-none">
-                                                {{ cost_center.parent.name }}
-                                            </a>
-                                        {% else %}
-                                            <span class="text-muted">-- مركز رئيسي --</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>مدير المركز:</th>
-                                    <td>
-                                        {% if cost_center.manager %}
-                                            {{ cost_center.manager.get_full_name|default:cost_center.manager.username }}
-                                        {% else %}
-                                            <span class="text-muted">-- غير محدد --</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>الحالة:</th>
-                                    <td>
-                                        {% if cost_center.is_active %}
-                                            <span class="badge bg-success">نشط</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">غير نشط</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>تاريخ الإنشاء:</th>
-                                    <td>{{ cost_center.created_at|date:"Y/m/d H:i" }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
 
-                    {% if cost_center.description %}
-                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الرمز" %}</h6>
+                            <p class="mb-0"><code class="fs-5">{{ cost_center.code }}</code></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع المركز" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge
+                                    {% if cost_center.cost_center_type == 'administration' %}bg-primary
+                                    {% elif cost_center.cost_center_type == 'production' %}bg-success
+                                    {% elif cost_center.cost_center_type == 'sales' %}bg-info
+                                    {% elif cost_center.cost_center_type == 'services' %}bg-secondary
+                                    {% elif cost_center.cost_center_type == 'marketing' %}bg-purple
+                                    {% elif cost_center.cost_center_type == 'maintenance' %}bg-warning
+                                    {% else %}bg-secondary{% endif %} fs-6">
+                                    {{ cost_center.get_cost_center_type_display }}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المستوى" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">المستوى {{ cost_center.level }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المركز الأب" %}</h6>
+                            <p class="mb-0">
+                                {% if cost_center.parent %}
+                                    <a href="{% url 'accounting:cost_center_detail' cost_center.parent.pk %}" class="text-decoration-none">
+                                        {{ cost_center.parent.name }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-- مركز رئيسي --</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "مدير المركز" %}</h6>
+                            <p class="mb-0">
+                                {% if cost_center.manager %}
+                                    {{ cost_center.manager.get_full_name|default:cost_center.manager.username }}
+                                {% else %}
+                                    <span class="text-muted">-- غير محدد --</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        {% if cost_center.description %}
                         <div class="col-12">
-                            <h6>الوصف:</h6>
-                            <div class="alert alert-light">
+                            <h6 class="text-muted mb-1">{% trans "الوصف" %}</h6>
+                            <div class="alert alert-light mb-0">
                                 {{ cost_center.description|linebreaks }}
                             </div>
                         </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
                 </div>
             </div>
 
-            <!-- Sub Cost Centers -->
+            <!-- إحصائيات الاستخدام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الاستخدام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ usage_stats.children_count }}</h3>
+                                <small class="text-muted">{% trans "المراكز الفرعية" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-info mb-0">{{ usage_stats.total_descendants }}</h3>
+                                <small class="text-muted">{% trans "إجمالي التابعين" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ usage_stats.journal_entries_count }}</h3>
+                                <small class="text-muted">{% trans "القيود المستخدمة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ cost_center.level }}</h3>
+                                <small class="text-muted">{% trans "المستوى الهرمي" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- المراكز الفرعية -->
             {% if children %}
-            <div class="card mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-sitemap me-2"></i>المراكز الفرعية
-                    </h5>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sitemap"></i> {% trans "المراكز الفرعية" %}
+                    </h6>
                     <span class="badge bg-primary">{{ children.count }} مركز</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
+                        <table class="table table-hover">
+                            <thead class="table-light">
                                 <tr>
-                                    <th>الرمز</th>
-                                    <th>اسم المركز</th>
-                                    <th>النوع</th>
-                                    <th>المدير</th>
-                                    <th>الحالة</th>
-                                    <th>الإجراءات</th>
+                                    <th>{% trans "الرمز" %}</th>
+                                    <th>{% trans "اسم المركز" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "المدير" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -166,9 +216,8 @@
                                 <tr>
                                     <td><code>{{ child.code }}</code></td>
                                     <td>
-                                        <a href="{% url 'accounting:cost_center_detail' child.pk %}"
-                                           class="text-decoration-none">
-                                            <i class="fas fa-level-up-alt text-muted me-1"></i>
+                                        <a href="{% url 'accounting:cost_center_detail' child.pk %}" class="text-decoration-none">
+                                            <i class="fas fa-level-down-alt text-muted me-1"></i>
                                             {{ child.name }}
                                         </a>
                                     </td>
@@ -177,8 +226,9 @@
                                             {% if child.cost_center_type == 'administration' %}bg-primary
                                             {% elif child.cost_center_type == 'production' %}bg-success
                                             {% elif child.cost_center_type == 'sales' %}bg-info
-                                            {% elif child.cost_center_type == 'services' %}bg-warning
+                                            {% elif child.cost_center_type == 'services' %}bg-secondary
                                             {% elif child.cost_center_type == 'marketing' %}bg-purple
+                                            {% elif child.cost_center_type == 'maintenance' %}bg-warning
                                             {% else %}bg-secondary{% endif %}">
                                             {{ child.get_cost_center_type_display }}
                                         </span>
@@ -187,7 +237,7 @@
                                         {% if child.manager %}
                                             <small>{{ child.manager.get_full_name|default:child.manager.username }}</small>
                                         {% else %}
-                                            <span class="text-muted">-- غير محدد --</span>
+                                            <span class="text-muted">--</span>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -197,15 +247,15 @@
                                             <span class="badge bg-danger">غير نشط</span>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        <div class="btn-group" role="group">
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
                                             <a href="{% url 'accounting:cost_center_detail' child.pk %}"
-                                               class="btn btn-outline-info btn-sm" title="عرض">
+                                               class="btn btn-outline-info" title="عرض" data-bs-toggle="tooltip">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             {% if can_edit %}
                                             <a href="{% url 'accounting:cost_center_update' child.pk %}"
-                                               class="btn btn-outline-primary btn-sm" title="تعديل">
+                                               class="btn btn-outline-warning" title="تعديل" data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             {% endif %}
@@ -221,83 +271,75 @@
             {% endif %}
         </div>
 
-        <!-- Stats Sidebar -->
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-info text-white">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-chart-bar me-2"></i>إحصائيات سريعة
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>المراكز الفرعية:</span>
-                        <span class="badge bg-primary">{{ usage_stats.children_count }}</span>
-                    </div>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ cost_center.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ cost_center.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if cost_center.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong>
+                        {{ cost_center.created_by.get_full_name|default:cost_center.created_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
 
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>إجمالي التابعين:</span>
-                        <span class="badge bg-info">{{ usage_stats.total_descendants }}</span>
-                    </div>
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_edit %}
+                        <a href="{% url 'accounting:cost_center_update' cost_center.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل المركز" %}
+                        </a>
+                        {% endif %}
 
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>القيود المستخدمة:</span>
-                        <span class="badge bg-success">{{ usage_stats.journal_entries_count }}</span>
-                    </div>
+                        {% if cost_center.level < 4 %}
+                        <a href="{% url 'accounting:cost_center_create' %}?parent={{ cost_center.pk }}" class="btn btn-outline-success">
+                            <i class="fas fa-plus"></i> {% trans "إضافة مركز فرعي" %}
+                        </a>
+                        {% endif %}
 
-                    <div class="d-flex justify-content-between align-items-center py-2">
-                        <span>المستوى:</span>
-                        <span class="badge bg-warning">{{ cost_center.level }}</span>
+                        {% if usage_stats.journal_entries_count > 0 %}
+                        <button type="button" class="btn btn-outline-info" onclick="showComingSoon('تقرير الاستخدام')">
+                            <i class="fas fa-chart-line"></i> {% trans "تقرير الاستخدام" %}
+                        </button>
+                        {% endif %}
+
+                        <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-right"></i> {% trans "العودة للقائمة" %}
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-bolt me-2"></i>إجراءات سريعة
-                    </h6>
-                </div>
-                <div class="card-body">
-                    {% if can_edit %}
-                    <a href="{% url 'accounting:cost_center_update' cost_center.pk %}"
-                       class="btn btn-outline-primary btn-sm w-100 mb-2">
-                        <i class="fas fa-edit me-2"></i>تعديل مركز التكلفة
-                    </a>
-                    {% endif %}
-
-                    {% if cost_center.level < 4 %}
-                    <a href="{% url 'accounting:cost_center_create' %}?parent={{ cost_center.pk }}"
-                       class="btn btn-outline-success btn-sm w-100 mb-2">
-                        <i class="fas fa-plus me-2"></i>إضافة مركز فرعي
-                    </a>
-                    {% endif %}
-
-                    {% if usage_stats.journal_entries_count > 0 %}
-                    <button type="button" class="btn btn-outline-info btn-sm w-100 mb-2"
-                            onclick="showUsageReport()">
-                        <i class="fas fa-chart-line me-2"></i>تقرير الاستخدام
-                    </button>
-                    {% endif %}
-
-                    <a href="{% url 'accounting:cost_center_list' %}"
-                       class="btn btn-outline-secondary btn-sm w-100">
-                        <i class="fas fa-arrow-left me-2"></i>العودة للقائمة
-                    </a>
-                </div>
-            </div>
-
-            <!-- Hierarchy Path -->
+            <!-- المسار الهرمي -->
             {% if cost_center.parent %}
-            <div class="card mt-3">
-                <div class="card-header">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-route me-2"></i>المسار الهرمي
+                        <i class="fas fa-route"></i> {% trans "المسار الهرمي" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="hierarchy-path">
+                    <div class="hierarchy-path small">
                         {% with current=cost_center %}
                             {% if current.parent.parent.parent %}
                                 <a href="{% url 'accounting:cost_center_detail' current.parent.parent.parent.pk %}"
@@ -312,7 +354,7 @@
                             <a href="{% url 'accounting:cost_center_detail' current.parent.pk %}"
                                class="text-decoration-none">{{ current.parent.name }}</a>
                             <i class="fas fa-chevron-left mx-1 text-muted"></i>
-                            <strong>{{ current.name }}</strong>
+                            <strong class="text-primary">{{ current.name }}</strong>
                         {% endwith %}
                     </div>
                 </div>
@@ -325,14 +367,23 @@
 
 {% block extra_js %}
 <script>
-function showUsageReport() {
+function showComingSoon(feature) {
     Swal.fire({
         icon: 'info',
-        title: 'تقرير الاستخدام',
-        text: 'ميزة تقرير استخدام مركز التكلفة قيد التطوير',
-        confirmButtonText: 'حسناً'
+        title: '{% trans "قريباً" %}',
+        text: `وحدة ${feature} {% trans "قيد التطوير وستكون متاحة قريباً" %}`,
+        confirmButtonText: '{% trans "حسناً" %}',
+        confirmButtonColor: '#0d6efd'
     });
 }
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
 </script>
 
 <style>
@@ -341,7 +392,6 @@ function showUsageReport() {
 }
 
 .hierarchy-path {
-    font-size: 0.9rem;
     line-height: 1.8;
 }
 </style>

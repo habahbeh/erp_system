@@ -1,182 +1,366 @@
-<!-- apps/accounting/templates/accounting/fiscal/cost_center_form.html -->
+{# apps/accounting/templates/accounting/fiscal/cost_center_form.html #}
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.form-check-input {
+    cursor: pointer;
+}
+
+.form-check-label {
+    cursor: pointer;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-1">{{ title }}</h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    {% for crumb in breadcrumbs %}
-                        {% if forloop.last %}
-                            <li class="breadcrumb-item active">{{ crumb.title }}</li>
-                        {% else %}
-                            <li class="breadcrumb-item">
-                                <a href="{{ crumb.url }}">{{ crumb.title }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات مركز التكلفة" %}
+                {% else %}
+                    {% trans "إضافة مركز تكلفة جديد للنظام" %}
+                {% endif %}
+            </p>
         </div>
+        <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
     </div>
 
     <div class="row">
-        <div class="col-md-8">
-            <!-- Main Form -->
-            <div class="card">
+        <!-- Form Section -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-sitemap me-2"></i>بيانات مركز التكلفة
+                    <h5 class="mb-0">
+                        <i class="fas fa-sitemap me-2"></i>
+                        {% if object %}{% trans "تعديل مركز التكلفة" %}{% else %}{% trans "بيانات مركز التكلفة" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" novalidate>
+                    <form method="post" novalidate id="costCenterForm">
                         {% csrf_token %}
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.name.id_for_label }}" class="form-label">
-                                        {{ form.name.label }} <span class="text-danger">*</span>
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Name -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                        {{ form.name.label }}
                                     </label>
                                     {{ form.name|add_class:"form-control" }}
-                                    {% if form.name.help_text %}
-                                        <div class="form-text">{{ form.name.help_text }}</div>
-                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-lightbulb text-warning"></i>
+                                        مثال: قسم المبيعات، خط الإنتاج الأول
+                                    </div>
                                     {% if form.name.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.name.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.name.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
-                            </div>
 
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.code.id_for_label }}" class="form-label">
-                                        {{ form.code.label }} <span class="text-danger">*</span>
+                                <!-- Code -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.code.id_for_label }}" class="form-label required-field">
+                                        {{ form.code.label }}
                                     </label>
                                     {{ form.code|add_class:"form-control" }}
-                                    {% if form.code.help_text %}
-                                        <div class="form-text">{{ form.code.help_text }}</div>
-                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-lightbulb text-warning"></i>
+                                        مثال: SALES، PROD-L1، ADM-HR
+                                    </div>
                                     {% if form.code.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.code.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.code.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.cost_center_type.id_for_label }}" class="form-label">
-                                        {{ form.cost_center_type.label }} <span class="text-danger">*</span>
+                        <!-- التصنيف والتبعية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-tags me-2"></i>التصنيف والتبعية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Type -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.cost_center_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.cost_center_type.label }}
                                     </label>
                                     {{ form.cost_center_type|add_class:"form-select" }}
-                                    {% if form.cost_center_type.help_text %}
-                                        <div class="form-text">{{ form.cost_center_type.help_text }}</div>
-                                    {% endif %}
                                     {% if form.cost_center_type.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.cost_center_type.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.cost_center_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
-                            </div>
 
-                            <div class="col-md-6">
-                                <div class="mb-3">
+                                <!-- Parent -->
+                                <div class="col-md-6">
                                     <label for="{{ form.parent.id_for_label }}" class="form-label">
                                         {{ form.parent.label }}
                                     </label>
                                     {{ form.parent|add_class:"form-select" }}
-                                    {% if form.parent.help_text %}
-                                        <div class="form-text">{{ form.parent.help_text }}</div>
-                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle text-info"></i>
+                                        اترك فارغاً إذا كان مركز رئيسي
+                                    </div>
                                     {% if form.parent.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.parent.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.parent.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
+                        <!-- الإدارة والحالة -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-user-cog me-2"></i>الإدارة والحالة
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Manager -->
+                                <div class="col-md-6">
                                     <label for="{{ form.manager.id_for_label }}" class="form-label">
                                         {{ form.manager.label }}
                                     </label>
                                     {{ form.manager|add_class:"form-select" }}
-                                    {% if form.manager.help_text %}
-                                        <div class="form-text">{{ form.manager.help_text }}</div>
-                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle text-info"></i>
+                                        المسؤول عن هذا المركز
+                                    </div>
                                     {% if form.manager.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.manager.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.manager.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
-                            </div>
 
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <div class="form-check mt-4">
+                                <!-- Is Active -->
+                                <div class="col-md-6">
+                                    <label class="form-label d-block">{% trans "الحالة" %}</label>
+                                    <div class="form-check form-switch mt-2">
                                         {{ form.is_active|add_class:"form-check-input" }}
                                         <label for="{{ form.is_active.id_for_label }}" class="form-check-label">
                                             {{ form.is_active.label }}
                                         </label>
                                     </div>
                                     {% if form.is_active.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.is_active.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.is_active.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-12">
-                                <div class="mb-3">
+                        <!-- الوصف -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-align-right me-2"></i>الوصف
+                            </h6>
+
+                            <div class="row">
+                                <div class="col-12">
                                     <label for="{{ form.description.id_for_label }}" class="form-label">
                                         {{ form.description.label }}
                                     </label>
                                     {{ form.description|add_class:"form-control" }}
-                                    {% if form.description.help_text %}
-                                        <div class="form-text">{{ form.description.help_text }}</div>
-                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle text-info"></i>
+                                        وصف تفصيلي لمهام ومسؤوليات هذا المركز
+                                    </div>
                                     {% if form.description.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.description.errors|first }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Non-field Errors -->
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger" role="alert">
+                            <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                            <ul class="mb-0">
+                                {% for error in form.non_field_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
                         <!-- Form Actions -->
-                        <div class="row">
-                            <div class="col-12">
-                                <hr>
-                                <div class="d-flex justify-content-between">
-                                    <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-outline-secondary">
-                                        <i class="fas fa-arrow-left me-2"></i>إلغاء
-                                    </a>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-save me-2"></i>حفظ
-                                    </button>
-                                </div>
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'accounting:cost_center_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <div>
+                                {% if object %}
+                                <a href="{% url 'accounting:cost_center_detail' object.pk %}" class="btn btn-outline-info me-2">
+                                    <i class="fas fa-eye me-1"></i> عرض التفاصيل
+                                </a>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary" id="submitBtn">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث المركز{% else %}حفظ المركز{% endif %}
+                                </button>
                             </div>
                         </div>
                     </form>
@@ -184,78 +368,115 @@
             </div>
         </div>
 
-        <div class="col-md-4">
+        <!-- Sidebar -->
+        <div class="col-lg-4">
             <!-- Help Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>معلومات مهمة
-                    </h6>
-                </div>
+            <div class="card info-card mb-3">
                 <div class="card-body">
-                    <div class="alert alert-info">
-                        <h6><i class="fas fa-lightbulb me-2"></i>نصائح:</h6>
-                        <ul class="mb-0">
-                            <li>رمز مركز التكلفة يجب أن يكون فريداً</li>
-                            <li>يمكن إنشاء 4 مستويات كحد أقصى</li>
-                            <li>مركز التكلفة الأب يجب أن يكون نشطاً</li>
-                            <li>يمكن تعيين مدير لكل مركز تكلفة</li>
-                        </ul>
-                    </div>
-
-                    <!-- أنواع مراكز التكلفة -->
-                    <div class="alert alert-light">
-                        <h6><i class="fas fa-tags me-2"></i>أنواع المراكز:</h6>
-                        <div class="row">
-                            <div class="col-6">
-                                <small>
-                                    <span class="badge bg-primary mb-1">إدارة</span><br>
-                                    <span class="badge bg-success mb-1">إنتاج</span><br>
-                                    <span class="badge bg-info mb-1">مبيعات</span>
-                                </small>
-                            </div>
-                            <div class="col-6">
-                                <small>
-                                    <span class="badge bg-warning mb-1">خدمات</span><br>
-                                    <span class="badge bg-purple mb-1">تسويق</span><br>
-                                    <span class="badge bg-secondary mb-1">صيانة</span>
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-
-                    {% if object and object.pk %}
-                    <div class="alert alert-warning">
-                        <h6><i class="fas fa-exclamation-triangle me-2"></i>تنبيه:</h6>
-                        <p class="mb-0">
-                            إذا كان هذا المركز مستخدم في قيود محاسبية، فسيؤثر التعديل على التقارير.
-                        </p>
-                    </div>
-                    {% endif %}
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>معلومات مهمة
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            رمز المركز يجب أن يكون فريداً
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يمكن إنشاء 4 مستويات كحد أقصى
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            المركز الأب يجب أن يكون نشطاً
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            يمكن تعيين مدير لكل مركز
+                        </li>
+                    </ul>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            {% if object and object.pk %}
-            <div class="card mt-3">
+            <!-- Types Card -->
+            <div class="card mb-3">
                 <div class="card-header">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-bolt me-2"></i>إجراءات سريعة
+                        <i class="fas fa-tags me-2"></i>أنواع المراكز
                     </h6>
                 </div>
                 <div class="card-body">
-                    <a href="{% url 'accounting:cost_center_detail' object.pk %}" class="btn btn-outline-info btn-sm w-100 mb-2">
-                        <i class="fas fa-eye me-2"></i>عرض التفاصيل
-                    </a>
-
-                    {% if object.children.exists %}
-                    <div class="alert alert-info">
-                        <small>
-                            <i class="fas fa-info-circle me-1"></i>
-                            هذا المركز له {{ object.children.count }} مركز فرعي
-                        </small>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <span class="badge bg-primary w-100">إدارة</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="badge bg-success w-100">إنتاج</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="badge bg-info w-100">مبيعات</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="badge bg-secondary w-100">خدمات</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="badge bg-purple w-100">تسويق</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="badge bg-warning w-100">صيانة</span>
+                        </div>
                     </div>
-                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Warning Card (Only for Edit) -->
+            {% if object and object.pk %}
+            <div class="card warning-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>تنبيه
+                    </h6>
+                    <p class="mb-0 small">
+                        {% if usage_stats.journal_entries_count > 0 %}
+                            <strong>هذا المركز مستخدم في {{ usage_stats.journal_entries_count }} قيد محاسبي!</strong><br>
+                            التعديل سيؤثر على التقارير المالية.
+                        {% else %}
+                            تأكد من صحة البيانات قبل الحفظ.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object and object.pk %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">المراكز الفرعية:</span>
+                        <span class="badge bg-primary">{{ object.children.count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">المستوى:</span>
+                        <span class="badge bg-info">{{ object.level }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">الحالة:</span>
+                        {% if object.is_active %}
+                            <span class="badge bg-success">نشط</span>
+                        {% else %}
+                            <span class="badge bg-danger">غير نشط</span>
+                        {% endif %}
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
                 </div>
             </div>
             {% endif %}
@@ -265,23 +486,61 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    // Auto-generate code from name
-    $('#{{ form.name.id_for_label }}').on('input', function() {
-        const name = $(this).val();
-        if (name && !$('#{{ form.code.id_for_label }}').val()) {
-            // اقتراح رمز بناءً على الاسم
-            let code = name.substring(0, 3).toUpperCase();
-            const randomNum = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-            $('#{{ form.code.id_for_label }}').val(code + randomNum);
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#id_parent, #id_manager').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        allowClear: true,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
         }
     });
 
-    // إظهار تحذير عند تغيير المركز الأب
-    $('#{{ form.parent.id_for_label }}').on('change', function() {
-        const selectedParent = $(this).find('option:selected').text();
-        if (selectedParent && selectedParent !== '-- اختر مركز التكلفة الأب (اختياري) --') {
+    $('#id_cost_center_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // ==============================
+    // Auto-generate code from name
+    // ==============================
+    let codeManuallyChanged = false;
+
+    $('#id_code').on('input', function() {
+        if ($(this).val()) {
+            codeManuallyChanged = true;
+        }
+    });
+
+    $('#id_name').on('input', function() {
+        if (!codeManuallyChanged && !$('#id_code').val()) {
+            const name = $(this).val();
+            if (name) {
+                let code = name.substring(0, 4).toUpperCase();
+                code = code.replace(/[^A-Z]/g, '');
+                const randomNum = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+                $('#id_code').val(code + randomNum);
+            }
+        }
+    });
+
+    // ==============================
+    // Parent change notification
+    // ==============================
+    $('#id_parent').on('change', function() {
+        const selectedText = $(this).find('option:selected').text();
+        if (selectedText && selectedText.trim() !== '') {
             Swal.fire({
                 icon: 'info',
                 title: 'تم تحديد المركز الأب',
@@ -291,12 +550,33 @@ $(document).ready(function() {
             });
         }
     });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    // ==============================
+    // Form Submission
+    // ==============================
+    $('#costCenterForm').on('submit', function(e) {
+        formChanged = false;
+
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
 });
 </script>
-
-<style>
-.bg-purple {
-    background-color: #6f42c1 !important;
-}
-</style>
 {% endblock %}

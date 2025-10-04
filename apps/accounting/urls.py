@@ -131,7 +131,8 @@ urlpatterns = [
     path('ajax/receipt-vouchers/', voucher_views.receipt_voucher_datatable_ajax, name='receipt_voucher_datatable_ajax'),
     path('ajax/fiscal-years/', fiscal_views.fiscal_year_datatable_ajax, name='fiscal_year_datatable_ajax'),
     path('ajax/periods/', fiscal_views.period_datatable_ajax, name='period_datatable_ajax'),
-    path('ajax/cost-centers/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    # path('ajax/cost-centers/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
+    path('cost-centers/datatable/', fiscal_views.cost_center_datatable_ajax, name='cost_center_datatable_ajax'),
 
     # Account Related Ajax
     path('ajax/accounts/search/', account_views.account_search_ajax, name='account_search_ajax'),
@@ -190,6 +191,7 @@ urlpatterns = [
 
     # Cost Centers Export
     path('cost-centers/export/', report_views.export_cost_centers, name='export_cost_centers'),
+
 
     # Fiscal Management Export
     path('fiscal-years/export/', report_views.export_fiscal_years, name='export_fiscal_years'),

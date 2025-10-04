@@ -1696,68 +1696,156 @@ def export_balance_sheet(request):
     wb.save(response)
     return response
 
+
 @login_required
-@permission_required('accounting.view_costcenter')
+@permission_required_with_message('accounting.view_costcenter')
 def export_cost_centers(request):
     """تصدير مراكز التكلفة إلى Excel"""
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "مراكز التكلفة"
+    try:
+        import openpyxl
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from django.utils import timezone
+        from urllib.parse import quote
 
-    # تنسيق الرأس
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="6f42c1", end_color="6f42c1", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
-    thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
-    )
+    except ImportError:
+        messages.error(request, 'مكتبة openpyxl غير مثبتة')
+        return redirect('accounting:cost_center_list')
 
-    # إضافة الرأس
-    headers = ['الرمز', 'اسم مركز التكلفة', 'النوع', 'المركز الأب', 'المستوى', 'المدير', 'الحالة']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
-        cell.border = thin_border
+    try:
+        # الحصول على البيانات
+        queryset = CostCenter.objects.filter(
+            company=request.current_company
+        ).select_related('parent', 'manager')
 
-    # إضافة البيانات
-    cost_centers = CostCenter.objects.filter(
-        company=request.current_company
-    ).select_related('parent', 'manager').order_by('code')
+        # تطبيق الفلاتر
+        type_filter = request.GET.get('type', '')
+        level_filter = request.GET.get('level', '')
+        status_filter = request.GET.get('status', '')
+        parent_filter = request.GET.get('parent', '')
+        search = request.GET.get('search', '')
 
-    for row, cc in enumerate(cost_centers, 2):
-        ws.cell(row=row, column=1, value=cc.code).border = thin_border
-        ws.cell(row=row, column=2, value=cc.name).border = thin_border
-        ws.cell(row=row, column=3, value=cc.get_cost_center_type_display()).border = thin_border
-        ws.cell(row=row, column=4, value=cc.parent.name if cc.parent else '-- مركز رئيسي --').border = thin_border
-        ws.cell(row=row, column=5, value=cc.level).border = thin_border
-        ws.cell(row=row, column=6, value=cc.manager.get_full_name() if cc.manager else '-- غير محدد --').border = thin_border
-        ws.cell(row=row, column=7, value='نشط' if cc.is_active else 'غير نشط').border = thin_border
+        if type_filter:
+            queryset = queryset.filter(cost_center_type=type_filter)
+        if level_filter:
+            queryset = queryset.filter(level=int(level_filter))
+        if status_filter == 'active':
+            queryset = queryset.filter(is_active=True)
+        elif status_filter == 'inactive':
+            queryset = queryset.filter(is_active=False)
+        if parent_filter:
+            queryset = queryset.filter(parent_id=parent_filter)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | Q(code__icontains=search)
+            )
 
-    # تعديل عرض الأعمدة
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+        queryset = queryset.order_by('level', 'code')
 
-    # إعداد الاستجابة
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = 'attachment; filename="cost_centers.xlsx"'
+        # إنشاء Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "مراكز التكلفة"
 
-    wb.save(response)
-    return response
+        # التنسيق
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(name='Arial', size=11, bold=True, color="FFFFFF")
+        title_font = Font(name='Arial', size=14, bold=True, color="366092")
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+
+        # العنوان
+        ws.merge_cells('A1:H1')
+        ws['A1'] = "تقرير مراكز التكلفة"
+        ws['A1'].font = title_font
+        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells('A2:H2')
+        ws['A2'] = f"الشركة: {request.current_company.name}"
+        ws['A2'].font = Font(size=10, bold=True)
+        ws['A2'].alignment = Alignment(horizontal='center')
+
+        ws.merge_cells('A3:H3')
+        ws['A3'] = f"تاريخ التصدير: {timezone.now().strftime('%Y/%m/%d %H:%M')}"
+        ws['A3'].font = Font(size=9)
+        ws['A3'].alignment = Alignment(horizontal='center')
+
+        # العناوين
+        headers = ['الرمز', 'اسم المركز', 'النوع', 'المركز الأب', 'المستوى', 'المدير', 'الحالة', 'الوصف']
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col_num)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+
+        # البيانات
+        row_num = 6
+        for center in queryset:
+            indent = '  ' * (center.level - 1)
+
+            data = [
+                center.code,
+                indent + center.name,
+                center.get_cost_center_type_display(),
+                center.parent.name if center.parent else '-- مركز رئيسي --',
+                f'المستوى {center.level}',
+                center.manager.get_full_name() if center.manager else '--',
+                'نشط' if center.is_active else 'غير نشط',
+                center.description or '--'
+            ]
+
+            for col_num, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(size=10)
+
+                # تلوين
+                if col_num == 7:  # الحالة
+                    if center.is_active:
+                        cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                        cell.font = Font(size=10, color="155724", bold=True)
+                    else:
+                        cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+                        cell.font = Font(size=10, color="721C24", bold=True)
+
+            row_num += 1
+
+        # ضبط العرض
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 35
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 25
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 20
+        ws.column_dimensions['G'].width = 12
+        ws.column_dimensions['H'].width = 40
+
+        # الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename_ar = f"مراكز_التكلفة_{timestamp}.xlsx"
+        filename_encoded = quote(filename_ar)
+
+        response[
+            'Content-Disposition'] = f'attachment; filename="{timestamp}_cost_centers.xlsx"; filename*=UTF-8\'\'{filename_encoded}'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('accounting:cost_center_list')
 
 
 @login_required
