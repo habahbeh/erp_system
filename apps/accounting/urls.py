@@ -193,6 +193,10 @@ urlpatterns = [
     path('cost-centers/export/', report_views.export_cost_centers, name='export_cost_centers'),
 
 
+
+    # Journal Entries Export
+    path('journal-entries/export/', report_views.export_journal_entries, name='export_journal_entries'),
+
     # Fiscal Management Export
     path('fiscal-years/export/', report_views.export_fiscal_years, name='export_fiscal_years'),
     path('periods/export/', report_views.export_periods, name='export_periods'),

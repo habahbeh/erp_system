@@ -2505,3 +2505,207 @@ def export_account_comparison(request):
     except Exception as e:
         messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
         return redirect('accounting:account_comparison')
+
+
+@login_required
+@permission_required_with_message('accounting.view_journalentry')
+def export_journal_entries(request):
+    """تصدير القيود اليومية إلى Excel"""
+
+    try:
+        import openpyxl
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from django.utils import timezone
+        from urllib.parse import quote
+
+    except ImportError:
+        messages.error(request, 'مكتبة openpyxl غير مثبتة')
+        return redirect('accounting:journal_entry_list')
+
+    try:
+        # الحصول على البيانات
+        queryset = JournalEntry.objects.filter(
+            company=request.current_company
+        ).select_related('created_by', 'posted_by', 'fiscal_year', 'period')
+
+        # تطبيق الفلاتر
+        status = request.GET.get('status', '')
+        entry_type = request.GET.get('entry_type', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        search = request.GET.get('search', '')
+
+        if status:
+            queryset = queryset.filter(status=status)
+        if entry_type:
+            queryset = queryset.filter(entry_type=entry_type)
+        if date_from:
+            queryset = queryset.filter(entry_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(entry_date__lte=date_to)
+        if search:
+            queryset = queryset.filter(
+                Q(number__icontains=search) |
+                Q(description__icontains=search) |
+                Q(reference__icontains=search)
+            )
+
+        queryset = queryset.order_by('-entry_date', '-number')
+
+        # إنشاء Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "القيود اليومية"
+
+        # التنسيق
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(name='Arial', size=11, bold=True, color="FFFFFF")
+        title_font = Font(name='Arial', size=14, bold=True, color="366092")
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+
+        # العنوان
+        ws.merge_cells('A1:J1')
+        ws['A1'] = "تقرير القيود اليومية"
+        ws['A1'].font = title_font
+        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells('A2:J2')
+        ws['A2'] = f"الشركة: {request.current_company.name}"
+        ws['A2'].font = Font(size=10, bold=True)
+        ws['A2'].alignment = Alignment(horizontal='center')
+
+        ws.merge_cells('A3:J3')
+        ws['A3'] = f"تاريخ التصدير: {timezone.now().strftime('%Y/%m/%d %H:%M')}"
+        ws['A3'].font = Font(size=9)
+        ws['A3'].alignment = Alignment(horizontal='center')
+
+        # العناوين
+        headers = [
+            'رقم القيد', 'التاريخ', 'نوع القيد', 'البيان', 'المرجع',
+            'إجمالي المدين', 'إجمالي الدائن', 'الحالة', 'السنة المالية', 'أنشأ بواسطة'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col_num)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+
+        # البيانات
+        row_num = 6
+        for entry in queryset:
+            # تحديد حالة القيد
+            if entry.status == 'draft':
+                status_text = 'مسودة'
+                status_color = 'FFF3CD'
+            elif entry.status == 'posted':
+                status_text = 'مرحل'
+                status_color = 'D4EDDA'
+            else:
+                status_text = 'ملغي'
+                status_color = 'F8D7DA'
+
+            data = [
+                entry.number,
+                entry.entry_date.strftime('%Y/%m/%d'),
+                entry.get_entry_type_display(),
+                entry.description,
+                entry.reference or '--',
+                float(entry.total_debit),
+                float(entry.total_credit),
+                status_text,
+                str(entry.fiscal_year) if entry.fiscal_year else '--',
+                entry.created_by.get_full_name() if entry.created_by else '--'
+            ]
+
+            for col_num, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(size=10)
+
+                # تنسيق الأرقام
+                if col_num in [6, 7]:  # أعمدة المبالغ
+                    cell.number_format = '#,##0.00'
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+
+                # تلوين حسب الحالة
+                if col_num == 8:  # عمود الحالة
+                    cell.fill = PatternFill(start_color=status_color, end_color=status_color, fill_type="solid")
+                    cell.font = Font(size=10, bold=True)
+
+            row_num += 1
+
+        # إضافة الإجماليات
+        if queryset.exists():
+            ws.merge_cells(f'A{row_num}:E{row_num}')
+            total_cell = ws.cell(row=row_num, column=1)
+            total_cell.value = "الإجمالي"
+            total_cell.font = Font(size=11, bold=True)
+            total_cell.fill = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid")
+            total_cell.alignment = Alignment(horizontal='center', vertical='center')
+            total_cell.border = thin_border
+
+            # إجمالي المدين
+            total_debit = sum(float(entry.total_debit) for entry in queryset)
+            debit_cell = ws.cell(row=row_num, column=6)
+            debit_cell.value = total_debit
+            debit_cell.number_format = '#,##0.00'
+            debit_cell.font = Font(size=11, bold=True, color="155724")
+            debit_cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+            debit_cell.alignment = Alignment(horizontal='right', vertical='center')
+            debit_cell.border = thin_border
+
+            # إجمالي الدائن
+            total_credit = sum(float(entry.total_credit) for entry in queryset)
+            credit_cell = ws.cell(row=row_num, column=7)
+            credit_cell.value = total_credit
+            credit_cell.number_format = '#,##0.00'
+            credit_cell.font = Font(size=11, bold=True, color="721C24")
+            credit_cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+            credit_cell.alignment = Alignment(horizontal='right', vertical='center')
+            credit_cell.border = thin_border
+
+            # باقي الخلايا
+            for col in range(8, 11):
+                cell = ws.cell(row=row_num, column=col)
+                cell.border = thin_border
+                cell.fill = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid")
+
+        # ضبط العرض
+        ws.column_dimensions['A'].width = 15  # رقم القيد
+        ws.column_dimensions['B'].width = 12  # التاريخ
+        ws.column_dimensions['C'].width = 15  # نوع القيد
+        ws.column_dimensions['D'].width = 50  # البيان
+        ws.column_dimensions['E'].width = 20  # المرجع
+        ws.column_dimensions['F'].width = 15  # المدين
+        ws.column_dimensions['G'].width = 15  # الدائن
+        ws.column_dimensions['H'].width = 12  # الحالة
+        ws.column_dimensions['I'].width = 20  # السنة المالية
+        ws.column_dimensions['J'].width = 20  # أنشأ بواسطة
+
+        # الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename_ar = f"القيود_اليومية_{timestamp}.xlsx"
+        filename_encoded = quote(filename_ar)
+
+        response[
+            'Content-Disposition'] = f'attachment; filename="{timestamp}_journal_entries.xlsx"; filename*=UTF-8\'\'{filename_encoded}'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('accounting:journal_entry_list')
