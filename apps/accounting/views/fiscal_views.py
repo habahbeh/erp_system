@@ -250,10 +250,24 @@ def fiscal_year_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
+    # ✅ إذا كان الطلب لجلب قائمة السنوات للفلتر
+    if request.GET.get('get_years'):
+        years = FiscalYear.objects.filter(
+            company=request.current_company
+        ).dates('start_date', 'year', order='DESC')
+
+        years_list = [year.year for year in years]
+        return JsonResponse({'years': years_list})
+
     draw = int(request.GET.get('draw', 1))
     start = int(request.GET.get('start', 0))
     length = int(request.GET.get('length', 10))
     search_value = request.GET.get('search[value]', '')
+
+    # الفلاتر المخصصة
+    status = request.GET.get('status', '')
+    year = request.GET.get('year', '')
+    search_filter = request.GET.get('search_filter', '')
 
     try:
         # البحث والفلترة
@@ -264,21 +278,36 @@ def fiscal_year_datatable_ajax(request):
         )
 
         # الفلاتر
-        status = request.GET.get('status')
         if status == 'active':
             queryset = queryset.filter(is_closed=False)
         elif status == 'closed':
             queryset = queryset.filter(is_closed=True)
 
+        if year:
+            queryset = queryset.filter(start_date__year=year)
+
         # البحث
-        if search_value:
+        if search_value or search_filter:
+            search_term = search_value or search_filter
             queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(code__icontains=search_value)
+                Q(name__icontains=search_term) |
+                Q(code__icontains=search_term)
             )
 
         # الترتيب
-        queryset = queryset.order_by('-start_date')
+        order_column = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]')
+
+        if order_column:
+            columns = ['code', 'name', 'start_date', 'end_date', None, None, 'is_closed']
+            col_index = int(order_column)
+            if col_index < len(columns) and columns[col_index]:
+                order_field = columns[col_index]
+                if order_dir == 'desc':
+                    order_field = '-' + order_field
+                queryset = queryset.order_by(order_field)
+        else:
+            queryset = queryset.order_by('-start_date')
 
         # العدد الإجمالي
         total_records = FiscalYear.objects.filter(company=request.current_company).count()
@@ -289,46 +318,59 @@ def fiscal_year_datatable_ajax(request):
 
         # إعداد البيانات
         data = []
+        can_edit = request.user.has_perm('accounting.change_fiscalyear')
+        can_delete = request.user.has_perm('accounting.delete_fiscalyear')
+
         for fiscal_year in queryset:
             # حالة السنة
-            status_badge = '<span class="badge bg-success">نشطة</span>' if not fiscal_year.is_closed else '<span class="badge bg-secondary">مقفلة</span>'
+            status_badge = '<span class="badge bg-success">نشطة</span>' if not fiscal_year.is_closed else '<span class="badge bg-danger">مقفلة</span>'
 
-            # الفترة
-            period_str = f"{fiscal_year.start_date.strftime('%Y/%m/%d')} - {fiscal_year.end_date.strftime('%Y/%m/%d')}"
+            # المدة
+            duration_days = (fiscal_year.end_date - fiscal_year.start_date).days + 1
+            duration_badge = f'<span class="badge bg-info">{duration_days}</span>'
+
+            # عدد الفترات
+            periods_badge = f'<span class="badge bg-secondary">{fiscal_year.periods_count}</span>'
+
+            # الاسم مع رابط
+            name_link = f'<a href="{reverse("accounting:fiscal_year_detail", args=[fiscal_year.pk])}" class="text-decoration-none fw-bold">{fiscal_year.name}</a>'
 
             # أزرار الإجراءات
             actions = []
 
             actions.append(f'''
                 <a href="{reverse('accounting:fiscal_year_detail', args=[fiscal_year.pk])}" 
-                   class="btn btn-outline-info btn-sm" title="عرض">
+                   class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                     <i class="fas fa-eye"></i>
                 </a>
             ''')
 
-            if not fiscal_year.is_closed and request.user.has_perm('accounting.change_fiscalyear'):
+            if not fiscal_year.is_closed and can_edit:
                 actions.append(f'''
                     <a href="{reverse('accounting:fiscal_year_update', args=[fiscal_year.pk])}" 
-                       class="btn btn-outline-primary btn-sm" title="تعديل">
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
                         <i class="fas fa-edit"></i>
                     </a>
                 ''')
 
-            if not fiscal_year.periods.exists() and request.user.has_perm('accounting.delete_fiscalyear'):
+            if not fiscal_year.periods.exists() and can_delete:
                 actions.append(f'''
-                    <a href="{reverse('accounting:fiscal_year_delete', args=[fiscal_year.pk])}" 
-                       class="btn btn-outline-danger btn-sm" title="حذف">
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="deleteFiscalYear({fiscal_year.pk}, '{fiscal_year.name}')" 
+                            title="حذف" data-bs-toggle="tooltip">
                         <i class="fas fa-trash"></i>
-                    </a>
+                    </button>
                 ''')
 
             actions_html = ' '.join(actions)
 
             data.append([
-                fiscal_year.code,
-                fiscal_year.name,
-                period_str,
-                f'<span class="badge bg-info">{fiscal_year.periods_count}</span>',
+                f'<code class="text-primary">{fiscal_year.code}</code>',
+                name_link,
+                fiscal_year.start_date.strftime('%Y/%m/%d'),
+                fiscal_year.end_date.strftime('%Y/%m/%d'),
+                duration_badge,
+                periods_badge,
                 status_badge,
                 actions_html
             ])
@@ -861,6 +903,16 @@ def period_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
+    # ✅ إذا كان الطلب لجلب قائمة السنوات المالية للفلتر
+    if request.GET.get('get_fiscal_years'):
+        fiscal_years = FiscalYear.objects.filter(
+            company=request.current_company
+        ).order_by('-start_date').values('id', 'name')
+
+        return JsonResponse({
+            'fiscal_years': list(fiscal_years)
+        })
+
     draw = int(request.GET.get('draw', 1))
     start = int(request.GET.get('start', 0))
     length = int(request.GET.get('length', 10))
@@ -870,14 +922,15 @@ def period_datatable_ajax(request):
     fiscal_year_id = request.GET.get('fiscal_year', '')
     status = request.GET.get('status', '')
     period_type = request.GET.get('period_type', '')
+    search_filter = request.GET.get('search_filter', '')
 
     try:
-        # البحث والفلترة مع تحسين الأداء
+        # ✅ البحث والفلترة مع تحسين الأداء - استخدام journalentry بدلاً من journal_entries
         queryset = AccountingPeriod.objects.filter(
             company=request.current_company
         ).select_related('fiscal_year').annotate(
-            journal_entries_count=Count('journal_entries', filter=Q(journal_entries__status='posted')),
-            draft_entries_count=Count('journal_entries', filter=Q(journal_entries__status='draft'))
+            journal_entries_count=Count('journalentry', filter=Q(journalentry__status='posted')),
+            draft_entries_count=Count('journalentry', filter=Q(journalentry__status='draft'))
         )
 
         # تطبيق الفلاتر
@@ -895,11 +948,12 @@ def period_datatable_ajax(request):
             queryset = queryset.filter(is_adjustment=True)
 
         # البحث العام
-        if search_value:
+        if search_value or search_filter:
+            search_term = search_value or search_filter
             queryset = queryset.filter(
-                Q(name__icontains=search_value) |
-                Q(fiscal_year__name__icontains=search_value) |
-                Q(fiscal_year__code__icontains=search_value)
+                Q(name__icontains=search_term) |
+                Q(fiscal_year__name__icontains=search_term) |
+                Q(fiscal_year__code__icontains=search_term)
             )
 
         # الترتيب
@@ -907,9 +961,10 @@ def period_datatable_ajax(request):
         order_dir = request.GET.get('order[0][dir]')
 
         if order_column:
-            columns = ['fiscal_year__name', 'name', 'start_date', 'end_date', 'is_adjustment', 'is_closed']
-            if int(order_column) < len(columns):
-                order_field = columns[int(order_column)]
+            columns = ['fiscal_year__name', 'name', 'start_date', 'end_date', None, None, 'is_closed']
+            col_index = int(order_column)
+            if col_index < len(columns) and columns[col_index]:
+                order_field = columns[col_index]
                 if order_dir == 'desc':
                     order_field = '-' + order_field
                 queryset = queryset.order_by(order_field)
@@ -930,32 +985,41 @@ def period_datatable_ajax(request):
         can_view = request.user.has_perm('accounting.view_accountingperiod')
 
         for period in queryset:
-            # حالة الفترة
-            if period.is_closed:
-                status_badge = '<span class="badge bg-secondary">مقفلة</span>'
-            else:
-                status_badge = '<span class="badge bg-success">نشطة</span>'
+            # حساب المدة
+            duration = (period.end_date - period.start_date).days + 1
+            duration_badge = f'<span class="badge bg-info">{duration} يوم</span>'
 
             # نوع الفترة
             if period.is_adjustment:
-                type_badge = '<span class="badge bg-warning">تسويات</span>'
+                type_badge = '<span class="badge bg-warning text-dark">تسويات</span>'
             else:
-                type_badge = '<span class="badge bg-primary">عادية</span>'
+                type_badge = '<span class="badge bg-info">عادية</span>'
 
-            # مدة الفترة
-            duration = (period.end_date - period.start_date).days + 1
-            duration_display = f'{duration} يوم'
+            # حالة الفترة
+            if period.is_closed:
+                status_badge = '<span class="badge bg-danger">مقفلة</span>'
+            else:
+                status_badge = '<span class="badge bg-success">نشطة</span>'
 
             # إحصائيات القيود
+            total_entries = period.journal_entries_count + period.draft_entries_count
             entries_info = ''
-            if period.journal_entries_count > 0:
-                entries_info = f'<small class="text-success">{period.journal_entries_count} مرحل</small>'
-            if period.draft_entries_count > 0:
-                if entries_info:
-                    entries_info += '<br>'
-                entries_info += f'<small class="text-warning">{period.draft_entries_count} مسودة</small>'
-            if not entries_info:
+            if total_entries > 0:
+                if period.journal_entries_count > 0:
+                    entries_info = f'<small class="text-success d-block">{period.journal_entries_count} مرحل</small>'
+                if period.draft_entries_count > 0:
+                    if entries_info:
+                        entries_info += f'<small class="text-warning d-block">{period.draft_entries_count} مسودة</small>'
+                    else:
+                        entries_info = f'<small class="text-warning d-block">{period.draft_entries_count} مسودة</small>'
+            else:
                 entries_info = '<small class="text-muted">لا توجد قيود</small>'
+
+            # اسم الفترة مع الرابط
+            period_name = f'<a href="{reverse("accounting:period_detail", args=[period.pk])}" class="text-decoration-none fw-bold">{period.name}</a><br>{type_badge}'
+
+            # اسم السنة المالية مع الرابط
+            fiscal_year_name = f'<a href="{reverse("accounting:fiscal_year_detail", args=[period.fiscal_year.pk])}" class="text-decoration-none text-muted">{period.fiscal_year.name}</a>'
 
             # أزرار الإجراءات
             actions = []
@@ -996,7 +1060,7 @@ def period_datatable_ajax(request):
                     ''')
 
             # حذف
-            if can_delete and not period.is_closed and period.journal_entries_count == 0 and period.draft_entries_count == 0:
+            if can_delete and not period.is_closed and total_entries == 0:
                 actions.append(f'''
                     <a href="{reverse('accounting:period_delete', args=[period.pk])}" 
                        class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
@@ -1007,11 +1071,11 @@ def period_datatable_ajax(request):
             actions_html = ' '.join(actions) if actions else '<span class="text-muted">-</span>'
 
             data.append([
-                f'<a href="{reverse("accounting:fiscal_year_detail", args=[period.fiscal_year.pk])}" class="text-decoration-none">{period.fiscal_year.name}</a>',
-                f'<strong>{period.name}</strong><br>{type_badge}',
+                fiscal_year_name,
+                period_name,
                 period.start_date.strftime('%Y/%m/%d'),
                 period.end_date.strftime('%Y/%m/%d'),
-                duration_display,
+                duration_badge,
                 entries_info,
                 status_badge,
                 actions_html
@@ -1025,6 +1089,9 @@ def period_datatable_ajax(request):
         })
 
     except Exception as e:
+        import traceback
+        print(f"Error in period_datatable_ajax: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': 0,

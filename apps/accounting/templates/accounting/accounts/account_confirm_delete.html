@@ -1,0 +1,220 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}حذف الحساب: {{ object.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.delete-confirmation {
+    background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.info-table th {
+    width: 30%;
+    color: #6c757d;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Delete Confirmation Header -->
+            <div class="delete-confirmation text-center">
+                <h2><i class="fas fa-exclamation-triangle fa-3x mb-3"></i></h2>
+                <h3>تأكيد حذف الحساب</h3>
+                <p class="mb-0">هل أنت متأكد من حذف هذا الحساب نهائياً؟</p>
+            </div>
+
+            <!-- Account Details -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>تفاصيل الحساب المراد حذفه
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless info-table">
+                        <tr>
+                            <th>رمز الحساب:</th>
+                            <td><strong class="text-primary">{{ object.code }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>اسم الحساب:</th>
+                            <td><strong>{{ object.name }}</strong></td>
+                        </tr>
+                        {% if object.name_en %}
+                        <tr>
+                            <th>الاسم الإنجليزي:</th>
+                            <td>{{ object.name_en }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>نوع الحساب:</th>
+                            <td>
+                                <span class="badge bg-info">{{ object.account_type.name }}</span>
+                            </td>
+                        </tr>
+                        {% if object.parent %}
+                        <tr>
+                            <th>الحساب الأب:</th>
+                            <td>{{ object.parent.code }} - {{ object.parent.name }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>العملة:</th>
+                            <td>{{ object.currency.name }} ({{ object.currency.code }})</td>
+                        </tr>
+                        <tr>
+                            <th>الرصيد الافتتاحي:</th>
+                            <td><strong>{{ object.opening_balance|floatformat:3 }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>المستوى:</th>
+                            <td>{{ object.level }}</td>
+                        </tr>
+                        <tr>
+                            <th>عدد الحسابات الفرعية:</th>
+                            <td>
+                                {% if object.children.count > 0 %}
+                                    <span class="badge bg-warning">{{ object.children.count }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Warnings -->
+            <div class="warning-box mt-3">
+                <h6 class="text-warning mb-2">
+                    <i class="fas fa-exclamation-triangle me-2"></i>تحذير:
+                </h6>
+                <ul class="mb-0">
+                    {% if object.children.exists %}
+                    <li class="text-danger"><strong>لا يمكن الحذف:</strong> يحتوي على {{ object.children.count }} حساب فرعي</li>
+                    {% else %}
+                    <li>حذف الحساب سيكون نهائياً ولا يمكن التراجع عنه</li>
+                    <li>تأكد من عدم وجود قيود محاسبية مرتبطة بهذا الحساب</li>
+                    <li>سيتم حذف جميع البيانات المرتبطة بهذا الحساب</li>
+                    {% endif %}
+                </ul>
+            </div>
+
+            <!-- Child Accounts List (if exists) -->
+            {% if object.children.exists %}
+            <div class="card mt-3">
+                <div class="card-header bg-warning">
+                    <h6 class="mb-0">
+                        <i class="fas fa-sitemap me-2"></i>الحسابات الفرعية (يجب حذفها أولاً)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>الرمز</th>
+                                    <th>الاسم</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for child in object.children.all %}
+                                <tr>
+                                    <td>{{ child.code }}</td>
+                                    <td>{{ child.name }}</td>
+                                    <td>
+                                        {% if child.is_suspended %}
+                                            <span class="badge bg-danger">موقوف</span>
+                                        {% else %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'accounting:account_list' %}" class="btn btn-secondary btn-lg">
+                    <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
+                </a>
+
+                {% if not object.children.exists %}
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-lg" 
+                            onclick="return confirm('هل أنت متأكد من حذف الحساب: {{ object.name }}؟\n\nهذا الإجراء لا يمكن التراجع عنه!')">
+                        <i class="fas fa-trash me-2"></i>تأكيد الحذف
+                    </button>
+                </form>
+                {% else %}
+                <button type="button" class="btn btn-secondary btn-lg" disabled>
+                    <i class="fas fa-ban me-2"></i>لا يمكن الحذف
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تفعيل tooltips
+    $('[data-bs-toggle="tooltip"]').tooltip();
+    
+    // تحذير إضافي عند الحذف
+    $('form').on('submit', function(e) {
+        var hasChildren = {{ object.children.count }};
+        if (hasChildren > 0) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'لا يمكن الحذف',
+                text: 'يجب حذف الحسابات الفرعية أولاً',
+                confirmButtonText: 'حسناً'
+            });
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

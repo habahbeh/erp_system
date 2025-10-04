@@ -15,20 +15,6 @@ from apps.core.models import Currency
 class AccountForm(forms.ModelForm):
     """نموذج إنشاء وتعديل الحسابات - محسن"""
 
-    # حقل البحث للحساب الأب
-    parent_search = forms.CharField(
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن الحساب الأب...',
-            'autocomplete': 'off',
-            'data-only-parents': 'true'
-        }),
-        label="الحساب الأب",
-        help_text="اختياري - للحسابات الفرعية فقط"
-    )
-
     class Meta:
         model = Account
         fields = [
@@ -66,14 +52,17 @@ class AccountForm(forms.ModelForm):
         # قوائم منسدلة محسنة
         self.fields['account_type'].widget.attrs.update({
             'class': 'form-select',
-            'data-live-search': 'true'
         })
 
-        self.fields['parent'].widget = forms.HiddenInput()  # مخفي، سيتم التحكم به عبر البحث
+        # الحساب الأب - قائمة منسدلة
+        self.fields['parent'].widget.attrs.update({
+            'class': 'form-select',
+        })
+        self.fields['parent'].required = False
+        self.fields['parent'].empty_label = "لا يوجد (حساب رئيسي)"
 
         self.fields['currency'].widget.attrs.update({
             'class': 'form-select',
-            'data-live-search': 'true'
         })
 
         self.fields['nature'].widget.attrs.update({'class': 'form-select'})
@@ -127,6 +116,7 @@ class AccountForm(forms.ModelForm):
         self.fields['is_cash_account'].help_text = 'للحسابات النقدية (صندوق، خزينة)'
         self.fields['is_bank_account'].help_text = 'للحسابات البنكية'
         self.fields['accept_entries'].help_text = 'هل يمكن إدخال قيود مباشرة على هذا الحساب'
+        self.fields['parent'].help_text = 'اختياري - للحسابات الفرعية فقط'
 
         # فلترة البيانات حسب الشركة
         if self.request and hasattr(self.request, 'current_company'):
@@ -135,7 +125,24 @@ class AccountForm(forms.ModelForm):
             # فلترة أنواع الحسابات
             self.fields['account_type'].queryset = AccountType.objects.all()
 
-            # فلترة العملات - تم إصلاح الخطأ هنا
+            # فلترة الحسابات الأب - فقط الحسابات التي يمكن أن تكون آباء
+            parent_queryset = Account.objects.filter(
+                company=company,
+                level__lt=4  # حتى المستوى 3 يمكن أن يكون أب
+            ).select_related('account_type').order_by('code')
+
+            # استبعاد الحساب نفسه إذا كان تعديل
+            if self.instance and self.instance.pk:
+                parent_queryset = parent_queryset.exclude(pk=self.instance.pk)
+
+                # استبعاد الحسابات الفرعية للحساب الحالي
+                descendants = self.get_descendants(self.instance)
+                if descendants:
+                    parent_queryset = parent_queryset.exclude(pk__in=descendants)
+
+            self.fields['parent'].queryset = parent_queryset
+
+            # فلترة العملات
             try:
                 # محاولة استخدام العلاقة companies (ManyToMany)
                 self.fields['currency'].queryset = Currency.objects.filter(
@@ -168,17 +175,26 @@ class AccountForm(forms.ModelForm):
                     # في حالة حدوث خطأ، اترك الحقل فارغاً
                     pass
 
-        # إذا كان هناك instance، اعرض بيانات الحساب الأب
+        # إذا كان للحساب أطفال، منع تفعيل "يقبل قيود"
         if self.instance and self.instance.pk:
-            if self.instance.parent:
-                self.fields['parent_search'].initial = f"{self.instance.parent.code} - {self.instance.parent.name}"
-
-            # إذا كان للحساب أطفال، منع تفعيل "يقبل قيود"
             if self.instance.children.exists():
                 self.fields['accept_entries'].widget.attrs.update({
                     'disabled': 'disabled'
                 })
                 self.fields['accept_entries'].help_text = 'لا يمكن تفعيله للحسابات الأب'
+
+    def get_descendants(self, account):
+        """الحصول على جميع الحسابات الفرعية"""
+        descendants = []
+
+        def get_children(acc):
+            children = Account.objects.filter(parent=acc)
+            for child in children:
+                descendants.append(child.pk)
+                get_children(child)
+
+        get_children(account)
+        return descendants
 
     def clean_code(self):
         code = self.cleaned_data['code'].strip().upper()
@@ -400,7 +416,7 @@ class AccountFilterForm(forms.Form):
         if request and hasattr(request, 'current_company'):
             self.fields['parent'].queryset = Account.objects.filter(
                 company=request.current_company,
-                level__lt=4,  # فقط الحسابات التي يمكن أن تكون آباء
+                level__lt=4,
                 children__isnull=False
             ).distinct()
 
@@ -517,3 +533,45 @@ class AccountMoveForm(forms.Form):
             return [int(id) for id in account_ids.split(',') if id.strip()]
         except ValueError:
             raise ValidationError('معرفات الحسابات غير صحيحة')
+
+
+class CostCenterForm(forms.ModelForm):
+    """نموذج مركز التكلفة"""
+
+    class Meta:
+        model = CostCenter
+        fields = ['name', 'code', 'description', 'parent', 'cost_center_type', 'manager', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'code': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'parent': forms.Select(attrs={'class': 'form-select'}),
+            'cost_center_type': forms.Select(attrs={'class': 'form-select'}),
+            'manager': forms.Select(attrs={'class': 'form-select'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class CostCenterFilterForm(forms.Form):
+    """نموذج فلترة مراكز التكلفة"""
+
+    cost_center_type = forms.ChoiceField(
+        choices=[('', 'جميع الأنواع')] + CostCenter.COST_CENTER_TYPES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    is_active = forms.ChoiceField(
+        choices=[('', 'الكل'), ('1', 'نشط'), ('0', 'غير نشط')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    search = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'البحث في الرمز أو الاسم'
+        })
+    )

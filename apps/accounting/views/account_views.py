@@ -248,6 +248,24 @@ def account_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
+    # ✅ إذا كان الطلب لجلب قائمة الحسابات الأب
+    if request.GET.get('get_parent_accounts'):
+        parent_accounts = Account.objects.filter(
+            company=request.current_company,
+            children__isnull=False
+        ).distinct().values('id', 'code', 'name').order_by('code')
+
+        return JsonResponse({
+            'parent_accounts': list(parent_accounts)
+        })
+
+    # ✅ إذا كان الطلب لجلب أنواع الحسابات
+    if request.GET.get('get_account_types'):
+        account_types = AccountType.objects.all().values('id', 'name')
+        return JsonResponse({
+            'account_types': list(account_types)
+        })
+
     draw = int(request.GET.get('draw', 1))
     start = int(request.GET.get('start', 0))
     length = int(request.GET.get('length', 10))
@@ -255,6 +273,7 @@ def account_datatable_ajax(request):
 
     # الفلاتر المخصصة
     account_type_id = request.GET.get('account_type', '')
+    parent_id = request.GET.get('parent', '')  # ✅ إضافة فلتر الحساب الأب
     is_active = request.GET.get('is_active', '')
     has_children = request.GET.get('has_children', '')
     search_filter = request.GET.get('search_filter', '')
@@ -270,6 +289,10 @@ def account_datatable_ajax(request):
         # تطبيق الفلاتر
         if account_type_id:
             queryset = queryset.filter(account_type_id=account_type_id)
+
+        # ✅ فلتر الحساب الأب
+        if parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
 
         if is_active == '1':
             queryset = queryset.filter(is_suspended=False)

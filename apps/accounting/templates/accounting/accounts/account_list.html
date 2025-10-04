@@ -62,6 +62,15 @@
                             <option value="">{% trans "جميع الأنواع" %}</option>
                         </select>
                     </div>
+
+                    <!-- ✅ فلتر الحساب الأب -->
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الحساب الأب" %}</label>
+                        <select class="form-select" id="parentAccountFilter">
+                            <option value="">{% trans "جميع الحسابات" %}</option>
+                        </select>
+                    </div>
+
                     <div class="col-md-2">
                         <label class="form-label">{% trans "الحالة" %}</label>
                         <select class="form-select" id="isActiveFilter">
@@ -70,31 +79,24 @@
                             <option value="0">{% trans "موقوف" %}</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">{% trans "النوع" %}</label>
-                        <select class="form-select" id="hasChildrenFilter">
-                            <option value="">{% trans "الكل" %}</option>
-                            <option value="1">{% trans "حسابات أب" %}</option>
-                            <option value="0">{% trans "حسابات فرعية" %}</option>
-                        </select>
-                    </div>
+
                     <div class="col-md-2">
                         <label class="form-label">{% trans "البحث" %}</label>
                         <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث في الرمز أو الاسم' %}">
                     </div>
-                    <div class="col-md-3 d-flex align-items-end gap-2">
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
                         <button type="button" class="btn btn-outline-secondary" id="clearFilters">
-                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
                         </button>
 
-                        <!-- أزرار التصدير والاستيراد -->
                         <div class="btn-group">
                             <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
-                                <i class="fas fa-file-excel"></i> {% trans "تصدير" %}
+                                <i class="fas fa-file-excel"></i>
                             </button>
                             {% if can_add %}
                             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importModal">
-                                <i class="fas fa-upload"></i> {% trans "استيراد" %}
+                                <i class="fas fa-upload"></i>
                             </button>
                             {% endif %}
                         </div>
@@ -115,6 +117,7 @@
                             <th>{% trans "اسم الحساب" %}</th>
                             <th>{% trans "نوع الحساب" %}</th>
                             <th>{% trans "الحساب الأب" %}</th>
+                            <th>{% trans "الرصيد الافتتاحي" %}</th>
                             <th>{% trans "الحالة" %}</th>
                             <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
@@ -220,10 +223,9 @@ $(document).ready(function() {
             "url": "{% url 'accounting:account_datatable_ajax' %}",
             "type": "GET",
             "data": function(d) {
-                // إضافة الفلاتر المخصصة
                 d.account_type = $('#accountTypeFilter').val();
+                d.parent = $('#parentAccountFilter').val(); // ✅ فلتر الحساب الأب
                 d.is_active = $('#isActiveFilter').val();
-                d.has_children = $('#hasChildrenFilter').val();
                 d.search_filter = $('#searchFilter').val();
             }
         },
@@ -232,8 +234,9 @@ $(document).ready(function() {
             {"data": 1, "name": "name"},
             {"data": 2, "name": "account_type__name"},
             {"data": 3, "name": "parent__name"},
-            {"data": 4, "name": "is_suspended"},
-            {"data": 5, "name": "actions", "orderable": false, "searchable": false}
+            {"data": 4, "name": "opening_balance", "className": "text-end"},
+            {"data": 5, "name": "is_suspended"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
         ],
         "order": [[0, "asc"]],
         "pageLength": 25,
@@ -244,20 +247,41 @@ $(document).ready(function() {
         },
         "columnDefs": [
             { "targets": "no-sort", "orderable": false },
-            { "className": "text-center", "targets": [5] }
+            { "className": "text-center", "targets": [6] }
         ],
         "drawCallback": function(settings) {
-            // تفعيل tooltips
             $('[data-bs-toggle="tooltip"]').tooltip();
-
-            // إظهار معلومات الصفحة
             var info = table.page.info();
             updateTableInfo(info);
         }
     });
 
+    // ✅ تحميل قائمة أنواع الحسابات
+    loadAccountTypes();
+
+    // ✅ تحميل قائمة الحسابات الأب
+    loadParentAccounts();
+
+    // ✅ قراءة الفلتر من sessionStorage
+    var filterParent = sessionStorage.getItem('filterParentAccount');
+    if (filterParent) {
+        setTimeout(function() {
+            $('#parentAccountFilter').val(filterParent).trigger('change');
+            sessionStorage.removeItem('filterParentAccount');
+
+            // إظهار رسالة
+            Swal.fire({
+                icon: 'success',
+                title: 'تم تطبيق الفلتر',
+                text: 'عرض الحسابات الفرعية فقط',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }, 800);
+    }
+
     // تحديث الجدول عند تغيير الفلاتر
-    $('#accountTypeFilter, #isActiveFilter, #hasChildrenFilter').on('change', function() {
+    $('#accountTypeFilter, #isActiveFilter, #parentAccountFilter').on('change', function() {
         table.ajax.reload();
     });
 
@@ -271,7 +295,7 @@ $(document).ready(function() {
 
     // مسح الفلاتر
     $('#clearFilters').on('click', function() {
-        $('#accountTypeFilter, #isActiveFilter, #hasChildrenFilter').val('');
+        $('#accountTypeFilter, #isActiveFilter, #parentAccountFilter').val('');
         $('#searchFilter').val('');
         table.ajax.reload();
     });
@@ -311,7 +335,6 @@ $(document).ready(function() {
         });
     };
 
-    // دالة لإظهار معلومات الجدول
     function updateTableInfo(info) {
         var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' حساب';
         if (info.recordsFiltered !== info.recordsTotal) {
@@ -320,27 +343,36 @@ $(document).ready(function() {
         $('#tableInfo').text(infoText);
     }
 
-    // تغيير عدد الصفوف
     window.changePageLength = function(length) {
         table.page.len(parseInt(length)).draw();
     };
 
-    // تحميل خيارات الفلاتر
-    loadFilterOptions();
-});
+    // ✅ تحميل أنواع الحسابات
+    function loadAccountTypes() {
+        $.get('{% url "accounting:account_datatable_ajax" %}?get_account_types=1', function(data) {
+            var select = $('#accountTypeFilter');
+            select.empty().append('<option value="">{% trans "جميع الأنواع" %}</option>');
+            if (data.account_types) {
+                $.each(data.account_types, function(i, type) {
+                    select.append('<option value="' + type.id + '">' + type.name + '</option>');
+                });
+            }
+        });
+    }
 
-function loadFilterOptions() {
-    // تحميل أنواع الحسابات
-    $.get('{% url "accounting:account_datatable_ajax" %}?get_account_types=1', function(data) {
-        var select = $('#accountTypeFilter');
-        select.empty().append('<option value="">{% trans "جميع الأنواع" %}</option>');
-        if (data.account_types) {
-            $.each(data.account_types, function(i, type) {
-                select.append('<option value="' + type.id + '">' + type.name + '</option>');
-            });
-        }
-    });
-}
+    // ✅ تحميل الحسابات الأب
+    function loadParentAccounts() {
+        $.get('{% url "accounting:account_datatable_ajax" %}?get_parent_accounts=1', function(data) {
+            var select = $('#parentAccountFilter');
+            select.empty().append('<option value="">{% trans "جميع الحسابات" %}</option>');
+            if (data.parent_accounts) {
+                $.each(data.parent_accounts, function(i, account) {
+                    select.append('<option value="' + account.id + '">' + account.code + ' - ' + account.name + '</option>');
+                });
+            }
+        });
+    }
+});
 
 // تعامل مع رفع الملف
 $('#importForm').on('submit', function(e) {

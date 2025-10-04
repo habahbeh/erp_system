@@ -106,3 +106,38 @@ print(f"🤝 عدد  العملاء: {BusinessPartner.objects.filter(company=com
 print(f"👤 المستخدم الرئيسي: admin@esco.jo / esco@123")
 print("="*50)
 print("⚠️  لا تنسَ تغيير كلمة المرور بعد أول تسجيل دخول!")
+
+
+
+
+
+from apps.core.models import PriceList, Currency, Company
+
+# احصل على الشركة والعملة
+company = Company.objects.first()
+currency = Currency.objects.first()
+
+# أنشئ قوائم أسعار
+PriceList.objects.create(
+    company=company,
+    code='RETAIL',
+    name='سعر التجزئة',
+    currency=currency,
+    is_default=True
+)
+
+PriceList.objects.create(
+    company=company,
+    code='WHOLESALE',
+    name='سعر الجملة',
+    currency=currency
+)
+
+PriceList.objects.create(
+    company=company,
+    code='VIP',
+    name='سعر VIP',
+    currency=currency
+)
+
+print("✅ تم إنشاء 3 قوائم أسعار")

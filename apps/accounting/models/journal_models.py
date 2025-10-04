@@ -173,19 +173,23 @@ class JournalEntry(DocumentBaseModel):
 
     def save(self, *args, **kwargs):
         self.full_clean()
+
+        # الحفظ أولاً للحصول على ID
+        is_new = self.pk is None
         super().save(*args, **kwargs)
-        # توليد رقم القيد تلقائياً
-        if not self.number:
+
+        # توليد رقم القيد بعد الحفظ للمرة الأولى
+        if is_new and not self.number:
             self.number = self.generate_number()
-
-        # تحديد السنة والفترة تلقائياً
-        if not self.fiscal_year_id:
-            self.auto_set_fiscal_period()
-
-        super().save(*args, **kwargs)
+            # تحديد السنة والفترة
+            if not self.fiscal_year_id:
+                self.auto_set_fiscal_period()
+            # حفظ مرة أخرى مع الرقم والفترة
+            super().save(update_fields=['number', 'fiscal_year', 'period'])
 
         # حساب الإجماليات
-        self.calculate_totals()
+        if self.pk:
+            self.calculate_totals()
 
     def generate_number(self):
         """توليد رقم القيد بناءً على التسلسل"""

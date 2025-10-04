@@ -1,40 +1,113 @@
-<!-- templates/accounting/account_types/account_type_form.html -->
+<!-- apps/accounting/templates/accounting/account_types/account_type_form.html -->
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
-.form-control:focus, .form-select:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
 }
 
-.help-text {
-    font-size: 0.875rem;
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
     color: #6c757d;
-    margin-top: 0.25rem;
 }
 
-.error-list {
-    list-style: none;
-    padding: 0;
-    margin: 0.5rem 0 0 0;
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
 }
 
-.error-list li {
-    color: #dc3545;
-    font-size: 0.875rem;
-    margin-bottom: 0.25rem;
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
 }
 
-.type-category-help {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
     border-radius: 0.375rem;
-    padding: 1rem;
-    margin-top: 1rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
 }
 </style>
 {% endblock %}
@@ -42,11 +115,11 @@
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             {% for breadcrumb in breadcrumbs %}
                 {% if forloop.last %}
-                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
                 {% else %}
                     <li class="breadcrumb-item">
                         <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
@@ -56,164 +129,309 @@
         </ol>
     </nav>
 
-    <!-- Header -->
+    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
-            <p class="text-muted mb-0">{% trans "إدخال بيانات نوع الحساب" %}</p>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات نوع الحساب المحاسبي" %}
+                {% else %}
+                    {% trans "إضافة نوع حساب جديد للنظام المحاسبي" %}
+                {% endif %}
+            </p>
         </div>
-        <div>
-            <a href="{% url 'accounting:account_type_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right"></i> {% trans "العودة للقائمة" %}
-            </a>
-        </div>
+        <a href="{% url 'accounting:account_type_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
     </div>
 
     <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <!-- Form Card -->
-            <div class="card shadow-sm">
+        <!-- Form Section -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-list-alt me-2"></i>
-                        {% if object %}{% trans "تعديل نوع الحساب" %}{% else %}{% trans "إضافة نوع حساب جديد" %}{% endif %}
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        {% if object %}{% trans "تعديل نوع الحساب" %}{% else %}{% trans "بيانات نوع الحساب" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
                     <form method="post" novalidate>
                         {% csrf_token %}
 
-                        <!-- المعلومات الأساسية -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label for="{{ form.code.id_for_label }}" class="form-label">
-                                    {{ form.code.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.code|add_class:"form-control" }}
-                                {% if form.code.help_text %}
-                                    <div class="help-text">{{ form.code.help_text }}</div>
-                                {% endif %}
-                                {% if form.code.errors %}
-                                    <ul class="error-list">
-                                        {% for error in form.code.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
+                        <!-- Basic Information -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
 
-                            <div class="col-md-6">
-                                <label for="{{ form.name.id_for_label }}" class="form-label">
-                                    {{ form.name.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.name|add_class:"form-control" }}
-                                {% if form.name.help_text %}
-                                    <div class="help-text">{{ form.name.help_text }}</div>
-                                {% endif %}
-                                {% if form.name.errors %}
-                                    <ul class="error-list">
-                                        {% for error in form.name.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <!-- تصنيف الحساب -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label for="{{ form.type_category.id_for_label }}" class="form-label">
-                                    {{ form.type_category.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.type_category|add_class:"form-select" }}
-                                {% if form.type_category.errors %}
-                                    <ul class="error-list">
-                                        {% for error in form.type_category.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.normal_balance.id_for_label }}" class="form-label">
-                                    {{ form.normal_balance.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.normal_balance|add_class:"form-select" }}
-                                {% if form.normal_balance.errors %}
-                                    <ul class="error-list">
-                                        {% for error in form.normal_balance.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <!-- معلومات مساعدة -->
-                        <div class="type-category-help mb-4">
-                            <h6><i class="fas fa-lightbulb me-2"></i>أنواع الحسابات:</h6>
-                            <div class="row">
+                            <div class="row g-3">
+                                <!-- Code Field -->
                                 <div class="col-md-6">
-                                    <ul class="mb-0">
-                                        <li><strong>الأصول:</strong> ما تملكه الشركة</li>
-                                        <li><strong>الخصوم:</strong> ما تدين به الشركة</li>
-                                        <li><strong>حقوق الملكية:</strong> حقوق أصحاب الشركة</li>
-                                    </ul>
+                                    <label for="{{ form.code.id_for_label }}" class="form-label required-field">
+                                        {{ form.code.label }}
+                                    </label>
+                                    {{ form.code|add_class:"form-control" }}
+                                    {% if form.code.help_text %}
+                                        <div class="help-text">{{ form.code.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.code.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.code.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
+
+                                <!-- Name Field -->
                                 <div class="col-md-6">
-                                    <ul class="mb-0">
-                                        <li><strong>الإيرادات:</strong> دخل الشركة</li>
-                                        <li><strong>المصروفات:</strong> تكاليف التشغيل</li>
-                                    </ul>
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                        {{ form.name.label }}
+                                    </label>
+                                    {{ form.name|add_class:"form-control" }}
+                                    {% if form.name.help_text %}
+                                        <div class="help-text">{{ form.name.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.name.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- أزرار الإجراءات -->
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'accounting:account_type_list' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-arrow-right me-2"></i>العودة
+                        <!-- Classification -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sitemap me-2"></i>التصنيف والرصيد
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Type Category -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.type_category.id_for_label }}" class="form-label required-field">
+                                        {{ form.type_category.label }}
+                                    </label>
+                                    {{ form.type_category|add_class:"form-select" }}
+                                    {% if form.type_category.help_text %}
+                                        <div class="help-text">{{ form.type_category.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.type_category.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.type_category.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Normal Balance -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.normal_balance.id_for_label }}" class="form-label required-field">
+                                        {{ form.normal_balance.label }}
+                                    </label>
+                                    {{ form.normal_balance|add_class:"form-select" }}
+                                    {% if form.normal_balance.help_text %}
+                                        <div class="help-text">{{ form.normal_balance.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.normal_balance.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.normal_balance.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'accounting:account_type_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
-
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>
-                                {% if object %}تحديث{% else %}إضافة{% endif %}
+                                <i class="fas fa-save me-1"></i>
+                                {% if object %}تحديث البيانات{% else %}حفظ نوع الحساب{% endif %}
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>أنواع الحسابات
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <span class="badge bg-success me-1">الأصول</span>
+                            ما تملكه الشركة (نقدية، مخزون، أصول ثابتة)
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-warning text-dark me-1">الخصوم</span>
+                            ما تدين به الشركة (قروض، موردون)
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-info me-1">حقوق الملكية</span>
+                            رأس المال والأرباح المحتجزة
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-primary me-1">الإيرادات</span>
+                            دخل الشركة من المبيعات والخدمات
+                        </li>
+                        <li class="mb-0">
+                            <span class="badge bg-danger me-1">المصروفات</span>
+                            تكاليف التشغيل والنفقات
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">الرمز يجب أن يكون فريداً ومختصراً</li>
+                        <li class="mb-2">الأصول والمصروفات طبيعتها <strong>مدينة</strong></li>
+                        <li class="mb-2">الخصوم والإيرادات وحقوق الملكية طبيعتها <strong>دائنة</strong></li>
+                        <li class="mb-0">لا يمكن حذف النوع إذا كانت هناك حسابات مرتبطة</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted">عدد الحسابات:</span>
+                        <span class="badge bg-primary fs-6">{{ object.accounts.count }}</span>
+                    </div>
+                    <hr>
+                    <small class="text-muted">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    // تحسين تجربة المستخدم
-    $('form').on('submit', function() {
-        $('button[type="submit"]').prop('disabled', true).html(
-            '<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...'
-        );
+    // Initialize Select2
+    $('#id_type_category').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر تصنيف الحساب',
+        allowClear: false,
+        language: {
+            noResults: function() {
+                return "لا توجد نتائج";
+            },
+            searching: function() {
+                return "جاري البحث...";
+            }
+        },
+        templateResult: formatTypeCategory,
+        templateSelection: formatTypeCategorySelection
     });
 
-    // تنبيه عند مغادرة الصفحة بدون حفظ
+    $('#id_normal_balance').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الرصيد الطبيعي',
+        allowClear: false,
+        minimumResultsForSearch: -1,
+        templateResult: formatBalance,
+        templateSelection: formatBalanceSelection
+    });
+
+    function formatTypeCategory(option) {
+        if (!option.id) return option.text;
+        var icons = {
+            'assets': '<i class="fas fa-building text-success me-2"></i>',
+            'liabilities': '<i class="fas fa-hand-holding-usd text-warning me-2"></i>',
+            'equity': '<i class="fas fa-balance-scale text-info me-2"></i>',
+            'revenue': '<i class="fas fa-arrow-up text-primary me-2"></i>',
+            'expenses': '<i class="fas fa-arrow-down text-danger me-2"></i>'
+        };
+        return $('<span>' + (icons[option.id] || '') + option.text + '</span>');
+    }
+
+    function formatTypeCategorySelection(option) {
+        return option.text;
+    }
+
+    function formatBalance(option) {
+        if (!option.id) return option.text;
+        var badges = {
+            'debit': '<span class="badge bg-success me-2">مدين</span>',
+            'credit': '<span class="badge bg-primary me-2">دائن</span>'
+        };
+        return $('<span>' + (badges[option.id] || '') + option.text + '</span>');
+    }
+
+    function formatBalanceSelection(option) {
+        return option.text;
+    }
+
+    // Auto-suggest
+    $('#id_type_category').on('change', function() {
+        var category = $(this).val();
+        var balanceField = $('#id_normal_balance');
+        if (!balanceField.val()) {
+            if (category === 'assets' || category === 'expenses') {
+                balanceField.val('debit').trigger('change');
+            } else if (category === 'liabilities' || category === 'equity' || category === 'revenue') {
+                balanceField.val('credit').trigger('change');
+            }
+        }
+    });
+
+    // Form tracking
     var formChanged = false;
-    $('form input, form select, form textarea').on('change', function() {
+    $('form input, form select').on('change', function() {
         formChanged = true;
     });
 
     $(window).on('beforeunload', function() {
         if (formChanged) {
-            return 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
         }
     });
 
     $('form').on('submit', function() {
         formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

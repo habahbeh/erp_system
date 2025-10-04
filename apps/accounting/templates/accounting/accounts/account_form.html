@@ -1,14 +1,134 @@
-<!-- templates/accounting/accounts/account_form.html -->
+<!-- apps/accounting/templates/accounting/accounts/account_form.html -->
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
 .form-control:focus, .form-select:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
 }
 
 .help-text {
@@ -26,31 +146,35 @@
 .error-list li {
     color: #dc3545;
     font-size: 0.875rem;
-    margin-bottom: 0.25rem;
-}
-
-.info-box {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
     border-radius: 0.375rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 
-.form-section {
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    background: #fafafa;
+.required-field::after {
+    content: " *";
+    color: #dc3545;
 }
 
-.form-section h6 {
-    color: #495057;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid #e9ecef;
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.form-check-input {
+    cursor: pointer;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
 }
 </style>
 {% endblock %}
@@ -58,11 +182,11 @@
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             {% for breadcrumb in breadcrumbs %}
                 {% if forloop.last %}
-                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
                 {% else %}
                     <li class="breadcrumb-item">
                         <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
@@ -72,27 +196,31 @@
         </ol>
     </nav>
 
-    <!-- Header -->
+    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
-            <p class="text-muted mb-0">{% trans "إدخال بيانات الحساب المحاسبي" %}</p>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات الحساب المحاسبي" %}
+                {% else %}
+                    {% trans "إضافة حساب جديد إلى دليل الحسابات" %}
+                {% endif %}
+            </p>
         </div>
-        <div>
-            <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right"></i> {% trans "العودة للقائمة" %}
-            </a>
-        </div>
+        <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
     </div>
 
     <div class="row">
-        <div class="col-lg-10 mx-auto">
-            <!-- Form Card -->
-            <div class="card shadow-sm">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-sitemap me-2"></i>
-                        {% if object %}{% trans "تعديل الحساب" %}{% else %}{% trans "إضافة حساب جديد" %}{% endif %}
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        {% if object %}{% trans "تعديل الحساب" %}{% else %}{% trans "بيانات الحساب" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
@@ -100,46 +228,61 @@
                         {% csrf_token %}
 
                         <!-- المعلومات الأساسية -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-info-circle me-2"></i>المعلومات الأساسية</h6>
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
                             <div class="row g-3">
+                                <!-- Code -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.code.id_for_label }}" class="form-label">
-                                        {{ form.code.label }} <span class="text-danger">*</span>
+                                    <label for="{{ form.code.id_for_label }}" class="form-label required-field">
+                                        {{ form.code.label }}
                                     </label>
                                     {{ form.code|add_class:"form-control" }}
+                                    {% if form.code.help_text %}
+                                        <div class="help-text">{{ form.code.help_text }}</div>
+                                    {% endif %}
                                     {% if form.code.errors %}
                                         <ul class="error-list">
                                             {% for error in form.code.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Name -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.name.id_for_label }}" class="form-label">
-                                        {{ form.name.label }} <span class="text-danger">*</span>
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                        {{ form.name.label }}
                                     </label>
                                     {{ form.name|add_class:"form-control" }}
+                                    {% if form.name.help_text %}
+                                        <div class="help-text">{{ form.name.help_text }}</div>
+                                    {% endif %}
                                     {% if form.name.errors %}
                                         <ul class="error-list">
                                             {% for error in form.name.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Name EN -->
                                 <div class="col-md-4">
                                     <label for="{{ form.name_en.id_for_label }}" class="form-label">
                                         {{ form.name_en.label }}
                                     </label>
                                     {{ form.name_en|add_class:"form-control" }}
+                                    {% if form.name_en.help_text %}
+                                        <div class="help-text">{{ form.name_en.help_text }}</div>
+                                    {% endif %}
                                     {% if form.name_en.errors %}
                                         <ul class="error-list">
                                             {% for error in form.name_en.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
@@ -148,46 +291,61 @@
                         </div>
 
                         <!-- التصنيف والهيكل -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-sitemap me-2"></i>التصنيف والهيكل</h6>
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sitemap me-2"></i>التصنيف والهيكل
+                            </h6>
+
                             <div class="row g-3">
+                                <!-- Account Type -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.account_type.id_for_label }}" class="form-label">
-                                        {{ form.account_type.label }} <span class="text-danger">*</span>
+                                    <label for="{{ form.account_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.account_type.label }}
                                     </label>
                                     {{ form.account_type|add_class:"form-select" }}
+                                    {% if form.account_type.help_text %}
+                                        <div class="help-text">{{ form.account_type.help_text }}</div>
+                                    {% endif %}
                                     {% if form.account_type.errors %}
                                         <ul class="error-list">
                                             {% for error in form.account_type.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Parent Account -->
                                 <div class="col-md-4">
                                     <label for="{{ form.parent.id_for_label }}" class="form-label">
                                         {{ form.parent.label }}
                                     </label>
                                     {{ form.parent|add_class:"form-select" }}
+                                    {% if form.parent.help_text %}
+                                        <div class="help-text">{{ form.parent.help_text }}</div>
+                                    {% endif %}
                                     {% if form.parent.errors %}
                                         <ul class="error-list">
                                             {% for error in form.parent.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Nature -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.nature.id_for_label }}" class="form-label">
-                                        {{ form.nature.label }} <span class="text-danger">*</span>
+                                    <label for="{{ form.nature.id_for_label }}" class="form-label required-field">
+                                        {{ form.nature.label }}
                                     </label>
                                     {{ form.nature|add_class:"form-select" }}
+                                    {% if form.nature.help_text %}
+                                        <div class="help-text">{{ form.nature.help_text }}</div>
+                                    {% endif %}
                                     {% if form.nature.errors %}
                                         <ul class="error-list">
                                             {% for error in form.nature.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
@@ -196,46 +354,61 @@
                         </div>
 
                         <!-- الإعدادات المالية -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-coins me-2"></i>الإعدادات المالية</h6>
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-coins me-2"></i>الإعدادات المالية
+                            </h6>
+
                             <div class="row g-3">
+                                <!-- Currency -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.currency.id_for_label }}" class="form-label">
-                                        {{ form.currency.label }} <span class="text-danger">*</span>
+                                    <label for="{{ form.currency.id_for_label }}" class="form-label required-field">
+                                        {{ form.currency.label }}
                                     </label>
                                     {{ form.currency|add_class:"form-select" }}
+                                    {% if form.currency.help_text %}
+                                        <div class="help-text">{{ form.currency.help_text }}</div>
+                                    {% endif %}
                                     {% if form.currency.errors %}
                                         <ul class="error-list">
                                             {% for error in form.currency.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Opening Balance -->
                                 <div class="col-md-4">
                                     <label for="{{ form.opening_balance.id_for_label }}" class="form-label">
                                         {{ form.opening_balance.label }}
                                     </label>
                                     {{ form.opening_balance|add_class:"form-control" }}
+                                    {% if form.opening_balance.help_text %}
+                                        <div class="help-text">{{ form.opening_balance.help_text }}</div>
+                                    {% endif %}
                                     {% if form.opening_balance.errors %}
                                         <ul class="error-list">
                                             {% for error in form.opening_balance.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
                                 </div>
 
+                                <!-- Opening Balance Date -->
                                 <div class="col-md-4">
                                     <label for="{{ form.opening_balance_date.id_for_label }}" class="form-label">
                                         {{ form.opening_balance_date.label }}
                                     </label>
                                     {{ form.opening_balance_date|add_class:"form-control" }}
+                                    {% if form.opening_balance_date.help_text %}
+                                        <div class="help-text">{{ form.opening_balance_date.help_text }}</div>
+                                    {% endif %}
                                     {% if form.opening_balance_date.errors %}
                                         <ul class="error-list">
                                             {% for error in form.opening_balance_date.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
@@ -244,57 +417,81 @@
                         </div>
 
                         <!-- خصائص الحساب -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-cogs me-2"></i>خصائص الحساب</h6>
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-cogs me-2"></i>خصائص الحساب
+                            </h6>
+
                             <div class="row g-3">
                                 <div class="col-md-3">
-                                    <div class="form-check">
+                                    <div class="form-check form-switch">
                                         {{ form.accept_entries|add_class:"form-check-input" }}
                                         <label class="form-check-label" for="{{ form.accept_entries.id_for_label }}">
                                             {{ form.accept_entries.label }}
                                         </label>
+                                        {% if form.accept_entries.help_text %}
+                                            <div class="help-text">{{ form.accept_entries.help_text }}</div>
+                                        {% endif %}
                                     </div>
                                 </div>
+
                                 <div class="col-md-3">
-                                    <div class="form-check">
+                                    <div class="form-check form-switch">
                                         {{ form.is_cash_account|add_class:"form-check-input" }}
                                         <label class="form-check-label" for="{{ form.is_cash_account.id_for_label }}">
                                             {{ form.is_cash_account.label }}
                                         </label>
+                                        {% if form.is_cash_account.help_text %}
+                                            <div class="help-text">{{ form.is_cash_account.help_text }}</div>
+                                        {% endif %}
                                     </div>
                                 </div>
+
                                 <div class="col-md-3">
-                                    <div class="form-check">
+                                    <div class="form-check form-switch">
                                         {{ form.is_bank_account|add_class:"form-check-input" }}
                                         <label class="form-check-label" for="{{ form.is_bank_account.id_for_label }}">
                                             {{ form.is_bank_account.label }}
                                         </label>
+                                        {% if form.is_bank_account.help_text %}
+                                            <div class="help-text">{{ form.is_bank_account.help_text }}</div>
+                                        {% endif %}
                                     </div>
                                 </div>
+
                                 <div class="col-md-3">
-                                    <div class="form-check">
+                                    <div class="form-check form-switch">
                                         {{ form.is_suspended|add_class:"form-check-input" }}
                                         <label class="form-check-label" for="{{ form.is_suspended.id_for_label }}">
                                             {{ form.is_suspended.label }}
                                         </label>
+                                        {% if form.is_suspended.help_text %}
+                                            <div class="help-text">{{ form.is_suspended.help_text }}</div>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- ملاحظات -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-sticky-note me-2"></i>ملاحظات</h6>
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                            </h6>
+
                             <div class="row">
                                 <div class="col-12">
                                     <label for="{{ form.notes.id_for_label }}" class="form-label">
                                         {{ form.notes.label }}
                                     </label>
                                     {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
                                     {% if form.notes.errors %}
                                         <ul class="error-list">
                                             {% for error in form.notes.errors %}
-                                                <li>{{ error }}</li>
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
@@ -302,72 +499,232 @@
                             </div>
                         </div>
 
-                        <!-- معلومات مساعدة -->
-                        <div class="info-box">
-                            <h6><i class="fas fa-lightbulb me-2"></i>معلومات مساعدة:</h6>
-                            <ul class="mb-0">
-                                <li><strong>رمز الحساب:</strong> يجب أن يكون فريداً ومناسباً للترتيب الهرمي</li>
-                                <li><strong>الحساب الأب:</strong> اتركه فارغاً لإنشاء حساب رئيسي</li>
-                                <li><strong>يقبل قيود مباشرة:</strong> الحسابات الأب لا تقبل قيود مباشرة</li>
-                                <li><strong>الحد الأقصى:</strong> 4 مستويات هرمية</li>
-                            </ul>
-                        </div>
-
-                        <!-- أزرار الإجراءات -->
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-arrow-right me-2"></i>العودة
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'accounting:account_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
-
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>
-                                {% if object %}تحديث{% else %}إضافة{% endif %}
-                            </button>
+                            <div>
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة آخر
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث الحساب{% else %}حفظ الحساب{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            رمز الحساب يجب أن يكون فريداً
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            الحد الأقصى 4 مستويات هرمية
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            الحسابات الأب لا تقبل قيود مباشرة
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            اترك الحساب الأب فارغاً للحسابات الرئيسية
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">يمكن استخدام الأرقام والحروف في الرمز</li>
+                        <li class="mb-2">نوع الحساب يجب أن يطابق نوع الحساب الأب</li>
+                        <li class="mb-2">الرصيد الافتتاحي اختياري</li>
+                        <li class="mb-0">الحسابات النقدية والبنكية لا يمكن أن تكون معاً</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">المستوى:</span>
+                        <span class="badge bg-info">{{ object.level }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الحسابات الفرعية:</span>
+                        <span class="badge bg-primary">{{ object.children.count }}</span>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    // تحسين تجربة المستخدم
-    $('form').on('submit', function() {
-        $('button[type="submit"]').prop('disabled', true).html(
-            '<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...'
-        );
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Account Type
+    $('#id_account_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع الحساب',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
     });
 
-    // تنبيه عند مغادرة الصفحة بدون حفظ
+    // Parent Account
+    $('#id_parent').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الحساب الأب (اختياري)',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function () {
+                return "لا توجد نتائج";
+            },
+            searching: function () {
+                return "جاري البحث...";
+            }
+        },
+        templateResult: formatParentAccount,
+        templateSelection: formatParentAccountSelection
+    });
+
+    function formatParentAccount(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        var $option = $(option.element);
+        var level = $option.data('level') || 0;
+        var indent = '&nbsp;&nbsp;&nbsp;'.repeat(level);
+
+        return $('<span>' + indent + option.text + '</span>');
+    }
+
+    function formatParentAccountSelection(option) {
+        return option.text;
+    }
+
+    // Currency
+    $('#id_currency').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر العملة',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Nature
+    $('#id_nature').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر طبيعة الحساب',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Form Validation & Logic
+    // ==============================
+
+    // Check parent account accepts entries
+    $('#id_parent').on('change', function() {
+        var parentId = $(this).val();
+        if (parentId) {
+            // يمكن إضافة Ajax للتحقق من الحساب الأب
+            console.log('Parent account selected:', parentId);
+        }
+    });
+
+    // Prevent both cash and bank
+    $('#id_is_cash_account').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#id_is_bank_account').prop('checked', false);
+        }
+    });
+
+    $('#id_is_bank_account').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#id_is_cash_account').prop('checked', false);
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
     var formChanged = false;
+
     $('form input, form select, form textarea').on('change', function() {
         formChanged = true;
     });
 
     $(window).on('beforeunload', function() {
         if (formChanged) {
-            return 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
         }
     });
 
     $('form').on('submit', function() {
         formChanged = false;
-    });
-
-    $('#id_parent').on('change', function () {
-        var parentId = $(this).val();
-        if (parentId) {
-            // التحقق عبر Ajax مما إذا كان الحساب الأب يقبل قيود
-            $.get('/accounting/ajax/check-parent/', {parent_id: parentId}, function (data) {
-                if (data.accepts_entries) {
-                    alert('تحذير: الحساب الأب المحدد يقبل قيود مباشرة. سيتم تعديله تلقائياً.');
-                }
-            });
-        }
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

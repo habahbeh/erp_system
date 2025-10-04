@@ -1,258 +1,351 @@
-<!-- templates/accounting/fiscal/fiscal_year_detail.html -->
+{# apps/accounting/templates/accounting/fiscal/fiscal_year_detail.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">{{ title }}</h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    {% for crumb in breadcrumbs %}
-                        {% if forloop.last %}
-                            <li class="breadcrumb-item active">{{ crumb.title }}</li>
-                        {% else %}
-                            <li class="breadcrumb-item">
-                                <a href="{{ crumb.url }}">{{ crumb.title }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ol>
-            </nav>
-        </div>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
 
-        <div class="btn-group">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ fiscal_year.name }}</h1>
+            <p class="text-muted mb-1">{{ fiscal_year.code }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-primary fs-6">{{ fiscal_year.code }}</span>
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-calendar"></i> {{ fiscal_year.start_date|date:"Y/m/d" }} - {{ fiscal_year.end_date|date:"Y/m/d" }}
+                </span>
+                {% if fiscal_year.is_closed %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-lock"></i> {% trans "مقفلة" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشطة" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
             {% if can_edit %}
-            <a href="{% url 'accounting:fiscal_year_update' fiscal_year.pk %}" class="btn btn-primary">
-                <i class="fas fa-edit me-2"></i>تعديل
+            <a href="{% url 'accounting:fiscal_year_update' fiscal_year.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
-
             {% if can_create_periods %}
             <button type="button" class="btn btn-success" onclick="showCreatePeriodsModal()">
-                <i class="fas fa-plus me-2"></i>إنشاء فترات
+                <i class="fas fa-plus"></i> {% trans "إنشاء فترات" %}
             </button>
             {% endif %}
-
             {% if can_delete %}
-            <a href="{% url 'accounting:fiscal_year_delete' fiscal_year.pk %}" class="btn btn-outline-danger">
-                <i class="fas fa-trash me-2"></i>حذف
+            <a href="{% url 'accounting:fiscal_year_delete' fiscal_year.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
             </a>
             {% endif %}
+            <a href="{% url 'accounting:fiscal_year_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
         </div>
     </div>
 
     <div class="row">
-        <!-- Main Info -->
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>معلومات السنة المالية
-                    </h5>
+        <!-- معلومات السنة المالية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات السنة المالية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-4">
                         <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th width="40%">اسم السنة المالية:</th>
-                                    <td><strong>{{ fiscal_year.name }}</strong></td>
-                                </tr>
-                                <tr>
-                                    <th>الرمز:</th>
-                                    <td><code>{{ fiscal_year.code }}</code></td>
-                                </tr>
-                                <tr>
-                                    <th>تاريخ البداية:</th>
-                                    <td>{{ fiscal_year.start_date|date:"l، j F Y" }}</td>
-                                </tr>
-                                <tr>
-                                    <th>تاريخ النهاية:</th>
-                                    <td>{{ fiscal_year.end_date|date:"l، j F Y" }}</td>
-                                </tr>
-                            </table>
+                            <h6 class="text-muted mb-1">{% trans "رمز السنة المالية" %}</h6>
+                            <p class="mb-0 fs-5"><code class="bg-light text-primary px-2 py-1 rounded">{{ fiscal_year.code }}</code></p>
                         </div>
+
                         <div class="col-md-6">
-                            <table class="table table-borderless">
+                            <h6 class="text-muted mb-1">{% trans "اسم السنة المالية" %}</h6>
+                            <p class="mb-0 fs-5">{{ fiscal_year.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ البداية" %}</h6>
+                            <p class="mb-0">{{ fiscal_year.start_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ النهاية" %}</h6>
+                            <p class="mb-0">{{ fiscal_year.end_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المدة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ stats.days_count }} يوم</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            <p class="mb-0">
+                                {% if fiscal_year.is_closed %}
+                                    <span class="badge bg-danger fs-6">مقفلة</span>
+                                {% else %}
+                                    <span class="badge bg-success fs-6">نشطة</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- إحصائيات الفترات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الفترات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ stats.periods_count }}</h3>
+                                <small class="text-muted">{% trans "إجمالي الفترات" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ stats.active_periods }}</h3>
+                                <small class="text-muted">{% trans "فترات نشطة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-danger mb-0">{{ stats.closed_periods }}</h3>
+                                <small class="text-muted">{% trans "فترات مقفلة" %}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if can_create_periods and not periods %}
+                    <div class="text-center mt-4">
+                        <button type="button" class="btn btn-primary" onclick="showCreatePeriodsModal()">
+                            <i class="fas fa-plus"></i> {% trans "إنشاء فترات محاسبية" %}
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- الفترات المحاسبية -->
+            {% if periods %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-calendar"></i> {% trans "الفترات المحاسبية" %}
+                    </h6>
+                    {% if can_create_periods %}
+                    <button type="button" class="btn btn-success btn-sm" onclick="showCreatePeriodsModal()">
+                        <i class="fas fa-plus"></i> {% trans "إضافة فترة" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <th width="40%">المدة:</th>
-                                    <td>
-                                        <span class="badge bg-info">{{ stats.days_count }} يوم</span>
-                                    </td>
+                                    <th>{% trans "اسم الفترة" %}</th>
+                                    <th>{% trans "تاريخ البداية" %}</th>
+                                    <th>{% trans "تاريخ النهاية" %}</th>
+                                    <th>{% trans "المدة" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th>{% trans "الإجراءات" %}</th>
                                 </tr>
+                            </thead>
+                            <tbody>
+                                {% for period in periods %}
                                 <tr>
-                                    <th>الحالة:</th>
+                                    <td><strong>{{ period.name }}</strong></td>
+                                    <td>{{ period.start_date|date:"Y/m/d" }}</td>
+                                    <td>{{ period.end_date|date:"Y/m/d" }}</td>
                                     <td>
-                                        {% if fiscal_year.is_closed %}
+                                        {% with days=period.end_date|timesince:period.start_date %}
+                                            <span class="badge bg-info">{{ days }}</span>
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        {% if period.is_adjustment %}
+                                            <span class="badge bg-warning text-dark">تسويات</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">عادية</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if period.is_closed %}
                                             <span class="badge bg-danger">مقفلة</span>
                                         {% else %}
                                             <span class="badge bg-success">نشطة</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'accounting:period_detail' period.pk %}"
+                                               class="btn btn-outline-info btn-sm" title="عرض">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if not period.is_closed %}
+                                            <a href="{% url 'accounting:period_update' period.pk %}"
+                                               class="btn btn-outline-primary btn-sm" title="تعديل">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                 </tr>
-                                <tr>
-                                    <th>تاريخ الإنشاء:</th>
-                                    <td>{{ fiscal_year.created_at|date:"Y/m/d H:i" }}</td>
-                                </tr>
-                                <tr>
-                                    <th>أنشئ بواسطة:</th>
-                                    <td>{{ fiscal_year.created_by.get_full_name|default:fiscal_year.created_by.username }}</td>
-                                </tr>
-                            </table>
-                        </div>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'accounting:period_list' %}?fiscal_year={{ fiscal_year.pk }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الفترات" %}
+                        </a>
                     </div>
                 </div>
             </div>
-
-            <!-- Periods List -->
-            <div class="card mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-calendar me-2"></i>الفترات المحاسبية
-                    </h5>
-
+            {% else %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                    <p class="text-muted mb-3">لم يتم إنشاء فترات محاسبية لهذه السنة بعد</p>
                     {% if can_create_periods %}
-                    <button type="button" class="btn btn-success btn-sm" onclick="showCreatePeriodsModal()">
-                        <i class="fas fa-plus me-1"></i>إنشاء فترات
+                    <button type="button" class="btn btn-primary" onclick="showCreatePeriodsModal()">
+                        <i class="fas fa-plus"></i> {% trans "إنشاء فترات محاسبية" %}
                     </button>
                     {% endif %}
                 </div>
-                <div class="card-body">
-                    {% if periods %}
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>اسم الفترة</th>
-                                        <th>تاريخ البداية</th>
-                                        <th>تاريخ النهاية</th>
-                                        <th>المدة</th>
-                                        <th>نوع الفترة</th>
-                                        <th>الحالة</th>
-                                        <th>الإجراءات</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for period in periods %}
-                                    <tr>
-                                        <td><strong>{{ period.name }}</strong></td>
-                                        <td>{{ period.start_date|date:"Y/m/d" }}</td>
-                                        <td>{{ period.end_date|date:"Y/m/d" }}</td>
-                                        <td>
-                                            {% with days=period.end_date|timeuntil:period.start_date %}
-                                                {{ days|floatformat:0 }} يوم
-                                            {% endwith %}
-                                        </td>
-                                        <td>
-                                            {% if period.is_adjustment %}
-                                                <span class="badge bg-warning">تسويات</span>
-                                            {% else %}
-                                                <span class="badge bg-primary">عادية</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if period.is_closed %}
-                                                <span class="badge bg-danger">مقفلة</span>
-                                            {% else %}
-                                                <span class="badge bg-success">نشطة</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <div class="btn-group" role="group">
-                                                <a href="{% url 'accounting:period_detail' period.pk %}"
-                                                   class="btn btn-outline-info btn-sm" title="عرض">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                {% if not period.is_closed %}
-                                                <a href="{% url 'accounting:period_update' period.pk %}"
-                                                   class="btn btn-outline-primary btn-sm" title="تعديل">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-4">
-                            <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">لم يتم إنشاء فترات محاسبية لهذه السنة بعد</p>
-                            {% if can_create_periods %}
-                            <button type="button" class="btn btn-primary" onclick="showCreatePeriodsModal()">
-                                <i class="fas fa-plus me-2"></i>إنشاء فترات محاسبية
-                            </button>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
             </div>
+            {% endif %}
         </div>
 
-        <!-- Stats Sidebar -->
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-chart-bar me-2"></i>إحصائيات سريعة
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>عدد الفترات:</span>
-                        <span class="badge bg-primary">{{ stats.periods_count }}</span>
-                    </div>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ fiscal_year.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ fiscal_year.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if fiscal_year.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong>
+                        {{ fiscal_year.created_by.get_full_name|default:fiscal_year.created_by.username }}
+                    </small>
+                    {% else %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong> غير محدد
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
 
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>الفترات النشطة:</span>
-                        <span class="badge bg-success">{{ stats.active_periods }}</span>
-                    </div>
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_edit %}
+                        <a href="{% url 'accounting:fiscal_year_update' fiscal_year.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل السنة المالية" %}
+                        </a>
+                        {% endif %}
 
-                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>الفترات المقفلة:</span>
-                        <span class="badge bg-danger">{{ stats.closed_periods }}</span>
-                    </div>
+                        {% if can_create_periods and not periods %}
+                        <button type="button" class="btn btn-outline-success" onclick="showCreatePeriodsModal()">
+                            <i class="fas fa-plus"></i> {% trans "إنشاء فترات محاسبية" %}
+                        </button>
+                        {% endif %}
 
-                    <div class="d-flex justify-content-between align-items-center py-2">
-                        <span>مدة السنة:</span>
-                        <span class="badge bg-info">{{ stats.days_count }} يوم</span>
+                        {% if periods %}
+                        <a href="#" class="btn btn-outline-primary" onclick="showComingSoon('تقرير السنة المالية')">
+                            <i class="fas fa-file-pdf"></i> {% trans "تقرير السنة المالية" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-info" onclick="showComingSoon('التقارير المالية')">
+                            <i class="fas fa-chart-line"></i> {% trans "التقارير المالية" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_delete and not periods.exists %}
+                        <a href="{% url 'accounting:fiscal_year_delete' fiscal_year.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i> {% trans "حذف السنة المالية" %}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card mt-3">
-                <div class="card-header">
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-bolt me-2"></i>إجراءات سريعة
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    {% if can_edit %}
-                    <a href="{% url 'accounting:fiscal_year_update' fiscal_year.pk %}"
-                       class="btn btn-outline-primary btn-sm w-100 mb-2">
-                        <i class="fas fa-edit me-2"></i>تعديل السنة المالية
-                    </a>
-                    {% endif %}
-
-                    {% if periods %}
-                    <button type="button" class="btn btn-outline-info btn-sm w-100 mb-2"
-                            onclick="generateReport()">
-                        <i class="fas fa-file-pdf me-2"></i>تقرير السنة المالية
-                    </button>
-                    {% endif %}
-
-                    <a href="{% url 'accounting:fiscal_year_list' %}"
-                       class="btn btn-outline-secondary btn-sm w-100">
-                        <i class="fas fa-arrow-left me-2"></i>العودة للقائمة
-                    </a>
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "المدة الإجمالية" %}:</strong> {{ stats.days_count }} يوم
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "عدد الفترات" %}:</strong> {{ stats.periods_count }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "الفترات النشطة" %}:</strong> {{ stats.active_periods }}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            {% if fiscal_year.is_closed %}
+                                هذه السنة مقفلة ولا يمكن التعديل عليها
+                            {% else %}
+                                يمكن إضافة وتعديل الفترات المحاسبية
+                            {% endif %}
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -265,14 +358,16 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">إنشاء فترات محاسبية</h5>
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus"></i> {% trans "إنشاء فترات محاسبية" %}
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="createPeriodsForm">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">نوع الفترات</label>
+                        <label class="form-label">{% trans "نوع الفترات" %}</label>
                         <select class="form-select" name="period_type" required>
                             <option value="monthly">شهرية (12 فترة)</option>
                             <option value="quarterly">ربع سنوية (4 فترات)</option>
@@ -285,13 +380,22 @@
                         <input class="form-check-input" type="checkbox" name="create_adjustment_period"
                                id="createAdjustment" checked>
                         <label class="form-check-label" for="createAdjustment">
-                            إنشاء فترة تسويات
+                            {% trans "إنشاء فترة تسويات" %}
                         </label>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i>
+                        <small>سيتم إنشاء الفترات المحاسبية تلقائياً بناءً على تواريخ السنة المالية</small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                    <button type="submit" class="btn btn-primary">إنشاء الفترات</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i> {% trans "إنشاء الفترات" %}
+                    </button>
                 </div>
             </form>
         </div>
@@ -302,6 +406,16 @@
 
 {% block extra_js %}
 <script>
+function showComingSoon(feature) {
+    Swal.fire({
+        icon: 'info',
+        title: '{% trans "قريباً" %}',
+        text: `وحدة ${feature} {% trans "قيد التطوير وستكون متاحة قريباً" %}`,
+        confirmButtonText: '{% trans "حسناً" %}',
+        confirmButtonColor: '#0d6efd'
+    });
+}
+
 {% if can_create_periods %}
 function showCreatePeriodsModal() {
     new bootstrap.Modal(document.getElementById('createPeriodsModal')).show();
@@ -311,6 +425,8 @@ $('#createPeriodsForm').on('submit', function(e) {
     e.preventDefault();
 
     const formData = new FormData(this);
+    const submitBtn = $(this).find('button[type="submit"]');
+    submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...');
 
     $.ajax({
         url: '{% url "accounting:create_periods_ajax" fiscal_year.pk %}',
@@ -337,25 +453,19 @@ $('#createPeriodsForm').on('submit', function(e) {
                     title: 'خطأ',
                     text: response.message
                 });
+                submitBtn.prop('disabled', false).html('<i class="fas fa-check"></i> إنشاء الفترات');
             }
         },
-        error: function() {
+        error: function(xhr) {
             Swal.fire({
                 icon: 'error',
                 title: 'خطأ',
                 text: 'حدث خطأ في إنشاء الفترات'
             });
+            submitBtn.prop('disabled', false).html('<i class="fas fa-check"></i> إنشاء الفترات');
         }
     });
 });
 {% endif %}
-
-function generateReport() {
-    Swal.fire({
-        icon: 'info',
-        title: 'قريباً',
-        text: 'ميزة تقرير السنة المالية قيد التطوير'
-    });
-}
 </script>
 {% endblock %}

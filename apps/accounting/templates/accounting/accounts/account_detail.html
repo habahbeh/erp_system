@@ -1,36 +1,8 @@
-{# apps/accounting/templates/accounting/accounts/account_detail.html#}
-
+{# apps/accounting/templates/accounting/accounts/account_detail.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
-
-{% block extra_css %}
-<style>
-.account-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 15px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-.info-card {
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    margin-bottom: 1.5rem;
-}
-
-.stat-card {
-    text-align: center;
-    padding: 1.5rem;
-    background: #f8f9fa;
-    border-radius: 10px;
-    margin-bottom: 1rem;
-}
-</style>
-{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -49,111 +21,212 @@
         </ol>
     </nav>
 
-    <!-- Account Header -->
-    <div class="account-header">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fas fa-sitemap me-2"></i>
-                    {{ account.name }}
-                </h2>
-                <p class="mb-0">
-                    <strong>الرمز:</strong> {{ account.code }} |
-                    <strong>النوع:</strong> {{ account.account_type.name }}
-                </p>
-            </div>
-            <div class="col-md-4 text-end">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ account.name }}</h1>
+            <p class="text-muted mb-1">{{ account.code }} - {{ account.account_type.name }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-primary fs-6">{{ account.code }}</span>
+                <span class="badge bg-info fs-6">{{ account.currency.name }} ({{ account.currency.code }})</span>
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-layer-group"></i> {% trans "المستوى" %} {{ account.level }}
+                </span>
                 {% if account.is_suspended %}
-                    <span class="badge badge-lg bg-danger">موقوف</span>
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-ban"></i> {% trans "موقوف" %}
+                    </span>
                 {% else %}
-                    <span class="badge badge-lg bg-success">نشط</span>
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشط" %}
+                    </span>
+                {% endif %}
+                {% if account.accept_entries %}
+                    <span class="badge bg-warning text-dark fs-6">
+                        <i class="fas fa-pen"></i> {% trans "يقبل قيود" %}
+                    </span>
                 {% endif %}
             </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_edit %}
+            <a href="{% url 'accounting:account_update' account.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{% url 'accounting:account_delete' account.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'accounting:account_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
         </div>
     </div>
 
     <div class="row">
+        <!-- معلومات الحساب -->
         <div class="col-lg-8">
-            <!-- Account Info -->
-            <div class="info-card">
-                <div class="card-header">
-                    <h5><i class="fas fa-info-circle me-2"></i>معلومات الحساب</h5>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات الحساب" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-4">
                         <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th>الاسم العربي:</th>
-                                    <td>{{ account.name }}</td>
-                                </tr>
-                                <tr>
-                                    <th>الاسم الإنجليزي:</th>
-                                    <td>{{ account.name_en|default:"-" }}</td>
-                                </tr>
-                                <tr>
-                                    <th>نوع الحساب:</th>
-                                    <td>{{ account.account_type.name }}</td>
-                                </tr>
-                                <tr>
-                                    <th>العملة:</th>
-                                    <td>{{ account.currency.name }} ({{ account.currency.code }})</td>
-                                </tr>
-                            </table>
+                            <h6 class="text-muted mb-1">{% trans "رمز الحساب" %}</h6>
+                            <p class="mb-0 fs-5"><code class="bg-light text-primary px-2 py-1 rounded">{{ account.code }}</code></p>
                         </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th>الرصيد الافتتاحي:</th>
-                                    <td>{{ account.opening_balance|floatformat:3 }}</td>
-                                </tr>
-                                <tr>
-                                    <th>المستوى:</th>
-                                    <td>{{ account.level }}</td>
-                                </tr>
-                                <tr>
-                                    <th>يقبل قيود:</th>
-                                    <td>{% if account.accept_entries %}نعم{% else %}لا{% endif %}</td>
-                                </tr>
-                                <tr>
-                                    <th>حساب نقدي:</th>
-                                    <td>{% if account.is_cash_account %}نعم{% else %}لا{% endif %}</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
 
-                    {% if account.notes %}
-                    <div class="mt-3">
-                        <strong>ملاحظات:</strong>
-                        <p class="mt-2">{{ account.notes }}</p>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم الحساب" %}</h6>
+                            <p class="mb-0 fs-5">{{ account.name }}</p>
+                        </div>
+
+                        {% if account.name_en %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الاسم الإنجليزي" %}</h6>
+                            <p class="mb-0">{{ account.name_en }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع الحساب" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ account.account_type.name }}</span>
+                            </p>
+                        </div>
+
+                        {% if account.parent %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحساب الأب" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'accounting:account_detail' account.parent.pk %}" class="text-decoration-none">
+                                    {{ account.parent.code }} - {{ account.parent.name }}
+                                </a>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "العملة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-success fs-6">{{ account.currency.name }} ({{ account.currency.code }})</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "طبيعة الحساب" %}</h6>
+                            <p class="mb-0">
+                                {% if account.nature == 'debit' %}
+                                    <span class="badge bg-success fs-6">مدين</span>
+                                {% elif account.nature == 'credit' %}
+                                    <span class="badge bg-primary fs-6">دائن</span>
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">كلاهما</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الرصيد الافتتاحي" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-warning text-dark fs-6">{{ account.opening_balance|floatformat:3 }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المستوى" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-secondary fs-6">المستوى {{ account.level }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "خصائص الحساب" %}</h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% if account.is_cash_account %}
+                                    <span class="badge bg-success">نقدي</span>
+                                {% endif %}
+                                {% if account.is_bank_account %}
+                                    <span class="badge bg-info">بنكي</span>
+                                {% endif %}
+                                {% if account.accept_entries %}
+                                    <span class="badge bg-warning text-dark">يقبل قيود</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if account.notes %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "ملاحظات" %}</h6>
+                            <p class="mb-0">{{ account.notes }}</p>
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
                 </div>
             </div>
 
-            <!-- Children Accounts -->
+            <!-- إحصائيات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الحساب" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ account_stats.children_count }}</h3>
+                                <small class="text-muted">{% trans "حساب فرعي" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ account_stats.current_balance|floatformat:3 }}</h3>
+                                <small class="text-muted">{% trans "الرصيد الحالي" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">0</h3>
+                                <small class="text-muted">{% trans "عدد القيود" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الحسابات الفرعية -->
             {% if account.children.exists %}
-            <div class="info-card">
-                <div class="card-header">
-                    <h5><i class="fas fa-sitemap me-2"></i>الحسابات الفرعية</h5>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sitemap"></i> {% trans "الحسابات الفرعية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <th>الرمز</th>
-                                    <th>الاسم</th>
-                                    <th>الحالة</th>
-                                    <th>الإجراءات</th>
+                                    <th>{% trans "الرمز" %}</th>
+                                    <th>{% trans "الاسم" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th>{% trans "الإجراءات" %}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for child in account.children.all %}
                                 <tr>
-                                    <td>{{ child.code }}</td>
-                                    <td>{{ child.name }}</td>
+                                    <td><code>{{ child.code }}</code></td>
+                                    <td>
+                                        <strong>{{ child.name }}</strong>
+                                    </td>
                                     <td>
                                         {% if child.is_suspended %}
                                             <span class="badge bg-danger">موقوف</span>
@@ -171,55 +244,125 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'accounting:account_list' %}"
+                           class="btn btn-sm btn-outline-primary"
+                           onclick="sessionStorage.setItem('filterParentAccount', {{ account.pk }}); return true;">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الحسابات الفرعية" %}
+                        </a>
+                    </div>
                 </div>
             </div>
             {% endif %}
         </div>
 
-        <!-- Sidebar -->
+        <!-- الشريط الجانبي -->
         <div class="col-lg-4">
-            <!-- Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <h6>الإجراءات</h6>
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
                 </div>
-                <div class="card-body d-grid gap-2">
-                    {% if can_edit %}
-                    <a href="{% url 'accounting:account_update' account.pk %}" class="btn btn-primary">
-                        <i class="fas fa-edit me-2"></i>تعديل الحساب
-                    </a>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ account.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ account.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if account.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong> {{ account.created_by.get_full_name|default:account.created_by.username }}
+                    </small>
                     {% endif %}
-
-                    {% if can_delete %}
-                    <a href="{% url 'accounting:account_delete' account.pk %}" class="btn btn-outline-danger">
-                        <i class="fas fa-trash me-2"></i>حذف الحساب
-                    </a>
-                    {% endif %}
-
-                    <hr>
-                    <a href="{% url 'accounting:account_list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-right me-2"></i>العودة للقائمة
-                    </a>
                 </div>
             </div>
 
-            <!-- Statistics -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6>إحصائيات</h6>
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="stat-card">
-                        <h4>{{ account_stats.children_count }}</h4>
-                        <small>حساب فرعي</small>
+                    <div class="d-grid gap-2">
+                        {% if can_edit %}
+                        <a href="{% url 'accounting:account_update' account.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل الحساب" %}
+                        </a>
+                        {% endif %}
+                        <a href="#" class="btn btn-outline-primary" onclick="showComingSoon('كشف الحساب')">
+                            <i class="fas fa-file-alt"></i> {% trans "كشف الحساب" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-success" onclick="showComingSoon('ميزان المراجعة')">
+                            <i class="fas fa-balance-scale"></i> {% trans "ميزان المراجعة" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-info" onclick="showComingSoon('التقارير')">
+                            <i class="fas fa-chart-line"></i> {% trans "التقارير" %}
+                        </a>
+                        {% if can_delete and account.children.count == 0 %}
+                        <a href="{% url 'accounting:account_delete' account.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i> {% trans "حذف الحساب" %}
+                        </a>
+                        {% endif %}
                     </div>
-                    <div class="stat-card">
-                        <h4>{{ account_stats.current_balance|floatformat:3 }}</h4>
-                        <small>الرصيد الحالي</small>
-                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "المستوى الهرمي" %}:</strong> {{ account.level }} من 4
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "عدد الحسابات الفرعية" %}:</strong> {{ account_stats.children_count }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "يقبل قيود مباشرة" %}:</strong>
+                            {% if account.accept_entries %}نعم{% else %}لا{% endif %}
+                        </li>
+                        {% if account.parent %}
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            هذا حساب فرعي من: <strong>{{ account.parent.name }}</strong>
+                        </li>
+                        {% else %}
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            هذا حساب رئيسي (بدون أب)
+                        </li>
+                        {% endif %}
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showComingSoon(feature) {
+    Swal.fire({
+        icon: 'info',
+        title: '{% trans "قريباً" %}',
+        text: `وحدة ${feature} {% trans "قيد التطوير وستكون متاحة قريباً" %}`,
+        confirmButtonText: '{% trans "حسناً" %}',
+        confirmButtonColor: '#0d6efd'
+    });
+}
+</script>
 {% endblock %}
