@@ -161,12 +161,20 @@ urlpatterns = [
     path('ajax/journal-entries/<int:pk>/unpost/', journal_views.unpost_journal_entry, name='unpost_journal_entry'),
 
     # Payment Voucher Actions
+    path('ajax/payment-vouchers/<int:pk>/confirm/', voucher_views.confirm_payment_voucher,
+         name='confirm_payment_voucher'),
     path('ajax/payment-vouchers/<int:pk>/post/', voucher_views.post_payment_voucher, name='post_payment_voucher'),
     path('ajax/payment-vouchers/<int:pk>/unpost/', voucher_views.unpost_payment_voucher, name='unpost_payment_voucher'),
+    path('payment-vouchers/<int:pk>/print-check/', voucher_views.print_payment_check,
+         name='payment_voucher_print_check'),
 
     # Receipt Voucher Actions
+    path('ajax/receipt-vouchers/<int:pk>/confirm/', voucher_views.confirm_receipt_voucher,
+         name='confirm_receipt_voucher'),
     path('ajax/receipt-vouchers/<int:pk>/post/', voucher_views.post_receipt_voucher, name='post_receipt_voucher'),
     path('ajax/receipt-vouchers/<int:pk>/unpost/', voucher_views.unpost_receipt_voucher, name='unpost_receipt_voucher'),
+    path('receipt-vouchers/<int:pk>/print-check/', voucher_views.print_receipt_check,
+         name='receipt_voucher_print_check'),
 
     # Fiscal Year Actions
     path('ajax/fiscal-years/<int:fiscal_year_id>/create-periods/', fiscal_views.create_periods_ajax,

@@ -1,4 +1,4 @@
-{#apps/accounting/templates/accounting/journa/quick_journal_entry.html#}
+{# apps/accounting/templates/accounting/journal/quick_journal_entry.html #}
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
@@ -10,34 +10,154 @@
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
 <style>
-.quick-entry-form {
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.success-card {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+}
+
+.quick-entry-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border-radius: 15px;
     padding: 2rem;
     margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
 }
 
-.form-control:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+.account-box {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 1.5rem;
+    transition: all 0.3s;
+}
+
+.account-box:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0 15px rgba(13, 110, 253, 0.2);
+}
+
+.account-box.debit {
+    border-left: 4px solid #198754;
+}
+
+.account-box.credit {
+    border-left: 4px solid #dc3545;
 }
 
 .amount-display {
-    font-size: 2rem;
-    font-weight: bold;
-    text-align: center;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    margin: 1rem 0;
-}
-
-.account-card {
-    background: rgba(255, 255, 255, 0.1);
+    background: #fff;
+    border: 2px dashed #0d6efd;
     border-radius: 10px;
     padding: 1.5rem;
-    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.amount-display .amount-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.arrow-icon {
+    font-size: 2rem;
+    color: #0d6efd;
+    text-align: center;
+    padding: 1rem 0;
 }
 </style>
 {% endblock %}
@@ -59,123 +179,359 @@
         </ol>
     </nav>
 
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <!-- Quick Entry Form -->
-            <div class="quick-entry-form">
-                <div class="text-center mb-4">
-                    <h2><i class="fas fa-bolt me-2"></i>قيد سريع</h2>
-                    <p class="mb-0">أسرع طريقة لإدخال قيد من سطرين</p>
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إنشاء قيد محاسبي بسيط وسريع (سطرين فقط)" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'accounting:journal_entry_create' %}" class="btn btn-outline-primary me-2">
+                <i class="fas fa-file-invoice me-1"></i> {% trans "قيد مفصل" %}
+            </a>
+            <a href="{% url 'accounting:journal_entry_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Entry Info -->
+    <div class="quick-entry-card">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h4 class="mb-2">
+                    <i class="fas fa-bolt me-2"></i>قيد سريع - بسيط وفعال
+                </h4>
+                <p class="mb-0">أدخل حساب مدين وحساب دائن والمبلغ - وسيتم إنشاء القيد تلقائياً!</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <i class="fas fa-rocket fa-4x opacity-50"></i>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" id="quickJournalForm" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Form Section -->
+            <div class="col-lg-8">
+                <!-- Basic Information -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>معلومات القيد
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Entry Date -->
+                            <div class="col-md-4">
+                                <label for="{{ form.entry_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.entry_date.label }}
+                                </label>
+                                {{ form.entry_date|add_class:"form-control" }}
+                                {% if form.entry_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.entry_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Reference -->
+                            <div class="col-md-8">
+                                <label for="{{ form.reference.id_for_label }}" class="form-label">
+                                    {{ form.reference.label }}
+                                </label>
+                                {{ form.reference|add_class:"form-control" }}
+                                <div class="help-text">
+                                    <i class="fas fa-info-circle text-info"></i>
+                                    رقم المستند أو المرجع (اختياري)
+                                </div>
+                                {% if form.reference.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.reference.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label for="{{ form.description.id_for_label }}" class="form-label required-field">
+                                    {{ form.description.label }}
+                                </label>
+                                {{ form.description|add_class:"form-control" }}
+                                <div class="help-text">
+                                    <i class="fas fa-lightbulb text-warning"></i>
+                                    بيان واضح يصف طبيعة القيد (مثال: دفع إيجار شهر يناير)
+                                </div>
+                                {% if form.description.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.description.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <form method="post" id="quickEntryForm">
-                    {% csrf_token %}
-                    
-                    <!-- التاريخ والبيان -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">{{ form.entry_date.label }}</label>
-                            {{ form.entry_date|add_class:"form-control form-control-lg" }}
+                <!-- Accounts Section -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exchange-alt me-2"></i>حركة القيد
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Debit Account -->
+                            <div class="col-md-6">
+                                <div class="account-box debit">
+                                    <h6 class="text-success mb-3">
+                                        <i class="fas fa-arrow-down me-2"></i>من حساب (مدين)
+                                    </h6>
+
+                                    <label for="id_debit_account_search" class="form-label required-field">
+                                        ابحث عن الحساب المدين
+                                    </label>
+                                    <input type="text" class="form-control mb-2" id="id_debit_account_search"
+                                           placeholder="ابحث عن الحساب...">
+
+                                    {{ form.debit_account|add_class:"form-control d-none" }}
+
+                                    <div id="debit_account_display" class="alert alert-success mt-2" style="display: none;">
+                                        <strong>تم الاختيار:</strong> <span id="debit_account_text"></span>
+                                    </div>
+
+                                    {% if form.debit_account.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.debit_account.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Credit Account -->
+                            <div class="col-md-6">
+                                <div class="account-box credit">
+                                    <h6 class="text-danger mb-3">
+                                        <i class="fas fa-arrow-up me-2"></i>إلى حساب (دائن)
+                                    </h6>
+
+                                    <label for="id_credit_account_search" class="form-label required-field">
+                                        ابحث عن الحساب الدائن
+                                    </label>
+                                    <input type="text" class="form-control mb-2" id="id_credit_account_search"
+                                           placeholder="ابحث عن الحساب...">
+
+                                    {{ form.credit_account|add_class:"form-control d-none" }}
+
+                                    <div id="credit_account_display" class="alert alert-danger mt-2" style="display: none;">
+                                        <strong>تم الاختيار:</strong> <span id="credit_account_text"></span>
+                                    </div>
+
+                                    {% if form.credit_account.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.credit_account.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">{{ form.amount.label }}</label>
+
+                        <!-- Arrow -->
+                        <div class="arrow-icon">
+                            <i class="fas fa-arrows-alt-v"></i>
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="amount-display">
+                            <label for="{{ form.amount.id_for_label }}" class="form-label required-field">
+                                المبلغ
+                            </label>
                             {{ form.amount|add_class:"form-control form-control-lg text-center" }}
-                        </div>
-                    </div>
-
-                    <!-- البيان -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">{{ form.description.label }}</label>
-                        {{ form.description|add_class:"form-control form-control-lg" }}
-                    </div>
-
-                    <!-- الحسابات -->
-                    <div class="row">
-                        <!-- الحساب المدين -->
-                        <div class="col-md-6">
-                            <div class="account-card">
-                                <h5 class="text-center mb-3">
-                                    <i class="fas fa-arrow-up text-success"></i> الحساب المدين
-                                </h5>
-                                
-                                <label class="form-label">{{ form.debit_account_search.label }}</label>
-                                {{ form.debit_account_search|add_class:"form-control form-control-lg account-search" }}
-                                {{ form.debit_account }}
-                                
-                                <div class="account-info mt-2" id="debit-account-info" style="display: none;">
-                                    <small class="text-light">
-                                        <i class="fas fa-info-circle"></i> <span class="account-details"></span>
-                                    </small>
-                                </div>
+                            <div class="help-text">
+                                <i class="fas fa-coins text-warning"></i>
+                                أدخل المبلغ الذي سينتقل من الحساب المدين إلى الحساب الدائن
                             </div>
+                            {% if form.amount.errors %}
+                                <ul class="error-list">
+                                    {% for error in form.amount.errors %}
+                                        <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
                         </div>
 
-                        <!-- الحساب الدائن -->
-                        <div class="col-md-6">
-                            <div class="account-card">
-                                <h5 class="text-center mb-3">
-                                    <i class="fas fa-arrow-down text-warning"></i> الحساب الدائن
-                                </h5>
-                                
-                                <label class="form-label">{{ form.credit_account_search.label }}</label>
-                                {{ form.credit_account_search|add_class:"form-control form-control-lg account-search" }}
-                                {{ form.credit_account }}
-                                
-                                <div class="account-info mt-2" id="credit-account-info" style="display: none;">
-                                    <small class="text-light">
-                                        <i class="fas fa-info-circle"></i> <span class="account-details"></span>
-                                    </small>
+                        <!-- Visual Summary -->
+                        <div class="row mt-4" id="visualSummary" style="display: none;">
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <h6 class="alert-heading">
+                                        <i class="fas fa-eye me-2"></i>ملخص القيد
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>من:</strong> <span id="summary_debit"></span>
+                                        </div>
+                                        <div>
+                                            <i class="fas fa-arrow-left fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <strong class="text-primary"><span id="summary_amount">0.00</span></strong>
+                                        </div>
+                                        <div>
+                                            <i class="fas fa-arrow-left fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <strong>إلى:</strong> <span id="summary_credit"></span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- المرجع -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">{{ form.reference.label }}</label>
-                        {{ form.reference|add_class:"form-control form-control-lg" }}
-                    </div>
+                <!-- Non-field Errors -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                    <ul class="mb-0">
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
 
-                    <!-- أزرار الإجراءات -->
-                    <div class="text-center">
-                        <a href="{% url 'accounting:journal_entry_list' %}" class="btn btn-outline-light btn-lg me-3">
-                            <i class="fas fa-arrow-right me-2"></i>العودة
-                        </a>
-                        <button type="submit" class="btn btn-light btn-lg">
-                            <i class="fas fa-save me-2"></i>حفظ القيد
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'accounting:journal_entry_list' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> إلغاء
+                    </a>
+                    <div>
+                        <button type="button" class="btn btn-outline-info btn-lg me-2" id="previewBtn">
+                            <i class="fas fa-eye me-1"></i> معاينة
+                        </button>
+                        <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                            <i class="fas fa-check me-1"></i> حفظ القيد
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
 
-            <!-- نصائح سريعة -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-lightbulb me-2"></i>نصائح للاستخدام السريع
-                    </h6>
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Help Card -->
+                <div class="card info-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>كيف يعمل القيد السريع؟
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اختر الحساب الذي سيخصم منه (مدين)
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اختر الحساب الذي سيضاف إليه (دائن)
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                أدخل المبلغ
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اضغط حفظ - وتم!
+                            </li>
+                        </ul>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success me-2"></i>ابحث بالرمز أو الاسم</li>
-                                <li><i class="fas fa-check text-success me-2"></i>استخدم Tab للتنقل السريع</li>
-                                <li><i class="fas fa-check text-success me-2"></i>المبلغ يطبق على السطرين</li>
-                            </ul>
+
+                <!-- Examples Card -->
+                <div class="card success-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-book me-2"></i>أمثلة عملية
+                        </h6>
+                        <div class="accordion" id="examplesAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example1">
+                                        مثال 1: دفع إيجار
+                                    </button>
+                                </h2>
+                                <div id="example1" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body small">
+                                        <strong>من:</strong> مصروف الإيجار (مدين)<br>
+                                        <strong>إلى:</strong> الصندوق (دائن)<br>
+                                        <strong>المبلغ:</strong> 5000
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2">
+                                        مثال 2: تحصيل من عميل
+                                    </button>
+                                </h2>
+                                <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body small">
+                                        <strong>من:</strong> الصندوق (مدين)<br>
+                                        <strong>إلى:</strong> العملاء (دائن)<br>
+                                        <strong>المبلغ:</strong> 10000
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
+                                        مثال 3: سداد لمورد
+                                    </button>
+                                </h2>
+                                <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body small">
+                                        <strong>من:</strong> الموردون (مدين)<br>
+                                        <strong>إلى:</strong> البنك (دائن)<br>
+                                        <strong>المبلغ:</strong> 15000
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success me-2"></i>البيان ينسخ للسطرين</li>
-                                <li><i class="fas fa-check text-success me-2"></i>المرجع اختياري</li>
-                                <li><i class="fas fa-check text-success me-2"></i>القيد متوازن تلقائياً</li>
-                            </ul>
-                        </div>
+                    </div>
+                </div>
+
+                <!-- Tips Card -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-graduation-cap me-2"></i>نصائح مفيدة
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0 small">
+                            <li class="mb-2">استخدم القيد السريع للعمليات البسيطة</li>
+                            <li class="mb-2">للقيود المعقدة استخدم "قيد مفصل"</li>
+                            <li class="mb-2">تأكد من اختيار الحسابات الصحيحة</li>
+                            <li class="mb-0">راجع القيد قبل الحفظ</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </form>
 </div>
 {% endblock %}
 
@@ -185,29 +541,36 @@
 
 <script>
 $(document).ready(function() {
-    // تهيئة البحث التلقائي للحسابات
-    $('.account-search').select2({
+    // ==============================
+    // Initialize Debit Account Select2
+    // ==============================
+    $('#id_debit_account_search').select2({
         theme: 'bootstrap-5',
-        placeholder: 'ابحث عن الحساب...',
-        minimumInputLength: 2,
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'ابحث عن الحساب المدين...',
+        minimumInputLength: 1,
+        language: {
+            inputTooShort: function() { return "اكتب حرف واحد على الأقل"; },
+            noResults: function() { return "لا توجد حسابات"; },
+            searching: function() { return "جاري البحث..."; }
+        },
         ajax: {
             url: '{% url "accounting:account_autocomplete" %}',
             dataType: 'json',
             delay: 250,
             data: function (params) {
                 return {
-                    term: params.term,
-                    page: params.page
+                    term: params.term || '',
+                    page: params.page || 1
                 };
             },
-            processResults: function (data, params) {
+            processResults: function (data) {
                 return {
                     results: data.map(function(item) {
                         return {
                             id: item.id,
-                            text: item.text,
-                            code: item.code,
-                            name: item.name
+                            text: item.text
                         };
                     })
                 };
@@ -216,47 +579,237 @@ $(document).ready(function() {
         }
     });
 
-    // عند اختيار الحساب المدين
     $('#id_debit_account_search').on('select2:select', function (e) {
         var data = e.params.data;
         $('#id_debit_account').val(data.id);
-        $('#debit-account-info .account-details').text(data.code + ' - ' + data.name);
-        $('#debit-account-info').show();
+        $('#debit_account_text').text(data.text);
+        $('#debit_account_display').slideDown();
+        $('#summary_debit').text(data.text);
+        updateVisualSummary();
     });
 
-    // عند اختيار الحساب الدائن
+    // ==============================
+    // Initialize Credit Account Select2
+    // ==============================
+    $('#id_credit_account_search').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'ابحث عن الحساب الدائن...',
+        minimumInputLength: 1,
+        language: {
+            inputTooShort: function() { return "اكتب حرف واحد على الأقل"; },
+            noResults: function() { return "لا توجد حسابات"; },
+            searching: function() { return "جاري البحث..."; }
+        },
+        ajax: {
+            url: '{% url "accounting:account_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    term: params.term || '',
+                    page: params.page || 1
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
     $('#id_credit_account_search').on('select2:select', function (e) {
         var data = e.params.data;
         $('#id_credit_account').val(data.id);
-        $('#credit-account-info .account-details').text(data.code + ' - ' + data.name);
-        $('#credit-account-info').show();
+        $('#credit_account_text').text(data.text);
+        $('#credit_account_display').slideDown();
+        $('#summary_credit').text(data.text);
+        updateVisualSummary();
     });
 
-    // تحسين تجربة المستخدم
-    $('#quickEntryForm').on('submit', function(e) {
-        var submitBtn = $(this).find('button[type="submit"]');
-        submitBtn.prop('disabled', true)
-               .html('<i class="fas fa-spinner fa-spin me-2"></i>جاري الحفظ...');
+    // ==============================
+    // Amount Change Handler
+    // ==============================
+    $('#id_amount').on('input', function() {
+        var amount = parseFloat($(this).val()) || 0;
+        $('#summary_amount').text(amount.toFixed(2));
+        updateVisualSummary();
     });
 
-    // تنبيه عند مغادرة الصفحة بدون حفظ
-    var formChanged = false;
-    $('#quickEntryForm input, #quickEntryForm select, #quickEntryForm textarea').on('change', function() {
-        formChanged = true;
-    });
-    
-    $(window).on('beforeunload', function() {
-        if (formChanged) {
-            return 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+    // ==============================
+    // Update Visual Summary
+    // ==============================
+    function updateVisualSummary() {
+        var debit = $('#id_debit_account').val();
+        var credit = $('#id_credit_account').val();
+        var amount = $('#id_amount').val();
+
+        if (debit && credit && amount) {
+            $('#visualSummary').slideDown();
+        } else {
+            $('#visualSummary').slideUp();
+        }
+    }
+
+    // ==============================
+    // Preview Button
+    // ==============================
+    $('#previewBtn').on('click', function() {
+        if (validateForm(true)) {
+            var debitText = $('#summary_debit').text();
+            var creditText = $('#summary_credit').text();
+            var amount = $('#id_amount').val();
+            var description = $('#id_description').val();
+            var entryDate = $('#id_entry_date').val();
+
+            Swal.fire({
+                title: 'معاينة القيد',
+                html: `
+                    <div class="text-start">
+                        <p><strong>التاريخ:</strong> ${entryDate}</p>
+                        <p><strong>البيان:</strong> ${description}</p>
+                        <hr>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>الحساب</th>
+                                    <th class="text-end">مدين</th>
+                                    <th class="text-end">دائن</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>${debitText}</td>
+                                    <td class="text-end text-success">${parseFloat(amount).toFixed(2)}</td>
+                                    <td class="text-end">-</td>
+                                </tr>
+                                <tr>
+                                    <td>${creditText}</td>
+                                    <td class="text-end">-</td>
+                                    <td class="text-end text-danger">${parseFloat(amount).toFixed(2)}</td>
+                                </tr>
+                                <tr class="table-active">
+                                    <th>الإجمالي</th>
+                                    <th class="text-end">${parseFloat(amount).toFixed(2)}</th>
+                                    <th class="text-end">${parseFloat(amount).toFixed(2)}</th>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'حسناً',
+                width: '600px'
+            });
         }
     });
-    
-    $('#quickEntryForm').on('submit', function() {
-        formChanged = false;
+
+    // ==============================
+    // Form Validation
+    // ==============================
+    function validateForm(showSuccess = false) {
+        var errors = [];
+
+        if (!$('#id_entry_date').val()) {
+            errors.push('يجب تحديد تاريخ القيد');
+        }
+
+        if (!$('#id_description').val()) {
+            errors.push('يجب إدخال بيان القيد');
+        }
+
+        if (!$('#id_debit_account').val()) {
+            errors.push('يجب اختيار الحساب المدين');
+        }
+
+        if (!$('#id_credit_account').val()) {
+            errors.push('يجب اختيار الحساب الدائن');
+        }
+
+        if ($('#id_debit_account').val() === $('#id_credit_account').val()) {
+            errors.push('لا يمكن أن يكون الحساب المدين والدائن نفس الحساب');
+        }
+
+        var amount = parseFloat($('#id_amount').val());
+        if (!amount || amount <= 0) {
+            errors.push('يجب إدخال مبلغ صحيح أكبر من صفر');
+        }
+
+        if (errors.length > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'أخطاء في النموذج',
+                html: '<ul class="text-start mb-0"><li>' + errors.join('</li><li>') + '</li></ul>',
+                confirmButtonText: 'حسناً'
+            });
+            return false;
+        } else {
+            if (showSuccess) {
+                return true;
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'النموذج صحيح',
+                text: 'جميع البيانات صحيحة ومتوازنة',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            return true;
+        }
+    }
+
+    // ==============================
+    // Form Submission
+    // ==============================
+    $('#quickJournalForm').on('submit', function(e) {
+        e.preventDefault();
+
+        if (!validateForm(false)) {
+            return false;
+        }
+
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+
+        this.submit();
     });
 
-    // Focus على أول حقل
-    $('#id_amount').focus();
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged && !$('#submitBtn').prop('disabled')) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    // ==============================
+    // Keyboard Shortcuts
+    // ==============================
+    $(document).on('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#quickJournalForm').submit();
+        }
+        if (e.key === 'Escape') {
+            window.location.href = '{% url "accounting:journal_entry_list" %}';
+        }
+    });
 });
 </script>
 {% endblock %}

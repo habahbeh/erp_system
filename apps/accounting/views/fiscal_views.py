@@ -1659,28 +1659,32 @@ def toggle_cost_center_status(request, pk):
 @permission_required_with_message('accounting.view_costcenter')
 @require_http_methods(["GET"])
 def cost_center_search_ajax(request):
-    """البحث في مراكز التكلفة - Ajax"""
+    """البحث عن مراكز التكلفة للـ Ajax"""
 
     query = request.GET.get('term', '')
-    if len(query) < 2:
-        return JsonResponse([])
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse([], safe=False)
 
     cost_centers = CostCenter.objects.filter(
         company=request.current_company,
         is_active=True
-    ).filter(
-        Q(code__icontains=query) | Q(name__icontains=query)
-    )[:20]
+    )
+
+    if query:
+        cost_centers = cost_centers.filter(
+            Q(name__icontains=query) | Q(code__icontains=query)
+        )
+
+    cost_centers = cost_centers.order_by('code')[:20]
 
     results = []
-    for cc in cost_centers:
+    for center in cost_centers:
         results.append({
-            'id': cc.id,
-            'text': f"{cc.code} - {cc.name}",
-            'code': cc.code,
-            'name': cc.name,
-            'type': cc.get_cost_center_type_display(),
-            'level': cc.level
+            'id': center.id,
+            'text': f"{center.code} - {center.name}",
+            'code': center.code,
+            'name': center.name
         })
 
     return JsonResponse(results, safe=False)

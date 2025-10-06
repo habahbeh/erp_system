@@ -27,6 +27,8 @@ from ..forms.journal_forms import (
 )
 from django.views.generic import FormView
 
+from django.db import transaction
+
 
 class JournalEntryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
     """قائمة القيود اليومية"""
@@ -87,6 +89,7 @@ class JournalEntryListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
         return context
 
 
+
 class JournalEntryCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
     """إنشاء قيد يومية جديد"""
 
@@ -101,14 +104,76 @@ class JournalEntryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         kwargs['request'] = self.request
         return kwargs
 
+    @transaction.atomic
     def form_valid(self, form):
+        # حفظ القيد
         form.instance.company = self.request.current_company
         form.instance.branch = self.request.current_branch
         form.instance.created_by = self.request.user
+        form.instance.status = 'draft'  # مسودة افتراضياً
 
-        response = super().form_valid(form)
-        messages.success(self.request, _('تم إنشاء القيد بنجاح'))
-        return response
+        self.object = form.save()
+
+        # معالجة السطور
+        lines_data = self.request.POST.get('lines_data')
+        if lines_data:
+            try:
+                lines = json.loads(lines_data)
+                line_number = 1
+
+                for line_data in lines:
+                    account_id = line_data.get('account')
+                    if not account_id:
+                        continue
+
+                    try:
+                        account = Account.objects.get(
+                            id=account_id,
+                            company=self.request.current_company
+                        )
+
+                        debit = float(line_data.get('debit_amount', 0) or 0)
+                        credit = float(line_data.get('credit_amount', 0) or 0)
+
+                        # تخطي السطور الفارغة
+                        if debit == 0 and credit == 0:
+                            continue
+
+                        # إنشاء السطر
+                        JournalEntryLine.objects.create(
+                            journal_entry=self.object,
+                            line_number=line_number,
+                            account=account,
+                            description=line_data.get('description', self.object.description),
+                            debit_amount=debit,
+                            credit_amount=credit,
+                            currency=account.currency,
+                            reference=line_data.get('reference', ''),
+                            cost_center_id=line_data.get('cost_center') if line_data.get('cost_center') else None
+                        )
+                        line_number += 1
+
+                    except Account.DoesNotExist:
+                        continue
+
+                # إعادة حساب الإجماليات
+                self.object.calculate_totals()
+
+                messages.success(self.request, f'تم إنشاء القيد {self.object.number} بنجاح')
+
+            except json.JSONDecodeError as e:
+                messages.error(self.request, f'خطأ في بيانات السطور: {str(e)}')
+                self.object.delete()
+                return self.form_invalid(form)
+        else:
+            messages.error(self.request, 'لم يتم إضافة أي سطور للقيد')
+            self.object.delete()
+            return self.form_invalid(form)
+
+        return redirect(self.get_success_url())
+
+    def get_success_url(self):
+        return reverse('accounting:journal_entry_detail', kwargs={'pk': self.object.pk})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -139,23 +204,96 @@ class JournalEntryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         kwargs['request'] = self.request
         return kwargs
 
+    @transaction.atomic
     def form_valid(self, form):
         # التحقق من إمكانية التعديل
         if not self.object.can_edit():
             messages.error(self.request, _('لا يمكن تعديل قيد مرحل'))
             return redirect('accounting:journal_entry_detail', pk=self.object.pk)
 
-        response = super().form_valid(form)
-        messages.success(self.request, _('تم تحديث القيد بنجاح'))
-        return response
+        # حفظ القيد
+        self.object = form.save()
+
+        # حذف السطور القديمة
+        self.object.lines.all().delete()
+
+        # معالجة السطور الجديدة
+        lines_data = self.request.POST.get('lines_data')
+        if lines_data:
+            try:
+                lines = json.loads(lines_data)
+                line_number = 1
+
+                for line_data in lines:
+                    account_id = line_data.get('account')
+                    if not account_id:
+                        continue
+
+                    try:
+                        account = Account.objects.get(
+                            id=account_id,
+                            company=self.request.current_company
+                        )
+
+                        debit = float(line_data.get('debit_amount', 0) or 0)
+                        credit = float(line_data.get('credit_amount', 0) or 0)
+
+                        if debit == 0 and credit == 0:
+                            continue
+
+                        JournalEntryLine.objects.create(
+                            journal_entry=self.object,
+                            line_number=line_number,
+                            account=account,
+                            description=line_data.get('description', self.object.description),
+                            debit_amount=debit,
+                            credit_amount=credit,
+                            currency=account.currency,
+                            reference=line_data.get('reference', ''),
+                            cost_center_id=line_data.get('cost_center') if line_data.get('cost_center') else None
+                        )
+                        line_number += 1
+
+                    except Account.DoesNotExist:
+                        continue
+
+                # إعادة حساب الإجماليات
+                self.object.calculate_totals()
+
+                messages.success(self.request, f'تم تحديث القيد {self.object.number} بنجاح')
+
+            except json.JSONDecodeError as e:
+                messages.error(self.request, f'خطأ في بيانات السطور: {str(e)}')
+                return self.form_invalid(form)
+        else:
+            messages.error(self.request, 'لم يتم إضافة أي سطور للقيد')
+            return self.form_invalid(form)
+
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse('accounting:journal_entry_detail', kwargs={'pk': self.object.pk})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # إضافة سطور القيد الموجودة
+        existing_lines = []
+        for line in self.object.lines.all().order_by('line_number'):
+            existing_lines.append({
+                'account_id': line.account.id,
+                'account_text': f"{line.account.code} - {line.account.name}",
+                'description': line.description,
+                'debit_amount': str(line.debit_amount),
+                'credit_amount': str(line.credit_amount),
+                'reference': line.reference,
+                'cost_center_id': line.cost_center.id if line.cost_center else None,
+                'cost_center_text': f"{line.cost_center.code} - {line.cost_center.name}" if line.cost_center else None
+            })
+
         context.update({
             'title': f'تعديل القيد {self.object.number}',
+            'existing_lines': json.dumps(existing_lines),
             'breadcrumbs': [
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('القيود اليومية'), 'url': reverse('accounting:journal_entry_list')},
@@ -231,11 +369,55 @@ class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Company
         kwargs['request'] = self.request
         return kwargs
 
+    @transaction.atomic
     def form_valid(self, form):
         try:
-            journal_entry = form.save(self.request)
+            # إنشاء القيد
+            journal_entry = JournalEntry.objects.create(
+                company=self.request.current_company,
+                branch=self.request.current_branch,
+                entry_date=form.cleaned_data['entry_date'],
+                description=form.cleaned_data['description'],
+                reference=form.cleaned_data.get('reference', ''),
+                entry_type='manual',
+                status='draft',
+                created_by=self.request.user
+            )
+
+            amount = form.cleaned_data['amount']
+            debit_account = form.cleaned_data['debit_account']
+            credit_account = form.cleaned_data['credit_account']
+
+            # سطر المدين
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=1,
+                account=debit_account,
+                description=form.cleaned_data['description'],
+                debit_amount=amount,
+                credit_amount=0,
+                currency=debit_account.currency,
+                reference=form.cleaned_data.get('reference', '')
+            )
+
+            # سطر الدائن
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=2,
+                account=credit_account,
+                description=form.cleaned_data['description'],
+                debit_amount=0,
+                credit_amount=amount,
+                currency=credit_account.currency,
+                reference=form.cleaned_data.get('reference', '')
+            )
+
+            # إعادة حساب الإجماليات
+            journal_entry.calculate_totals()
+
             messages.success(self.request, f'تم إنشاء القيد {journal_entry.number} بنجاح')
             return redirect('accounting:journal_entry_detail', pk=journal_entry.pk)
+
         except Exception as e:
             messages.error(self.request, f'خطأ في إنشاء القيد: {str(e)}')
             return self.form_invalid(form)
@@ -416,10 +598,10 @@ def account_autocomplete(request):
 
     query = request.GET.get('term', '')
     if len(query) < 2:
-        return JsonResponse([])
+        return JsonResponse([], safe=False)
 
     if not hasattr(request, 'current_company') or not request.current_company:
-        return JsonResponse([])
+        return JsonResponse([], safe=False)
 
     accounts = Account.objects.filter(
         company=request.current_company,

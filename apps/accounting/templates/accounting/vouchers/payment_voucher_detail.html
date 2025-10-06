@@ -10,27 +10,123 @@
     background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
     color: white;
     border-radius: 10px 10px 0 0;
+    padding: 2rem;
 }
 
-.info-card {
-    border-right: 4px solid #dc3545;
+.info-section {
     background: #f8f9fa;
+    border-right: 4px solid #dc3545;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
 }
 
-.status-badge {
-    font-size: 1rem;
-    padding: 0.5rem 1rem;
+.info-section h6 {
+    color: #dc3545;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.info-value {
+    color: #212529;
+    font-weight: 600;
 }
 
 .amount-display {
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: bold;
     color: #dc3545;
     text-align: center;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     padding: 2rem;
     border-radius: 10px;
-    border: 2px solid #dc3545;
+    border: 3px solid #dc3545;
+    margin-bottom: 2rem;
+}
+
+.status-badge {
+    font-size: 1.1rem;
+    padding: 0.6rem 1.2rem;
+}
+
+.action-card {
+    background: #fff;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.action-card:hover {
+    border-color: #dc3545;
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.1);
+}
+
+.timeline-item {
+    padding-left: 2rem;
+    position: relative;
+    padding-bottom: 1rem;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #e9ecef;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -6px;
+    top: 5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #dc3545;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #dc3545;
+}
+
+.print-section {
+    display: none;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .print-section {
+        display: block !important;
+    }
+
+    .voucher-header {
+        background: #dc3545 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }
 </style>
 {% endblock %}
@@ -38,7 +134,7 @@
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
         <ol class="breadcrumb">
             {% for breadcrumb in breadcrumbs %}
                 {% if forloop.last %}
@@ -53,51 +149,91 @@
     </nav>
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-start mb-4 no-print">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
-            <p class="text-muted mb-0">عرض تفاصيل سند الصرف</p>
+            <p class="text-muted mb-1">عرض تفاصيل سند الصرف</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-danger fs-6">{{ voucher.number }}</span>
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-calendar"></i> {{ voucher.date|date:"Y/m/d" }}
+                </span>
+                {% if voucher.status == 'draft' %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-edit"></i> مسودة
+                    </span>
+                {% elif voucher.status == 'confirmed' %}
+                    <span class="badge bg-warning fs-6">
+                        <i class="fas fa-check"></i> مؤكد
+                    </span>
+                {% elif voucher.status == 'posted' %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-double"></i> مرحل
+                    </span>
+                {% else %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-times"></i> ملغي
+                    </span>
+                {% endif %}
+            </div>
         </div>
-        <div class="btn-group" role="group">
-            <a href="{% url 'accounting:payment_voucher_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right"></i> العودة للقائمة
-            </a>
+        <div class="d-flex gap-2">
+            <!-- زر الطباعة -->
+            <button type="button" class="btn btn-outline-secondary" onclick="printVoucher()">
+                <i class="fas fa-print"></i> طباعة
+            </button>
 
+            <!-- زر التأكيد للمسودة -->
+            {% if voucher.status == 'draft' %}
+            <button type="button" class="btn btn-warning" onclick="confirmVoucher({{ voucher.pk }})">
+                <i class="fas fa-check-circle"></i> تأكيد السند
+            </button>
+            {% endif %}
+
+            <!-- زر الترحيل -->
+            {% if can_post %}
+            <button type="button" class="btn btn-success" onclick="postVoucher({{ voucher.pk }})">
+                <i class="fas fa-paper-plane"></i> ترحيل محاسبياً
+            </button>
+            {% elif can_unpost %}
+            <button type="button" class="btn btn-warning" onclick="unpostVoucher({{ voucher.pk }})">
+                <i class="fas fa-undo"></i> إلغاء الترحيل
+            </button>
+            {% endif %}
+
+            <!-- زر التعديل -->
             {% if can_edit %}
-            <a href="{% url 'accounting:payment_voucher_update' voucher.pk %}" class="btn btn-outline-primary">
+            <a href="{% url 'accounting:payment_voucher_update' voucher.pk %}" class="btn btn-primary">
                 <i class="fas fa-edit"></i> تعديل
             </a>
             {% endif %}
 
-            {% if can_post %}
-            <button type="button" class="btn btn-success" onclick="postVoucher({{ voucher.pk }})">
-                <i class="fas fa-check"></i> ترحيل
-            </button>
-            {% elif can_unpost %}
-            <button type="button" class="btn btn-warning" onclick="unpostVoucher({{ voucher.pk }})">
-                <i class="fas fa-undo"></i> إلغاء ترحيل
-            </button>
-            {% endif %}
-
+            <!-- زر الحذف -->
             {% if can_delete %}
-            <a href="{% url 'accounting:payment_voucher_delete' voucher.pk %}" class="btn btn-outline-danger">
+            <a href="{% url 'accounting:payment_voucher_delete' voucher.pk %}" class="btn btn-danger">
                 <i class="fas fa-trash"></i> حذف
             </a>
             {% endif %}
+
+            <a href="{% url 'accounting:payment_voucher_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> العودة للقائمة
+            </a>
         </div>
     </div>
 
     <div class="row">
+        <!-- معلومات السند -->
         <div class="col-lg-8">
-            <!-- Voucher Details Card -->
+            <!-- رأس السند -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header voucher-header">
+                <div class="voucher-header">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h5 class="mb-0">
+                            <h4 class="mb-1">
                                 <i class="fas fa-arrow-down me-2"></i>
                                 سند صرف رقم: {{ voucher.number }}
-                            </h5>
+                            </h4>
+                            <p class="mb-0 opacity-75">{{ voucher.date|date:"l، j F Y" }}</p>
                         </div>
                         <div class="col-auto">
                             {% if voucher.status == 'draft' %}
@@ -105,237 +241,387 @@
                             {% elif voucher.status == 'confirmed' %}
                                 <span class="badge bg-warning status-badge">مؤكد</span>
                             {% elif voucher.status == 'posted' %}
-                                <span class="badge bg-success status-badge">مرحل</span>
+                                <span class="badge bg-light text-success status-badge">مرحل</span>
                             {% else %}
-                                <span class="badge bg-danger status-badge">ملغي</span>
+                                <span class="badge bg-light text-danger status-badge">ملغي</span>
                             {% endif %}
                         </div>
                     </div>
                 </div>
+
                 <div class="card-body">
-                    <!-- Amount Display -->
-                    <div class="amount-display mb-4">
-                        <div class="h2 mb-0">{{ voucher.amount|floatformat:3 }}</div>
-                        <div class="text-muted">{{ voucher.currency.name }}</div>
+                    <!-- عرض المبلغ -->
+                    <div class="amount-display">
+                        <div class="small text-muted mb-1">المبلغ المدفوع</div>
+                        <div>{{ voucher.amount|floatformat:3 }}</div>
+                        <div class="fs-5 text-muted mt-1">{{ voucher.currency.name }}</div>
                     </div>
 
-                    <!-- Basic Info -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-6">
-                            <div class="info-card p-3 rounded">
-                                <h6 class="text-primary mb-3">
-                                    <i class="fas fa-calendar me-2"></i>معلومات التاريخ
-                                </h6>
-                                <div class="row">
-                                    <div class="col-sm-4 text-muted">التاريخ:</div>
-                                    <div class="col-sm-8">{{ voucher.date|date:"Y/m/d l" }}</div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-sm-4 text-muted">تم الإنشاء:</div>
-                                    <div class="col-sm-8">{{ voucher.created_at|date:"Y/m/d H:i" }}</div>
-                                </div>
-                                {% if voucher.posted_date %}
-                                <div class="row">
-                                    <div class="col-sm-4 text-muted">تم الترحيل:</div>
-                                    <div class="col-sm-8">{{ voucher.posted_date|date:"Y/m/d H:i" }}</div>
-                                </div>
-                                {% endif %}
-                            </div>
+                    <!-- معلومات المستفيد -->
+                    <div class="info-section">
+                        <h6>
+                            <i class="fas fa-user me-2"></i>بيانات المستفيد
+                        </h6>
+                        <div class="info-row">
+                            <span class="info-label">اسم المستفيد:</span>
+                            <span class="info-value">{{ voucher.beneficiary_name }}</span>
                         </div>
-
-                        <div class="col-md-6">
-                            <div class="info-card p-3 rounded">
-                                <h6 class="text-primary mb-3">
-                                    <i class="fas fa-user me-2"></i>بيانات المستفيد
-                                </h6>
-                                <div class="row">
-                                    <div class="col-sm-4 text-muted">الاسم:</div>
-                                    <div class="col-sm-8"><strong>{{ voucher.beneficiary_name }}</strong></div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-sm-4 text-muted">النوع:</div>
-                                    <div class="col-sm-8">{{ voucher.get_beneficiary_type_display }}</div>
-                                </div>
-                            </div>
+                        <div class="info-row">
+                            <span class="info-label">نوع المستفيد:</span>
+                            <span class="info-value">{{ voucher.get_beneficiary_type_display }}</span>
                         </div>
                     </div>
 
-                    <!-- Accounts Info -->
-                    <div class="info-card p-3 rounded mb-4">
-                        <h6 class="text-primary mb-3">
+                    <!-- الحسابات المحاسبية -->
+                    <div class="info-section">
+                        <h6>
                             <i class="fas fa-sitemap me-2"></i>الحسابات المحاسبية
                         </h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="row mb-2">
-                                    <div class="col-sm-5 text-muted">حساب الصندوق/البنك:</div>
-                                    <div class="col-sm-7">
-                                        <strong>{{ voucher.cash_account.code }}</strong> - {{ voucher.cash_account.name }}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                {% if voucher.expense_account %}
-                                <div class="row mb-2">
-                                    <div class="col-sm-5 text-muted">حساب المصروف:</div>
-                                    <div class="col-sm-7">
-                                        <strong>{{ voucher.expense_account.code }}</strong> - {{ voucher.expense_account.name }}
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
+                        <div class="info-row">
+                            <span class="info-label">حساب الصندوق/البنك:</span>
+                            <span class="info-value">
+                                <code class="bg-light text-primary px-2 py-1 rounded">{{ voucher.cash_account.code }}</code>
+                                {{ voucher.cash_account.name }}
+                            </span>
                         </div>
+                        {% if voucher.expense_account %}
+                        <div class="info-row">
+                            <span class="info-label">حساب المصروف:</span>
+                            <span class="info-value">
+                                <code class="bg-light text-primary px-2 py-1 rounded">{{ voucher.expense_account.code }}</code>
+                                {{ voucher.expense_account.name }}
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <!-- Payment Method -->
-                    <div class="info-card p-3 rounded mb-4">
-                        <h6 class="text-primary mb-3">
+                    <!-- طريقة الدفع -->
+                    <div class="info-section">
+                        <h6>
                             <i class="fas fa-credit-card me-2"></i>طريقة الدفع
                         </h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="row mb-2">
-                                    <div class="col-sm-4 text-muted">الطريقة:</div>
-                                    <div class="col-sm-8">{{ voucher.get_payment_method_display }}</div>
-                                </div>
-                            </div>
-                            {% if voucher.payment_method == 'check' %}
-                            <div class="col-md-6">
-                                <div class="row mb-2">
-                                    <div class="col-sm-4 text-muted">رقم الشيك:</div>
-                                    <div class="col-sm-8"><strong>{{ voucher.check_number }}</strong></div>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-sm-4 text-muted">تاريخ الشيك:</div>
-                                    <div class="col-sm-8">{{ voucher.check_date|date:"Y/m/d" }}</div>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-sm-4 text-muted">اسم البنك:</div>
-                                    <div class="col-sm-8">{{ voucher.bank_name }}</div>
-                                </div>
-                            </div>
-                            {% endif %}
+                        <div class="info-row">
+                            <span class="info-label">الطريقة:</span>
+                            <span class="info-value">
+                                {% if voucher.payment_method == 'cash' %}
+                                    <i class="fas fa-money-bill-wave text-success"></i> نقدي
+                                {% elif voucher.payment_method == 'check' %}
+                                    <i class="fas fa-money-check text-primary"></i> شيك
+                                {% elif voucher.payment_method == 'transfer' %}
+                                    <i class="fas fa-exchange-alt text-info"></i> حوالة
+                                {% else %}
+                                    <i class="fas fa-credit-card text-warning"></i> بطاقة ائتمان
+                                {% endif %}
+                                {{ voucher.get_payment_method_display }}
+                            </span>
                         </div>
+
+                        {% if voucher.payment_method == 'check' %}
+                        <div class="info-row">
+                            <span class="info-label">رقم الشيك:</span>
+                            <span class="info-value">{{ voucher.check_number }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">تاريخ الشيك:</span>
+                            <span class="info-value">{{ voucher.check_date|date:"Y/m/d" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">اسم البنك:</span>
+                            <span class="info-value">{{ voucher.bank_name }}</span>
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <!-- Description -->
-                    <div class="info-card p-3 rounded">
-                        <h6 class="text-primary mb-3">
+                    <!-- البيان والملاحظات -->
+                    <div class="info-section">
+                        <h6>
                             <i class="fas fa-align-left me-2"></i>البيان والملاحظات
                         </h6>
                         <div class="mb-3">
-                            <strong>البيان:</strong>
-                            <p class="mb-0 mt-2">{{ voucher.description|linebreaks }}</p>
+                            <strong class="d-block mb-2">البيان:</strong>
+                            <p class="mb-0">{{ voucher.description|linebreaks }}</p>
                         </div>
                         {% if voucher.notes %}
                         <div>
-                            <strong>ملاحظات:</strong>
-                            <p class="mb-0 mt-2 text-muted">{{ voucher.notes|linebreaks }}</p>
+                            <strong class="d-block mb-2">ملاحظات:</strong>
+                            <p class="mb-0 text-muted">{{ voucher.notes|linebreaks }}</p>
                         </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-lg-4">
-            <!-- Status Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>معلومات الحالة
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="text-center mb-3">
-                        {% if voucher.status == 'draft' %}
-                            <i class="fas fa-edit fa-3x text-secondary mb-2"></i>
-                            <h6>مسودة</h6>
-                            <p class="text-muted small">يمكن تعديل السند</p>
-                        {% elif voucher.status == 'confirmed' %}
-                            <i class="fas fa-check-circle fa-3x text-warning mb-2"></i>
-                            <h6>مؤكد</h6>
-                            <p class="text-muted small">جاهز للترحيل</p>
-                        {% elif voucher.status == 'posted' %}
-                            <i class="fas fa-check-double fa-3x text-success mb-2"></i>
-                            <h6>مرحل</h6>
-                            <p class="text-muted small">تم ترحيله محاسبياً</p>
-                        {% else %}
-                            <i class="fas fa-times-circle fa-3x text-danger mb-2"></i>
-                            <h6>ملغي</h6>
-                            <p class="text-muted small">تم إلغاء السند</p>
-                        {% endif %}
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="d-grid gap-2">
-                        {% if can_post %}
-                        <button type="button" class="btn btn-success" onclick="postVoucher({{ voucher.pk }})">
-                            <i class="fas fa-check me-2"></i>ترحيل السند
-                        </button>
-                        {% elif can_unpost %}
-                        <button type="button" class="btn btn-warning" onclick="unpostVoucher({{ voucher.pk }})">
-                            <i class="fas fa-undo me-2"></i>إلغاء الترحيل
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Journal Entry Card -->
+            <!-- القيد المحاسبي -->
             {% if voucher.journal_entry %}
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light">
+                <div class="card-header bg-success text-white">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-list me-2"></i>القيد المحاسبي
+                        <i class="fas fa-list"></i> القيد المحاسبي المرتبط
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="text-center mb-3">
-                        <i class="fas fa-file-invoice fa-2x text-primary mb-2"></i>
-                        <h6>{{ voucher.journal_entry.number }}</h6>
-                        <p class="text-muted small">{{ voucher.journal_entry.entry_date|date:"Y/m/d" }}</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <span class="info-label">رقم القيد:</span>
+                                <span class="info-value">
+                                    <a href="{% url 'accounting:journal_entry_detail' voucher.journal_entry.pk %}"
+                                       class="text-decoration-none">
+                                        {{ voucher.journal_entry.number }}
+                                    </a>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <span class="info-label">تاريخ القيد:</span>
+                                <span class="info-value">{{ voucher.journal_entry.entry_date|date:"Y/m/d" }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <span class="info-label">إجمالي المدين:</span>
+                                <span class="info-value text-success">{{ voucher.journal_entry.total_debit|floatformat:3 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <span class="info-label">إجمالي الدائن:</span>
+                                <span class="info-value text-danger">{{ voucher.journal_entry.total_credit|floatformat:3 }}</span>
+                            </div>
+                        </div>
                     </div>
-                    <a href="{% url 'accounting:journal_entry_detail' voucher.journal_entry.pk %}"
-                       class="btn btn-outline-primary btn-sm w-100">
-                        <i class="fas fa-eye me-2"></i>عرض القيد
-                    </a>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'accounting:journal_entry_detail' voucher.journal_entry.pk %}"
+                           class="btn btn-outline-success">
+                            <i class="fas fa-eye me-2"></i>عرض القيد الكامل
+                        </a>
+                    </div>
                 </div>
             </div>
             {% endif %}
+        </div>
 
-            <!-- Audit Info -->
-            <div class="card shadow-sm">
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- حالة السند -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> حالة السند
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if voucher.status == 'draft' %}
+                        <i class="fas fa-edit fa-4x text-secondary mb-3"></i>
+                        <h5>مسودة</h5>
+                        <p class="text-muted small">يمكن تعديل أو حذف السند</p>
+                    {% elif voucher.status == 'confirmed' %}
+                        <i class="fas fa-check-circle fa-4x text-warning mb-3"></i>
+                        <h5>مؤكد</h5>
+                        <p class="text-muted small">جاهز للترحيل المحاسبي</p>
+                    {% elif voucher.status == 'posted' %}
+                        <i class="fas fa-check-double fa-4x text-success mb-3"></i>
+                        <h5>مرحل</h5>
+                        <p class="text-muted small">تم ترحيله محاسبياً</p>
+                    {% else %}
+                        <i class="fas fa-times-circle fa-4x text-danger mb-3"></i>
+                        <h5>ملغي</h5>
+                        <p class="text-muted small">تم إلغاء السند</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-history me-2"></i>معلومات المراجعة
+                        <i class="fas fa-bolt"></i> إجراءات سريعة
                     </h6>
                 </div>
                 <div class="card-body">
-                    <small class="text-muted">
-                        <div class="mb-2">
-                            <strong>أنشأ بواسطة:</strong><br>
-                            {{ voucher.created_by.get_full_name|default:voucher.created_by.username }}<br>
-                            {{ voucher.created_at|date:"Y/m/d H:i" }}
-                        </div>
+                    <div class="d-grid gap-2">
+                        <!-- زر الطباعة -->
+                        <button type="button" class="btn btn-outline-secondary" onclick="printVoucher()">
+                            <i class="fas fa-print me-2"></i>طباعة السند
+                        </button>
 
-                        {% if voucher.posted_by %}
-                        <div class="mb-2">
-                            <strong>رحل بواسطة:</strong><br>
-                            {{ voucher.posted_by.get_full_name|default:voucher.posted_by.username }}<br>
-                            {{ voucher.posted_date|date:"Y/m/d H:i" }}
-                        </div>
+                        <!-- طباعة الشيك -->
+                        {% if voucher.payment_method == 'check' and voucher.status == 'posted' %}
+                        <button type="button" class="btn btn-outline-info" onclick="printCheck()">
+                            <i class="fas fa-money-check me-2"></i>طباعة الشيك
+                        </button>
                         {% endif %}
 
-                        {% if voucher.updated_at %}
-                        <div>
-                            <strong>آخر تحديث:</strong><br>
-                            {{ voucher.updated_at|date:"Y/m/d H:i" }}
-                        </div>
+                        <!-- التأكيد -->
+                        {% if voucher.status == 'draft' %}
+                        <button type="button" class="btn btn-outline-warning" onclick="confirmVoucher({{ voucher.pk }})">
+                            <i class="fas fa-check-circle me-2"></i>تأكيد السند
+                        </button>
                         {% endif %}
-                    </small>
+
+                        <!-- الترحيل -->
+                        {% if can_post %}
+                        <button type="button" class="btn btn-outline-success" onclick="postVoucher({{ voucher.pk }})">
+                            <i class="fas fa-paper-plane me-2"></i>ترحيل محاسبياً
+                        </button>
+                        {% elif can_unpost %}
+                        <button type="button" class="btn btn-outline-warning" onclick="unpostVoucher({{ voucher.pk }})">
+                            <i class="fas fa-undo me-2"></i>إلغاء الترحيل
+                        </button>
+                        {% endif %}
+
+                        <!-- التعديل -->
+                        {% if can_edit %}
+                        <a href="{% url 'accounting:payment_voucher_update' voucher.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-2"></i>تعديل السند
+                        </a>
+                        {% endif %}
+
+                        <!-- عرض القيد -->
+                        {% if voucher.journal_entry %}
+                        <a href="{% url 'accounting:journal_entry_detail' voucher.journal_entry.pk %}"
+                           class="btn btn-outline-success">
+                            <i class="fas fa-file-invoice me-2"></i>عرض القيد
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
+
+            <!-- معلومات المراجعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-history"></i> السجل الزمني
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <small class="text-muted d-block mb-1"><strong>تاريخ الإنشاء</strong></small>
+                        <p class="mb-0 small">{{ voucher.created_at|date:"Y/m/d H:i" }}</p>
+                        <p class="mb-0 small text-muted">
+                            بواسطة: {{ voucher.created_by.get_full_name|default:voucher.created_by.username }}
+                        </p>
+                    </div>
+
+                    {% if voucher.posted_date %}
+                    <div class="timeline-item">
+                        <div class="timeline-dot bg-success"></div>
+                        <small class="text-muted d-block mb-1"><strong>تاريخ الترحيل</strong></small>
+                        <p class="mb-0 small">{{ voucher.posted_date|date:"Y/m/d H:i" }}</p>
+                        <p class="mb-0 small text-muted">
+                            بواسطة: {{ voucher.posted_by.get_full_name|default:voucher.posted_by.username }}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    {% if voucher.updated_at %}
+                    <div class="timeline-item">
+                        <div class="timeline-dot bg-warning"></div>
+                        <small class="text-muted d-block mb-1"><strong>آخر تحديث</strong></small>
+                        <p class="mb-0 small">{{ voucher.updated_at|date:"Y/m/d H:i" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> معلومات إضافية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-hashtag text-primary"></i>
+                            <strong>رقم السند:</strong> {{ voucher.number }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-calendar text-info"></i>
+                            <strong>تاريخ العملية:</strong> {{ voucher.date|date:"Y/m/d" }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-money-bill-wave text-success"></i>
+                            <strong>المبلغ:</strong> {{ voucher.amount|floatformat:3 }} {{ voucher.currency.symbol }}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-warning"></i>
+                            {% if voucher.status == 'posted' %}
+                                لا يمكن تعديل السند المرحل
+                            {% elif voucher.status == 'draft' %}
+                                يمكن تعديل أو حذف السند
+                            {% else %}
+                                السند جاهز للترحيل
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- قسم الطباعة -->
+<div class="print-section">
+    <div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+        <div style="text-align: center; border-bottom: 3px solid #dc3545; padding-bottom: 20px; margin-bottom: 30px;">
+            <h1 style="color: #dc3545; margin: 0;">سند صرف</h1>
+            <h2 style="margin: 10px 0;">{{ voucher.company.name }}</h2>
+            <p style="margin: 5px 0;">رقم السند: <strong>{{ voucher.number }}</strong></p>
+            <p style="margin: 5px 0;">التاريخ: <strong>{{ voucher.date|date:"Y/m/d" }}</strong></p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; width: 30%;">المستفيد</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">{{ voucher.beneficiary_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">المبلغ</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-size: 18px; color: #dc3545; font-weight: bold;">
+                    {{ voucher.amount|floatformat:3 }} {{ voucher.currency.name }}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">طريقة الدفع</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">{{ voucher.get_payment_method_display }}</td>
+            </tr>
+            {% if voucher.payment_method == 'check' %}
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">رقم الشيك</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">{{ voucher.check_number }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">البيان</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">{{ voucher.description }}</td>
+            </tr>
+        </table>
+
+        <div style="margin-top: 50px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="width: 33%; text-align: center;">
+                        <div style="border-top: 1px solid #000; display: inline-block; padding: 5px 30px;">
+                            المستلم
+                        </div>
+                    </td>
+                    <td style="width: 33%; text-align: center;">
+                        <div style="border-top: 1px solid #000; display: inline-block; padding: 5px 30px;">
+                            المحاسب
+                        </div>
+                    </td>
+                    <td style="width: 33%; text-align: center;">
+                        <div style="border-top: 1px solid #000; display: inline-block; padding: 5px 30px;">
+                            المدير المالي
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </div>
     </div>
 </div>
@@ -343,11 +629,94 @@
 
 {% block extra_js %}
 <script>
-// Global functions for actions
+// دالة طباعة السند
+function printVoucher() {
+    window.print();
+}
+
+// دالة طباعة الشيك
+function printCheck() {
+    Swal.fire({
+        title: 'طباعة الشيك',
+        html: `
+            <div class="text-start">
+                <p class="mb-3">سيتم طباعة الشيك بالمعلومات التالية:</p>
+                <ul class="list-unstyled">
+                    <li><strong>المستفيد:</strong> {{ voucher.beneficiary_name }}</li>
+                    <li><strong>المبلغ:</strong> {{ voucher.amount|floatformat:3 }} {{ voucher.currency.name }}</li>
+                    <li><strong>رقم الشيك:</strong> {{ voucher.check_number }}</li>
+                    <li><strong>التاريخ:</strong> {{ voucher.check_date|date:"Y/m/d" }}</li>
+                </ul>
+                <p class="text-muted small mt-3">
+                    <i class="fas fa-info-circle"></i>
+                    تأكد من وضع الشيك بشكل صحيح في الطابعة
+                </p>
+            </div>
+        `,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-print"></i> طباعة الآن',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#0d6efd'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // هنا يمكن إضافة كود طباعة الشيك
+            // أو فتح نافذة جديدة بتصميم الشيك
+            window.open(
+                '{% url "accounting:payment_voucher_print_check" voucher.pk %}',
+                '_blank',
+                'width=800,height=600'
+            );
+        }
+    });
+}
+
+// دالة تأكيد السند
+function confirmVoucher(id) {
+    Swal.fire({
+        title: 'تأكيد السند',
+        text: 'هل تريد تأكيد هذا السند؟ سيصبح جاهزاً للترحيل المحاسبي.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#ffc107',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، أكد السند',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: `{% url 'accounting:confirm_payment_voucher' 0 %}`.replace('0', id),
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم التأكيد',
+                            text: response.message,
+                            confirmButtonText: 'حسناً'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('خطأ', response.message, 'error');
+                    }
+                },
+                error: function() {
+                    Swal.fire('خطأ', 'حدث خطأ في الشبكة', 'error');
+                }
+            });
+        }
+    });
+}
+
+// دالة ترحيل السند
 function postVoucher(id) {
     Swal.fire({
         title: 'ترحيل السند',
-        text: 'هل أنت متأكد من ترحيل هذا السند؟',
+        text: 'هل تريد ترحيل هذا السند محاسبياً؟ سيتم إنشاء قيد محاسبي تلقائياً.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#198754',
@@ -356,12 +725,29 @@ function postVoucher(id) {
         cancelButtonText: 'إلغاء'
     }).then((result) => {
         if (result.isConfirmed) {
+            // عرض شاشة تحميل
+            Swal.fire({
+                title: 'جاري الترحيل...',
+                html: 'يرجى الانتظار حتى يتم ترحيل السند',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
             $.post('{% url "accounting:post_payment_voucher" 0 %}'.replace('0', id), {
-                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
             })
             .done(function(data) {
                 if (data.success) {
-                    Swal.fire('تم الترحيل!', data.message, 'success').then(() => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الترحيل!',
+                        text: data.message,
+                        confirmButtonText: 'حسناً'
+                    }).then(() => {
                         location.reload();
                     });
                 } else {
@@ -375,10 +761,11 @@ function postVoucher(id) {
     });
 }
 
+// دالة إلغاء الترحيل
 function unpostVoucher(id) {
     Swal.fire({
         title: 'إلغاء ترحيل السند',
-        text: 'هل أنت متأكد من إلغاء ترحيل هذا السند؟',
+        text: 'هل أنت متأكد من إلغاء ترحيل هذا السند؟ سيتم حذف القيد المحاسبي المرتبط.',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ffc107',
@@ -388,11 +775,16 @@ function unpostVoucher(id) {
     }).then((result) => {
         if (result.isConfirmed) {
             $.post('{% url "accounting:unpost_payment_voucher" 0 %}'.replace('0', id), {
-                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
             })
             .done(function(data) {
                 if (data.success) {
-                    Swal.fire('تم إلغاء الترحيل!', data.message, 'success').then(() => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم إلغاء الترحيل!',
+                        text: data.message,
+                        confirmButtonText: 'حسناً'
+                    }).then(() => {
                         location.reload();
                     });
                 } else {

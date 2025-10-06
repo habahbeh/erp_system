@@ -949,3 +949,121 @@ def export_receipt_vouchers(request):
 
     wb.save(response)
     return response
+
+
+# ========== وظائف تأكيد السندات ==========
+
+@login_required
+@permission_required_with_message('accounting.change_paymentvoucher')
+@require_http_methods(["POST"])
+def confirm_payment_voucher(request, pk):
+    """تأكيد سند الصرف (تحويله من مسودة إلى مؤكد)"""
+    try:
+        voucher = get_object_or_404(
+            PaymentVoucher,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if voucher.status != 'draft':
+            return JsonResponse({
+                'success': False,
+                'message': 'السند ليس في حالة مسودة'
+            })
+
+        voucher.status = 'confirmed'
+        voucher.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم تأكيد سند الصرف {voucher.number} بنجاح'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في تأكيد السند: {str(e)}'
+        })
+
+
+@login_required
+@permission_required_with_message('accounting.change_receiptvoucher')
+@require_http_methods(["POST"])
+def confirm_receipt_voucher(request, pk):
+    """تأكيد سند القبض (تحويله من مسودة إلى مؤكد)"""
+    try:
+        voucher = get_object_or_404(
+            ReceiptVoucher,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if voucher.status != 'draft':
+            return JsonResponse({
+                'success': False,
+                'message': 'السند ليس في حالة مسودة'
+            })
+
+        voucher.status = 'confirmed'
+        voucher.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم تأكيد سند القبض {voucher.number} بنجاح'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في تأكيد السند: {str(e)}'
+        })
+
+
+# ========== طباعة الشيكات ==========
+
+@login_required
+@permission_required_with_message('accounting.view_paymentvoucher')
+def print_payment_check(request, pk):
+    """طباعة شيك سند الصرف"""
+    voucher = get_object_or_404(
+        PaymentVoucher,
+        pk=pk,
+        company=request.current_company
+    )
+
+    # التحقق من أن السند بشيك
+    if voucher.payment_method != 'check':
+        messages.error(request, 'هذا السند ليس بشيك')
+        return redirect('accounting:payment_voucher_detail', pk=pk)
+
+    context = {
+        'voucher': voucher,
+        'company': request.current_company,
+        'title': f'طباعة شيك - {voucher.number}',
+    }
+
+    return render(request, 'accounting/vouchers/payment_check_print.html', context)
+
+
+@login_required
+@permission_required_with_message('accounting.view_receiptvoucher')
+def print_receipt_check(request, pk):
+    """طباعة شيك سند القبض"""
+    voucher = get_object_or_404(
+        ReceiptVoucher,
+        pk=pk,
+        company=request.current_company
+    )
+
+    # التحقق من أن السند بشيك
+    if voucher.receipt_method != 'check':
+        messages.error(request, 'هذا السند ليس بشيك')
+        return redirect('accounting:receipt_voucher_detail', pk=pk)
+
+    context = {
+        'voucher': voucher,
+        'company': request.current_company,
+        'title': f'طباعة شيك - {voucher.number}',
+    }
+
+    return render(request, 'accounting/vouchers/receipt_check_print.html', context)
