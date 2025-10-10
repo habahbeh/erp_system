@@ -155,6 +155,9 @@ urlpatterns = [
     path('ajax/cost-centers/<int:pk>/toggle-status/', fiscal_views.toggle_cost_center_status,
          name='toggle_cost_center_status'),
 
+    path('ajax/templates/', template_views.template_datatable_ajax, name='template_datatable_ajax'),
+
+
     # ========== ACTIONS ==========
     # Journal Entry Actions
     path('ajax/journal-entries/<int:pk>/post/', journal_views.post_journal_entry, name='post_journal_entry'),

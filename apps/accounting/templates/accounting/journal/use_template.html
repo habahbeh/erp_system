@@ -1,432 +1,461 @@
 {# apps/accounting/templates/accounting/journal/use_template.html #}
 {% extends 'base/base.html' %}
-{% load i18n static %}
+{% load i18n static widget_tweaks %}
 
 {% block title %}استخدام قالب لإنشاء قيد{% endblock %}
 
 {% block extra_css %}
+<!-- Select2 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
 <style>
-    .page-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 15px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    }
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
 
-    .template-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        transition: all 0.3s ease;
-        cursor: pointer;
-        border: 2px solid transparent;
-    }
+select[data-select2-id] {
+    background-image: none !important;
+}
 
-    .template-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-color: #667eea;
-    }
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
 
-    .template-card.active {
-        border-color: #667eea;
-        background: linear-gradient(45deg, #f8f9ff, #ffffff);
-    }
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
 
-    .template-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
 
-    .template-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #212529;
-        margin: 0;
-    }
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
 
-    .template-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-        color: #6c757d;
-        margin-top: 0.5rem;
-    }
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
 
-    .template-description {
-        color: #495057;
-        font-size: 0.9rem;
-        margin: 0.5rem 0;
-    }
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
 
-    .form-card {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-    }
+.template-header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
 
-    .preview-card {
-        background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-top: 1.5rem;
-        border: 2px solid #e1bee7;
-    }
+.template-card {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
 
-    .preview-table {
-        background: white;
-        border-radius: 8px;
-        overflow: hidden;
-        margin-top: 1rem;
-    }
+.template-card:hover {
+    border-color: #0d6efd;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+}
 
-    .badge-custom {
-        padding: 0.35rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
+.template-card.selected {
+    border-color: #198754;
+    background: #d1e7dd;
+}
 
-    .empty-state {
-        text-align: center;
-        padding: 3rem;
-        color: #6c757d;
-    }
+.template-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+}
 
-    .empty-state i {
-        font-size: 4rem;
-        opacity: 0.3;
-        margin-bottom: 1rem;
-    }
+.template-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
 
-    /* Select2 RTL */
-    .select2-container--bootstrap-5 .select2-selection--single {
-        background-image: none !important;
-        padding: 0.75rem 1rem !important;
-        direction: rtl;
-        text-align: right;
-        min-height: 48px;
-    }
+.preview-box {
+    background: #e7f3ff;
+    border: 2px solid #0d6efd;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+}
 
-    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
-        right: 8px !important;
-        left: auto !important;
-    }
-
-    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-        padding-right: 35px !important;
-        padding-left: 0 !important;
-    }
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item">
-                <a href="{% url 'accounting:dashboard' %}">المحاسبة</a>
-            </li>
-            <li class="breadcrumb-item">
-                <a href="{% url 'accounting:template_list' %}">قوالب القيود</a>
-            </li>
-            <li class="breadcrumb-item active">استخدام قالب</li>
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
         </ol>
     </nav>
 
-    <!-- Page Header -->
-    <div class="page-header">
+    <!-- Header -->
+    <div class="template-header-card">
         <div class="row align-items-center">
             <div class="col-md-8">
-                <h1 class="mb-2">
-                    <i class="fas fa-magic me-3"></i>
-                    استخدام قالب لإنشاء قيد
+                <h1 class="h3 mb-2">
+                    <i class="fas fa-magic me-2"></i>استخدام قالب لإنشاء قيد
                 </h1>
                 <p class="mb-0 opacity-90">
-                    اختر قالباً جاهزاً وأدخل البيانات المطلوبة لإنشاء قيد يومية بسرعة
+                    اختر قالباً من القوالب المتاحة وأدخل البيانات المطلوبة لإنشاء قيد بسرعة
                 </p>
             </div>
             <div class="col-md-4 text-end">
-                <a href="{% url 'accounting:journal_entry_create' %}" class="btn btn-light btn-lg">
-                    <i class="fas fa-plus me-2"></i>قيد عادي
+                <a href="{% url 'accounting:journal_entry_create' %}" class="btn btn-light">
+                    <i class="fas fa-file-invoice me-2"></i>قيد عادي
                 </a>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <!-- القوالب المتاحة -->
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0">
-                        <i class="fas fa-layer-group me-2 text-primary"></i>
-                        القوالب المتاحة
-                    </h5>
-                </div>
-                <div class="card-body p-3" style="max-height: 700px; overflow-y: auto;">
-                    {% if object_list %}
-                        <div id="templatesContainer">
-                            {% for template in object_list %}
-                            <div class="template-card"
-                                 data-template-id="{{ template.pk }}"
-                                 data-template-name="{{ template.name }}"
-                                 data-template-description="{{ template.default_description }}"
-                                 data-template-reference="{{ template.default_reference }}"
-                                 onclick="selectTemplate(this)">
+    <form method="post" id="useTemplateForm">
+        {% csrf_token %}
 
-                                <div class="template-header">
-                                    <h6 class="template-title">
-                                        {{ template.name }}
-                                    </h6>
+        <div class="row">
+            <!-- القوالب المتاحة -->
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-layer-group me-2"></i>القوالب المتاحة
+                        </h5>
+                    </div>
+                    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                        {% if object_list %}
+                            {% for template in object_list %}
+                            <div class="template-card" data-template-id="{{ template.id }}"
+                                 onclick="selectTemplate({{ template.id }}, '{{ template.name }}', '{{ template.default_description|escapejs }}', '{{ template.default_reference|escapejs }}')">
+                                <div class="template-info">
+                                    <div>
+                                        <h6 class="mb-1">{{ template.name }}</h6>
+                                        {% if template.description %}
+                                        <small class="text-muted">{{ template.description|truncatewords:15 }}</small>
+                                        {% endif %}
+                                    </div>
                                     <div>
                                         {% if template.is_balanced %}
-                                            <span class="badge bg-success badge-custom">
-                                                <i class="fas fa-check-circle me-1"></i>متوازن
-                                            </span>
+                                            <i class="fas fa-check-circle text-success" title="متوازن"></i>
                                         {% else %}
-                                            <span class="badge bg-warning badge-custom">
-                                                <i class="fas fa-exclamation-triangle me-1"></i>غير متوازن
-                                            </span>
+                                            <i class="fas fa-exclamation-triangle text-warning" title="غير متوازن"></i>
                                         {% endif %}
                                     </div>
                                 </div>
-
-                                <p class="template-description mb-2">
-                                    {{ template.default_description|truncatechars:80 }}
-                                </p>
-
-                                <div class="template-meta">
-                                    <span><i class="fas fa-tag me-1"></i>{{ template.get_entry_type_display }}</span>
-                                    <span><i class="fas fa-list me-1"></i>{{ template.template_lines.count }} سطر</span>
+                                <div class="template-badges">
+                                    <span class="badge bg-info">{{ template.get_entry_type_display }}</span>
+                                    <span class="badge bg-secondary">{{ template.template_lines.count }} سطر</span>
                                     {% if template.category %}
-                                        <span><i class="fas fa-folder me-1"></i>{{ template.category }}</span>
+                                        <span class="badge bg-primary">{{ template.category }}</span>
                                     {% endif %}
                                 </div>
                             </div>
                             {% endfor %}
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">لا توجد قوالب متاحة</h5>
+                                <p class="text-muted">لم يتم إنشاء أي قوالب بعد</p>
+                                <a href="{% url 'accounting:template_create' %}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i>إنشاء قالب جديد
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- نموذج البيانات -->
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-invoice me-2"></i>بيانات القيد الجديد
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- اختيار القالب -->
+                        <div class="mb-3">
+                            <label for="{{ form.template.id_for_label }}" class="form-label">
+                                <i class="fas fa-layer-group me-1"></i>القالب <span class="text-danger">*</span>
+                            </label>
+                            {{ form.template|add_class:"form-select" }}
+                            {% if form.template.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.template.errors %}
+                                        <div><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                <i class="fas fa-info-circle text-info"></i>
+                                اختر من البطاقات على اليمين أو من القائمة المنسدلة
+                            </div>
                         </div>
-                    {% else %}
-                        <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <h5>لا توجد قوالب متاحة</h5>
-                            <p class="text-muted">لم يتم إنشاء أي قوالب بعد</p>
-                            <a href="{% url 'accounting:template_create' %}" class="btn btn-primary">
-                                <i class="fas fa-plus me-2"></i>إنشاء قالب جديد
+
+                        <div class="row g-3">
+                            <!-- التاريخ -->
+                            <div class="col-md-6">
+                                <label for="{{ form.entry_date.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar me-1"></i>{{ form.entry_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.entry_date|add_class:"form-control" }}
+                                {% if form.entry_date.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.entry_date.errors %}
+                                            <div><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- المرجع -->
+                            <div class="col-md-6">
+                                <label for="{{ form.reference.id_for_label }}" class="form-label">
+                                    <i class="fas fa-hashtag me-1"></i>{{ form.reference.label }}
+                                </label>
+                                {{ form.reference|add_class:"form-control" }}
+                                {% if form.reference.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.reference.errors %}
+                                            <div><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- البيان -->
+                        <div class="mt-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                <i class="fas fa-align-left me-1"></i>{{ form.description.label }}
+                            </label>
+                            {{ form.description|add_class:"form-control" }}
+                            {% if form.description.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.description.errors %}
+                                        <div><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                <i class="fas fa-lightbulb text-warning"></i>
+                                اتركه فارغاً لاستخدام البيان الافتراضي من القالب
+                            </div>
+                        </div>
+
+                        <!-- معاينة القالب -->
+                        <div id="templatePreview" class="preview-box" style="display: none;">
+                            <h6 class="mb-3">
+                                <i class="fas fa-eye me-2"></i>معاينة سطور القالب
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered bg-white mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="40%">الحساب</th>
+                                            <th width="25%">البيان</th>
+                                            <th width="15%" class="text-end">مدين</th>
+                                            <th width="15%" class="text-end">دائن</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody">
+                                        <!-- سيتم ملؤها بـ JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Non-field Errors -->
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger mt-3">
+                            <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                            <ul class="mb-0">
+                                {% for error in form.non_field_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center mt-4">
+                            <a href="{% url 'accounting:template_list' %}" class="btn btn-light btn-lg">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
+                            <button type="submit" class="btn btn-success btn-lg" id="submitBtn" disabled>
+                                <i class="fas fa-magic me-1"></i>إنشاء القيد من القالب
+                            </button>
                         </div>
-                    {% endif %}
+                    </div>
+                </div>
+
+                <!-- Help Card -->
+                <div class="card info-card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>كيفية الاستخدام
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اختر القالب المناسب من القائمة
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                أدخل تاريخ القيد المطلوب
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                يمكنك تعديل البيان أو استخدام الافتراضي
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اضغط إنشاء وسيتم إنشاء القيد تلقائياً
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- نموذج إنشاء القيد -->
-        <div class="col-lg-7">
-            <div class="form-card">
-                <h5 class="mb-4">
-                    <i class="fas fa-file-invoice me-2 text-success"></i>
-                    بيانات القيد الجديد
-                </h5>
-
-                <form method="post" id="useTemplateForm">
-                    {% csrf_token %}
-
-                    <!-- اختيار القالب -->
-                    <div class="mb-3">
-                        <label for="{{ form.template.id_for_label }}" class="form-label">
-                            <i class="fas fa-layer-group me-1"></i>
-                            القالب المحدد <span class="text-danger">*</span>
-                        </label>
-                        {{ form.template }}
-                        {% if form.template.errors %}
-                            <div class="text-danger small mt-1">{{ form.template.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">
-                            <i class="fas fa-info-circle text-info"></i>
-                            اختر من القائمة على اليسار أو من القائمة المنسدلة
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- التاريخ -->
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.entry_date.id_for_label }}" class="form-label">
-                                <i class="fas fa-calendar me-1"></i>
-                                {{ form.entry_date.label }} <span class="text-danger">*</span>
-                            </label>
-                            {{ form.entry_date }}
-                            {% if form.entry_date.errors %}
-                                <div class="text-danger small mt-1">{{ form.entry_date.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <!-- المرجع -->
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.reference.id_for_label }}" class="form-label">
-                                <i class="fas fa-hashtag me-1"></i>
-                                {{ form.reference.label }}
-                            </label>
-                            {{ form.reference }}
-                            {% if form.reference.errors %}
-                                <div class="text-danger small mt-1">{{ form.reference.errors }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <!-- البيان -->
-                    <div class="mb-3">
-                        <label for="{{ form.description.id_for_label }}" class="form-label">
-                            <i class="fas fa-align-left me-1"></i>
-                            {{ form.description.label }}
-                        </label>
-                        {{ form.description }}
-                        {% if form.description.errors %}
-                            <div class="text-danger small mt-1">{{ form.description.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">
-                            <i class="fas fa-lightbulb text-warning"></i>
-                            اتركه فارغاً لاستخدام البيان الافتراضي من القالب
-                        </div>
-                    </div>
-
-                    <!-- معاينة القالب -->
-                    <div id="templatePreview" class="preview-card" style="display: none;">
-                        <h6 class="mb-3">
-                            <i class="fas fa-eye me-2"></i>
-                            معاينة سطور القالب
-                        </h6>
-                        <div class="preview-table">
-                            <table class="table table-sm mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th width="5%">#</th>
-                                        <th width="40%">الحساب</th>
-                                        <th width="25%">البيان</th>
-                                        <th width="15%" class="text-end">مدين</th>
-                                        <th width="15%" class="text-end">دائن</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="templateLinesPreview">
-                                    <!-- سيتم ملؤها بـ JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Form Errors -->
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger mt-3">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        {{ form.non_field_errors }}
-                    </div>
-                    {% endif %}
-
-                    <!-- Submit Buttons -->
-                    <div class="d-flex justify-content-between align-items-center mt-4">
-                        <a href="{% url 'accounting:template_list' %}" class="btn btn-outline-secondary btn-lg">
-                            <i class="fas fa-arrow-right me-2"></i>العودة
-                        </a>
-                        <button type="submit" class="btn btn-success btn-lg" id="createEntryBtn" disabled>
-                            <i class="fas fa-magic me-2"></i>إنشاء القيد من القالب
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    </form>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 $(document).ready(function() {
     // Initialize Select2
     $('#id_template').select2({
         theme: 'bootstrap-5',
         width: '100%',
-        dir: 'rtl',
+        dir: "rtl",
         placeholder: 'اختر القالب...',
         language: {
-            noResults: function() { return "لا توجد نتائج"; },
-            searching: function() { return "جاري البحث..."; }
+            noResults: function() { return "لا توجد نتائج"; }
         }
     });
 
-    // Template selection from dropdown
-    $('#id_template').change(function() {
+    // عند تغيير القالب من القائمة المنسدلة
+    $('#id_template').on('change', function() {
         var templateId = $(this).val();
         if (templateId) {
-            // تحديد الكارد المناسب
-            $('.template-card').removeClass('active');
-            $(`.template-card[data-template-id="${templateId}"]`).addClass('active');
+            // تحديد البطاقة المناسبة
+            $('.template-card').removeClass('selected');
+            $(`.template-card[data-template-id="${templateId}"]`).addClass('selected');
 
             loadTemplatePreview(templateId);
-            $('#createEntryBtn').prop('disabled', false);
+            $('#submitBtn').prop('disabled', false);
         } else {
-            $('.template-card').removeClass('active');
+            $('.template-card').removeClass('selected');
             $('#templatePreview').slideUp();
-            $('#createEntryBtn').prop('disabled', true);
+            $('#submitBtn').prop('disabled', true);
         }
+    });
+
+    // Form submission
+    $('#useTemplateForm').on('submit', function(e) {
+        if (!$('#id_template').val()) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'تنبيه',
+                text: 'يجب اختيار قالب أولاً',
+                confirmButtonText: 'حسناً'
+            });
+            return false;
+        }
+
+        $('#submitBtn').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري إنشاء القيد...'
+        );
     });
 });
 
-// Template selection from card
-function selectTemplate(card) {
-    var $card = $(card);
-    var templateId = $card.data('template-id');
-    var templateName = $card.data('template-name');
-    var templateDescription = $card.data('template-description');
-    var templateReference = $card.data('template-reference');
-
-    // Update form fields
+// اختيار القالب من البطاقة
+function selectTemplate(templateId, templateName, defaultDescription, defaultReference) {
+    // تحديث القائمة المنسدلة
     $('#id_template').val(templateId).trigger('change');
 
-    if (templateDescription) {
-        $('#id_description').val(templateDescription);
+    // تحديث الحقول
+    if (defaultDescription && !$('#id_description').val()) {
+        $('#id_description').val(defaultDescription);
     }
 
-    if (templateReference) {
-        $('#id_reference').val(templateReference);
+    if (defaultReference && !$('#id_reference').val()) {
+        $('#id_reference').val(defaultReference);
     }
 
-    // Highlight selected template
-    $('.template-card').removeClass('active');
-    $card.addClass('active');
+    // تحديد البطاقة
+    $('.template-card').removeClass('selected');
+    $(`.template-card[data-template-id="${templateId}"]`).addClass('selected');
 
-    // Load preview
+    // تحميل المعاينة
     loadTemplatePreview(templateId);
 
-    // Enable submit button
-    $('#createEntryBtn').prop('disabled', false);
-
-    // Scroll to form (optional)
-    $('html, body').animate({
-        scrollTop: $('.form-card').offset().top - 100
-    }, 500);
+    // تفعيل زر الإرسال
+    $('#submitBtn').prop('disabled', false);
 }
 
+// تحميل معاينة القالب
 function loadTemplatePreview(templateId) {
     if (!templateId) return;
 
     $.ajax({
-        url: '/accounting/ajax/templates/' + templateId + '/lines/',
+        url: '{% url "accounting:get_template_lines" 0 %}'.replace('0', templateId),
         method: 'GET',
         success: function(response) {
-            if (response.success) {
-                var linesHtml = '';
+            if (response.success && response.lines) {
+                var html = '';
                 var totalDebit = 0;
                 var totalCredit = 0;
 
@@ -436,66 +465,37 @@ function loadTemplatePreview(templateId) {
                     totalDebit += debit;
                     totalCredit += credit;
 
-                    linesHtml += '<tr>' +
+                    html += '<tr>' +
                         '<td class="text-center">' + (index + 1) + '</td>' +
-                        '<td><small class="text-muted">' + line.account_text + '</small></td>' +
+                        '<td>' +
+                            '<div>' + line.account_text + '</div>' +
+                        '</td>' +
                         '<td>' + (line.description || '-') + '</td>' +
                         '<td class="text-end">' + (debit > 0 ? debit.toFixed(2) : '-') + '</td>' +
                         '<td class="text-end">' + (credit > 0 ? credit.toFixed(2) : '-') + '</td>' +
                         '</tr>';
                 });
 
-                // Add totals row
-                linesHtml += '<tr class="table-secondary fw-bold">' +
+                // إضافة صف الإجمالي
+                html += '<tr class="table-secondary fw-bold">' +
                     '<td colspan="3" class="text-end">الإجمالي</td>' +
-                    '<td class="text-end">' + totalDebit.toFixed(2) + '</td>' +
-                    '<td class="text-end">' + totalCredit.toFixed(2) + '</td>' +
+                    '<td class="text-end text-success">' + totalDebit.toFixed(2) + '</td>' +
+                    '<td class="text-end text-primary">' + totalCredit.toFixed(2) + '</td>' +
                     '</tr>';
 
-                $('#templateLinesPreview').html(linesHtml);
+                $('#previewTableBody').html(html);
                 $('#templatePreview').slideDown();
-
-                // Update description if empty
-                if (!$('#id_description').val() && response.description) {
-                    $('#id_description').val(response.description);
-                }
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'خطأ',
-                    text: 'خطأ في تحميل بيانات القالب',
-                    confirmButtonColor: '#dc3545'
-                });
             }
         },
         error: function() {
             Swal.fire({
                 icon: 'error',
                 title: 'خطأ',
-                text: 'خطأ في الاتصال بالخادم',
-                confirmButtonColor: '#dc3545'
+                text: 'فشل في تحميل معاينة القالب',
+                confirmButtonText: 'حسناً'
             });
         }
     });
 }
-
-// Form submission
-$('#useTemplateForm').on('submit', function(e) {
-    if (!$('#id_template').val()) {
-        e.preventDefault();
-        Swal.fire({
-            icon: 'warning',
-            title: 'تنبيه',
-            text: 'يجب اختيار قالب أولاً',
-            confirmButtonColor: '#ffc107'
-        });
-        return false;
-    }
-
-    // Show loading
-    $('#createEntryBtn').prop('disabled', true).html(
-        '<i class="fas fa-spinner fa-spin me-2"></i>جاري إنشاء القيد...'
-    );
-});
 </script>
 {% endblock %}

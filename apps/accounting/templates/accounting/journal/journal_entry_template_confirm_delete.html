@@ -1,542 +1,224 @@
-{# templates/accounting/journal/journal_entry_template_confirm_delete.html #}
+{# apps/accounting/templates/accounting/journal/journal_entry_template_confirm_delete.html #}
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
-{% block title %}حذف قالب القيد - {{ object.name }}{% endblock %}
+{% block title %}حذف القالب {{ object.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
-    .delete-container {
-        max-width: 700px;
-        margin: 2rem auto;
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
+.delete-confirmation {
+    background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
 
-    .delete-header {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        color: white;
-        padding: 2rem;
-        text-align: center;
-    }
+.entry-details {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
 
-    .delete-icon {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-        opacity: 0.9;
-        animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-    }
-
-    .delete-body {
-        padding: 2rem;
-    }
-
-    .template-details {
-        background: #f8f9fa;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        border-left: 4px solid #dc3545;
-    }
-
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.75rem 0;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .detail-row:last-child {
-        border-bottom: none;
-    }
-
-    .detail-label {
-        font-weight: 600;
-        color: #495057;
-        display: flex;
-        align-items: center;
-    }
-
-    .detail-label i {
-        margin-left: 0.5rem;
-        color: #6c757d;
-    }
-
-    .detail-value {
-        font-weight: 500;
-        color: #212529;
-    }
-
-    .warning-section {
-        background: #fff3cd;
-        border: 2px solid #ffeaa7;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .danger-section {
-        background: #f8d7da;
-        border: 2px solid #f5c6cb;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .info-section {
-        background: #d1ecf1;
-        border: 2px solid #bee5eb;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .consequences-list {
-        list-style: none;
-        padding-right: 0;
-    }
-
-    .consequences-list li {
-        padding: 0.5rem 0;
-        display: flex;
-        align-items: flex-start;
-    }
-
-    .consequences-list li i {
-        margin-left: 0.75rem;
-        margin-top: 0.25rem;
-        color: #dc3545;
-    }
-
-    .template-usage {
-        background: white;
-        border: 2px solid #e9ecef;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .usage-stat {
-        text-align: center;
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin: 0.5rem;
-    }
-
-    .usage-number {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #dc3545;
-    }
-
-    .usage-label {
-        color: #6c757d;
-        font-weight: 500;
-        margin-top: 0.25rem;
-    }
-
-    .lines-preview {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 1rem;
-        margin-top: 1rem;
-    }
-
-    .line-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #e9ecef;
-        font-size: 0.875rem;
-    }
-
-    .line-item:last-child {
-        border-bottom: none;
-    }
-
-    .account-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .account-code {
-        font-family: 'Monaco', 'Consolas', monospace;
-        font-weight: 600;
-        color: #0d6efd;
-    }
-
-    .account-name {
-        color: #6c757d;
-    }
-
-    .amount-info {
-        text-align: end;
-        font-family: 'Monaco', 'Consolas', monospace;
-        font-weight: 600;
-    }
-
-    .debit-amount {
-        color: #198754;
-    }
-
-    .credit-amount {
-        color: #dc3545;
-    }
-
-    .confirmation-check {
-        background: #f8f9fa;
-        border: 2px solid #e9ecef;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-
-    .form-check-input:checked {
-        background-color: #dc3545;
-        border-color: #dc3545;
-    }
-
-    .form-check-label {
-        font-weight: 600;
-        color: #495057;
-        cursor: pointer;
-    }
-
-    .btn-group-delete {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 2rem;
-    }
-
-    .btn {
-        border-radius: 8px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        min-width: 150px;
-    }
-
-    .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-
-    .balance-info {
-        background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-    }
-
-    .balance-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.25rem 0;
-    }
-
-    .balance-amount {
-        font-family: 'Monaco', 'Consolas', monospace;
-        font-weight: 600;
-    }
-
-    .balanced {
-        color: #198754;
-    }
-
-    .unbalanced {
-        color: #dc3545;
-    }
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item">
-                <a href="{% url 'accounting:dashboard' %}">المحاسبة</a>
-            </li>
             <li class="breadcrumb-item">
                 <a href="{% url 'accounting:template_list' %}">قوالب القيود</a>
             </li>
             <li class="breadcrumb-item">
-                <a href="{% url 'accounting:journal_template_detail' object.pk %}">{{ object.name }}</a>
+                <a href="{% url 'accounting:template_detail' object.pk %}">{{ object.name }}</a>
             </li>
-            <li class="breadcrumb-item active" aria-current="page">
-                حذف القالب
-            </li>
+            <li class="breadcrumb-item active">حذف القالب</li>
         </ol>
     </nav>
 
-    <div class="delete-container">
-        <!-- Delete Header -->
-        <div class="delete-header">
-            <div class="delete-icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h2 class="mb-2">تأكيد حذف قالب القيد</h2>
-            <p class="mb-0 opacity-90">
-                هذا الإجراء لا يمكن التراجع عنه
-            </p>
-        </div>
-
-        <!-- Delete Body -->
-        <div class="delete-body">
-            <!-- معلومات القالب المراد حذفه -->
-            <div class="template-details">
-                <h5 class="mb-3 text-center">
-                    <i class="fas fa-layer-group me-2 text-danger"></i>
-                    تفاصيل القالب المراد حذفه
-                </h5>
-
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-tag"></i>
-                        اسم القالب
-                    </span>
-                    <span class="detail-value">{{ object.name }}</span>
-                </div>
-
-                {% if object.code %}
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-barcode"></i>
-                        رمز القالب
-                    </span>
-                    <span class="detail-value">{{ object.code }}</span>
-                </div>
-                {% endif %}
-
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-cogs"></i>
-                        نوع القيد
-                    </span>
-                    <span class="detail-value">{{ object.get_entry_type_display }}</span>
-                </div>
-
-                {% if object.category %}
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-folder"></i>
-                        الفئة
-                    </span>
-                    <span class="detail-value">{{ object.category }}</span>
-                </div>
-                {% endif %}
-
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-list"></i>
-                        عدد السطور
-                    </span>
-                    <span class="detail-value">{{ object.template_lines.count }} سطر</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-flag"></i>
-                        حالة القالب
-                    </span>
-                    <span class="detail-value">
-                        {% if object.is_active %}
-                            <span class="badge bg-success">
-                                <i class="fas fa-check-circle me-1"></i>نشط
-                            </span>
-                        {% else %}
-                            <span class="badge bg-danger">
-                                <i class="fas fa-times-circle me-1"></i>معطل
-                            </span>
-                        {% endif %}
-                    </span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">
-                        <i class="fas fa-calendar-plus"></i>
-                        تاريخ الإنشاء
-                    </span>
-                    <span class="detail-value">{{ object.created_at|date:"j F Y - H:i" }}</span>
-                </div>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Delete Confirmation Header -->
+            <div class="delete-confirmation text-center">
+                <h2><i class="fas fa-exclamation-triangle fa-2x mb-3"></i></h2>
+                <h3>تأكيد حذف القالب</h3>
+                <p class="mb-0">هل أنت متأكد من حذف هذا القالب نهائياً؟</p>
             </div>
 
-            <!-- إحصائيات الاستخدام -->
-            <div class="template-usage">
-                <h6 class="text-center mb-3">
-                    <i class="fas fa-chart-bar me-2"></i>
-                    إحصائيات الاستخدام
-                </h6>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="usage-stat">
-                            <div class="usage-number" id="usageCount">--</div>
-                            <div class="usage-label">مرة استخدام</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="usage-stat">
-                            <div class="usage-number">{{ object.template_lines.count }}</div>
-                            <div class="usage-label">سطر في القالب</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="usage-stat">
-                            <div class="usage-number" id="recentUsage">--</div>
-                            <div class="usage-label">استخدام حديث</div>
-                        </div>
-                    </div>
+            <!-- Template Details -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>تفاصيل القالب المراد حذفه
+                    </h5>
                 </div>
-                <p class="text-center mt-2 mb-0">
-                    <small class="text-muted">
-                        <i class="fas fa-spinner fa-spin me-1"></i>
-                        جاري فحص إحصائيات الاستخدام...
-                    </small>
-                </p>
-            </div>
-
-            <!-- معاينة سطور القالب -->
-            {% if object.template_lines.exists %}
-            <div class="info-section">
-                <h6 class="mb-3">
-                    <i class="fas fa-list me-2 text-info"></i>
-                    معاينة سطور القالب ({{ object.template_lines.count }} سطر)
-                </h6>
-                
-                <div class="lines-preview">
-                    {% for line in object.template_lines.all|slice:":5" %}
-                    <div class="line-item">
-                        <div class="account-info">
-                            <span class="account-code">{{ line.account.code }}</span>
-                            <span class="account-name">{{ line.account.name|truncatewords:4 }}</span>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="40%">اسم القالب:</th>
+                                    <td><strong>{{ object.name }}</strong></td>
+                                </tr>
+                                {% if object.code %}
+                                <tr>
+                                    <th>رمز القالب:</th>
+                                    <td>{{ object.code }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th>نوع القيد:</th>
+                                    <td>{{ object.get_entry_type_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>الحالة:</th>
+                                    <td>
+                                        {% if object.is_active %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">معطل</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
                         </div>
-                        <div class="amount-info">
-                            {% if line.debit_amount %}
-                                <span class="debit-amount">{{ line.debit_amount|floatformat:2 }} مدين</span>
-                            {% elif line.credit_amount %}
-                                <span class="credit-amount">{{ line.credit_amount|floatformat:2 }} دائن</span>
-                            {% else %}
-                                <span class="text-muted">متغير</span>
-                            {% endif %}
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="40%">إجمالي المدين:</th>
+                                    <td class="text-success fw-bold">{{ object.get_total_debit|floatformat:2 }}</td>
+                                </tr>
+                                <tr>
+                                    <th>إجمالي الدائن:</th>
+                                    <td class="text-primary fw-bold">{{ object.get_total_credit|floatformat:2 }}</td>
+                                </tr>
+                                <tr>
+                                    <th>عدد السطور:</th>
+                                    <td>{{ object.template_lines.count }}</td>
+                                </tr>
+                                <tr>
+                                    <th>أنشأ بواسطة:</th>
+                                    <td>{{ object.created_by.get_full_name|default:object.created_by.username }}</td>
+                                </tr>
+                            </table>
                         </div>
                     </div>
-                    {% endfor %}
-                    
-                    {% if object.template_lines.count > 5 %}
-                    <div class="line-item">
-                        <div class="text-muted">
-                            <em>و {{ object.template_lines.count|add:"-5" }} سطر آخر...</em>
-                        </div>
-                        <div></div>
+
+                    {% if object.description %}
+                    <div class="mt-3">
+                        <strong>الوصف:</strong>
+                        <p class="border p-2 rounded bg-light">{{ object.description }}</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-2">
+                        <strong>البيان الافتراضي:</strong>
+                        <p class="border p-2 rounded bg-light">{{ object.default_description }}</p>
+                    </div>
+
+                    {% if object.category %}
+                    <div class="mt-2">
+                        <strong>الفئة:</strong> {{ object.category }}
                     </div>
                     {% endif %}
                 </div>
-
-                <!-- معلومات التوازن -->
-                <div class="balance-info">
-                    <div class="balance-row">
-                        <span>إجمالي المدين:</span>
-                        <span class="balance-amount">{{ object.get_total_debit|floatformat:2 }}</span>
-                    </div>
-                    <div class="balance-row">
-                        <span>إجمالي الدائن:</span>
-                        <span class="balance-amount">{{ object.get_total_credit|floatformat:2 }}</span>
-                    </div>
-                    <div class="balance-row">
-                        <span>حالة التوازن:</span>
-                        <span class="balance-amount {% if object.is_balanced %}balanced{% else %}unbalanced{% endif %}">
-                            {% if object.is_balanced %}
-                                <i class="fas fa-check-circle me-1"></i>متوازن
-                            {% else %}
-                                <i class="fas fa-exclamation-triangle me-1"></i>غير متوازن
-                            {% endif %}
-                        </span>
-                    </div>
-                </div>
             </div>
-            {% endif %}
 
-            <!-- تحذيرات مهمة -->
-            <div class="warning-section">
-                <h6 class="text-warning mb-3">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    تحذيرات مهمة
+            <!-- Warning Messages -->
+            <div class="warning-box">
+                <h6 class="text-warning mb-2">
+                    <i class="fas fa-exclamation-triangle me-2"></i>تحذيرات مهمة:
                 </h6>
-                <ul class="consequences-list">
-                    <li>
-                        <i class="fas fa-times-circle"></i>
-                        سيتم حذف القالب وجميع سطوره نهائياً ولا يمكن استرجاعها
-                    </li>
-                    <li>
-                        <i class="fas fa-times-circle"></i>
-                        لن تتمكن من استخدام هذا القالب لإنشاء قيود جديدة
-                    </li>
-                    <li>
-                        <i class="fas fa-times-circle"></i>
-                        القيود المنشأة مسبقاً من هذا القالب لن تتأثر
-                    </li>
-                    <li>
-                        <i class="fas fa-times-circle"></i>
-                        سيتم فقدان جميع الإعدادات والتخصيصات للقالب
-                    </li>
+                <ul class="mb-0">
+                    <li>حذف القالب سيؤدي لحذف جميع سطوره المرتبطة</li>
+                    <li>لا يمكن التراجع عن عملية الحذف</li>
+                    <li>القيود المنشأة مسبقاً من هذا القالب لن تتأثر</li>
+                    <li>لن تتمكن من استخدام هذا القالب لإنشاء قيود جديدة</li>
                 </ul>
             </div>
 
-            <!-- تحذير خاص للقوالب النشطة -->
-            {% if object.is_active %}
-            <div class="danger-section">
-                <h6 class="text-danger mb-3">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    تحذير: قالب نشط
-                </h6>
-                <p class="mb-0">
-                    هذا القالب نشط حالياً ومتاح للاستخدام. حذفه قد يؤثر على العمليات الجارية
-                    وعلى المستخدمين الذين يعتمدون عليه في إدخال القيود.
-                </p>
+            <!-- Lines Preview -->
+            {% if object.template_lines.exists %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">سطور القالب ({{ object.template_lines.count }})</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="5%">#</th>
+                                    <th width="40%">الحساب</th>
+                                    <th width="25%">البيان</th>
+                                    <th width="15%" class="text-end">مدين</th>
+                                    <th width="15%" class="text-end">دائن</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in object.template_lines.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        <div>{{ line.account.name }}</div>
+                                        <small class="text-muted">{{ line.account.code }}</small>
+                                    </td>
+                                    <td>{{ line.description|default:"-" }}</td>
+                                    <td class="text-end">
+                                        {% if line.debit_amount %}
+                                            {{ line.debit_amount|floatformat:2 }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if line.credit_amount %}
+                                            {{ line.credit_amount|floatformat:2 }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             {% endif %}
 
-            <!-- خانة التأكيد -->
-            <div class="confirmation-check">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="confirmDelete" required>
-                    <label class="form-check-label" for="confirmDelete">
-                        أؤكد أنني قرأت التحذيرات وأريد حذف هذا القالب نهائياً
-                    </label>
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-between mt-4">
+                <div>
+                    <a href="{% url 'accounting:template_detail' object.pk %}"
+                       class="btn btn-secondary btn-lg">
+                        <i class="fas fa-arrow-right me-2"></i>العودة للقالب
+                    </a>
+                    <a href="{% url 'accounting:template_list' %}"
+                       class="btn btn-outline-secondary btn-lg ms-2">
+                        <i class="fas fa-list me-2"></i>قائمة القوالب
+                    </a>
+                </div>
+
+                <div>
+                    <form method="post" class="d-inline" onsubmit="return confirmDelete()">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-trash me-2"></i>تأكيد الحذف
+                        </button>
+                    </form>
                 </div>
             </div>
-
-            <!-- نموذج الحذف -->
-            <form method="post" id="deleteForm">
-                {% csrf_token %}
-                
-                <div class="btn-group-delete">
-                    <a href="{% url 'accounting:journal_template_detail' object.pk %}" 
-                       class="btn btn-secondary">
-                        <i class="fas fa-arrow-right me-2"></i>
-                        إلغاء والعودة
-                    </a>
-                    
-                    <button type="submit" class="btn btn-danger" id="deleteButton" disabled>
-                        <i class="fas fa-trash me-2"></i>
-                        حذف القالب نهائياً
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
@@ -544,147 +226,14 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const confirmCheckbox = document.getElementById('confirmDelete');
-    const deleteButton = document.getElementById('deleteButton');
-    const deleteForm = document.getElementById('deleteForm');
-
-    // تمكين/تعطيل زر الحذف
-    confirmCheckbox.addEventListener('change', function() {
-        deleteButton.disabled = !this.checked;
-        
-        if (this.checked) {
-            deleteButton.classList.remove('btn-secondary');
-            deleteButton.classList.add('btn-danger');
-        } else {
-            deleteButton.classList.remove('btn-danger');
-            deleteButton.classList.add('btn-secondary');
-        }
-    });
-
-    // فحص إحصائيات الاستخدام
-    checkUsageStats();
-
-    // معالجة إرسال النموذج
-    deleteForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        if (!confirmCheckbox.checked) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'تأكيد مطلوب',
-                text: 'يجب تأكيد الحذف أولاً',
-                confirmButtonColor: '#dc3545'
-            });
-            return;
-        }
-
-        // تأكيد نهائي
-        Swal.fire({
-            title: 'تأكيد الحذف النهائي',
-            html: `
-                <div class="text-start">
-                    <p><strong>هل أنت متأكد تماماً من حذف قالب القيد:</strong></p>
-                    <div class="alert alert-danger text-center">
-                        <i class="fas fa-layer-group me-2"></i>
-                        <strong>{{ object.name }}</strong>
-                    </div>
-                    <p class="text-danger"><strong>هذا الإجراء لا يمكن التراجع عنه!</strong></p>
-                    <ul class="text-muted">
-                        <li>سيتم حذف القالب وجميع سطوره</li>
-                        <li>لن تتمكن من استخدامه مستقبلاً</li>
-                        <li>القيود المنشأة مسبقاً لن تتأثر</li>
-                    </ul>
-                </div>
-            `,
-            icon: 'error',
-            showCancelButton: true,
-            confirmButtonText: '<i class="fas fa-trash me-2"></i>نعم، احذف نهائياً',
-            cancelButtonText: 'إلغاء',
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            customClass: {
-                popup: 'text-end'
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // إظهار تحميل
-                Swal.fire({
-                    title: 'جاري الحذف...',
-                    text: 'يرجى الانتظار',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-
-                // إرسال النموذج
-                this.submit();
-            }
-        });
-    });
-});
-
-function checkUsageStats() {
-    // محاكاة فحص إحصائيات الاستخدام
-    // في التطبيق الحقيقي، ستكون هذه استدعاء Ajax
-    
-    setTimeout(() => {
-        // قيم تجريبية - ستأتي من الخادم
-        const usageCount = Math.floor(Math.random() * 100);
-        const recentUsage = Math.floor(Math.random() * 30);
-
-        document.getElementById('usageCount').textContent = usageCount;
-        document.getElementById('recentUsage').textContent = recentUsage;
-
-        // تحديث الرسالة
-        const messageContainer = document.querySelector('.template-usage p');
-        
-        if (usageCount > 0) {
-            messageContainer.innerHTML = `
-                <small class="text-warning">
-                    <i class="fas fa-exclamation-triangle me-1"></i>
-                    تم استخدام هذا القالب ${usageCount} مرة - تأكد من عدم الحاجة له مستقبلاً
-                </small>
-            `;
-        } else {
-            messageContainer.innerHTML = `
-                <small class="text-success">
-                    <i class="fas fa-check-circle me-1"></i>
-                    لم يتم استخدام هذا القالب من قبل
-                </small>
-            `;
-        }
-    }, 2000);
+function confirmDelete() {
+    return confirm('هل أنت متأكد تماماً من حذف هذا القالب؟\n\nهذا الإجراء لا يمكن التراجع عنه!');
 }
 
-// تحسين تجربة المستخدم
-document.addEventListener('DOMContentLoaded', function() {
-    // تأثير hover للأزرار
-    document.querySelectorAll('.btn').forEach(btn => {
-        btn.addEventListener('mouseenter', function() {
-            if (!this.disabled) {
-                this.style.transform = 'translateY(-2px)';
-            }
-        });
-        
-        btn.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0)';
-        });
-    });
-
-    // تحسين checkbox
-    const checkbox = document.getElementById('confirmDelete');
-    checkbox.addEventListener('change', function() {
-        const label = this.nextElementSibling;
-        if (this.checked) {
-            label.style.color = '#dc3545';
-            label.style.fontWeight = '700';
-        } else {
-            label.style.color = '#495057';
-            label.style.fontWeight = '600';
-        }
-    });
+// تحذير عند مغادرة الصفحة
+$(document).ready(function() {
+    // Focus على زر العودة للحماية من الحذف العرضي
+    $('.btn-secondary').first().focus();
 });
 </script>
 {% endblock %}

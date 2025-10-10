@@ -109,7 +109,7 @@ select[data-select2-id] {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="card-title mb-1">{% trans "إجمالي القوالب" %}</h6>
-                            <h2 class="mb-0">{{ stats.total|default:0 }}</h2>
+                            <h2 class="mb-0" id="totalTemplates">-</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-layer-group fa-3x"></i>
@@ -125,7 +125,7 @@ select[data-select2-id] {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="card-title mb-1">{% trans "قوالب نشطة" %}</h6>
-                            <h2 class="mb-0">{{ stats.active|default:0 }}</h2>
+                            <h2 class="mb-0" id="activeTemplates">-</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-check-circle fa-3x"></i>
@@ -141,7 +141,7 @@ select[data-select2-id] {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="card-title mb-1">{% trans "قوالب معطلة" %}</h6>
-                            <h2 class="mb-0">{{ stats.inactive|default:0 }}</h2>
+                            <h2 class="mb-0" id="inactiveTemplates">-</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-times-circle fa-3x"></i>
@@ -157,7 +157,7 @@ select[data-select2-id] {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="card-title mb-1">{% trans "فئات مختلفة" %}</h6>
-                            <h2 class="mb-0">{{ stats.categories|default:0 }}</h2>
+                            <h2 class="mb-0" id="categoriesCount">-</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-tags fa-3x"></i>
@@ -242,81 +242,22 @@ select[data-select2-id] {
                         </tr>
                     </thead>
                     <tbody>
-                        {% for template in templates %}
-                        <tr>
-                            <td>
-                                <strong>{{ template.name }}</strong>
-                                {% if template.description %}
-                                <br><small class="text-muted">{{ template.description|truncatewords:10 }}</small>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if template.code %}
-                                    <code>{{ template.code }}</code>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge bg-info">{{ template.get_entry_type_display }}</span>
-                            </td>
-                            <td>
-                                {% if template.category %}
-                                    <span class="badge bg-secondary">{{ template.category }}</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <span class="badge bg-primary">{{ template.template_lines.count }} سطر</span>
-                            </td>
-                            <td class="text-center">
-                                {% if template.is_active %}
-                                    <span class="badge bg-success">نشط</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">معطل</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'accounting:template_detail' template.pk %}"
-                                       class="btn btn-outline-info" title="عرض" data-bs-toggle="tooltip">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <a href="{% url 'accounting:use_template' %}?template={{ template.pk }}"
-                                       class="btn btn-outline-success" title="استخدام" data-bs-toggle="tooltip">
-                                        <i class="fas fa-magic"></i>
-                                    </a>
-                                    {% if can_edit %}
-                                    <a href="{% url 'accounting:template_update' template.pk %}"
-                                       class="btn btn-outline-primary" title="تعديل" data-bs-toggle="tooltip">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    {% endif %}
-                                    {% if can_delete %}
-                                    <a href="{% url 'accounting:template_delete' template.pk %}"
-                                       class="btn btn-outline-danger" title="حذف" data-bs-toggle="tooltip">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                                {% trans "لا توجد قوالب متاحة" %}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <!-- DataTable will populate -->
                     </tbody>
                 </table>
             </div>
         </div>
         <div class="card-footer bg-light">
             <div class="d-flex justify-content-between align-items-center">
-                <span id="tableInfo" class="text-muted">عرض {{ templates|length }} من {{ stats.total|default:0 }} قالب</span>
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -327,6 +268,7 @@ select[data-select2-id] {
 <!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
 
@@ -352,46 +294,104 @@ $(document).ready(function() {
     // Initialize DataTable
     // ==============================
     var table = $('#templatesTable').DataTable({
-        "responsive": true,
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'accounting:template_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.entry_type = $('#entryTypeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.category = $('#categoryFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "name"},
+            {"data": 1, "name": "code"},
+            {"data": 2, "name": "entry_type"},
+            {"data": 3, "name": "category"},
+            {"data": 4, "name": "lines", "className": "text-center"},
+            {"data": 5, "name": "status", "className": "text-center"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
         "pageLength": 25,
         "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
-        "order": [[0, "asc"]],
+        "responsive": true,
         "language": {
             "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
         },
         "columnDefs": [
             { "targets": "no-sort", "orderable": false },
-            { "className": "text-center", "targets": [4, 5, 6] }
-        ]
+            { "className": "text-center", "targets": [6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = table.page.info();
+            updateTableInfo(info);
+        }
     });
 
     // ==============================
     // Filter Events
     // ==============================
-    $('#entryTypeFilter, #statusFilter, #categoryFilter, #searchFilter').on('keyup change', function() {
-        table.search($(this).val()).draw();
+    $('#entryTypeFilter, #statusFilter, #categoryFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
     });
 
     $('#clearFilters').on('click', function() {
         $('#entryTypeFilter, #statusFilter').val('').trigger('change');
         $('#categoryFilter, #searchFilter').val('');
-        table.search('').draw();
+        table.ajax.reload();
     });
 
     // ==============================
-    // Initialize Tooltips
+    // Helper Functions
     // ==============================
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    function updateTableInfo(info) {
+        var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' قالب';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
+
+    // Load stats
+    loadStats();
 });
+
+// ==============================
+// Load Statistics
+// ==============================
+function loadStats() {
+    $('#totalTemplates').text('{{ stats.total|default:0 }}');
+    $('#activeTemplates').text('{{ stats.active|default:0 }}');
+    $('#inactiveTemplates').text('{{ stats.inactive|default:0 }}');
+    $('#categoriesCount').text('{{ stats.categories|default:0 }}');
+}
 
 // ==============================
 // Export to Excel
 // ==============================
 window.exportData = function() {
-    alert('ميزة التصدير قيد التطوير');
+    Swal.fire({
+        icon: 'info',
+        title: 'قريباً',
+        text: 'ميزة التصدير قيد التطوير',
+        confirmButtonText: 'حسناً'
+    });
 };
 </script>
 {% endblock %}
