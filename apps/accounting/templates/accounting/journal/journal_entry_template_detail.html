@@ -469,16 +469,44 @@ function printTemplate() {
 
 function copyTemplate() {
     Swal.fire({
-        title: '{% trans "نسخ القالب" %}',
-        text: '{% trans "سيتم إنشاء قالب جديد بنفس البيانات" %}',
+        title: 'نسخ القالب',
+        text: 'سيتم إنشاء قالب جديد بنفس البيانات. هل تريد المتابعة؟',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: '{% trans "نعم، انسخ القالب" %}',
-        cancelButtonText: '{% trans "إلغاء" %}',
-        confirmButtonColor: '#0d6efd'
+        confirmButtonText: 'نعم، انسخ القالب',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#0d6efd',
+        showLoaderOnConfirm: true,
+        preConfirm: () => {
+            return $.ajax({
+                url: '{% url "accounting:template_copy" template.pk %}',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                dataType: 'json'
+            }).then(response => {
+                if (!response.success) {
+                    throw new Error(response.message || 'خطأ غير معروف');
+                }
+                return response;
+            }).catch(error => {
+                Swal.showValidationMessage(
+                    `خطأ: ${error.message || error.responseJSON?.message || 'فشل في نسخ القالب'}`
+                );
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
     }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire('{% trans "تحت التطوير" %}', '{% trans "هذه الميزة قيد التطوير" %}', 'info');
+        if (result.isConfirmed && result.value) {
+            Swal.fire({
+                title: 'نجح!',
+                text: result.value.message,
+                icon: 'success',
+                confirmButtonText: 'عرض القالب الجديد'
+            }).then(() => {
+                window.location.href = result.value.redirect_url;
+            });
         }
     });
 }

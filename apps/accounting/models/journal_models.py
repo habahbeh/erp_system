@@ -59,11 +59,15 @@ class JournalEntryTemplate(BaseModel):
 
     def create_journal_entry(self, **kwargs):
         """إنشاء قيد من القالب"""
+        # استخراج القيم وحذفها من kwargs لتجنب التكرار
+        description = kwargs.pop('description', self.default_description)
+        reference = kwargs.pop('reference', self.default_reference)
+
         entry = JournalEntry.objects.create(
             company=self.company,
             entry_type=self.entry_type,
-            description=kwargs.get('description', self.default_description),
-            reference=kwargs.get('reference', self.default_reference),
+            description=description,
+            reference=reference,
             template=self,
             **kwargs
         )

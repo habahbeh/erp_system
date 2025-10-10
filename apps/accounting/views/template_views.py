@@ -23,9 +23,9 @@ from ..forms.journal_forms import (
 )
 
 
-from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from apps.core.decorators import permission_required_with_message
+from django.contrib.auth.decorators import login_required
 
 class JournalEntryTemplateListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
     """قائمة قوالب القيود"""
@@ -221,9 +221,9 @@ class JournalEntryTemplateDetailView(LoginRequiredMixin, PermissionRequiredMixin
         return context
 
 
-class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin,
-                                     UpdateView):
-    """تعديل قالب القيد"""
+class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
+    """تعديل قالب قيد"""
+
     model = JournalEntryTemplate
     form_class = JournalEntryTemplateForm
     template_name = 'accounting/journal/journal_entry_template_form.html'
@@ -239,6 +239,7 @@ class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin
 
     @transaction.atomic
     def form_valid(self, form):
+        # حفظ القالب
         self.object = form.save()
 
         # حذف السطور القديمة
@@ -261,19 +262,15 @@ class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin
                             company=self.request.current_company
                         )
 
-                        debit = float(line_data.get('debit_amount', 0) or 0)
-                        credit = float(line_data.get('credit_amount', 0) or 0)
-
                         JournalEntryTemplateLine.objects.create(
                             template=self.object,
                             line_number=line_data.get('line_number', 1),
                             account=account,
                             description=line_data.get('description', ''),
-                            debit_amount=debit,
-                            credit_amount=credit,
+                            debit_amount=line_data.get('debit_amount', 0),
+                            credit_amount=line_data.get('credit_amount', 0),
                             reference=line_data.get('reference', ''),
-                            default_cost_center_id=line_data.get('default_cost_center') if line_data.get(
-                                'default_cost_center') else None,
+                            default_cost_center_id=line_data.get('default_cost_center') if line_data.get('default_cost_center') else None,
                             is_required=line_data.get('is_required', True),
                             amount_editable=line_data.get('amount_editable', True)
                         )
@@ -286,6 +283,9 @@ class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin
             except json.JSONDecodeError as e:
                 messages.error(self.request, f'خطأ في بيانات السطور: {str(e)}')
                 return self.form_invalid(form)
+        else:
+            messages.error(self.request, 'لم يتم إضافة أي سطور للقالب')
+            return self.form_invalid(form)
 
         return redirect(self.get_success_url())
 
@@ -295,28 +295,41 @@ class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # الحسابات المتاحة
-        accounts = Account.objects.filter(
+        # إضافة قائمة الحسابات والمراكز
+        context['accounts'] = Account.objects.filter(
             company=self.request.current_company,
             accept_entries=True,
             is_suspended=False
         ).order_by('code')
 
-        # مراكز التكلفة
-        cost_centers = CostCenter.objects.filter(
+        context['cost_centers'] = CostCenter.objects.filter(
             company=self.request.current_company,
             is_active=True
         ).order_by('code')
 
+        # إضافة سطور القالب الموجودة
+        existing_lines = []
+        for line in self.object.template_lines.all().order_by('line_number'):
+            existing_lines.append({
+                'account_id': line.account.id,
+                'account_text': f"{line.account.code} - {line.account.name}",
+                'description': line.description,
+                'debit_amount': str(line.debit_amount),
+                'credit_amount': str(line.credit_amount),
+                'reference': line.reference,
+                'cost_center_id': line.default_cost_center.id if line.default_cost_center else None,
+                'cost_center_text': f"{line.default_cost_center.code} - {line.default_cost_center.name}" if line.default_cost_center else None,
+                'is_required': line.is_required,
+                'amount_editable': line.amount_editable
+            })
+
         context.update({
             'title': f'تعديل القالب: {self.object.name}',
-            'accounts': accounts,
-            'cost_centers': cost_centers,
+            'existing_lines': json.dumps(existing_lines, ensure_ascii=False),
             'breadcrumbs': [
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('قوالب القيود'), 'url': reverse('accounting:template_list')},
-                {'title': self.object.name, 'url': reverse('accounting:template_detail', kwargs={'pk': self.object.pk})},
-                {'title': _('تعديل'), 'url': ''},
+                {'title': f'تعديل {self.object.name}', 'url': ''},
             ]
         })
         return context
@@ -557,3 +570,65 @@ def template_datatable_ajax(request):
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
         })
+
+
+@login_required
+@permission_required_with_message('accounting.add_journalentrytemplate')
+@require_http_methods(["POST"])
+def copy_template(request, pk):
+    """نسخ قالب قيد"""
+
+    try:
+        # الحصول على القالب الأصلي
+        original_template = get_object_or_404(
+            JournalEntryTemplate,
+            pk=pk,
+            company=request.current_company
+        )
+
+        # إنشاء نسخة جديدة
+        with transaction.atomic():
+            # نسخ القالب
+            new_template = JournalEntryTemplate.objects.create(
+                company=request.current_company,  # فقط company بدون branch
+                name=f"{original_template.name} (نسخة)",
+                code=f"{original_template.code}_COPY" if original_template.code else "",
+                description=original_template.description,
+                entry_type=original_template.entry_type,
+                default_description=original_template.default_description,
+                default_reference=original_template.default_reference,
+                display_order=original_template.display_order,
+                is_active=False,  # غير نشط افتراضياً
+                auto_balance=original_template.auto_balance,
+                category=original_template.category,
+                created_by=request.user
+            )
+
+            # نسخ السطور
+            for line in original_template.template_lines.all().order_by('line_number'):
+                JournalEntryTemplateLine.objects.create(
+                    template=new_template,
+                    line_number=line.line_number,
+                    account=line.account,
+                    description=line.description,
+                    debit_amount=line.debit_amount,
+                    credit_amount=line.credit_amount,
+                    reference=line.reference,
+                    default_cost_center=line.default_cost_center,
+                    is_required=line.is_required,
+                    amount_editable=line.amount_editable
+                )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم نسخ القالب "{original_template.name}" بنجاح',
+            'redirect_url': reverse('accounting:template_detail', kwargs={'pk': new_template.pk})
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())  # للتشخيص
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في نسخ القالب: {str(e)}'
+        }, status=500)

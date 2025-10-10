@@ -631,7 +631,57 @@ $(document).ready(function() {
     // ==============================
     // Initialize Form
     // ==============================
-    {% if not object %}
+    {% if object %}
+    // للقوالب الموجودة: تحميل السطور المخزنة
+    {% if existing_lines %}
+    var existingLines = {{ existing_lines|safe }};
+
+    console.log('Existing Lines:', existingLines); // للتشخيص
+
+    if (existingLines && existingLines.length > 0) {
+        existingLines.forEach(function(lineData) {
+            addNewLine();
+            var currentLineIndex = lineCounter;
+
+            // الانتظار لحظة حتى يتم إنشاء العناصر
+            setTimeout(function() {
+                // تعبئة الحساب
+                var accountSelect = $(`select[name="account_${currentLineIndex}"]`);
+                if (accountSelect.length && lineData.account_id) {
+                    accountSelect.val(lineData.account_id);
+                    accountSelect.trigger('change');
+                }
+
+                // تعبئة باقي الحقول
+                $(`input[name="description_${currentLineIndex}"]`).val(lineData.description || '');
+                $(`input[name="debit_${currentLineIndex}"]`).val(lineData.debit_amount || '');
+                $(`input[name="credit_${currentLineIndex}"]`).val(lineData.credit_amount || '');
+                $(`input[name="reference_${currentLineIndex}"]`).val(lineData.reference || '');
+
+                // مركز التكلفة
+                if (lineData.cost_center_id) {
+                    $(`select[name="cost_center_${currentLineIndex}"]`).val(lineData.cost_center_id);
+                }
+
+                // الإجباري وقابل للتعديل
+                $(`input[name="required_${currentLineIndex}"]`).prop('checked', lineData.is_required !== false);
+                $(`input[name="amount_editable_${currentLineIndex}"]`).prop('checked', lineData.amount_editable !== false);
+            }, 100);
+        });
+
+        // حساب الرصيد بعد التحميل
+        setTimeout(calculateBalance, 500);
+    } else {
+        // إذا لم توجد سطور، أضف سطرين فارغين
+        addNewLine();
+        addNewLine();
+    }
+    {% else %}
+    // إذا لم توجد سطور، أضف سطرين فارغين
+    addNewLine();
+    addNewLine();
+    {% endif %}
+    {% else %}
     // للقوالب الجديدة: إضافة سطرين افتراضيين
     setTimeout(function() {
         addNewLine();

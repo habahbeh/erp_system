@@ -484,7 +484,8 @@ class QuickJournalEntryForm(forms.Form):
         initial=date.today,
         widget=forms.DateInput(attrs={
             'type': 'date',
-            'class': 'form-control'
+            'class': 'form-control',
+            'id': 'id_entry_date'
         })
     )
 
@@ -493,46 +494,34 @@ class QuickJournalEntryForm(forms.Form):
         widget=forms.Textarea(attrs={
             'class': 'form-control',
             'rows': 2,
-            'placeholder': 'بيان القيد'
+            'placeholder': 'بيان القيد',
+            'id': 'id_description'
         })
     )
 
     # السطر الأول (مدين)
-    debit_account_search = forms.CharField(
+    debit_account = forms.IntegerField(
         label="الحساب المدين",
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن الحساب المدين...'
-        })
-    )
-    debit_account = forms.ModelChoiceField(
-        queryset=Account.objects.none(),
-        widget=forms.HiddenInput()
+        widget=forms.HiddenInput(attrs={'id': 'id_debit_account'})
     )
 
     # السطر الثاني (دائن)
-    credit_account_search = forms.CharField(
+    credit_account = forms.IntegerField(
         label="الحساب الدائن",
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن الحساب الدائن...'
-        })
-    )
-    credit_account = forms.ModelChoiceField(
-        queryset=Account.objects.none(),
-        widget=forms.HiddenInput()
+        widget=forms.HiddenInput(attrs={'id': 'id_credit_account'})
     )
 
     # المبلغ
     amount = forms.DecimalField(
         label="المبلغ",
         max_digits=15,
-        decimal_places=4,
+        decimal_places=2,
         widget=forms.NumberInput(attrs={
             'class': 'form-control text-end',
             'placeholder': '0.00',
             'step': '0.01',
-            'min': '0.01'
+            'min': '0.01',
+            'id': 'id_amount'
         })
     )
 
@@ -541,73 +530,54 @@ class QuickJournalEntryForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'رقم المستند (اختياري)'
+            'placeholder': 'رقم المستند (اختياري)',
+            'id': 'id_reference'
         })
     )
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
-        # إزالة instance إذا تم تمريره (لأن Form لا يدعم instance)
-        kwargs.pop('instance', None)
+        kwargs.pop('instance', None)  # إزالة instance إذا تم تمريره
         super().__init__(*args, **kwargs)
 
-        # فلترة الحسابات حسب الشركة
-        if self.request and hasattr(self.request, 'current_company'):
-            accounts = Account.objects.filter(
+    def clean_debit_account(self):
+        account_id = self.cleaned_data.get('debit_account')
+        if not account_id:
+            raise forms.ValidationError('يجب اختيار الحساب المدين')
+
+        try:
+            account = Account.objects.get(
+                id=account_id,
                 company=self.request.current_company,
                 accept_entries=True,
                 is_suspended=False
             )
-            self.fields['debit_account'].queryset = accounts
-            self.fields['credit_account'].queryset = accounts
+            return account
+        except Account.DoesNotExist:
+            raise forms.ValidationError('الحساب المدين غير موجود أو غير صالح')
+
+    def clean_credit_account(self):
+        account_id = self.cleaned_data.get('credit_account')
+        if not account_id:
+            raise forms.ValidationError('يجب اختيار الحساب الدائن')
+
+        try:
+            account = Account.objects.get(
+                id=account_id,
+                company=self.request.current_company,
+                accept_entries=True,
+                is_suspended=False
+            )
+            return account
+        except Account.DoesNotExist:
+            raise forms.ValidationError('الحساب الدائن غير موجود أو غير صالح')
 
     def clean(self):
         cleaned_data = super().clean()
         debit_account = cleaned_data.get('debit_account')
         credit_account = cleaned_data.get('credit_account')
 
-        if debit_account and credit_account and debit_account == credit_account:
-            raise ValidationError('لا يمكن أن يكون الحساب المدين والدائن نفس الحساب')
+        if debit_account and credit_account and debit_account.id == credit_account.id:
+            raise forms.ValidationError('لا يمكن أن يكون الحساب المدين والدائن نفس الحساب')
 
         return cleaned_data
-
-    def save(self, request):
-        """حفظ القيد السريع"""
-        from ..models import JournalEntry, JournalEntryLine
-
-        # إنشاء القيد
-        journal_entry = JournalEntry.objects.create(
-            company=request.current_company,
-            branch=request.current_branch,
-            entry_date=self.cleaned_data['entry_date'],
-            description=self.cleaned_data['description'],
-            reference=self.cleaned_data.get('reference', ''),
-            entry_type='manual',
-            created_by=request.user
-        )
-
-        amount = self.cleaned_data['amount']
-
-        # سطر المدين
-        JournalEntryLine.objects.create(
-            journal_entry=journal_entry,
-            account=self.cleaned_data['debit_account'],
-            description=self.cleaned_data['description'],
-            debit_amount=amount,
-            credit_amount=0,
-            currency=self.cleaned_data['debit_account'].currency,
-            reference=self.cleaned_data.get('reference', '')
-        )
-
-        # سطر الدائن
-        JournalEntryLine.objects.create(
-            journal_entry=journal_entry,
-            account=self.cleaned_data['credit_account'],
-            description=self.cleaned_data['description'],
-            debit_amount=0,
-            credit_amount=amount,
-            currency=self.cleaned_data['credit_account'].currency,
-            reference=self.cleaned_data.get('reference', '')
-        )
-
-        return journal_entry

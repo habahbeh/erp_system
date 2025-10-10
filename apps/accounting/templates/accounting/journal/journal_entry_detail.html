@@ -435,16 +435,44 @@ function printEntry() {
 
 function copyEntry() {
     Swal.fire({
-        title: '{% trans "نسخ القيد" %}',
-        text: '{% trans "سيتم إنشاء قيد جديد بنفس البيانات كمسودة" %}',
+        title: 'نسخ القيد',
+        text: 'سيتم إنشاء قيد جديد بنفس البيانات بتاريخ اليوم وكمسودة. هل تريد المتابعة؟',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: '{% trans "نعم، انسخ القيد" %}',
-        cancelButtonText: '{% trans "إلغاء" %}',
-        confirmButtonColor: '#0d6efd'
+        confirmButtonText: 'نعم، انسخ القيد',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#0d6efd',
+        showLoaderOnConfirm: true,
+        preConfirm: () => {
+            return $.ajax({
+                url: '{% url "accounting:journal_entry_copy" journal_entry.pk %}',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                dataType: 'json'
+            }).then(response => {
+                if (!response.success) {
+                    throw new Error(response.message || 'خطأ غير معروف');
+                }
+                return response;
+            }).catch(error => {
+                Swal.showValidationMessage(
+                    `خطأ: ${error.message || error.responseJSON?.message || 'فشل في نسخ القيد'}`
+                );
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
     }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire('{% trans "تحت التطوير" %}', '{% trans "هذه الميزة قيد التطوير" %}', 'info');
+        if (result.isConfirmed && result.value) {
+            Swal.fire({
+                title: 'نجح!',
+                text: result.value.message,
+                icon: 'success',
+                confirmButtonText: 'عرض القيد الجديد'
+            }).then(() => {
+                window.location.href = result.value.redirect_url;
+            });
         }
     });
 }

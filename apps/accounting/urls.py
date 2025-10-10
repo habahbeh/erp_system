@@ -52,6 +52,7 @@ urlpatterns = [
          name='journal_entry_update'),
     path('journal-entries/<int:pk>/delete/', journal_views.JournalEntryDeleteView.as_view(),
          name='journal_entry_delete'),
+    path('journal-entries/<int:pk>/copy/', journal_views.copy_journal_entry, name='journal_entry_copy'),
     path('journal-entries/quick/', journal_views.QuickJournalEntryView.as_view(), name='quick_journal_entry'),
 
     # ========== JOURNAL ENTRY TEMPLATES ==========
@@ -60,6 +61,7 @@ urlpatterns = [
     path('templates/<int:pk>/', template_views.JournalEntryTemplateDetailView.as_view(), name='template_detail'),
     path('templates/<int:pk>/update/', template_views.JournalEntryTemplateUpdateView.as_view(), name='template_update'),
     path('templates/<int:pk>/delete/', template_views.JournalEntryTemplateDeleteView.as_view(), name='template_delete'),
+    path('templates/<int:pk>/copy/', template_views.copy_template, name='template_copy'),
     path('templates/use/', template_views.UseTemplateView.as_view(), name='use_template'),
 
     # ========== VOUCHERS ==========

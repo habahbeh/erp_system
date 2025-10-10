@@ -26,7 +26,6 @@ from ..forms.journal_forms import (
     QuickJournalEntryForm, JournalEntryLineFormSet
 )
 from django.views.generic import FormView
-
 from django.db import transaction
 
 
@@ -372,6 +371,11 @@ class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Company
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # الحصول على البيانات
+            debit_account = form.cleaned_data['debit_account']
+            credit_account = form.cleaned_data['credit_account']
+            amount = form.cleaned_data['amount']
+
             # إنشاء القيد
             journal_entry = JournalEntry.objects.create(
                 company=self.request.current_company,
@@ -383,10 +387,6 @@ class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Company
                 status='draft',
                 created_by=self.request.user
             )
-
-            amount = form.cleaned_data['amount']
-            debit_account = form.cleaned_data['debit_account']
-            credit_account = form.cleaned_data['credit_account']
 
             # سطر المدين
             JournalEntryLine.objects.create(
@@ -419,8 +419,18 @@ class QuickJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Company
             return redirect('accounting:journal_entry_detail', pk=journal_entry.pk)
 
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             messages.error(self.request, f'خطأ في إنشاء القيد: {str(e)}')
             return self.form_invalid(form)
+
+    def form_invalid(self, form):
+        # طباعة الأخطاء للتشخيص
+        print("Form Errors:", form.errors)
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(self.request, f'{field}: {error}')
+        return super().form_invalid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -724,3 +734,68 @@ def get_template_lines(request, template_id):
             'success': False,
             'message': f'خطأ في تحميل القالب: {str(e)}'
         })
+
+
+@login_required
+@permission_required_with_message('accounting.add_journalentry')
+@require_http_methods(["POST"])
+def copy_journal_entry(request, pk):
+    """نسخ قيد يومية"""
+
+    try:
+        # الحصول على القيد الأصلي
+        original_entry = get_object_or_404(
+            JournalEntry,
+            pk=pk,
+            company=request.current_company
+        )
+
+        # إنشاء نسخة جديدة
+        with transaction.atomic():
+            # نسخ القيد
+            new_entry = JournalEntry.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                entry_date=date.today(),  # تاريخ اليوم
+                entry_type=original_entry.entry_type,
+                description=f"{original_entry.description} (نسخة)",
+                reference=f"{original_entry.reference}_COPY" if original_entry.reference else "",
+                notes=original_entry.notes,
+                template=original_entry.template,
+                status='draft',  # مسودة
+                created_by=request.user
+            )
+
+            # نسخ السطور
+            for line in original_entry.lines.all().order_by('line_number'):
+                JournalEntryLine.objects.create(
+                    journal_entry=new_entry,
+                    line_number=line.line_number,
+                    account=line.account,
+                    description=line.description,
+                    debit_amount=line.debit_amount,
+                    credit_amount=line.credit_amount,
+                    currency=line.currency,
+                    exchange_rate=line.exchange_rate,
+                    reference=line.reference,
+                    cost_center=line.cost_center,
+                    partner_type=line.partner_type,
+                    partner_id=line.partner_id
+                )
+
+            # إعادة حساب الإجماليات
+            new_entry.calculate_totals()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم نسخ القيد بنجاح',
+            'redirect_url': reverse('accounting:journal_entry_detail', kwargs={'pk': new_entry.pk})
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في نسخ القيد: {str(e)}'
+        }, status=500)

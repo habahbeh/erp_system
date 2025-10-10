@@ -154,6 +154,7 @@ class CostCenter(BaseModel):
         ('services', 'خدمات'),
         ('marketing', 'تسويق'),
         ('maintenance', 'صيانة'),
+        ('branch', 'فرع'),
     ]
 
     name = models.CharField(_('اسم مركز التكلفة'), max_length=100)
