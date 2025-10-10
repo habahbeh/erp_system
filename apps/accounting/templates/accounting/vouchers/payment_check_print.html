@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
+    <title>طباعة شيك - {{ voucher.check_number }}</title>
     <style>
         * {
             margin: 0;
@@ -11,54 +11,77 @@
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f0f0;
-            padding: 20px;
+        @page {
+            size: A4 landscape;
+            margin: 0;
         }
 
+        body {
+            font-family: 'Arial', 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Container الشيك - حجم قياسي */
         .check-container {
             width: 210mm;
             height: 99mm;
-            margin: 0 auto;
+            margin: 20mm auto;
             background: white;
             position: relative;
-            border: 1px dashed #ccc;
-            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
         }
 
-        /* خلفية الشيك */
+        /* خلفية الشيك مع حماية */
         .check-background {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background:
-                repeating-linear-gradient(
-                    45deg,
-                    transparent,
-                    transparent 10px,
-                    rgba(0, 123, 255, 0.02) 10px,
-                    rgba(0, 123, 255, 0.02) 20px
-                );
+            background-image:
+                repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,123,255,0.03) 10px, rgba(0,123,255,0.03) 20px),
+                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(0,123,255,0.02) 10px, rgba(0,123,255,0.02) 20px);
+            pointer-events: none;
         }
 
         /* محتوى الشيك */
         .check-content {
             position: relative;
-            padding: 20mm 15mm;
+            padding: 15mm 20mm;
             height: 100%;
+            z-index: 1;
         }
 
         /* رأس الشيك */
         .check-header {
             display: flex;
             justify-content: space-between;
-            align-items: start;
-            margin-bottom: 15mm;
-            padding-bottom: 5mm;
+            align-items: center;
+            padding-bottom: 8mm;
             border-bottom: 2px solid #0d6efd;
+            margin-bottom: 8mm;
+        }
+
+        .bank-logo-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bank-logo {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
         }
 
         .bank-info {
@@ -66,102 +89,133 @@
         }
 
         .bank-name {
-            font-size: 20pt;
+            font-size: 18pt;
             font-weight: bold;
             color: #0d6efd;
-            margin-bottom: 2mm;
+            margin: 0 0 3px 0;
+            text-transform: uppercase;
         }
 
         .bank-address {
             font-size: 9pt;
             color: #666;
+            margin: 0;
         }
 
         .check-number-box {
             text-align: center;
-            padding: 3mm;
+            padding: 8px 15px;
             border: 2px solid #0d6efd;
-            border-radius: 5px;
-            background: #f8f9fa;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            min-width: 80mm;
         }
 
         .check-number-label {
-            font-size: 8pt;
+            font-size: 9pt;
             color: #666;
             display: block;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .check-number-value {
-            font-size: 16pt;
+            font-size: 20pt;
             font-weight: bold;
             color: #0d6efd;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
         }
 
-        /* تاريخ الشيك */
+        /* صف التاريخ */
         .check-date-row {
             text-align: left;
-            margin-bottom: 8mm;
-            font-size: 11pt;
+            margin-bottom: 6mm;
+            padding-right: 80mm;
+        }
+
+        .date-label {
+            font-size: 10pt;
+            font-weight: 600;
+            color: #333;
+            display: inline-block;
+            margin-left: 10px;
         }
 
         .check-date {
             display: inline-block;
-            padding: 2mm 5mm;
-            border-bottom: 1px solid #333;
-            min-width: 40mm;
+            padding: 3mm 8mm;
+            border-bottom: 2px solid #333;
+            font-size: 11pt;
+            font-weight: 600;
+            min-width: 50mm;
             text-align: center;
+            font-family: 'Courier New', monospace;
         }
 
-        /* المستفيد */
+        /* صف المستفيد */
         .payee-row {
             margin-bottom: 8mm;
-            font-size: 11pt;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .payee-label {
-            display: inline-block;
             font-weight: bold;
-            margin-left: 3mm;
+            font-size: 11pt;
+            color: #333;
+            white-space: nowrap;
         }
 
         .payee-name {
-            display: inline-block;
-            padding: 2mm 5mm;
+            flex: 1;
+            padding: 8px 15px;
             border-bottom: 2px solid #333;
-            min-width: 120mm;
             font-weight: bold;
-            font-size: 13pt;
+            font-size: 14pt;
+            color: #000;
         }
 
-        /* المبلغ بالأرقام */
+        /* صف المبلغ بالأرقام */
         .amount-numeric-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8mm;
+            margin-bottom: 6mm;
         }
 
         .amount-label {
             font-weight: bold;
             font-size: 11pt;
+            color: #333;
         }
 
         .amount-box {
-            border: 2px solid #0d6efd;
-            padding: 3mm 8mm;
-            background: #fff3cd;
-            border-radius: 5px;
-            min-width: 50mm;
+            border: 3px solid #dc3545;
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #d1e7dd, #f8f9fa);
+            border-radius: 8px;
+            min-width: 80mm;
             text-align: center;
         }
 
-        .amount-value {
-            font-size: 18pt;
-            font-weight: bold;
-            color: #198754;
+        .amount-currency-label {
+            font-size: 9pt;
+            color: #666;
+            margin-bottom: 2px;
         }
 
-        /* المبلغ بالحروف */
+        .amount-value {
+            font-size: 22pt;
+            font-weight: bold;
+            color: #dc3545;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+        }
+
+        /* صف المبلغ بالحروف */
         .amount-words-row {
             margin-bottom: 8mm;
         }
@@ -169,100 +223,169 @@
         .amount-words-label {
             font-weight: bold;
             font-size: 10pt;
-            margin-bottom: 2mm;
+            color: #333;
+            margin-bottom: 4px;
             display: block;
         }
 
-        .amount-words {
-            padding: 3mm;
+        .amount-words-box {
+            padding: 8px 12px;
             border: 2px dashed #666;
             background: #f8f9fa;
             min-height: 12mm;
             font-size: 11pt;
-            font-weight: bold;
+            font-weight: 600;
             display: flex;
             align-items: center;
+            border-radius: 4px;
+            color: #000;
         }
 
-        /* التوقيع */
+        /* منطقة التوقيع */
         .signature-area {
-            margin-top: 10mm;
+            margin-top: 8mm;
             text-align: left;
+            padding-right: 80mm;
         }
 
         .signature-line {
             display: inline-block;
-            width: 50mm;
-            border-top: 1px solid #333;
-            padding-top: 2mm;
+            width: 60mm;
             text-align: center;
-            font-size: 9pt;
+        }
+
+        .signature-space {
+            height: 15mm;
+            border-bottom: 2px solid #000;
+            margin-bottom: 3mm;
+        }
+
+        .signature-label {
+            font-size: 10pt;
+            color: #666;
+            font-weight: 600;
+        }
+
+        /* خط الأمان */
+        .security-line {
+            position: absolute;
+            bottom: 8mm;
+            left: 20mm;
+            right: 20mm;
+            font-size: 7pt;
+            color: #999;
+            text-align: center;
+            padding-top: 5px;
+            border-top: 1px solid #ddd;
         }
 
         /* أزرار التحكم */
         .print-controls {
             text-align: center;
             margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
         .btn {
-            padding: 10px 30px;
-            margin: 0 5px;
+            padding: 12px 30px;
+            margin: 0 10px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .btn-primary {
-            background: #0d6efd;
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
             color: white;
+            box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0a58ca, #084298);
+            box-shadow: 0 6px 12px rgba(13, 110, 253, 0.4);
+            transform: translateY(-2px);
         }
 
         .btn-secondary {
             background: #6c757d;
             color: white;
+            box-shadow: 0 4px 6px rgba(108, 117, 125, 0.3);
         }
 
-        .btn:hover {
-            opacity: 0.9;
+        .btn-secondary:hover {
+            background: #5a6268;
+            box-shadow: 0 6px 12px rgba(108, 117, 125, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* علامات مائية للحماية */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 60pt;
+            color: rgba(0,0,0,0.03);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 0;
+            letter-spacing: 10px;
         }
 
         @media print {
             body {
                 background: white;
                 padding: 0;
+                margin: 0;
             }
 
             .check-container {
                 border: none;
                 margin: 0;
-                width: 210mm;
-                height: 99mm;
+                box-shadow: none;
+                page-break-after: always;
             }
 
             .print-controls {
+                display: none !important;
+            }
+
+            .watermark {
                 display: none;
             }
         }
 
-        /* علامات أمان */
-        .security-features {
+        /* معلومات MICR (Magnetic Ink Character Recognition) */
+        .micr-line {
             position: absolute;
-            bottom: 5mm;
-            left: 15mm;
-            right: 15mm;
-            font-size: 7pt;
-            color: #999;
-            text-align: center;
-            border-top: 1px solid #ddd;
-            padding-top: 2mm;
+            bottom: 3mm;
+            left: 20mm;
+            right: 20mm;
+            font-family: 'Courier New', monospace;
+            font-size: 12pt;
+            letter-spacing: 3px;
+            color: #000;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
+    <!-- أزرار التحكم -->
     <div class="print-controls">
+        <h4 style="margin-bottom: 15px; color: #333;">
+            <i class="fas fa-money-check" style="color: #0d6efd;"></i>
+            معاينة الشيك - {{ voucher.check_number }}
+        </h4>
+        <p style="color: #666; margin-bottom: 20px;">تأكد من محاذاة الورق بشكل صحيح قبل الطباعة</p>
+
         <button class="btn btn-primary" onclick="window.print()">
             <i class="fas fa-print"></i> طباعة الشيك
         </button>
@@ -271,68 +394,93 @@
         </button>
     </div>
 
+    <!-- الشيك -->
     <div class="check-container">
+        <!-- الخلفية -->
         <div class="check-background"></div>
 
+        <!-- علامة مائية -->
+        <div class="watermark">{{ voucher.company.name }}</div>
+
+        <!-- المحتوى -->
         <div class="check-content">
             <!-- رأس الشيك -->
             <div class="check-header">
-                <div class="bank-info">
-                    <div class="bank-name">{{ voucher.bank_name|default:"اسم البنك" }}</div>
-                    <div class="bank-address">{{ company.address|default:"عنوان البنك" }}</div>
+                <div class="bank-logo-section">
+                    <div class="bank-logo">
+                        <i class="fas fa-university"></i>
+                    </div>
+                    <div class="bank-info">
+                        <div class="bank-name">{{ voucher.bank_name|default:"اسم البنك" }}</div>
+                        <div class="bank-address">{{ voucher.company.address|default:"عنوان البنك - المدينة" }}</div>
+                    </div>
                 </div>
+
                 <div class="check-number-box">
-                    <span class="check-number-label">رقم الشيك</span>
+                    <span class="check-number-label">Check No.</span>
                     <div class="check-number-value">{{ voucher.check_number }}</div>
                 </div>
             </div>
 
             <!-- التاريخ -->
             <div class="check-date-row">
-                <strong>التاريخ:</strong>
+                <span class="date-label">التاريخ:</span>
                 <span class="check-date">{{ voucher.check_date|date:"Y/m/d" }}</span>
             </div>
 
             <!-- المستفيد -->
             <div class="payee-row">
-                <span class="payee-label">ادفعوا لأمر:</span>
+                <span class="payee-label">ادفعوا لأمر السيد/ة:</span>
                 <span class="payee-name">{{ voucher.beneficiary_name }}</span>
             </div>
 
             <!-- المبلغ بالأرقام -->
             <div class="amount-numeric-row">
-                <span class="amount-label">المبلغ:</span>
+                <span class="amount-label">مبلغ وقدره:</span>
                 <div class="amount-box">
-                    <div class="amount-value">{{ voucher.amount|floatformat:3 }}</div>
-                    <div style="font-size: 10pt; color: #666;">{{ voucher.currency.name }}</div>
+                    <div class="amount-currency-label">{{ voucher.currency.name }}</div>
+                    <div class="amount-value">{{ voucher.amount|floatformat:2 }}</div>
                 </div>
             </div>
 
             <!-- المبلغ بالحروف -->
             <div class="amount-words-row">
-                <span class="amount-words-label">مبلغ وقدره:</span>
-                <div class="amount-words">
-                    فقط {{ voucher.amount|floatformat:0 }} {{ voucher.currency.name }} لا غير
+                <span class="amount-words-label">فقط لا غير:</span>
+                <div class="amount-words-box">
+                    {{ voucher.amount|floatformat:0 }} {{ voucher.currency.name }} فقط لا غير
                 </div>
             </div>
 
             <!-- التوقيع -->
             <div class="signature-area">
                 <div class="signature-line">
-                    التوقيع
+                    <div class="signature-space"></div>
+                    <div class="signature-label">التوقيع المعتمد</div>
                 </div>
             </div>
 
-            <!-- علامات الأمان -->
-            <div class="security-features">
-                {{ company.name }} | {{ voucher.number }} | تاريخ الإصدار: {{ voucher.date|date:"Y/m/d" }}
+            <!-- خط الأمان -->
+            <div class="security-line">
+                {{ voucher.company.name }} | {{ voucher.number }} | إصدار: {{ voucher.date|date:"Y/m/d" }} | {{ voucher.currency.code }}
+            </div>
+
+            <!-- MICR Line (اختياري) -->
+            <div class="micr-line">
+                ⑈{{ voucher.check_number }}⑈ ⑆123456789⑆ ⑈0000{{ voucher.amount|floatformat:0 }}⑈
             </div>
         </div>
     </div>
 
     <script>
-        // طباعة تلقائية عند التحميل (اختياري)
-        // window.onload = function() { window.print(); }
+        // طباعة تلقائية عند الفتح (اختياري - يمكن تفعيله)
+        // window.onload = function() {
+        //     setTimeout(() => window.print(), 500);
+        // }
+
+        // تحذير قبل الإغلاق بدون طباعة
+        window.addEventListener('beforeprint', function() {
+            console.log('Printing check:', '{{ voucher.check_number }}');
+        });
     </script>
 </body>
 </html>

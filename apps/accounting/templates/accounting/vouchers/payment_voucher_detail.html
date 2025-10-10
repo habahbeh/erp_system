@@ -148,78 +148,87 @@
         </ol>
     </nav>
 
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-start mb-4 no-print">
-        <div>
-            <h1 class="h3 mb-1">{{ title }}</h1>
-            <p class="text-muted mb-1">عرض تفاصيل سند الصرف</p>
-            <div class="d-flex align-items-center gap-3 mt-2">
-                <span class="badge bg-danger fs-6">{{ voucher.number }}</span>
-                <span class="badge bg-secondary fs-6">
-                    <i class="fas fa-calendar"></i> {{ voucher.date|date:"Y/m/d" }}
-                </span>
-                {% if voucher.status == 'draft' %}
-                    <span class="badge bg-secondary fs-6">
-                        <i class="fas fa-edit"></i> مسودة
-                    </span>
-                {% elif voucher.status == 'confirmed' %}
-                    <span class="badge bg-warning fs-6">
-                        <i class="fas fa-check"></i> مؤكد
-                    </span>
-                {% elif voucher.status == 'posted' %}
-                    <span class="badge bg-success fs-6">
-                        <i class="fas fa-check-double"></i> مرحل
-                    </span>
-                {% else %}
-                    <span class="badge bg-danger fs-6">
-                        <i class="fas fa-times"></i> ملغي
-                    </span>
-                {% endif %}
-            </div>
-        </div>
-        <div class="d-flex gap-2">
-            <!-- زر الطباعة -->
-            <button type="button" class="btn btn-outline-secondary" onclick="printVoucher()">
-                <i class="fas fa-print"></i> طباعة
-            </button>
+    <!-- في payment_voucher_detail.html - استبدل قسم Header بالكامل -->
 
-            <!-- زر التأكيد للمسودة -->
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 no-print">
+    <div>
+        <h1 class="h3 mb-1">{{ title }}</h1>
+        <p class="text-muted mb-1">عرض تفاصيل سند الصرف</p>
+        <div class="d-flex align-items-center gap-3 mt-2">
+            <span class="badge bg-danger fs-6">{{ voucher.number }}</span>
+            <span class="badge bg-secondary fs-6">
+                <i class="fas fa-calendar"></i> {{ voucher.date|date:"Y/m/d" }}
+            </span>
             {% if voucher.status == 'draft' %}
-            <button type="button" class="btn btn-warning" onclick="confirmVoucher({{ voucher.pk }})">
-                <i class="fas fa-check-circle"></i> تأكيد السند
-            </button>
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-edit"></i> مسودة
+                </span>
+            {% elif voucher.status == 'confirmed' %}
+                <span class="badge bg-warning fs-6">
+                    <i class="fas fa-check"></i> مؤكد
+                </span>
+            {% elif voucher.status == 'posted' %}
+                <span class="badge bg-success fs-6">
+                    <i class="fas fa-check-double"></i> مرحل
+                </span>
+            {% else %}
+                <span class="badge bg-danger fs-6">
+                    <i class="fas fa-times"></i> ملغي
+                </span>
             {% endif %}
-
-            <!-- زر الترحيل -->
-            {% if can_post %}
-            <button type="button" class="btn btn-success" onclick="postVoucher({{ voucher.pk }})">
-                <i class="fas fa-paper-plane"></i> ترحيل محاسبياً
-            </button>
-            {% elif can_unpost %}
-            <button type="button" class="btn btn-warning" onclick="unpostVoucher({{ voucher.pk }})">
-                <i class="fas fa-undo"></i> إلغاء الترحيل
-            </button>
-            {% endif %}
-
-            <!-- زر التعديل -->
-            {% if can_edit %}
-            <a href="{% url 'accounting:payment_voucher_update' voucher.pk %}" class="btn btn-primary">
-                <i class="fas fa-edit"></i> تعديل
-            </a>
-            {% endif %}
-
-            <!-- زر الحذف -->
-            {% if can_delete %}
-            <a href="{% url 'accounting:payment_voucher_delete' voucher.pk %}" class="btn btn-danger">
-                <i class="fas fa-trash"></i> حذف
-            </a>
-            {% endif %}
-
-            <a href="{% url 'accounting:payment_voucher_list' %}" class="btn btn-secondary">
-                <i class="fas fa-list"></i> العودة للقائمة
-            </a>
         </div>
     </div>
+    <div class="d-flex gap-2">
+        <!-- زر الطباعة العادية -->
+        <button type="button" class="btn btn-outline-secondary" onclick="printVoucher()">
+            <i class="fas fa-print"></i> طباعة السند
+        </button>
+
+        <!-- زر طباعة الشيك - ظاهر فقط للشيكات المرحلة -->
+        {% if voucher.payment_method == 'check' and voucher.status == 'posted' %}
+        <button type="button" class="btn btn-info" onclick="printCheck()">
+            <i class="fas fa-money-check"></i> طباعة الشيك
+        </button>
+        {% endif %}
+
+        <!-- زر التأكيد للمسودة -->
+        {% if voucher.status == 'draft' %}
+        <button type="button" class="btn btn-warning" onclick="confirmVoucher({{ voucher.pk }})">
+            <i class="fas fa-check-circle"></i> تأكيد السند
+        </button>
+        {% endif %}
+
+        <!-- زر الترحيل -->
+        {% if can_post %}
+        <button type="button" class="btn btn-success" onclick="postVoucher({{ voucher.pk }})">
+            <i class="fas fa-paper-plane"></i> ترحيل محاسبياً
+        </button>
+        {% elif can_unpost %}
+        <button type="button" class="btn btn-warning" onclick="unpostVoucher({{ voucher.pk }})">
+            <i class="fas fa-undo"></i> إلغاء الترحيل
+        </button>
+        {% endif %}
+
+        <!-- زر التعديل -->
+        {% if can_edit %}
+        <a href="{% url 'accounting:payment_voucher_update' voucher.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> تعديل
+        </a>
+        {% endif %}
+
+        <!-- زر الحذف -->
+        {% if can_delete %}
+        <a href="{% url 'accounting:payment_voucher_delete' voucher.pk %}" class="btn btn-danger">
+            <i class="fas fa-trash"></i> حذف
+        </a>
+        {% endif %}
+
+        <a href="{% url 'accounting:payment_voucher_list' %}" class="btn btn-secondary">
+            <i class="fas fa-list"></i> العودة للقائمة
+        </a>
+    </div>
+</div>
 
     <div class="row">
         <!-- معلومات السند -->

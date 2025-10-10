@@ -96,10 +96,22 @@ class AccountBalance(BaseModel):
     class Meta:
         verbose_name = _('رصيد حساب')
         verbose_name_plural = _('أرصدة الحسابات')
-        unique_together = [
-            ['account', 'fiscal_year', 'period', 'company'],
-            ['account', 'fiscal_year', 'company']  # للرصيد السنوي
+
+        constraints = [
+            # قيد فريد عندما تكون الفترة موجودة
+            models.UniqueConstraint(
+                fields=['account', 'fiscal_year', 'period', 'company'],
+                condition=models.Q(period__isnull=False),
+                name='unique_balance_with_period'
+            ),
+            # قيد فريد عندما تكون الفترة NULL (رصيد سنوي)
+            models.UniqueConstraint(
+                fields=['account', 'fiscal_year', 'company'],
+                condition=models.Q(period__isnull=True),
+                name='unique_balance_without_period'
+            ),
         ]
+
         indexes = [
             models.Index(fields=['account', 'fiscal_year']),
             models.Index(fields=['fiscal_year', 'period']),

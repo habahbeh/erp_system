@@ -125,10 +125,35 @@ class PaymentVoucher(DocumentBaseModel):
         if not self.cash_account:
             raise ValidationError(_('يجب تحديد حساب الصندوق/البنك'))
 
+        # الحصول على السنة المالية والفترة النشطة
+        from .fiscal_models import FiscalYear, AccountingPeriod
+
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة تشمل تاريخ السند'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            raise ValidationError(_('لا توجد فترة محاسبية نشطة تشمل تاريخ السند'))
+
         # إنشاء القيد المحاسبي
         journal_entry = JournalEntry.objects.create(
             company=self.company,
             branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
             entry_date=self.date,
             entry_type='auto',
             description=f"سند صرف رقم {self.number} - {self.description}",
@@ -141,8 +166,10 @@ class PaymentVoucher(DocumentBaseModel):
         # إنشاء سطور القيد
         line_number = 1
 
+        # حساب المصروف (إذا لم يحدد نستخدم حساب افتراضي أو نتخطاه)
+        expense_account = self.expense_account or self.cash_account
+
         # سطر المصروف (مدين)
-        expense_account = self.expense_account or self.cash_account  # افتراضي إذا لم يحدد
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,
@@ -176,7 +203,8 @@ class PaymentVoucher(DocumentBaseModel):
         self.journal_entry = journal_entry
         self.status = 'posted'
         self.posted_by = user
-        self.posted_date = journal_entry.posted_date
+        from django.utils import timezone
+        self.posted_date = timezone.now()
         self.save()
 
         return journal_entry
@@ -316,10 +344,35 @@ class ReceiptVoucher(DocumentBaseModel):
         if not self.cash_account:
             raise ValidationError(_('يجب تحديد حساب الصندوق/البنك'))
 
+        # الحصول على السنة المالية والفترة النشطة
+        from .fiscal_models import FiscalYear, AccountingPeriod
+
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة تشمل تاريخ السند'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            raise ValidationError(_('لا توجد فترة محاسبية نشطة تشمل تاريخ السند'))
+
         # إنشاء القيد المحاسبي
         journal_entry = JournalEntry.objects.create(
             company=self.company,
             branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
             entry_date=self.date,
             entry_type='auto',
             description=f"سند قبض رقم {self.number} - {self.description}",
@@ -346,8 +399,10 @@ class ReceiptVoucher(DocumentBaseModel):
         )
         line_number += 1
 
+        # حساب الإيراد (إذا لم يحدد نستخدم حساب افتراضي أو نتخطاه)
+        income_account = self.income_account or self.cash_account
+
         # سطر الإيراد (دائن)
-        income_account = self.income_account or self.cash_account  # افتراضي إذا لم يحدد
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,
@@ -367,7 +422,8 @@ class ReceiptVoucher(DocumentBaseModel):
         self.journal_entry = journal_entry
         self.status = 'posted'
         self.posted_by = user
-        self.posted_date = journal_entry.posted_date
+        from django.utils import timezone
+        self.posted_date = timezone.now()
         self.save()
 
         return journal_entry
