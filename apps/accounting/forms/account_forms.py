@@ -24,6 +24,16 @@ class AccountForm(forms.ModelForm):
             'opening_balance', 'opening_balance_date'
         ]
 
+        widgets = {
+            'opening_balance_date': forms.DateInput(
+                attrs={
+                    'class': 'form-control',
+                    'type': 'date'
+                },
+                format='%Y-%m-%d'
+            ),
+        }
+
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)

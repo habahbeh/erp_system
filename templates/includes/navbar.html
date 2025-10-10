@@ -1,6 +1,13 @@
 {# templates/includes/navbar.html #}
 {% load i18n %}
 
+<button class="sidebar-toggle d-lg-none" id="sidebarToggle" aria-label="فتح القائمة الجانبية">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="user-menu-overlay" id="userMenuOverlay"></div>
+
 <nav class="navbar navbar-expand-lg navbar-custom shadow-sm">
     <div class="container-fluid px-4">
         <div class="d-flex align-items-center">
@@ -12,167 +19,130 @@
 
         <div class="navbar-nav ms-auto d-flex flex-row align-items-center">
             {% if user.is_authenticated %}
-                <!-- Font Size Controls - سيتم إدراجها بـ JavaScript -->
-
-                <!-- Company/Branch Info -->
-                <div class="nav-item me-3">
+                <div class="nav-item me-3 d-none d-md-block">
                     <div class="d-flex align-items-center text-white-75">
                         {% if request.current_company %}
-                            <small>
-                                <i class="fas fa-building me-1"></i>
-                                {{ request.current_company.name|truncatechars:15 }}
-                            </small>
+                            <small><i class="fas fa-building me-1"></i>{{ request.current_company.name }}</small>
                         {% endif %}
                         {% if request.current_branch %}
-                            <small class="ms-2">
-                                <i class="fas fa-map-marker-alt me-1"></i>
-                                {{ request.current_branch.name|truncatechars:12 }}
-                            </small>
+                            <small class="ms-2"><i class="fas fa-map-marker-alt me-1"></i>{{ request.current_branch.name }}</small>
                         {% endif %}
                     </div>
                 </div>
 
-                <!-- Notifications -->
-                <div class="nav-item dropdown me-3" hidden>
-                    <a class="nav-link position-relative text-white-75 hover-white" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-bell"></i>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                            3
-                            <span class="visually-hidden">إشعارات غير مقروءة</span>
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <li class="dropdown-header">{% trans "الإشعارات" %}</li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-info-circle text-primary me-2"></i>
-                            إشعار جديد من النظام
-                        </a></li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-user-plus text-success me-2"></i>
-                            مستخدم جديد انضم
-                        </a></li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                            تحديث مطلوب
-                        </a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-center text-primary" href="#">
-                            {% trans "عرض جميع الإشعارات" %}
-                        </a></li>
-                    </ul>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="nav-item dropdown me-3" hidden>
-                    <a class="nav-link text-white-75 hover-white" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-plus-circle"></i>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <li class="dropdown-header">{% trans "إجراءات سريعة" %}</li>
-                        <li><a class="dropdown-item" href="{% url 'core:user_create' %}">
-                            <i class="fas fa-user-plus text-primary me-2"></i>
-                            {% trans "مستخدم جديد" %}
-                        </a></li>
-                        <li><a class="dropdown-item" href="{% url 'core:company_detail' %}">
-                            <i class="fas fa-building text-success me-2"></i>
-                            {% trans "شركة جديدة" %}
-                        </a></li>
-                        <li><a class="dropdown-item" href="{% url 'core:permission_create' %}">
-                            <i class="fas fa-shield-alt text-warning me-2"></i>
-                            {% trans "صلاحية جديدة" %}
-                        </a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="#" onclick="showComingSoon('فاتورة جديدة')">
-                            <i class="fas fa-file-invoice text-info me-2"></i>
-                            {% trans "فاتورة جديدة" %}
-                            <span class="badge bg-warning ms-auto">قريباً</span>
-                        </a></li>
-                    </ul>
-                </div>
-
-                <!-- User Menu -->
-                <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle d-flex align-items-center text-white hover-white" href="#" role="button" data-bs-toggle="dropdown">
+                <div class="nav-item user-menu-container">
+                    <a class="nav-link d-flex align-items-center text-white" href="#" id="userMenuBtn">
                         <div class="user-avatar me-2">
                             <span>{{ user.first_name.0|default:user.username.0|upper }}</span>
+                            <span class="status-dot"></span>
                         </div>
-                        <div class="user-info d-none d-md-block">
-                            <small class="d-block">{{ user.get_full_name|default:user.username }}</small>
-                            <small class="text-white-50">{{ user.email|truncatechars:20 }}</small>
-                        </div>
+                        <span class="d-none d-lg-inline">{{ user.get_full_name|default:user.username|truncatechars:15 }}</span>
+                        <i class="fas fa-chevron-down ms-2 small"></i>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <li class="dropdown-header">
-                            <div class="text-center">
-                                <div class="user-avatar-large mb-2">
-                                    {{ user.first_name.0|default:user.username.0|upper }}
-                                </div>
-                                <strong>{{ user.get_full_name|default:user.username }}</strong>
-                                <br><small class="text-muted">{{ user.email }}</small>
-                            </div>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-user-circle me-2"></i>{% trans "الملف الشخصي" %}
-                        </a></li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-cog me-2"></i>{% trans "الإعدادات" %}
-                        </a></li>
-                        <li><a class="dropdown-item" href="#">
-                            <i class="fas fa-key me-2"></i>{% trans "تغيير كلمة المرور" %}
-                        </a></li>
 
-                        <!-- Font Settings -->
-                        <li><hr class="dropdown-divider"></li>
-                        <li class="dropdown-header">
-                            <i class="fas fa-font me-2"></i>{% trans "إعدادات الخط" %}
-                        </li>
-                        <li>
-                            <div class="dropdown-item-text">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span>حجم الخط:</span>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                onclick="fontController.setFontSize('small')"
-                                                title="صغير">ص</button>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                onclick="fontController.setFontSize('normal')"
-                                                title="عادي">ع</button>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                onclick="fontController.setFontSize('large')"
-                                                title="كبير">ك</button>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                onclick="fontController.setFontSize('extra-large')"
-                                                title="كبير جداً">ك+</button>
-                                    </div>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="menu-header">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-lg me-2">{{ user.first_name.0|default:user.username.0|upper }}</div>
+                                <div>
+                                    <div class="fw-bold">{{ user.get_full_name|default:user.username }}</div>
+                                    <small class="text-muted">{{ user.email|truncatechars:25 }}</small>
                                 </div>
                             </div>
-                        </li>
-
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <form method="post" action="{% url 'logout' %}" style="display: inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="dropdown-item text-danger">
-                                    <i class="fas fa-sign-out-alt me-2"></i>{% trans "تسجيل الخروج" %}
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
+                        </div>
+                        <hr class="my-1">
+                        <a class="menu-item" href="#"><i class="fas fa-user me-2"></i>الملف الشخصي</a>
+                        <a class="menu-item" href="#"><i class="fas fa-cog me-2"></i>الإعدادات</a>
+                        <a class="menu-item" href="#"><i class="fas fa-key me-2"></i>تغيير كلمة المرور</a>
+                        <hr class="my-1">
+                        <div class="px-3 py-2">
+                            <small class="text-muted d-block mb-2">حجم الخط</small>
+                            <div class="btn-group btn-group-sm w-100">
+                                <button class="btn btn-outline-secondary" data-font-size="small">ص</button>
+                                <button class="btn btn-outline-secondary" data-font-size="normal">ع</button>
+                                <button class="btn btn-outline-secondary" data-font-size="large">ك</button>
+                                <button class="btn btn-outline-secondary" data-font-size="extra-large">ك+</button>
+                            </div>
+                        </div>
+                        <hr class="my-1">
+                        <form method="post" action="{% url 'logout' %}" class="m-0">
+                            {% csrf_token %}
+                            <button type="submit" class="menu-item text-danger w-100 border-0 bg-transparent text-end">
+                                <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+                            </button>
+                        </form>
+                    </div>
                 </div>
             {% else %}
-                <!-- Guest Menu -->
-                <div class="d-flex align-items-center">
-                    <a href="{% url 'login' %}" class="btn btn-outline-light me-2">
-                        <i class="fas fa-sign-in-alt me-1"></i>{% trans "تسجيل الدخول" %}
-                    </a>
-                </div>
+                <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-sign-in-alt me-1"></i>تسجيل الدخول
+                </a>
             {% endif %}
         </div>
     </div>
 </nav>
 
 <style>
+.sidebar-toggle {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1051;
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.sidebar-toggle:hover {
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    transform: translateY(-2px);
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-toggle { display: block; }
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.show {
+    display: block;
+    opacity: 1;
+}
+
+.user-menu-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 1029;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.user-menu-overlay.show {
+    display: block;
+    opacity: 1;
+}
+
 .navbar-custom {
     background: linear-gradient(90deg, #4a5568 0%, #2d3748 100%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -181,7 +151,7 @@
     z-index: 1030;
 }
 
-.navbar-custom .navbar-brand {
+.navbar-brand {
     font-weight: 600;
     letter-spacing: 0.5px;
 }
@@ -190,123 +160,188 @@
     color: rgba(255, 255, 255, 0.75) !important;
 }
 
-.text-white-50 {
-    color: rgba(255, 255, 255, 0.5) !important;
-}
-
-.hover-white:hover {
-    color: #ffffff !important;
-    transform: translateY(-1px);
-    transition: all 0.3s ease;
+.user-menu-container {
+    position: relative;
 }
 
 .user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 14px;
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.user-avatar-large {
-    width: 50px;
-    height: 50px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
+    font-size: 14px;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+}
+
+.status-dot {
+    position: absolute;
+    bottom: 0;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: #28a745;
+    border: 2px solid #2d3748;
+    border-radius: 50%;
+}
+
+.avatar-lg {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
     font-size: 18px;
     color: white;
-    margin: 0 auto;
 }
 
-.user-info {
-    line-height: 1.2;
-}
-
-.dropdown-menu {
-    border: none;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+.user-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;  /* بدلاً من right: 0 */
+    min-width: 280px;
+    background: white;
     border-radius: 10px;
-    padding: 0.5rem 0;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+    z-index: 1031;
+    animation: slideDown 0.2s ease;
 }
 
-.dropdown-header {
-    padding: 1rem;
+.user-dropdown.show {
+    display: block;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.menu-header {
+    padding: 12px 16px;
     background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    margin-bottom: 0.5rem;
+    border-radius: 10px 10px 0 0;
 }
 
-.dropdown-item {
-    padding: 0.5rem 1rem;
-    transition: all 0.3s ease;
+.menu-item {
+    display: block;
+    padding: 10px 16px;
+    color: #2d3748;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    text-align: right;
 }
 
-.dropdown-item:hover {
-    background: linear-gradient(90deg, rgba(74, 85, 104, 0.1) 0%, rgba(45, 55, 72, 0.1) 100%);
-    transform: translateX(5px);
+.menu-item:hover {
+    background: #f8f9fa;
+    color: #2d3748;
+    padding-right: 20px;
+}
+
+.menu-item i {
+    width: 18px;
+    color: #6c757d;
 }
 
 .nav-link {
     transition: all 0.3s ease;
     border-radius: 8px;
-    margin: 0 2px;
     padding: 0.5rem 0.75rem !important;
+    cursor: pointer;
 }
 
 .nav-link:hover {
     background: rgba(255, 255, 255, 0.1);
 }
 
-/* Font Size Controls in Dropdown */
-.dropdown-item-text .btn-group {
-    font-size: 12px;
-}
-
-.dropdown-item-text .btn {
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .user-info {
-        display: none !important;
+/* Mobile Responsive */
+@media (max-width: 991.98px) {
+    .user-dropdown {
+        position: fixed !important;
+        top: 60px !important;
+        right: 10px !important;
+        left: 10px !important;
+        min-width: auto !important;
     }
 
-    .navbar-custom .container-fluid {
-        padding: 0.5rem 1rem;
+    .user-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
     }
 
+    .status-dot {
+        width: 7px;
+        height: 7px;
+    }
+}
+
+@media (max-width: 767.98px) {
     .navbar-brand {
-        font-size: 1rem !important;
+        font-size: 0.9rem !important;
     }
-}
-
-/* Animation for notifications badge */
-.badge {
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.1);
-    }
-    100% {
-        transform: scale(1);
+    .navbar-brand i {
+        display: none;
     }
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const menuBtn = document.getElementById('userMenuBtn');
+    const dropdown = document.getElementById('userDropdown');
+    const overlay = document.getElementById('userMenuOverlay');
+
+    if (menuBtn && dropdown && overlay) {
+        menuBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (dropdown.classList.contains('show')) {
+                closeMenu();
+            } else {
+                openMenu();
+            }
+        });
+
+        overlay.addEventListener('click', closeMenu);
+
+        document.addEventListener('click', function(e) {
+            if (!menuBtn.contains(e.target) && !dropdown.contains(e.target)) {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && dropdown.classList.contains('show')) {
+                closeMenu();
+            }
+        });
+
+        function openMenu() {
+            dropdown.classList.add('show');
+            overlay.classList.add('show');
+        }
+
+        function closeMenu() {
+            dropdown.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+    }
+});
+</script>

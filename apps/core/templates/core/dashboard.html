@@ -8,6 +8,13 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
+/* إصلاح شريط التمرير الأفقي */
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+}
+
 /* Google Material Design Dashboard */
 :root {
     --google-blue: #1a73e8;
@@ -27,7 +34,7 @@
 }
 
 body {
-    font-family: 'Google Sans', 'Roboto', sans-serif;
+    font-family: 'Google Sans', 'Roboto', 'Cairo', sans-serif;
     background-color: var(--google-grey-50);
     color: var(--google-grey-800);
     line-height: 1.5;
@@ -36,14 +43,17 @@ body {
 .main-content {
     background-color: var(--google-grey-50);
     min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
 }
 
-/* Header */
+/* Header - بدون negative margin */
 .dashboard-header {
     background: white;
     border-bottom: 1px solid var(--google-grey-200);
     padding: 24px 32px;
-    margin: -30px -30px 32px -30px;
+    margin: 0 0 32px 0;
+    width: 100%;
 }
 
 .dashboard-title {
@@ -260,7 +270,7 @@ body {
 /* Quick Actions */
 .quick-actions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 16px;
     padding: 24px;
 }
@@ -306,12 +316,12 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
     .dashboard-header {
-        padding: 16px 24px;
-        margin: -15px -15px 24px -15px;
+        padding: 16px 20px;
+        margin: 0 0 20px 0;
     }
 
     .dashboard-title {
-        font-size: 24px;
+        font-size: 20px;
     }
 
     .google-card .card-body {
@@ -319,7 +329,18 @@ body {
     }
 
     .stat-number {
-        font-size: 28px;
+        font-size: 24px;
+    }
+
+    .container-fluid {
+        padding-right: 15px;
+        padding-left: 15px;
+    }
+
+    .quick-actions-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        padding: 16px;
     }
 }
 
@@ -354,22 +375,6 @@ body {
     to {
         opacity: 1;
         transform: translateY(0);
-    }
-}
-
-/* Loading states */
-.skeleton {
-    background: linear-gradient(90deg, var(--google-grey-200) 25%, var(--google-grey-100) 50%, var(--google-grey-200) 75%);
-    background-size: 200% 100%;
-    animation: loading 1.5s infinite;
-}
-
-@keyframes loading {
-    0% {
-        background-position: 200% 0;
-    }
-    100% {
-        background-position: -200% 0;
     }
 }
 </style>
@@ -473,7 +478,7 @@ body {
         <div class="col-lg-8">
             <div class="google-card chart-card fade-in" style="animation-delay: 0.4s">
                 <div class="chart-header">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
                         <div>
                             <h3 class="chart-title">{% trans "نشاط المستخدمين" %}</h3>
                             <p class="chart-subtitle">{% trans "آخر 30 يوم" %}</p>
@@ -586,15 +591,15 @@ body {
                         <span>{% trans "صلاحية جديدة" %}</span>
                     </a>
 
-                    <div class="quick-action" onclick="showComingSoon('{% trans 'فاتورة جديدة' %}')">
+                    <a href="#" class="quick-action" data-feature="فاتورة جديدة">
                         <span class="material-icons">receipt_long</span>
                         <span>{% trans "فاتورة جديدة" %}</span>
-                    </div>
+                    </a>
 
-                    <div class="quick-action" onclick="showComingSoon('{% trans 'تقرير' %}')">
+                    <a href="#" class="quick-action" data-feature="تقرير">
                         <span class="material-icons">analytics</span>
                         <span>{% trans "تقرير جديد" %}</span>
-                    </div>
+                    </a>
 
                     <a href="#" class="quick-action">
                         <span class="material-icons">settings</span>
@@ -609,6 +614,24 @@ body {
 
 {% block extra_js %}
 <script>
+// Coming Soon handler
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.quick-action[data-feature]').forEach(action => {
+        action.addEventListener('click', function(e) {
+            e.preventDefault();
+            const feature = this.getAttribute('data-feature');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'قريباً',
+                    text: `وحدة ${feature} قيد التطوير وستكون متاحة قريباً`,
+                    confirmButtonText: 'حسناً'
+                });
+            }
+        });
+    });
+});
+
 // Charts with Google colors
 const googleColors = {
     blue: '#1a73e8',
@@ -618,100 +641,104 @@ const googleColors = {
 };
 
 // Activity Chart
-const activityCtx = document.getElementById('activityChart').getContext('2d');
-new Chart(activityCtx, {
-    type: 'line',
-    data: {
-        labels: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
-        datasets: [{
-            label: 'تسجيل الدخول',
-            data: [12, 19, 15, 25, 22, 18, 30],
-            borderColor: googleColors.blue,
-            backgroundColor: googleColors.blue + '20',
-            tension: 0.4,
-            fill: true,
-            pointBackgroundColor: googleColors.blue,
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: 4
-        }, {
-            label: 'المستخدمين النشطين',
-            data: [8, 15, 12, 20, 18, 14, 25],
-            borderColor: googleColors.green,
-            backgroundColor: googleColors.green + '20',
-            tension: 0.4,
-            fill: true,
-            pointBackgroundColor: googleColors.green,
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: 4
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            intersect: false,
+const activityCtx = document.getElementById('activityChart');
+if (activityCtx) {
+    new Chart(activityCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+            datasets: [{
+                label: 'تسجيل الدخول',
+                data: [12, 19, 15, 25, 22, 18, 30],
+                borderColor: googleColors.blue,
+                backgroundColor: googleColors.blue + '20',
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: googleColors.blue,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4
+            }, {
+                label: 'المستخدمين النشطين',
+                data: [8, 15, 12, 20, 18, 14, 25],
+                borderColor: googleColors.green,
+                backgroundColor: googleColors.green + '20',
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: googleColors.green,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4
+            }]
         },
-        plugins: {
-            legend: {
-                position: 'top',
-                labels: {
-                    usePointStyle: true,
-                    padding: 20,
-                    font: { family: 'Google Sans', size: 12 }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        font: { family: 'Google Sans', size: 12 }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#f1f3f4' },
+                    ticks: { color: '#5f6368', font: { family: 'Google Sans' } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#5f6368', font: { family: 'Google Sans' } }
                 }
             }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: { color: '#f1f3f4' },
-                ticks: { color: '#5f6368', font: { family: 'Google Sans' } }
-            },
-            x: {
-                grid: { display: false },
-                ticks: { color: '#5f6368', font: { family: 'Google Sans' } }
-            }
         }
-    }
-});
+    });
+}
 
 // Permissions Chart
-const permissionsCtx = document.getElementById('permissionsChart').getContext('2d');
-new Chart(permissionsCtx, {
-    type: 'doughnut',
-    data: {
-        labels: ['المبيعات', 'المشتريات', 'المخازن', 'المحاسبة', 'النظام', 'التقارير'],
-        datasets: [{
-            data: [25, 20, 15, 20, 10, 10],
-            backgroundColor: [
-                googleColors.blue,
-                googleColors.red,
-                googleColors.yellow,
-                googleColors.green,
-                '#9aa0a6',
-                '#80868b'
-            ],
-            borderWidth: 0,
-            hoverOffset: 4
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: {
-                    usePointStyle: true,
-                    padding: 15,
-                    font: { family: 'Google Sans', size: 11 }
+const permissionsCtx = document.getElementById('permissionsChart');
+if (permissionsCtx) {
+    new Chart(permissionsCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: ['المبيعات', 'المشتريات', 'المخازن', 'المحاسبة', 'النظام', 'التقارير'],
+            datasets: [{
+                data: [25, 20, 15, 20, 10, 10],
+                backgroundColor: [
+                    googleColors.blue,
+                    googleColors.red,
+                    googleColors.yellow,
+                    googleColors.green,
+                    '#9aa0a6',
+                    '#80868b'
+                ],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: { family: 'Google Sans', size: 11 }
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
 // Filter chips functionality
 document.querySelectorAll('.filter-chip').forEach(chip => {
@@ -744,10 +771,5 @@ window.addEventListener('load', () => {
         setTimeout(() => animateValue(userCount, 0, targetValue, 1500), 300);
     }
 });
-
-// Auto-refresh data every 30 seconds
-setInterval(function() {
-    console.log('تحديث بيانات Dashboard...');
-}, 30000);
 </script>
 {% endblock %}
