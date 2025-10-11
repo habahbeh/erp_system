@@ -148,13 +148,14 @@ class CostCenter(BaseModel):
     """مركز التكلفة"""
 
     COST_CENTER_TYPES = [
-        ('administration', 'إدارة'),
-        ('production', 'إنتاج'),
+        ('branch', 'فرع'),
         ('sales', 'مبيعات'),
         ('services', 'خدمات'),
+        ('administration', 'إدارة'),
+        ('production', 'إنتاج'),
         ('marketing', 'تسويق'),
         ('maintenance', 'صيانة'),
-        ('branch', 'فرع'),
+
     ]
 
     name = models.CharField(_('اسم مركز التكلفة'), max_length=100)

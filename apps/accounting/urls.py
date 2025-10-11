@@ -140,6 +140,7 @@ urlpatterns = [
     path('ajax/accounts/search/', account_views.account_search_ajax, name='account_search_ajax'),
     path('ajax/accounts/autocomplete/', journal_views.account_autocomplete, name='account_autocomplete'),
     path('ajax/accounts/hierarchy/', account_views.account_hierarchy_ajax, name='account_hierarchy_ajax'),
+    path('ajax/accounts/<int:pk>/mini/', account_views.account_detail_mini, name='account_detail_mini'),
     path('ajax/accounts/stats/', account_views.account_stats_ajax, name='account_stats_ajax'),
 
     # Reports Ajax

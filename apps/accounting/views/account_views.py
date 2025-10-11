@@ -75,6 +75,28 @@ class AccountCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
         kwargs['request'] = self.request
         return kwargs
 
+    def get_initial(self):
+        """تعيين القيم الافتراضية للنموذج"""
+        initial = super().get_initial()
+
+        # ✅ إذا تم تمرير parent_id من URL (من زر إضافة فرعي في الشجرة)
+        parent_id = self.request.GET.get('parent_id')
+
+        if parent_id:
+            try:
+                parent = Account.objects.get(
+                    pk=parent_id,
+                    company=self.request.current_company
+                )
+                initial['parent'] = parent
+                # تعيين نفس نوع الحساب والعملة
+                initial['account_type'] = parent.account_type
+                initial['currency'] = parent.currency
+            except Account.DoesNotExist:
+                pass
+
+        return initial
+
     def form_valid(self, form):
         form.instance.company = self.request.current_company
         form.instance.branch = self.request.current_branch
@@ -100,7 +122,6 @@ class AccountCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
             ],
         })
         return context
-
 
 class AccountUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
     """تعديل حساب"""
@@ -218,17 +239,26 @@ class AccountDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
 
         # التحقق من وجود حسابات فرعية
         if self.object.children.exists():
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'لا يمكن حذف الحساب لوجود حسابات فرعية'
+                }, status=400)
             messages.error(request, 'لا يمكن حذف الحساب لوجود حسابات فرعية')
             return redirect('accounting:account_list')
 
-        # التحقق من وجود قيود محاسبية (سيتم تفعيلها لاحقاً)
-        # if hasattr(self.object, 'journal_entry_lines') and self.object.journal_entry_lines.exists():
-        #     messages.error(request, 'لا يمكن حذف الحساب لوجود قيود محاسبية')
-        #     return redirect('accounting:account_list')
-
         account_name = self.object.name
+        response = super().delete(request, *args, **kwargs)
+
+        # إذا كان AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': f'تم حذف الحساب {account_name} بنجاح'
+            })
+
         messages.success(request, f'تم حذف الحساب {account_name} بنجاح')
-        return super().delete(request, *args, **kwargs)
+        return response
 
 
 # Ajax Views
@@ -359,7 +389,7 @@ def account_datatable_ajax(request):
             # عدد الحسابات الفرعية
             children_info = ''
             if account.children_count > 0:
-                children_info = f' <span class="badge bg-info">{account.children_count} فرعي</span>'
+                children_info = f' <span class="badge bg-info">{account.children_count} ح / فرعي</span>'
 
             # اسم الحساب مع المستوى الهرمي
             indent = '&nbsp;&nbsp;&nbsp;' * (account.level - 1)
@@ -400,7 +430,7 @@ def account_datatable_ajax(request):
                 account_name,
                 account.account_type.name,
                 parent_display,
-                f"{account.opening_balance:,.3f}",
+                # f"{account.opening_balance:,.3f}",
                 status_badge,
                 actions_html
             ])
@@ -422,46 +452,46 @@ def account_datatable_ajax(request):
         })
 
 
-@login_required
-@permission_required_with_message('accounting.view_account')
-@require_http_methods(["GET"])
-def account_hierarchy_ajax(request):
-    """Ajax endpoint لعرض هيكل الحسابات الهرمي"""
-
-    if not hasattr(request, 'current_company') or not request.current_company:
-        return JsonResponse({'error': 'لا توجد شركة محددة'})
-
-    try:
-        def build_tree(parent=None, level=0):
-            accounts = Account.objects.filter(
-                company=request.current_company,
-                parent=parent
-            ).select_related('account_type').order_by('code')
-
-            result = []
-            for account in accounts:
-                children = build_tree(account, level + 1) if account.children.exists() else []
-
-                item = {
-                    'id': account.pk,
-                    'code': account.code,
-                    'name': account.name,
-                    'type': account.account_type.name,
-                    'level': level,
-                    'has_children': account.children.exists(),
-                    'is_suspended': account.is_suspended,
-                    'accept_entries': account.accept_entries,
-                    'opening_balance': float(account.opening_balance),
-                    'children': children
-                }
-                result.append(item)
-            return result
-
-        tree = build_tree()
-        return JsonResponse({'success': True, 'tree': tree})
-
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+# @login_required
+# @permission_required_with_message('accounting.view_account')
+# @require_http_methods(["GET"])
+# def account_hierarchy_ajax(request):
+#     """Ajax endpoint لعرض هيكل الحسابات الهرمي"""
+#
+#     if not hasattr(request, 'current_company') or not request.current_company:
+#         return JsonResponse({'error': 'لا توجد شركة محددة'})
+#
+#     try:
+#         def build_tree(parent=None, level=0):
+#             accounts = Account.objects.filter(
+#                 company=request.current_company,
+#                 parent=parent
+#             ).select_related('account_type').order_by('code')
+#
+#             result = []
+#             for account in accounts:
+#                 children = build_tree(account, level + 1) if account.children.exists() else []
+#
+#                 item = {
+#                     'id': account.pk,
+#                     'code': account.code,
+#                     'name': account.name,
+#                     'type': account.account_type.name,
+#                     'level': level,
+#                     'has_children': account.children.exists(),
+#                     'is_suspended': account.is_suspended,
+#                     'accept_entries': account.accept_entries,
+#                     'opening_balance': float(account.opening_balance),
+#                     'children': children
+#                 }
+#                 result.append(item)
+#             return result
+#
+#         tree = build_tree()
+#         return JsonResponse({'success': True, 'tree': tree})
+#
+#     except Exception as e:
+#         return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required
@@ -560,3 +590,164 @@ def account_stats_ajax(request):
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+
+@login_required
+@permission_required_with_message('accounting.view_account')
+@require_http_methods(["GET"])
+def account_hierarchy_ajax(request):
+    """Ajax endpoint لعرض هيكل الحسابات الهرمي - محسّن"""
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({'success': False, 'error': 'لا توجد شركة محددة'})
+
+    try:
+        def build_tree(parent=None, level=0):
+            """بناء الشجرة بشكل تكراري"""
+            accounts = Account.objects.filter(
+                company=request.current_company,
+                parent=parent
+            ).select_related(
+                'account_type', 'currency', 'parent'
+            ).prefetch_related(
+                'children'
+            ).annotate(
+                children_count=Count('children')
+            ).order_by('code')
+
+            result = []
+            for account in accounts:
+                # بناء شجرة الأطفال بشكل تكراري
+                children = build_tree(account, level + 1) if account.children_count > 0 else []
+
+                item = {
+                    'id': account.pk,
+                    'code': account.code,
+                    'name': account.name,
+                    'name_en': account.name_en or '',
+                    'type': account.account_type.name,
+                    'type_code': account.account_type.code,
+                    'level': level,
+                    'has_children': account.children_count > 0,
+                    'children_count': account.children_count,
+                    'is_suspended': account.is_suspended,
+                    'accept_entries': account.accept_entries,
+                    'is_cash_account': account.is_cash_account,
+                    'is_bank_account': account.is_bank_account,
+                    'opening_balance': float(account.opening_balance),
+                    'currency': account.currency.code if account.currency else 'SAR',
+                    'nature': account.nature,
+
+                    # روابط مفيدة
+                    'edit_url': reverse('accounting:account_update', args=[account.pk]),
+                    'detail_url': reverse('accounting:account_detail', args=[account.pk]),
+                    'delete_url': reverse('accounting:account_delete',
+                                          args=[account.pk]) if account.children_count == 0 else '',
+
+                    # الأطفال
+                    'children': children
+                }
+                result.append(item)
+
+            return result
+
+        # بناء الشجرة من الجذر
+        tree = build_tree()
+
+        # إحصائيات إضافية
+        stats = {
+            'total_accounts': Account.objects.filter(company=request.current_company).count(),
+            'parent_accounts': Account.objects.filter(
+                company=request.current_company,
+                children__isnull=False
+            ).distinct().count(),
+            'leaf_accounts': Account.objects.filter(
+                company=request.current_company,
+                children__isnull=True
+            ).count(),
+            'active_accounts': Account.objects.filter(
+                company=request.current_company,
+                is_suspended=False
+            ).count(),
+            'suspended_accounts': Account.objects.filter(
+                company=request.current_company,
+                is_suspended=True
+            ).count(),
+        }
+
+        return JsonResponse({
+            'success': True,
+            'tree': tree,
+            'stats': stats
+        })
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@login_required
+@permission_required_with_message('accounting.view_account')
+@require_http_methods(["GET"])
+def account_detail_mini(request, pk):
+    """عرض مختصر لتفاصيل الحساب (للـ Dual View)"""
+
+    try:
+        account = get_object_or_404(
+            Account.objects.select_related(
+                'account_type', 'parent', 'currency', 'created_by'
+            ).prefetch_related('children'),
+            pk=pk,
+            company=request.current_company
+        )
+
+        # إذا كان الطلب JSON
+        if request.GET.get('format') == 'json':
+            return JsonResponse({
+                'success': True,
+                'account': {
+                    'id': account.id,
+                    'code': account.code,
+                    'name': account.name,
+                    'name_en': account.name_en or '',
+                    'type': account.account_type.name,
+                    'type_code': account.account_type.code,
+                    'parent_code': account.parent.code if account.parent else None,
+                    'parent_name': account.parent.name if account.parent else None,
+                    'opening_balance': float(account.opening_balance),
+                    'currency': account.currency.code if account.currency else 'SAR',
+                    'is_suspended': account.is_suspended,
+                    'is_cash_account': account.is_cash_account,
+                    'is_bank_account': account.is_bank_account,
+                    'accept_entries': account.accept_entries,
+                    'nature': account.nature,
+                    'notes': account.notes or '',
+                    'children_count': account.children.count(),
+                    'level': account.level,
+                    'created_at': account.created_at.strftime('%Y-%m-%d %H:%M') if hasattr(account,
+                                                                                           'created_at') else '',
+                    'created_by': account.created_by.get_full_name() if account.created_by else '',
+                    'edit_url': reverse('accounting:account_update', args=[account.pk]),
+                    'detail_url': reverse('accounting:account_detail', args=[account.pk]),
+                }
+            })
+
+        # HTML partial
+        return render(request, 'accounting/accounts/account_detail_mini.html', {
+            'account': account,
+            'can_edit': request.user.has_perm('accounting.change_account'),
+            'can_delete': request.user.has_perm('accounting.delete_account') and account.children.count() == 0,
+        })
+
+    except Exception as e:
+        if request.GET.get('format') == 'json':
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+        return HttpResponse(f'<div class="alert alert-danger">خطأ: {str(e)}</div>')

@@ -1,0 +1,162 @@
+<!-- Mini Account Details for Dual View -->
+<div class="account-detail-mini">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h4 class="mb-1">{{ account.name }}</h4>
+            <p class="text-muted mb-0">
+                <span class="badge bg-secondary">{{ account.code }}</span>
+                <span class="badge bg-info ms-2">{{ account.account_type.name }}</span>
+            </p>
+        </div>
+        <div class="btn-group">
+            {% if can_edit %}
+            <a href="{{ account.edit_url }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-edit"></i> تعديل
+            </a>
+            {% endif %}
+            <a href="{% url 'accounting:account_detail' account.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-external-link-alt"></i> عرض كامل
+            </a>
+        </div>
+    </div>
+
+    <!-- Basic Info -->
+    <div class="card mb-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-info-circle"></i> المعلومات الأساسية</h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="text-muted small">رمز الحساب:</label>
+                    <p class="mb-0 fw-bold">{{ account.code }}</p>
+                </div>
+                <div class="col-md-6">
+                    <label class="text-muted small">اسم الحساب:</label>
+                    <p class="mb-0">{{ account.name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <label class="text-muted small">نوع الحساب:</label>
+                    <p class="mb-0">{{ account.account_type.name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <label class="text-muted small">طبيعة الحساب:</label>
+                    <p class="mb-0">
+                        {% if account.nature == 'debit' %}
+                            <span class="badge bg-success">مدين</span>
+                        {% else %}
+                            <span class="badge bg-danger">دائن</span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% if account.parent %}
+                <div class="col-md-6">
+                    <label class="text-muted small">الحساب الأب:</label>
+                    <p class="mb-0">{{ account.parent.code }} - {{ account.parent.name }}</p>
+                </div>
+                {% endif %}
+                <div class="col-md-6">
+                    <label class="text-muted small">المستوى:</label>
+                    <p class="mb-0">{{ account.level }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Info -->
+    <div class="card mb-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-coins"></i> المعلومات المالية</h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+{#                <div class="col-md-6">#}
+{#                    <label class="text-muted small">الرصيد الافتتاحي:</label>#}
+{#                    <p class="mb-0 fw-bold text-primary fs-5">#}
+{#                        {{ account.opening_balance|floatformat:2 }}#}
+{#                        {{ account.currency.code }}#}
+{#                    </p>#}
+{#                </div>#}
+                <div class="col-md-6">
+                    <label class="text-muted small">العملة:</label>
+                    <p class="mb-0">{{ account.currency.name }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Properties -->
+    <div class="card mb-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-cog"></i> الخصائص</h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" disabled {% if account.accept_entries %}checked{% endif %}>
+                        <label class="form-check-label small">يقبل قيود مباشرة</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" disabled {% if account.is_cash_account %}checked{% endif %}>
+                        <label class="form-check-label small">حساب نقدي</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" disabled {% if account.is_bank_account %}checked{% endif %}>
+                        <label class="form-check-label small">حساب بنكي</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" disabled {% if account.is_suspended %}checked{% endif %}>
+                        <label class="form-check-label small">موقوف</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Children Accounts -->
+    {% if account.children.count > 0 %}
+    <div class="card">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-sitemap"></i> الحسابات الفرعية
+                <span class="badge bg-primary">{{ account.children.count }}</span>
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                {% for child in account.children.all %}
+                <a href="#" class="list-group-item list-group-item-action" onclick="viewManager.selectNode({{ child.pk }}); return false;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-secondary">{{ child.code }}</span>
+                            <span class="ms-2">{{ child.name }}</span>
+                        </div>
+                        <span class="text-muted small">{{ child.opening_balance|floatformat:2 }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Notes -->
+    {% if account.notes %}
+    <div class="card mt-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-sticky-note"></i> ملاحظات</h6>
+        </div>
+        <div class="card-body">
+            <p class="mb-0">{{ account.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
