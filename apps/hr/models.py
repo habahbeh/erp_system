@@ -4,7 +4,7 @@
 يحتوي على: بيانات الموظفين، الرواتب، الإجازات، الحضور والانصراف، السلف والقروض
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
@@ -421,7 +421,7 @@ class EmployeeAllowance(models.Model):
         unique_together = [['employee', 'allowance']]
 
 
-class Payroll(BaseModel):
+class Payroll(DocumentBaseModel):
     """كشف الرواتب"""
 
     number = models.CharField(
@@ -532,6 +532,112 @@ class Payroll(BaseModel):
             self.number = f"PR/{self.period_year}/{self.period_month:02d}"
 
         super().save(*args, **kwargs)
+
+    # إضافة دالة الترحيل:
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل كشف الرواتب وإنشاء القيد المحاسبي"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, Account
+
+        if self.status != 'approved':
+            raise ValidationError(_('يجب اعتماد الكشف أولاً'))
+
+        if self.journal_entry:
+            raise ValidationError(_('الكشف مرحل مسبقاً'))
+
+        # الحصول على السنة والفترة المالية
+        from apps.accounting.models import FiscalYear, AccountingPeriod
+
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.to_date,
+                end_date__gte=self.to_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.to_date,
+                end_date__gte=self.to_date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.to_date,
+            entry_type='auto',
+            description=f"كشف رواتب {self.number} - {self.period_month}/{self.period_year}",
+            reference=self.number,
+            source_document='payroll',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # حساب الرواتب (مدين) - يجب تحديد حساب الرواتب في الإعدادات
+        try:
+            salary_expense_account = Account.objects.get(
+                company=self.company,
+                code='510100'  # مثال: حساب مصروف الرواتب
+            )
+        except Account.DoesNotExist:
+            raise ValidationError(_('حساب مصروف الرواتب غير موجود'))
+
+        # سطر إجمالي الرواتب (مدين)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=salary_expense_account,
+            description=f"إجمالي الرواتب - {self.number}",
+            debit_amount=self.total_net,
+            credit_amount=0,
+            currency=self.company.base_currency,
+            reference=self.number
+        )
+        line_number += 1
+
+        # حساب البنك أو الصندوق (دائن)
+        try:
+            cash_account = Account.objects.get(
+                company=self.company,
+                code='110100'  # مثال: حساب البنك
+            )
+        except Account.DoesNotExist:
+            raise ValidationError(_('حساب البنك/الصندوق غير موجود'))
+
+        # سطر الصندوق/البنك (دائن)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=cash_account,
+            description=f"صرف رواتب - {self.number}",
+            debit_amount=0,
+            credit_amount=self.total_net,
+            currency=self.company.base_currency,
+            reference=self.number
+        )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # تحديث الكشف
+        self.journal_entry = journal_entry
+        self.status = 'paid'
+        self.save()
+
+        return journal_entry
 
     def __str__(self):
         return f"{self.number} - {self.period_month}/{self.period_year}"
@@ -764,7 +870,7 @@ class Attendance(models.Model):
         ordering = ['-date']
 
 
-class Loan(BaseModel):
+class Loan(DocumentBaseModel):
     """السلف والقروض"""
 
     LOAN_TYPES = [
@@ -917,6 +1023,112 @@ class Loan(BaseModel):
         self.remaining_amount = self.amount - self.paid_amount
 
         super().save(*args, **kwargs)
+
+    # إضافة دالة الترحيل:
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل السلفة/القرض وإنشاء القيد المحاسبي"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, Account
+
+        if self.status != 'approved':
+            raise ValidationError(_('يجب اعتماد السلفة أولاً'))
+
+        if self.journal_entry:
+            raise ValidationError(_('السلفة مرحلة مسبقاً'))
+
+        # الحصول على السنة والفترة المالية
+        from apps.accounting.models import FiscalYear, AccountingPeriod
+
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"{self.get_loan_type_display()} رقم {self.number} - {self.employee.get_full_name()}",
+            reference=self.number,
+            source_document='loan',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # حساب سلف الموظفين (مدين)
+        try:
+            employee_loan_account = Account.objects.get(
+                company=self.company,
+                code='120300'  # مثال: حساب سلف الموظفين
+            )
+        except Account.DoesNotExist:
+            raise ValidationError(_('حساب سلف الموظفين غير موجود'))
+
+        # سطر السلفة (مدين)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=employee_loan_account,
+            description=f"{self.get_loan_type_display()} - {self.employee.get_full_name()}",
+            debit_amount=self.amount,
+            credit_amount=0,
+            currency=self.company.base_currency,
+            reference=self.number
+        )
+        line_number += 1
+
+        # حساب الصندوق (دائن)
+        try:
+            cash_account = Account.objects.get(
+                company=self.company,
+                code='110100'  # مثال: حساب الصندوق
+            )
+        except Account.DoesNotExist:
+            raise ValidationError(_('حساب الصندوق غير موجود'))
+
+        # سطر الصندوق (دائن)
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=cash_account,
+            description=f"صرف {self.get_loan_type_display()} - {self.employee.get_full_name()}",
+            debit_amount=0,
+            credit_amount=self.amount,
+            currency=self.company.base_currency,
+            reference=self.number
+        )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # تحديث السلفة
+        self.journal_entry = journal_entry
+        self.status = 'active'
+        self.save()
+
+        return journal_entry
 
     def __str__(self):
         return f"{self.number} - {self.employee.get_full_name()}"

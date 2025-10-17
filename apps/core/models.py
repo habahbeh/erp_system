@@ -4,7 +4,7 @@
 17 نموذج - البنية التحتية + البيانات التجارية الأساسية
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -129,6 +129,391 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+
+    # ✅ **إضافة هذه الدالة:**
+    def create_default_sequences(self):
+        """إنشاء تسلسلات الترقيم الافتراضية للشركة"""
+
+        # قائمة بكل التسلسلات المطلوبة
+        sequences = [
+            # المبيعات
+            {
+                'document_type': 'sales_invoice',
+                'prefix': 'SI',
+                'description': 'فاتورة مبيعات',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'sales_return',
+                'prefix': 'SR',
+                'description': 'مرتجع مبيعات',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'sales_quotation',
+                'prefix': 'QT',
+                'description': 'عرض سعر',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'sales_order',
+                'prefix': 'SO',
+                'description': 'أمر بيع',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            # المشتريات
+            {
+                'document_type': 'purchase_invoice',
+                'prefix': 'PI',
+                'description': 'فاتورة مشتريات',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'purchase_return',
+                'prefix': 'PR',
+                'description': 'مرتجع مشتريات',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'purchase_order',
+                'prefix': 'PO',
+                'description': 'أمر شراء',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'purchase_request',
+                'prefix': 'PRQ',
+                'description': 'طلب شراء',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            # المخازن
+            {
+                'document_type': 'stock_in',
+                'prefix': 'SI',
+                'description': 'سند إدخال',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'stock_out',
+                'prefix': 'SO',
+                'description': 'سند إخراج',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'stock_transfer',
+                'prefix': 'ST',
+                'description': 'سند تحويل',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'stock_count',
+                'prefix': 'SC',
+                'description': 'جرد',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            # المحاسبة
+            {
+                'document_type': 'journal_entry',
+                'prefix': 'JV',
+                'description': 'قيد يومية',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'payment_voucher',
+                'prefix': 'PV',
+                'description': 'سند صرف',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': True,
+                'padding': 4
+            },
+            {
+                'document_type': 'receipt_voucher',
+                'prefix': 'RV',
+                'description': 'سند قبض',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': True,
+                'padding': 4
+            },
+            # الأصول
+            {
+                'document_type': 'asset',
+                'prefix': 'AST',
+                'description': 'أصل ثابت',
+                'yearly_reset': False,
+                'include_year': False,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'asset_transaction',
+                'prefix': 'AT',
+                'description': 'عملية على أصل',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+            {
+                'document_type': 'asset_maintenance',
+                'prefix': 'MAINT',
+                'description': 'صيانة أصل',
+                'yearly_reset': True,
+                'include_year': True,
+                'include_month': False,
+                'padding': 6
+            },
+        ]
+
+        created_count = 0
+
+        for seq_data in sequences:
+            # التحقق من عدم وجود التسلسل
+            if not NumberingSequence.objects.filter(
+                    company=self,
+                    document_type=seq_data['document_type']
+            ).exists():
+                NumberingSequence.objects.create(
+                    company=self,
+                    document_type=seq_data['document_type'],
+                    prefix=seq_data['prefix'],
+                    next_number=1,
+                    padding=seq_data['padding'],
+                    yearly_reset=seq_data['yearly_reset'],
+                    include_year=seq_data['include_year'],
+                    include_month=seq_data['include_month'],
+                    separator='/',
+                    is_active=True
+                )
+                created_count += 1
+
+        return created_count
+
+    # ✅ **إضافة دالة إنشاء الحسابات الافتراضية:**
+    def create_default_accounts(self):
+        """إنشاء دليل الحسابات الافتراضي"""
+        from apps.accounting.models import AccountType, Account
+
+        # التحقق من عدم وجود حسابات مسبقاً
+        if Account.objects.filter(company=self).exists():
+            return 0
+
+        created_count = 0
+
+        # إنشاء أنواع الحسابات إذا لم تكن موجودة
+        account_types = {
+            'assets': AccountType.objects.get_or_create(
+                code='1',
+                defaults={
+                    'name': 'الأصول',
+                    'type_category': 'assets',
+                    'normal_balance': 'debit'
+                }
+            )[0],
+            'liabilities': AccountType.objects.get_or_create(
+                code='2',
+                defaults={
+                    'name': 'الخصوم',
+                    'type_category': 'liabilities',
+                    'normal_balance': 'credit'
+                }
+            )[0],
+            'equity': AccountType.objects.get_or_create(
+                code='3',
+                defaults={
+                    'name': 'حقوق الملكية',
+                    'type_category': 'equity',
+                    'normal_balance': 'credit'
+                }
+            )[0],
+            'revenue': AccountType.objects.get_or_create(
+                code='4',
+                defaults={
+                    'name': 'الإيرادات',
+                    'type_category': 'revenue',
+                    'normal_balance': 'credit'
+                }
+            )[0],
+            'expenses': AccountType.objects.get_or_create(
+                code='5',
+                defaults={
+                    'name': 'المصروفات',
+                    'type_category': 'expenses',
+                    'normal_balance': 'debit'
+                }
+            )[0],
+        }
+
+        # قائمة الحسابات الافتراضية
+        default_accounts = [
+            # الأصول
+            {
+                'code': '110000',
+                'name': 'الأصول المتداولة',
+                'type': 'assets',
+                'parent': None,
+                'accept_entries': False
+            },
+            {
+                'code': '110100',
+                'name': 'النقدية والبنوك',
+                'type': 'assets',
+                'parent': '110000',
+                'is_cash_account': False,
+                'is_bank_account': True
+            },
+            {
+                'code': '110200',
+                'name': 'الصندوق',
+                'type': 'assets',
+                'parent': '110000',
+                'is_cash_account': True
+            },
+            {
+                'code': '120000',
+                'name': 'المخزون',
+                'type': 'assets',
+                'parent': None
+            },
+            {
+                'code': '120300',
+                'name': 'سلف الموظفين',
+                'type': 'assets',
+                'parent': None
+            },
+            # الخصوم
+            {
+                'code': '210000',
+                'name': 'الخصوم المتداولة',
+                'type': 'liabilities',
+                'parent': None,
+                'accept_entries': False
+            },
+            {
+                'code': '210100',
+                'name': 'الموردين',
+                'type': 'liabilities',
+                'parent': '210000'
+            },
+            {
+                'code': '220100',
+                'name': 'العملاء',
+                'type': 'assets',
+                'parent': None
+            },
+            # حقوق الملكية
+            {
+                'code': '310000',
+                'name': 'رأس المال',
+                'type': 'equity',
+                'parent': None
+            },
+            # الإيرادات
+            {
+                'code': '410000',
+                'name': 'إيرادات المبيعات',
+                'type': 'revenue',
+                'parent': None
+            },
+            {
+                'code': '420000',
+                'name': 'خصم المبيعات',
+                'type': 'revenue',
+                'parent': None
+            },
+            # المصروفات
+            {
+                'code': '510000',
+                'name': 'تكلفة البضاعة المباعة',
+                'type': 'expenses',
+                'parent': None
+            },
+            {
+                'code': '510100',
+                'name': 'مصروف الرواتب',
+                'type': 'expenses',
+                'parent': None
+            },
+            {
+                'code': '520000',
+                'name': 'المصروفات العمومية',
+                'type': 'expenses',
+                'parent': None
+            },
+            {
+                'code': '530000',
+                'name': 'خصم المشتريات',
+                'type': 'expenses',
+                'parent': None
+            },
+        ]
+
+        # إنشاء الحسابات
+        accounts_dict = {}
+
+        for acc_data in default_accounts:
+            parent_obj = None
+            if acc_data.get('parent'):
+                parent_obj = accounts_dict.get(acc_data['parent'])
+
+            account = Account.objects.create(
+                company=self,
+                code=acc_data['code'],
+                name=acc_data['name'],
+                account_type=account_types[acc_data['type']],
+                parent=parent_obj,
+                currency=self.base_currency,
+                nature='both',
+                accept_entries=acc_data.get('accept_entries', True),
+                is_cash_account=acc_data.get('is_cash_account', False),
+                is_bank_account=acc_data.get('is_bank_account', False),
+                opening_balance=0
+            )
+
+            accounts_dict[acc_data['code']] = account
+            created_count += 1
+
+        return created_count
 
 
 class Warehouse(BaseModel):
@@ -394,6 +779,10 @@ class NumberingSequence(BaseModel):
         ('journal_entry', _('قيد يومية')),
         ('payment_voucher', _('سند صرف')),
         ('receipt_voucher', _('سند قبض')),
+        # الأصول
+        ('asset', _('أصل ثابت')),
+        ('asset_transaction', _('عملية على أصل')),
+        ('asset_maintenance', _('صيانة أصل')),
     ]
 
     document_type = models.CharField(_('نوع المستند'), max_length=50, choices=DOCUMENT_TYPES)
@@ -406,22 +795,43 @@ class NumberingSequence(BaseModel):
     include_month = models.BooleanField(_('تضمين الشهر'), default=False)
     separator = models.CharField(_('الفاصل'), max_length=1, default='/', help_text=_('مثال: / أو -'))
 
+    last_reset_year = models.IntegerField(
+        _('آخر سنة إعادة ترقيم'),
+        null=True,
+        blank=True,
+        help_text=_('لتتبع السنة الأخيرة التي تم فيها إعادة الترقيم')
+    )
+
     class Meta:
         verbose_name = _('تسلسل ترقيم')
         verbose_name_plural = _('تسلسلات الترقيم')
         unique_together = [['company', 'document_type']]
 
     def get_next_number(self):
-        """الحصول على الرقم التالي"""
+        """الحصول على الرقم التالي مع دعم الترقيم السنوي"""
         import datetime
 
-        parts = [self.prefix]
+        current_year = datetime.date.today().year
+        current_month = datetime.date.today().month
+
+        # التحقق من إعادة الترقيم السنوي
+        if self.yearly_reset and self.include_year:
+            # إذا تغيرت السنة، أعد الترقيم
+            if self.last_reset_year != current_year:
+                self.next_number = 1
+                self.last_reset_year = current_year
+
+        # بناء الرقم
+        parts = []
+
+        if self.prefix:
+            parts.append(self.prefix)
 
         if self.include_year:
-            parts.append(str(datetime.date.today().year))
+            parts.append(str(current_year))
 
         if self.include_month:
-            parts.append(f"{datetime.date.today().month:02d}")
+            parts.append(f"{current_month:02d}")
 
         parts.append(str(self.next_number).zfill(self.padding))
 
@@ -440,20 +850,41 @@ class NumberingSequence(BaseModel):
         """الحصول على معاينة للرقم التالي بدون تغيير العداد"""
         import datetime
 
-        parts = [self.prefix] if self.prefix else []
+        current_year = datetime.date.today().year
+        current_month = datetime.date.today().month
+
+        parts = []
+
+        if self.prefix:
+            parts.append(self.prefix)
 
         if self.include_year:
-            parts.append(str(datetime.date.today().year))
+            parts.append(str(current_year))
 
         if self.include_month:
-            parts.append(f"{datetime.date.today().month:02d}")
+            parts.append(f"{current_month:02d}")
 
-        parts.append(str(self.next_number).zfill(self.padding))
+        # استخدم next_number المتوقع
+        expected_number = self.next_number
+
+        # إذا كان سيتم إعادة الترقيم، استخدم 1
+        if self.yearly_reset and self.include_year:
+            if self.last_reset_year != current_year:
+                expected_number = 1
+
+        parts.append(str(expected_number).zfill(self.padding))
 
         if self.suffix:
             parts.append(self.suffix)
 
         return self.separator.join(parts)
+
+    def reset_sequence(self, start_number=1):
+        """إعادة ترقيم التسلسل يدوياً"""
+        import datetime
+        self.next_number = start_number
+        self.last_reset_year = datetime.date.today().year
+        self.save()
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.prefix}"

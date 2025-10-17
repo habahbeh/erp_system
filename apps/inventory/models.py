@@ -4,7 +4,7 @@
 يحتوي على: سندات الإدخال/الإخراج، التحويلات بين المخازن، الجرد، حركة المواد
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
@@ -158,6 +158,251 @@ class StockIn(StockDocument):
 
         super().save(*args, **kwargs)
 
+    # ✅ **إضافة دالة الترحيل:**
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل السند وتحديث المخزون"""
+        from django.utils import timezone
+
+        if self.is_posted:
+            raise ValidationError(_('السند مرحل مسبقاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في السند'))
+
+        # تحديث رصيد كل مادة
+        for line in self.lines.all():
+            # التحقق من صحة البيانات
+            line.full_clean()
+
+            # الحصول على أو إنشاء رصيد المادة
+            stock, created = ItemStock.objects.get_or_create(
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.warehouse,
+                company=self.company,
+                defaults={
+                    'quantity': 0,
+                    'reserved_quantity': 0,
+                    'average_cost': line.unit_cost,
+                    'total_value': 0,
+                    'created_by': user or self.created_by
+                }
+            )
+
+            # حساب متوسط التكلفة الجديد (Weighted Average)
+            old_quantity = stock.quantity
+            old_value = stock.total_value
+            new_quantity = old_quantity + line.quantity
+            new_value = old_value + line.total_cost
+
+            if new_quantity > 0:
+                stock.average_cost = new_value / new_quantity
+
+            # تحديث الكمية والقيمة
+            stock.quantity = new_quantity
+            stock.total_value = new_value
+            stock.last_movement_date = timezone.now()
+            stock.save()
+
+            # إنشاء حركة المادة
+            StockMovement.objects.create(
+                company=self.company,
+                branch=getattr(self, 'branch', None),
+                date=timezone.now(),
+                movement_type='in',
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.warehouse,
+                quantity=line.quantity,
+                unit_cost=line.unit_cost,
+                total_cost=line.total_cost,
+                balance_quantity=stock.quantity,
+                balance_value=stock.total_value,
+                reference_type='stock_in',
+                reference_id=self.pk,
+                reference_number=self.number,
+                created_by=user or self.created_by
+            )
+
+        # إنشاء القيد المحاسبي (إذا كان مطلوباً)
+        if not self.journal_entry:
+            self.create_journal_entry(user)
+
+        # تحديث حالة السند
+        self.is_posted = True
+        self.posted_date = timezone.now()
+        self.posted_by = user
+        self.save()
+
+    # ✅ **دالة إنشاء القيد المحاسبي:**
+    def create_journal_entry(self, user=None):
+        """إنشاء القيد المحاسبي للسند"""
+        from apps.accounting.models import JournalEntry, JournalEntryLine
+        from apps.accounting.models import FiscalYear, AccountingPeriod
+
+        # الحصول على السنة والفترة المالية
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            # السند بدون قيد محاسبي
+            return None
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        # إنشاء القيد
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=getattr(self, 'branch', None),
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"سند إدخال رقم {self.number} - {self.get_source_type_display()}",
+            reference=self.number,
+            source_document='stock_in',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # تجميع السطور حسب حساب المخزون
+        from collections import defaultdict
+        inventory_accounts = defaultdict(lambda: {'debit': 0, 'items': []})
+
+        for line in self.lines.all():
+            # حساب المخزون من المادة
+            inventory_account = line.item.inventory_account
+            if inventory_account:
+                inventory_accounts[inventory_account]['debit'] += line.total_cost
+                inventory_accounts[inventory_account]['items'].append(line.item.name)
+
+        # إنشاء سطر لكل حساب مخزون (مدين)
+        for account, data in inventory_accounts.items():
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=account,
+                description=f"إدخال مخزون - {', '.join(data['items'][:3])}",
+                debit_amount=data['debit'],
+                credit_amount=0,
+                currency=self.company.base_currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # الطرف الدائن (حسب المصدر)
+        if self.source_type == 'purchase' and self.supplier:
+            # حساب المورد (دائن)
+            try:
+                from apps.core.models import Account
+                supplier_account = Account.objects.get(
+                    company=self.company,
+                    code='210100'  # مثال: حساب الموردين
+                )
+
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=supplier_account,
+                    description=f"شراء من {self.supplier.name}",
+                    debit_amount=0,
+                    credit_amount=sum(data['debit'] for data in inventory_accounts.values()),
+                    currency=self.company.base_currency,
+                    reference=self.number,
+                    partner_type='supplier',
+                    partner_id=self.supplier.pk
+                )
+            except:
+                pass
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # ربط القيد بالسند
+        self.journal_entry = journal_entry
+        self.save()
+
+        return journal_entry
+
+    # ✅ **دالة إلغاء الترحيل:**
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل السند"""
+        if not self.is_posted:
+            raise ValidationError(_('السند غير مرحل'))
+
+        # عكس الحركات المخزنية
+        for line in self.lines.all():
+            # الحصول على رصيد المادة
+            try:
+                stock = ItemStock.objects.get(
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    warehouse=self.warehouse,
+                    company=self.company
+                )
+
+                # التحقق من إمكانية الإلغاء
+                if stock.quantity < line.quantity:
+                    raise ValidationError(
+                        f'لا يمكن إلغاء السند: الكمية المتاحة من {line.item.name} أقل من المطلوب'
+                    )
+
+                # حساب القيمة الجديدة
+                old_quantity = stock.quantity
+                old_value = stock.total_value
+                new_quantity = old_quantity - line.quantity
+                new_value = old_value - line.total_cost
+
+                # حساب متوسط التكلفة الجديد
+                if new_quantity > 0:
+                    stock.average_cost = new_value / new_quantity
+                else:
+                    stock.average_cost = 0
+
+                # تحديث الرصيد
+                stock.quantity = new_quantity
+                stock.total_value = new_value
+                stock.save()
+
+                # حذف حركة المادة
+                StockMovement.objects.filter(
+                    reference_type='stock_in',
+                    reference_id=self.pk,
+                    item=line.item,
+                    item_variant=line.item_variant
+                ).delete()
+
+            except ItemStock.DoesNotExist:
+                raise ValidationError(f'رصيد المادة {line.item.name} غير موجود')
+
+        # إلغاء القيد المحاسبي
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+            self.journal_entry = None
+
+        # تحديث حالة السند
+        self.is_posted = False
+        self.posted_date = None
+        self.posted_by = None
+        self.save()
+
     def __str__(self):
         return f"{self.number} - {self.get_source_type_display()}"
 
@@ -237,6 +482,247 @@ class StockOut(StockDocument):
 
         super().save(*args, **kwargs)
 
+    # ✅ **إضافة دالة الترحيل:**
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل السند وتحديث المخزون"""
+        from django.utils import timezone
+
+        if self.is_posted:
+            raise ValidationError(_('السند مرحل مسبقاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في السند'))
+
+        # تحديث رصيد كل مادة
+        for line in self.lines.all():
+            # التحقق من صحة البيانات
+            line.full_clean()
+
+            # الحصول على رصيد المادة
+            try:
+                stock = ItemStock.objects.get(
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    warehouse=self.warehouse,
+                    company=self.company
+                )
+            except ItemStock.DoesNotExist:
+                raise ValidationError(
+                    f'لا يوجد رصيد للمادة {line.item.name} في المستودع {self.warehouse.name}'
+                )
+
+            # التحقق من الكمية المتاحة
+            available_quantity = stock.quantity - stock.reserved_quantity
+            if available_quantity < line.quantity:
+                raise ValidationError(
+                    f'الكمية المتاحة من {line.item.name} ({available_quantity}) '
+                    f'أقل من المطلوب ({line.quantity})'
+                )
+
+            # حساب القيمة (بمتوسط التكلفة)
+            line.unit_cost = stock.average_cost
+            line.total_cost = line.quantity * stock.average_cost
+            line.save()
+
+            # تحديث الكمية والقيمة
+            old_quantity = stock.quantity
+            old_value = stock.total_value
+            new_quantity = old_quantity - line.quantity
+            new_value = old_value - line.total_cost
+
+            stock.quantity = new_quantity
+            stock.total_value = new_value
+            stock.last_movement_date = timezone.now()
+            stock.save()
+
+            # إنشاء حركة المادة
+            StockMovement.objects.create(
+                company=self.company,
+                branch=getattr(self, 'branch', None),
+                date=timezone.now(),
+                movement_type='out',
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.warehouse,
+                quantity=-line.quantity,  # سالب للإخراج
+                unit_cost=line.unit_cost,
+                total_cost=-line.total_cost,
+                balance_quantity=stock.quantity,
+                balance_value=stock.total_value,
+                reference_type='stock_out',
+                reference_id=self.pk,
+                reference_number=self.number,
+                created_by=user or self.created_by
+            )
+
+        # إنشاء القيد المحاسبي (إذا كان مطلوباً)
+        if not self.journal_entry:
+            self.create_journal_entry(user)
+
+        # تحديث حالة السند
+        self.is_posted = True
+        self.posted_date = timezone.now()
+        self.posted_by = user
+        self.save()
+
+    # ✅ **دالة إنشاء القيد المحاسبي:**
+    def create_journal_entry(self, user=None):
+        """إنشاء القيد المحاسبي للسند"""
+        from apps.accounting.models import JournalEntry, JournalEntryLine
+        from apps.accounting.models import FiscalYear, AccountingPeriod
+
+        # الحصول على السنة والفترة المالية
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            return None
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        # إنشاء القيد
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=getattr(self, 'branch', None),
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"سند إخراج رقم {self.number} - {self.get_destination_type_display()}",
+            reference=self.number,
+            source_document='stock_out',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # تجميع السطور حسب الحسابات
+        from collections import defaultdict
+        cost_accounts = defaultdict(lambda: {'debit': 0, 'items': []})
+        inventory_accounts = defaultdict(lambda: {'credit': 0})
+
+        for line in self.lines.all():
+            # حساب تكلفة البضاعة المباعة أو المصروف
+            if self.destination_type == 'sales':
+                cost_account = line.item.cost_of_goods_account
+            else:
+                cost_account = line.item.inventory_account
+
+            if cost_account:
+                cost_accounts[cost_account]['debit'] += line.total_cost
+                cost_accounts[cost_account]['items'].append(line.item.name)
+
+            # حساب المخزون (دائن)
+            inventory_account = line.item.inventory_account
+            if inventory_account:
+                inventory_accounts[inventory_account]['credit'] += line.total_cost
+
+        # سطور تكلفة البضاعة/المصروف (مدين)
+        for account, data in cost_accounts.items():
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=account,
+                description=f"تكلفة - {', '.join(data['items'][:3])}",
+                debit_amount=data['debit'],
+                credit_amount=0,
+                currency=self.company.base_currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # سطور المخزون (دائن)
+        for account, data in inventory_accounts.items():
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=account,
+                description=f"إخراج مخزون",
+                debit_amount=0,
+                credit_amount=data['credit'],
+                currency=self.company.base_currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # ربط القيد بالسند
+        self.journal_entry = journal_entry
+        self.save()
+
+        return journal_entry
+
+    # ✅ **دالة إلغاء الترحيل:**
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل السند"""
+        if not self.is_posted:
+            raise ValidationError(_('السند غير مرحل'))
+
+        # عكس الحركات المخزنية
+        for line in self.lines.all():
+            # الحصول على رصيد المادة
+            try:
+                stock = ItemStock.objects.get(
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    warehouse=self.warehouse,
+                    company=self.company
+                )
+
+                # إعادة الكمية والقيمة
+                old_quantity = stock.quantity
+                old_value = stock.total_value
+                new_quantity = old_quantity + line.quantity
+                new_value = old_value + line.total_cost
+
+                # حساب متوسط التكلفة
+                if new_quantity > 0:
+                    stock.average_cost = new_value / new_quantity
+
+                stock.quantity = new_quantity
+                stock.total_value = new_value
+                stock.save()
+
+                # حذف حركة المادة
+                StockMovement.objects.filter(
+                    reference_type='stock_out',
+                    reference_id=self.pk,
+                    item=line.item,
+                    item_variant=line.item_variant
+                ).delete()
+
+            except ItemStock.DoesNotExist:
+                raise ValidationError(f'رصيد المادة {line.item.name} غير موجود')
+
+        # إلغاء القيد المحاسبي
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+            self.journal_entry = None
+
+        # تحديث حالة السند
+        self.is_posted = False
+        self.posted_date = None
+        self.posted_by = None
+        self.save()
+
     def __str__(self):
         return f"{self.number} - {self.get_destination_type_display()}"
 
@@ -268,6 +754,17 @@ class StockDocumentLine(models.Model):
         Item,
         on_delete=models.PROTECT,
         verbose_name=_('المادة')
+    )
+
+    # ✅ **إضافة المتغير:**
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='stock_document_lines',
+        help_text=_('للمواد ذات المتغيرات')
     )
 
     # الكمية والتكلفة
@@ -314,6 +811,28 @@ class StockDocumentLine(models.Model):
     class Meta:
         verbose_name = _('سطر سند مخزني')
         verbose_name_plural = _('سطور السندات المخزنية')
+
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # إذا كان المادة له متغيرات، يجب تحديد متغير
+        if self.item and self.item.has_variants and not self.item_variant:
+            raise ValidationError({
+                'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
+            })
+
+        # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
+        if self.item and not self.item.has_variants and self.item_variant:
+            raise ValidationError({
+                'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
+            })
+
+        # التحقق من أن المتغير يتبع المادة
+        if self.item_variant and self.item_variant.item != self.item:
+            raise ValidationError({
+                'item_variant': _('المتغير المحدد لا يتبع المادة')
+            })
 
     def save(self, *args, **kwargs):
         """حساب التكلفة الإجمالية"""
@@ -412,6 +931,227 @@ class StockTransfer(StockDocument):
 
         super().save(*args, **kwargs)
 
+    # ✅ **دالة الاعتماد:**
+    def approve(self, user):
+        """اعتماد التحويل"""
+        from django.utils import timezone
+
+        if self.status != 'draft':
+            raise ValidationError(_('يمكن اعتماد المسودات فقط'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في التحويل'))
+
+        # التحقق من الصلاحية
+        if not user.has_perm('inventory.can_approve_transfer'):
+            raise ValidationError(_('ليس لديك صلاحية اعتماد التحويلات'))
+
+        self.status = 'approved'
+        self.approved_by = user
+        self.approval_date = timezone.now()
+        self.save()
+
+    # ✅ **دالة الإرسال (الإخراج من المستودع المصدر):**
+    @transaction.atomic
+    def send(self, user=None):
+        """إرسال التحويل (إخراج من المستودع المصدر)"""
+        from django.utils import timezone
+
+        if self.status != 'approved':
+            raise ValidationError(_('يجب اعتماد التحويل أولاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في التحويل'))
+
+        # التحقق والإخراج من المستودع المصدر
+        for line in self.lines.all():
+            line.full_clean()
+
+            # الحصول على رصيد المادة في المستودع المصدر
+            try:
+                source_stock = ItemStock.objects.get(
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    warehouse=self.warehouse,  # المستودع المصدر
+                    company=self.company
+                )
+            except ItemStock.DoesNotExist:
+                raise ValidationError(
+                    f'لا يوجد رصيد للمادة {line.item.name} في المستودع {self.warehouse.name}'
+                )
+
+            # التحقق من الكمية المتاحة
+            available_quantity = source_stock.quantity - source_stock.reserved_quantity
+            if available_quantity < line.quantity:
+                raise ValidationError(
+                    f'الكمية المتاحة من {line.item.name} ({available_quantity}) '
+                    f'أقل من المطلوب ({line.quantity})'
+                )
+
+            # حساب القيمة (بمتوسط التكلفة)
+            line.unit_cost = source_stock.average_cost
+            line.total_cost = line.quantity * source_stock.average_cost
+            line.save()
+
+            # إخراج من المستودع المصدر
+            old_quantity = source_stock.quantity
+            old_value = source_stock.total_value
+            new_quantity = old_quantity - line.quantity
+            new_value = old_value - line.total_cost
+
+            source_stock.quantity = new_quantity
+            source_stock.total_value = new_value
+            source_stock.last_movement_date = timezone.now()
+            source_stock.save()
+
+            # إنشاء حركة الإخراج
+            StockMovement.objects.create(
+                company=self.company,
+                branch=getattr(self, 'branch', None),
+                date=timezone.now(),
+                movement_type='transfer_out',
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.warehouse,
+                quantity=-line.quantity,  # سالب للإخراج
+                unit_cost=line.unit_cost,
+                total_cost=-line.total_cost,
+                balance_quantity=source_stock.quantity,
+                balance_value=source_stock.total_value,
+                reference_type='stock_transfer',
+                reference_id=self.pk,
+                reference_number=self.number,
+                created_by=user or self.created_by
+            )
+
+        # تحديث حالة التحويل
+        self.status = 'in_transit'
+        self.is_posted = True
+        self.posted_date = timezone.now()
+        self.posted_by = user
+        self.save()
+
+    # ✅ **دالة الاستلام (الإدخال للمستودع الهدف):**
+    @transaction.atomic
+    def receive(self, user=None):
+        """استلام التحويل (إدخال للمستودع الهدف)"""
+        from django.utils import timezone
+
+        if self.status != 'in_transit':
+            raise ValidationError(_('التحويل ليس في الطريق'))
+
+        # الإدخال للمستودع الهدف
+        for line in self.lines.all():
+            # الحصول على أو إنشاء رصيد المادة في المستودع الهدف
+            dest_stock, created = ItemStock.objects.get_or_create(
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.destination_warehouse,
+                company=self.company,
+                defaults={
+                    'quantity': 0,
+                    'reserved_quantity': 0,
+                    'average_cost': line.unit_cost,
+                    'total_value': 0,
+                    'created_by': user or self.created_by
+                }
+            )
+
+            # حساب الكمية المستلمة (قد تكون أقل من المرسلة)
+            received_qty = line.received_quantity or line.quantity
+            received_cost = received_qty * line.unit_cost
+
+            # حساب متوسط التكلفة الجديد (Weighted Average)
+            old_quantity = dest_stock.quantity
+            old_value = dest_stock.total_value
+            new_quantity = old_quantity + received_qty
+            new_value = old_value + received_cost
+
+            if new_quantity > 0:
+                dest_stock.average_cost = new_value / new_quantity
+
+            # تحديث الكمية والقيمة
+            dest_stock.quantity = new_quantity
+            dest_stock.total_value = new_value
+            dest_stock.last_movement_date = timezone.now()
+            dest_stock.save()
+
+            # تحديث الكمية المستلمة في السطر
+            line.received_quantity = received_qty
+            line.save()
+
+            # إنشاء حركة الإدخال
+            StockMovement.objects.create(
+                company=self.company,
+                branch=getattr(self, 'branch', None),
+                date=timezone.now(),
+                movement_type='transfer_in',
+                item=line.item,
+                item_variant=line.item_variant,
+                warehouse=self.destination_warehouse,
+                quantity=received_qty,
+                unit_cost=line.unit_cost,
+                total_cost=received_cost,
+                balance_quantity=dest_stock.quantity,
+                balance_value=dest_stock.total_value,
+                reference_type='stock_transfer',
+                reference_id=self.pk,
+                reference_number=self.number,
+                created_by=user or self.created_by
+            )
+
+        # تحديث حالة التحويل
+        self.status = 'received'
+        self.received_by = user
+        self.received_date = timezone.now()
+        self.save()
+
+    # ✅ **دالة الإلغاء:**
+    @transaction.atomic
+    def cancel(self, user=None):
+        """إلغاء التحويل"""
+        if self.status == 'received':
+            raise ValidationError(_('لا يمكن إلغاء تحويل مستلم'))
+
+        if self.status == 'in_transit':
+            # إعادة الكميات للمستودع المصدر
+            for line in self.lines.all():
+                try:
+                    source_stock = ItemStock.objects.get(
+                        item=line.item,
+                        item_variant=line.item_variant,
+                        warehouse=self.warehouse,
+                        company=self.company
+                    )
+
+                    # إعادة الكمية والقيمة
+                    old_quantity = source_stock.quantity
+                    old_value = source_stock.total_value
+                    new_quantity = old_quantity + line.quantity
+                    new_value = old_value + line.total_cost
+
+                    if new_quantity > 0:
+                        source_stock.average_cost = new_value / new_quantity
+
+                    source_stock.quantity = new_quantity
+                    source_stock.total_value = new_value
+                    source_stock.save()
+
+                    # حذف حركات التحويل
+                    StockMovement.objects.filter(
+                        reference_type='stock_transfer',
+                        reference_id=self.pk,
+                        item=line.item,
+                        item_variant=line.item_variant
+                    ).delete()
+
+                except ItemStock.DoesNotExist:
+                    pass
+
+        # تحديث الحالة
+        self.status = 'cancelled'
+        self.save()
+
     def __str__(self):
         return f"{self.number} - {self.warehouse.name} إلى {self.destination_warehouse.name}"
 
@@ -432,6 +1172,18 @@ class StockTransferLine(models.Model):
         on_delete=models.PROTECT,
         verbose_name=_('المادة')
     )
+
+    # ✅ **إضافة المتغير:**
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='stock_transfer_lines',
+        help_text=_('للمواد ذات المتغيرات')
+    )
+
 
     barcode = models.CharField(
         _('باركود'),
@@ -470,6 +1222,19 @@ class StockTransferLine(models.Model):
         editable=False
     )
 
+    # ✅ **إضافة معلومات الدفعة:**
+    batch_number = models.CharField(
+        _('رقم الدفعة'),
+        max_length=50,
+        blank=True
+    )
+
+    expiry_date = models.DateField(
+        _('تاريخ الانتهاء'),
+        null=True,
+        blank=True
+    )
+
     notes = models.TextField(
         _('ملاحظات'),
         blank=True
@@ -479,10 +1244,36 @@ class StockTransferLine(models.Model):
         verbose_name = _('سطر تحويل')
         verbose_name_plural = _('سطور التحويلات')
 
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # إذا كان المادة له متغيرات، يجب تحديد متغير
+        if self.item and self.item.has_variants and not self.item_variant:
+            raise ValidationError({
+                'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
+            })
+
+        # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
+        if self.item and not self.item.has_variants and self.item_variant:
+            raise ValidationError({
+                'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
+            })
+
+        # التحقق من أن المتغير يتبع المادة
+        if self.item_variant and self.item_variant.item != self.item:
+            raise ValidationError({
+                'item_variant': _('المتغير المحدد لا يتبع المادة')
+            })
+
     def save(self, *args, **kwargs):
         """حساب الإجمالي والباركود"""
         if self.item and not self.barcode:
-            self.barcode = self.item.barcode or ''
+            # استخدم باركود المتغير إذا وجد، وإلا باركود المادة
+            if self.item_variant and self.item_variant.barcode:
+                self.barcode = self.item_variant.barcode
+            else:
+                self.barcode = self.item.barcode or ''
 
         self.total_cost = self.quantity * self.unit_cost
         super().save(*args, **kwargs)
@@ -491,7 +1282,7 @@ class StockTransferLine(models.Model):
         return f"{self.item.name} - {self.quantity}"
 
 
-class StockMovement(models.Model):
+class StockMovement(BaseModel):
     """حركة المواد"""
 
     MOVEMENT_TYPES = [
@@ -518,6 +1309,16 @@ class StockMovement(models.Model):
         Item,
         on_delete=models.PROTECT,
         verbose_name=_('المادة')
+    )
+
+    # ✅ **إضافة المتغير:**
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='stock_movements'
     )
 
     warehouse = models.ForeignKey(
@@ -577,12 +1378,6 @@ class StockMovement(models.Model):
         blank=True
     )
 
-    # الشركة والفرع
-    company = models.ForeignKey(
-        'core.Company',
-        on_delete=models.CASCADE,
-        verbose_name=_('الشركة')
-    )
 
     branch = models.ForeignKey(
         'core.Branch',
@@ -592,11 +1387,7 @@ class StockMovement(models.Model):
         blank=True
     )
 
-    created_by = models.ForeignKey(
-        User,
-        on_delete=models.PROTECT,
-        verbose_name=_('أنشأ بواسطة')
-    )
+
 
     class Meta:
         verbose_name = _('حركة مادة')
@@ -833,13 +1624,23 @@ class StockCountLine(models.Model):
         return f"{self.item.name} - فرق: {self.difference_quantity}"
 
 
-class ItemStock(models.Model):
+class ItemStock(BaseModel):
     """رصيد المواد في المستودعات"""
 
     item = models.ForeignKey(
         Item,
         on_delete=models.CASCADE,
         verbose_name=_('المادة')
+    )
+
+    # ✅ **إضافة المتغير:**
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='stock_records'
     )
 
     warehouse = models.ForeignKey(
@@ -885,21 +1686,128 @@ class ItemStock(models.Model):
         blank=True
     )
 
-    # الشركة
-    company = models.ForeignKey(
-        'core.Company',
-        on_delete=models.CASCADE,
-        verbose_name=_('الشركة')
-    )
-
     class Meta:
         verbose_name = _('رصيد مادة')
         verbose_name_plural = _('أرصدة المواد')
-        unique_together = [['item', 'warehouse']]
+        unique_together = [['item', 'warehouse', 'company']]
+        indexes = [
+            models.Index(fields=['item', 'warehouse']),
+            models.Index(fields=['item', 'item_variant', 'warehouse']),
+        ]
 
     def get_available_quantity(self):
-        """الكمية المتاحة للبيع"""
+        """الكمية المتاحة للبيع/التحويل"""
         return self.quantity - self.reserved_quantity
 
+    def reserve_quantity(self, quantity):
+        """حجز كمية (لطلبات البيع مثلاً)"""
+        if self.get_available_quantity() < quantity:
+            raise ValidationError(
+                f'الكمية المتاحة ({self.get_available_quantity()}) '
+                f'أقل من المطلوب ({quantity})'
+            )
+
+        self.reserved_quantity += quantity
+        self.save()
+
+    def release_reserved_quantity(self, quantity):
+        """إلغاء حجز كمية"""
+        if self.reserved_quantity < quantity:
+            raise ValidationError('الكمية المحجوزة أقل من المطلوب إلغاؤه')
+
+        self.reserved_quantity -= quantity
+        self.save()
+
+    def is_below_reorder_level(self, reorder_level=None):
+        """هل الكمية أقل من حد إعادة الطلب"""
+        if reorder_level is None:
+            # يمكن إضافة حقل reorder_level في Item
+            return False
+        return self.quantity <= reorder_level
+
+    @classmethod
+    def get_total_stock(cls, item, item_variant=None, company=None):
+        """الحصول على إجمالي رصيد المادة في كل المستودعات"""
+        filters = {'item': item}
+
+        if item_variant:
+            filters['item_variant'] = item_variant
+
+        if company:
+            filters['company'] = company
+
+        stocks = cls.objects.filter(**filters)
+
+        return {
+            'total_quantity': sum(s.quantity for s in stocks),
+            'total_reserved': sum(s.reserved_quantity for s in stocks),
+            'total_available': sum(s.get_available_quantity() for s in stocks),
+            'total_value': sum(s.total_value for s in stocks),
+            'warehouses_count': stocks.count()
+        }
+
+    @classmethod
+    def transfer_between_warehouses(cls, item, item_variant, from_warehouse,
+                                    to_warehouse, quantity, company, user=None):
+        """تحويل سريع بين مستودعين (بدون إنشاء StockTransfer)"""
+        from django.utils import timezone
+
+        # الحصول على الرصيد المصدر
+        try:
+            source_stock = cls.objects.get(
+                item=item,
+                item_variant=item_variant,
+                warehouse=from_warehouse,
+                company=company
+            )
+        except cls.DoesNotExist:
+            raise ValidationError('الرصيد المصدر غير موجود')
+
+        # التحقق من الكمية
+        if source_stock.get_available_quantity() < quantity:
+            raise ValidationError('الكمية المتاحة غير كافية')
+
+        # الإخراج من المصدر
+        unit_cost = source_stock.average_cost
+        total_cost = quantity * unit_cost
+
+        source_stock.quantity -= quantity
+        source_stock.total_value -= total_cost
+        source_stock.last_movement_date = timezone.now()
+        source_stock.save()
+
+        # الإدخال للهدف
+        dest_stock, created = cls.objects.get_or_create(
+            item=item,
+            item_variant=item_variant,
+            warehouse=to_warehouse,
+            company=company,
+            defaults={
+                'quantity': 0,
+                'reserved_quantity': 0,
+                'average_cost': unit_cost,
+                'total_value': 0,
+                'created_by': user
+            }
+        )
+
+        # حساب متوسط التكلفة
+        old_quantity = dest_stock.quantity
+        old_value = dest_stock.total_value
+        new_quantity = old_quantity + quantity
+        new_value = old_value + total_cost
+
+        if new_quantity > 0:
+            dest_stock.average_cost = new_value / new_quantity
+
+        dest_stock.quantity = new_quantity
+        dest_stock.total_value = new_value
+        dest_stock.last_movement_date = timezone.now()
+        dest_stock.save()
+
+        return source_stock, dest_stock
+
     def __str__(self):
-        return f"{self.item.name} @ {self.warehouse.name}: {self.quantity}"
+        variant_str = f" - {self.item_variant.code}" if self.item_variant else ""
+        return f"{self.item.name}{variant_str} @ {self.warehouse.name}: {self.quantity}"
+

@@ -78,6 +78,32 @@ class PaymentVoucher(DocumentBaseModel):
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
 
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # التحقق من أن الحسابات من نفس الشركة
+        if self.cash_account and self.cash_account.company != self.company:
+            raise ValidationError({
+                'cash_account': _('الحساب يجب أن يكون من نفس الشركة')
+            })
+
+        if self.expense_account and self.expense_account.company != self.company:
+            raise ValidationError({
+                'expense_account': _('الحساب يجب أن يكون من نفس الشركة')
+            })
+
+        # التحقق من أن الحساب يقبل قيود
+        if self.cash_account and not self.cash_account.accept_entries:
+            raise ValidationError({
+                'cash_account': _('الحساب لا يقبل قيود مباشرة (له حسابات فرعية)')
+            })
+
+        if self.expense_account and self.expense_account.accept_entries is False:
+            raise ValidationError({
+                'expense_account': _('الحساب لا يقبل قيود مباشرة (له حسابات فرعية)')
+            })
+
     def save(self, *args, **kwargs):
         if not self.number:
             self.number = self.generate_number()
@@ -118,6 +144,9 @@ class PaymentVoucher(DocumentBaseModel):
     @transaction.atomic
     def post(self, user=None):
         """ترحيل السند وإنشاء القيد المحاسبي"""
+
+        self.full_clean()  # للتحقق من الحسابات قبل الترحيل
+
         if not self.can_post():
             raise ValidationError(_('لا يمكن ترحيل هذا السند'))
 
@@ -297,6 +326,32 @@ class ReceiptVoucher(DocumentBaseModel):
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
 
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # التحقق من أن الحسابات من نفس الشركة
+        if self.cash_account and self.cash_account.company != self.company:
+            raise ValidationError({
+                'cash_account': _('الحساب يجب أن يكون من نفس الشركة')
+            })
+
+        if self.income_account and self.income_account.company != self.company:
+            raise ValidationError({
+                'income_account': _('الحساب يجب أن يكون من نفس الشركة')
+            })
+
+        # التحقق من أن الحساب يقبل قيود
+        if self.cash_account and not self.cash_account.accept_entries:
+            raise ValidationError({
+                'cash_account': _('الحساب لا يقبل قيود مباشرة (له حسابات فرعية)')
+            })
+
+        if self.income_account and self.income_account.accept_entries is False:
+            raise ValidationError({
+                'income_account': _('الحساب لا يقبل قيود مباشرة (له حسابات فرعية)')
+            })
+
     def save(self, *args, **kwargs):
         if not self.number:
             self.number = self.generate_number()
@@ -337,6 +392,9 @@ class ReceiptVoucher(DocumentBaseModel):
     @transaction.atomic
     def post(self, user=None):
         """ترحيل السند وإنشاء القيد المحاسبي"""
+
+        self.full_clean()  # للتحقق من الحسابات قبل الترحيل
+
         if not self.can_post():
             raise ValidationError(_('لا يمكن ترحيل هذا السند'))
 

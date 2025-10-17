@@ -10,7 +10,7 @@
 - إعادة التقييم
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
@@ -241,6 +241,14 @@ class Asset(DocumentBaseModel):
         verbose_name=_('المورد')
     )
 
+    currency = models.ForeignKey(
+        'core.Currency',
+        on_delete=models.PROTECT,
+        verbose_name=_('العملة'),
+        related_name='assets',
+        help_text=_('عملة التكلفة الأصلية')
+    )
+
     # المعلومات المالية
     original_cost = models.DecimalField(
         _('التكلفة الأصلية'),
@@ -368,6 +376,10 @@ class Asset(DocumentBaseModel):
         ]
 
     def save(self, *args, **kwargs):
+        # إذا لم تحدد العملة، استخدم عملة الشركة
+        if not self.currency_id:
+            self.currency = self.company.base_currency
+
         # توليد رقم الأصل تلقائياً
         if not self.asset_number:
             from apps.core.models import NumberingSequence
@@ -444,8 +456,156 @@ class Asset(DocumentBaseModel):
             return False
         return datetime.date.today() <= self.warranty_end_date
 
+    # ✅ **إضافة دوال التحقق من الصلاحيات:**
 
-class AssetDepreciation(models.Model):
+    def can_user_purchase(self, user):
+        """هل يمكن للمستخدم شراء أصول"""
+        return user.has_perm('assets.can_purchase_asset')
+
+    def can_user_sell(self, user):
+        """هل يمكن للمستخدم بيع أصول"""
+        return user.has_perm('assets.can_sell_asset')
+
+    def can_user_transfer(self, user):
+        """هل يمكن للمستخدم تحويل أصول"""
+        return user.has_perm('assets.can_transfer_asset')
+
+    def can_user_revalue(self, user):
+        """هل يمكن للمستخدم إعادة تقييم أصول"""
+        return user.has_perm('assets.can_revalue_asset')
+
+    def can_user_dispose(self, user):
+        """هل يمكن للمستخدم استبعاد أصول"""
+        return user.has_perm('assets.can_dispose_asset')
+
+    def can_user_calculate_depreciation(self, user):
+        """هل يمكن للمستخدم احتساب الإهلاك"""
+        return user.has_perm('assets.can_calculate_depreciation')
+
+    # ✅ **دوال العمليات:**
+
+    @transaction.atomic
+    def calculate_monthly_depreciation(self, user=None):
+        """احتساب الإهلاك الشهري"""
+        from django.utils import timezone
+        from decimal import Decimal
+
+        if not self.can_user_calculate_depreciation(user):
+            raise PermissionDenied(_('ليس لديك صلاحية احتساب الإهلاك'))
+
+        if self.is_fully_depreciated():
+            raise ValidationError(_('الأصل مُهلك بالكامل'))
+
+        if self.status != 'active':
+            raise ValidationError(_('الأصل غير نشط'))
+
+        # حساب مبلغ الإهلاك الشهري
+        depreciable_amount = self.get_depreciable_amount()
+
+        if self.depreciation_method.method_type == 'straight_line':
+            # القسط الثابت
+            monthly_depreciation = depreciable_amount / self.useful_life_months
+
+        elif self.depreciation_method.method_type == 'declining_balance':
+            # القسط المتناقص
+            rate = self.depreciation_method.rate_percentage / 100
+            current_book_value = self.book_value
+            monthly_depreciation = current_book_value * (rate / 12)
+
+        elif self.depreciation_method.method_type == 'units_of_production':
+            # وحدات الإنتاج - يحتاج تحديد الوحدات المستخدمة
+            raise ValidationError(_('طريقة وحدات الإنتاج تحتاج تحديد الوحدات المستخدمة'))
+
+        else:
+            raise ValidationError(_('طريقة إهلاك غير مدعومة'))
+
+        # التأكد من عدم تجاوز المبلغ القابل للإهلاك
+        remaining = depreciable_amount - self.accumulated_depreciation
+        if monthly_depreciation > remaining:
+            monthly_depreciation = remaining
+
+        # إنشاء سجل الإهلاك
+        today = timezone.now().date()
+
+        depreciation_record = AssetDepreciation.objects.create(
+            asset=self,
+            company=self.company,
+            depreciation_date=today,
+            depreciation_amount=monthly_depreciation,
+            accumulated_depreciation_before=self.accumulated_depreciation,
+            accumulated_depreciation_after=self.accumulated_depreciation + monthly_depreciation,
+            book_value_after=self.book_value - monthly_depreciation,
+            created_by=user
+        )
+
+        # تحديث الأصل
+        self.accumulated_depreciation += monthly_depreciation
+        self.book_value -= monthly_depreciation
+        self.save()
+
+        return depreciation_record
+
+    @transaction.atomic
+    def sell(self, sale_price, buyer, user=None):
+        """بيع الأصل"""
+        if not self.can_user_sell(user):
+            raise PermissionDenied(_('ليس لديك صلاحية بيع الأصول'))
+
+        if self.status != 'active':
+            raise ValidationError(_('الأصل غير نشط'))
+
+        from apps.assets.models import AssetTransaction
+
+        # إنشاء معاملة البيع
+        transaction = AssetTransaction.objects.create(
+            company=self.company,
+            branch=self.branch,
+            transaction_date=timezone.now().date(),
+            transaction_type='sale',
+            asset=self,
+            amount=sale_price,
+            sale_price=sale_price,
+            book_value_at_sale=self.book_value,
+            business_partner=buyer,
+            description=f"بيع الأصل {self.name}",
+            created_by=user
+        )
+
+        # تحديث حالة الأصل
+        self.status = 'sold'
+        self.save()
+
+        return transaction
+
+    @transaction.atomic
+    def dispose(self, reason, user=None):
+        """استبعاد الأصل"""
+        if not self.can_user_dispose(user):
+            raise PermissionDenied(_('ليس لديك صلاحية استبعاد الأصول'))
+
+        from apps.assets.models import AssetTransaction
+
+        # إنشاء معاملة الاستبعاد
+        transaction = AssetTransaction.objects.create(
+            company=self.company,
+            branch=self.branch,
+            transaction_date=timezone.now().date(),
+            transaction_type='disposal',
+            asset=self,
+            amount=0,
+            description=reason,
+            created_by=user
+        )
+
+        # تحديث حالة الأصل
+        self.status = 'disposed'
+        self.save()
+
+        return transaction
+
+
+
+class AssetDepreciation(BaseModel):
     """سجل الإهلاك التفصيلي"""
 
     asset = models.ForeignKey(
@@ -515,15 +675,6 @@ class AssetDepreciation(models.Model):
         verbose_name=_('القيد المحاسبي')
     )
 
-    # معلومات الإنشاء
-    calculated_by = models.ForeignKey(
-        'core.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='calculated_depreciations',
-        verbose_name=_('احتسب بواسطة')
-    )
-    calculated_at = models.DateTimeField(_('تاريخ الاحتساب'), auto_now_add=True)
 
     notes = models.TextField(_('ملاحظات'), blank=True)
 

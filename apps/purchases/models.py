@@ -4,14 +4,14 @@
 يحتوي على: فواتير المشتريات، مرتجع المشتريات، أوامر الشراء، طلبات الشراء
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from apps.core.models import BaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod
 from apps.accounting.models import Account, Currency, JournalEntry
 
-class PurchaseInvoice(BaseModel):
+class PurchaseInvoice(DocumentBaseModel):
     """فواتير المشتريات"""
 
     INVOICE_TYPES = [
@@ -293,6 +293,17 @@ class PurchaseInvoiceItem(models.Model):
         verbose_name=_('المادة')
     )
 
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='purchase_invoice_lines',
+        help_text=_('للمواد ذات المتغيرات (مثل: قميص أحمر L)')
+    )
+
+
     barcode = models.CharField(
         _('باركود'),
         max_length=50,
@@ -332,6 +343,22 @@ class PurchaseInvoiceItem(models.Model):
         decimal_places=3,
         validators=[MinValueValidator(0)]
     )
+
+    # ✅ **إضافة معلومات الدفعة:**
+    batch_number = models.CharField(
+        _('رقم الدفعة'),
+        max_length=50,
+        blank=True,
+        help_text=_('رقم دفعة الإنتاج')
+    )
+
+    expiry_date = models.DateField(
+        _('تاريخ الانتهاء'),
+        null=True,
+        blank=True,
+        help_text=_('للمواد القابلة للتلف')
+    )
+
 
     subtotal = models.DecimalField(
         _('الإجمالي'),
@@ -399,15 +426,44 @@ class PurchaseInvoiceItem(models.Model):
         verbose_name = _('سطر فاتورة مشتريات')
         verbose_name_plural = _('سطور فواتير المشتريات')
 
+    # ✅ **إضافة دالة clean للتحقق:**
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # إذا كان المادة له متغيرات، يجب تحديد متغير
+        if self.item and self.item.has_variants and not self.item_variant:
+            raise ValidationError({
+                'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
+            })
+
+        # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
+        if self.item and not self.item.has_variants and self.item_variant:
+            raise ValidationError({
+                'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
+            })
+
+        # التحقق من أن المتغير يتبع المادة
+        if self.item_variant and self.item_variant.item != self.item:
+            raise ValidationError({
+                'item_variant': _('المتغير المحدد لا يتبع المادة')
+            })
+
     def save(self, *args, **kwargs):
         """حساب المبالغ"""
         # البيانات من المادة
         if self.item and not self.barcode:
-            self.barcode = self.item.barcode or ''
+            # استخدم باركود المتغير إذا وجد، وإلا باركود المادة
+            if self.item_variant and self.item_variant.barcode:
+                self.barcode = self.item_variant.barcode
+            else:
+                self.barcode = self.item.barcode or ''
+
         if self.item and not self.name_latin:
             self.name_latin = self.item.name_en or ''
+
         if self.item and not self.unit_id:
-            self.unit = self.item.unit
+            self.unit = self.item.unit_of_measure
 
         # الإجمالي قبل الخصم
         gross_total = self.quantity * self.unit_price
@@ -590,6 +646,164 @@ class PurchaseOrder(BaseModel):
     def can_approve(self, user):
         """هل يمكن للمستخدم اعتماد الأمر"""
         return user.has_perm('purchases.approve_purchase_order')
+
+    @transaction.atomic
+    def submit_for_approval(self, user=None):
+        """تقديم للموافقة"""
+        if self.status != 'draft':
+            raise ValidationError(_('يمكن تقديم المسودات فقط للموافقة'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في الأمر'))
+
+        # حساب الإجمالي
+        self.calculate_total()
+
+        self.status = 'pending_approval'
+        self.save()
+
+    def calculate_total(self):
+        """حساب إجمالي الأمر"""
+        total = sum(line.total for line in self.lines.all())
+        self.total_amount = total
+        self.save()
+
+    @transaction.atomic
+    def approve(self, user):
+        """اعتماد أمر الشراء"""
+        from django.utils import timezone
+
+        # التحقق من الحالة
+        if self.status != 'pending_approval':
+            raise ValidationError(_('الأمر ليس بانتظار الموافقة'))
+
+        # التحقق من الصلاحية
+        if not self.can_approve(user):
+            raise PermissionDenied(_('ليس لديك صلاحية اعتماد أوامر الشراء'))
+
+        # الاعتماد
+        self.status = 'approved'
+        self.approved_by = user
+        self.approval_date = timezone.now()
+        self.save()
+
+    @transaction.atomic
+    def reject(self, user, reason):
+        """رفض أمر الشراء"""
+        from django.utils import timezone
+
+        if self.status != 'pending_approval':
+            raise ValidationError(_('الأمر ليس بانتظار الموافقة'))
+
+        if not self.can_approve(user):
+            raise PermissionDenied(_('ليس لديك صلاحية رفض أوامر الشراء'))
+
+        if not reason:
+            raise ValidationError(_('يجب تحديد سبب الرفض'))
+
+        self.status = 'rejected'
+        self.rejection_reason = reason
+        self.save()
+
+    @transaction.atomic
+    def send_to_supplier(self, user=None):
+        """إرسال للمورد"""
+        if self.status != 'approved':
+            raise ValidationError(_('يجب اعتماد الأمر قبل الإرسال'))
+
+        self.status = 'sent'
+        self.save()
+
+        # يمكن إضافة إرسال بريد إلكتروني للمورد هنا
+
+    @transaction.atomic
+    def mark_as_received(self, received_quantity_dict=None):
+        """تسجيل استلام جزئي أو كامل"""
+        if self.status not in ['sent', 'partial']:
+            raise ValidationError(_('الأمر ليس في حالة تسمح بالاستلام'))
+
+        # تحديث الكميات المستلمة
+        if received_quantity_dict:
+            for line_id, quantity in received_quantity_dict.items():
+                try:
+                    line = self.lines.get(id=line_id)
+                    line.received_quantity += quantity
+                    line.save()
+                except PurchaseOrderItem.DoesNotExist:
+                    continue
+
+        # التحقق من الاستلام الكامل
+        all_received = all(
+            line.received_quantity >= line.quantity
+            for line in self.lines.all()
+        )
+
+        if all_received:
+            self.status = 'completed'
+        else:
+            self.status = 'partial'
+
+        self.save()
+
+    @transaction.atomic
+    def convert_to_invoice(self, user=None):
+        """تحويل لفاتورة مشتريات"""
+        if self.status not in ['approved', 'sent', 'partial', 'completed']:
+            raise ValidationError(_('حالة الأمر لا تسمح بالتحويل لفاتورة'))
+
+        if self.is_invoiced:
+            raise ValidationError(_('تم إصدار فاتورة لهذا الأمر مسبقاً'))
+
+        from apps.purchases.models import PurchaseInvoice, PurchaseInvoiceItem
+
+        # إنشاء الفاتورة
+        invoice = PurchaseInvoice.objects.create(
+            company=self.company,
+            branch=self.branch,
+            date=timezone.now().date(),
+            supplier=self.supplier,
+            warehouse=self.warehouse,
+            currency=self.currency,
+            payment_method=PaymentMethod.objects.filter(
+                company=self.company,
+                is_active=True
+            ).first(),
+            receipt_number=f"PO-{self.number}",
+            reference=self.number,
+            description=f"تحويل من أمر شراء {self.number}",
+            created_by=user or self.created_by
+        )
+
+        # نسخ السطور
+        for line in self.lines.all():
+            PurchaseInvoiceItem.objects.create(
+                invoice=invoice,
+                item=line.item,
+                description=line.description,
+                quantity=line.quantity,
+                unit=line.item.unit_of_measure,
+                unit_price=line.unit_price
+            )
+
+        # تحديث الأمر
+        self.is_invoiced = True
+        self.save()
+
+        return invoice
+
+    @transaction.atomic
+    def cancel(self, user=None, reason=None):
+        """إلغاء أمر الشراء"""
+        if self.status in ['completed', 'cancelled']:
+            raise ValidationError(_('لا يمكن إلغاء أمر مكتمل أو ملغي مسبقاً'))
+
+        if self.is_invoiced:
+            raise ValidationError(_('لا يمكن إلغاء أمر تم إصدار فاتورة له'))
+
+        self.status = 'cancelled'
+        if reason:
+            self.rejection_reason = reason
+        self.save()
 
     def __str__(self):
         return f"{self.number} - {self.supplier.name}"

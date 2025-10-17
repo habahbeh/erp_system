@@ -4,7 +4,7 @@
 يحتوي على: فواتير المبيعات، مرتجع المبيعات، عروض الأسعار، طلبات البيع
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
@@ -13,7 +13,7 @@ from apps.accounting.models import Account, Currency, JournalEntry
 
 
 
-class SalesInvoice(BaseModel):
+class SalesInvoice(DocumentBaseModel):
     """فواتير المبيعات"""
 
     INVOICE_TYPES = [
@@ -287,6 +287,17 @@ class InvoiceItem(models.Model):
         verbose_name=_('المادة')
     )
 
+    # ✅ **إضافة المتغير:**
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='sales_invoice_lines',
+        help_text=_('للمواد ذات المتغيرات (مثل: قميص أحمر L)')
+    )
+
     barcode = models.CharField(
         _('باركود'),
         max_length=50,
@@ -325,6 +336,21 @@ class InvoiceItem(models.Model):
         max_digits=12,
         decimal_places=3,
         validators=[MinValueValidator(0)]
+    )
+
+    # ✅ **إضافة معلومات الدفعة:**
+    batch_number = models.CharField(
+        _('رقم الدفعة'),
+        max_length=50,
+        blank=True,
+        help_text=_('رقم دفعة الإنتاج')
+    )
+
+    expiry_date = models.DateField(
+        _('تاريخ الانتهاء'),
+        null=True,
+        blank=True,
+        help_text=_('للمواد القابلة للتلف')
     )
 
     subtotal = models.DecimalField(
@@ -393,15 +419,43 @@ class InvoiceItem(models.Model):
         verbose_name = _('سطر فاتورة')
         verbose_name_plural = _('سطور الفواتير')
 
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # إذا كان المادة له متغيرات، يجب تحديد متغير
+        if self.item and self.item.has_variants and not self.item_variant:
+            raise ValidationError({
+                'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
+            })
+
+        # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
+        if self.item and not self.item.has_variants and self.item_variant:
+            raise ValidationError({
+                'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
+            })
+
+        # التحقق من أن المتغير يتبع المادة
+        if self.item_variant and self.item_variant.item != self.item:
+            raise ValidationError({
+                'item_variant': _('المتغير المحدد لا يتبع المادة')
+            })
+
     def save(self, *args, **kwargs):
         """حساب المبالغ"""
         # البيانات من المادة
         if self.item and not self.barcode:
-            self.barcode = self.item.barcode or ''
+            # استخدم باركود المتغير إذا وجد، وإلا باركود المادة
+            if self.item_variant and self.item_variant.barcode:
+                self.barcode = self.item_variant.barcode
+            else:
+                self.barcode = self.item.barcode or ''
+
         if self.item and not self.name_latin:
             self.name_latin = self.item.name_en or ''
+
         if self.item and not self.unit_id:
-            self.unit = self.item.unit
+            self.unit = self.item.unit_of_measure
 
         # الإجمالي قبل الخصم
         gross_total = self.quantity * self.unit_price

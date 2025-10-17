@@ -346,7 +346,7 @@ class JournalEntry(DocumentBaseModel):
         last_history = AccountBalanceHistory.objects.filter(
             account=account,
             company=self.company
-        ).first()
+        ).order_by('-change_date').first()
 
         old_debit = last_history.new_debit_balance if last_history else 0
         old_credit = last_history.new_credit_balance if last_history else 0

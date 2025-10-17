@@ -100,3 +100,90 @@ def check_user_branch_access(view_func):
         return view_func(request, *args, **kwargs)
 
     return _wrapped_view
+
+
+# في apps/core/decorators.py (إضافة في النهاية)
+
+def custom_permission_required(permission_code, max_amount=None):
+    """
+    ديكوريتر للتحقق من الصلاحيات المخصصة
+
+    الاستخدام:
+    @custom_permission_required('approve_invoice')
+    @custom_permission_required('approve_invoice', max_amount=10000)
+    """
+
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def _wrapped_view(request, *args, **kwargs):
+            # التحقق من وجود profile
+            if not hasattr(request.user, 'profile'):
+                messages.error(request, _('ملف المستخدم غير موجود'))
+                return redirect('core:dashboard')
+
+            # التحقق من الصلاحية
+            if not request.user.profile.has_custom_permission(permission_code):
+                messages.error(
+                    request,
+                    _('ليس لديك صلاحية: %(perm)s') % {'perm': permission_code}
+                )
+                return redirect('core:dashboard')
+
+            # التحقق من حد المبلغ إذا وجد
+            if max_amount is not None:
+                user_max_amount = request.user.profile.get_permission_max_amount(permission_code)
+                if user_max_amount and max_amount > user_max_amount:
+                    messages.error(
+                        request,
+                        _('المبلغ يتجاوز الحد المسموح (%(max)s)') % {'max': user_max_amount}
+                    )
+                    return redirect('core:dashboard')
+
+            return view_func(request, *args, **kwargs)
+
+        return _wrapped_view
+
+    return decorator
+
+
+def amount_permission_required(permission_code, amount_field='amount'):
+    """
+    ديكوريتر للتحقق من الصلاحية مع المبلغ من الكائن
+
+    الاستخدام:
+    @amount_permission_required('approve_invoice', amount_field='total_amount')
+    def approve_invoice(request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        ...
+    """
+
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def _wrapped_view(request, *args, **kwargs):
+            # الحصول على الكائن (افترض أن pk في kwargs)
+            pk = kwargs.get('pk')
+            if not pk:
+                return view_func(request, *args, **kwargs)
+
+            # محاولة الحصول على المبلغ من الكائن
+            # هذا يحتاج تحسين حسب نوع الكائن
+
+            # التحقق من الصلاحية
+            if not hasattr(request.user, 'profile'):
+                messages.error(request, _('ملف المستخدم غير موجود'))
+                return redirect('core:dashboard')
+
+            if not request.user.profile.has_custom_permission(permission_code):
+                messages.error(
+                    request,
+                    _('ليس لديك صلاحية: %(perm)s') % {'perm': permission_code}
+                )
+                return redirect('core:dashboard')
+
+            return view_func(request, *args, **kwargs)
+
+        return _wrapped_view
+
+    return decorator
