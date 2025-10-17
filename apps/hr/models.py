@@ -639,6 +639,91 @@ class Payroll(DocumentBaseModel):
 
         return journal_entry
 
+    def calculate_attendance(self):
+        """حساب أيام الحضور الفعلية من سجل الحضور"""
+        from django.db.models import Count, Q
+
+        for detail in self.details.all():
+            # حساب أيام الحضور
+            attendance_data = Attendance.objects.filter(
+                employee=detail.employee,
+                date__gte=self.from_date,
+                date__lte=self.to_date
+            ).aggregate(
+                present_days=Count('id', filter=Q(status='present')),
+                absent_days=Count('id', filter=Q(status='absent')),
+                late_days=Count('id', filter=Q(status='late')),
+                leave_days=Count('id', filter=Q(status='leave'))
+            )
+
+            # تحديث التفاصيل
+            detail.actual_days = attendance_data['present_days'] + attendance_data['late_days']
+
+            # يمكن إضافة خصومات للتأخير/الغياب
+            # detail.absence_deduction = ...
+
+            detail.save()
+
+    def process_loan_deductions(self):
+        """معالجة استقطاعات السلف التلقائية"""
+        for detail in self.details.all():
+            # الحصول على السلف النشطة للموظف
+            active_loans = Loan.objects.filter(
+                employee=detail.employee,
+                company=self.company,
+                status='active',
+                remaining_amount__gt=0
+            )
+
+            for loan in active_loans:
+                # التحقق من عدم وجود استقطاع مسبق لنفس السلفة
+                if not PayrollLoanDeduction.objects.filter(
+                        payroll_detail=detail,
+                        loan=loan
+                ).exists():
+                    # حساب مبلغ القسط
+                    installment = min(
+                        loan.installment_amount,
+                        loan.remaining_amount
+                    )
+
+                    # إنشاء الاستقطاع
+                    PayrollLoanDeduction.objects.create(
+                        payroll_detail=detail,
+                        loan=loan,
+                        installment_amount=installment
+                    )
+
+                    # تسجيل الدفعة
+                    LoanPayment.objects.create(
+                        loan=loan,
+                        payment_date=self.to_date,
+                        amount=installment,
+                        payment_method='salary',
+                        reference=self.number
+                    )
+
+    # تعديل submit_for_approval:
+    @transaction.atomic
+    def submit_for_approval(self, user=None):
+        if self.status != 'draft':
+            raise ValidationError(_('يمكن تقديم المسودات فقط للموافقة'))
+
+        if not self.details.exists():
+            raise ValidationError(_('لا توجد تفاصيل في الكشف'))
+
+        # حساب الحضور
+        self.calculate_attendance()
+
+        # 🆕 معالجة استقطاعات السلف
+        self.process_loan_deductions()
+
+        # حساب الإجمالي
+        self.calculate_totals()
+
+        self.status = 'pending_approval'
+        self.save()
+
     def __str__(self):
         return f"{self.number} - {self.period_month}/{self.period_year}"
 
@@ -722,6 +807,29 @@ class PayrollDetail(models.Model):
         verbose_name = _('تفصيل راتب')
         verbose_name_plural = _('تفاصيل الرواتب')
         unique_together = [['payroll', 'employee']]
+
+    def calculate_totals(self):
+        """حساب الإجماليات مع استقطاعات السلف"""
+
+        # الاستقطاعات الأساسية
+        base_deductions = self.total_deductions
+
+        # استقطاعات السلف
+        loan_deductions_total = sum(
+            d.installment_amount for d in self.loan_deductions.all()
+        )
+
+        # الإجمالي
+        self.total_deductions = base_deductions + loan_deductions_total
+
+        # الصافي
+        self.net_salary = (
+                self.basic_salary +
+                self.total_allowances -
+                self.total_deductions
+        )
+
+        self.save()
 
 
 class Leave(BaseModel):
@@ -1194,3 +1302,38 @@ class LoanPayment(models.Model):
 
         self.loan.paid_amount = total_paid
         self.loan.save()
+
+
+class PayrollLoanDeduction(models.Model):
+    """استقطاعات السلف من كشف الراتب"""
+
+    payroll_detail = models.ForeignKey(
+        PayrollDetail,
+        on_delete=models.CASCADE,
+        related_name='loan_deductions',
+        verbose_name=_('تفصيل الراتب')
+    )
+
+    loan = models.ForeignKey(
+        Loan,
+        on_delete=models.PROTECT,
+        related_name='payroll_deductions',
+        verbose_name=_('السلفة/القرض')
+    )
+
+    installment_amount = models.DecimalField(
+        _('مبلغ القسط'),
+        max_digits=12,
+        decimal_places=2
+    )
+
+    class Meta:
+        verbose_name = _('استقطاع سلفة من راتب')
+        verbose_name_plural = _('استقطاعات السلف من الرواتب')
+        unique_together = [['payroll_detail', 'loan']]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        # تحديث total_deductions في PayrollDetail
+        self.payroll_detail.calculate_totals()

@@ -1099,6 +1099,37 @@ class BusinessPartner(BaseModel):
     tax_exemption_end_date = models.DateField(_('تاريخ انتهاء الإعفاء'), null=True, blank=True)
     tax_exemption_reason = models.CharField(_('سبب الإعفاء'), max_length=200, blank=True)
 
+    default_price_list = models.ForeignKey(
+        'PriceList',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers',
+        verbose_name=_('قائمة الأسعار الافتراضية'),
+        help_text=_('قائمة الأسعار المستخدمة لهذا العميل')
+    )
+
+    # الحسابات المحاسبية
+    customer_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers',
+        verbose_name=_('حساب العميل'),
+        help_text=_('حساب المدينين الخاص بهذا العميل')
+    )
+
+    supplier_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='suppliers',
+        verbose_name=_('حساب المورد'),
+        help_text=_('حساب الدائنين الخاص بهذا المورد')
+    )
+
     # حدود الائتمان
     credit_limit = models.DecimalField(_('حد الائتمان'), max_digits=12, decimal_places=2, default=0)
     credit_period = models.PositiveIntegerField(_('فترة الائتمان (أيام)'), default=30)
@@ -1201,6 +1232,20 @@ class BusinessPartner(BaseModel):
 
         return f"{prefix}{new_number:06d}"
 
+    # دالة للحصول على الحساب المناسب:
+    def get_account(self):
+        """الحصول على الحساب المحاسبي المناسب"""
+        if self.partner_type == 'customer':
+            return self.customer_account or Account.objects.get(
+                company=self.company, code='220100'
+            )
+        elif self.partner_type == 'supplier':
+            return self.supplier_account or Account.objects.get(
+                company=self.company, code='210100'
+            )
+        else:  # both
+            # إرجاع حسب السياق أو الافتراضي
+            return self.customer_account or self.supplier_account
 
 # نموذج جديد للمندوبين المتعددين
 class PartnerRepresentative(BaseModel):

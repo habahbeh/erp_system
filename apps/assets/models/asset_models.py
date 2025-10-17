@@ -547,14 +547,15 @@ class Asset(DocumentBaseModel):
 
     @transaction.atomic
     def sell(self, sale_price, buyer, user=None):
-        """بيع الأصل"""
+        """بيع الأصل مع إنشاء القيد المحاسبي"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, Account, FiscalYear, AccountingPeriod
+
         if not self.can_user_sell(user):
             raise PermissionDenied(_('ليس لديك صلاحية بيع الأصول'))
 
         if self.status != 'active':
             raise ValidationError(_('الأصل غير نشط'))
-
-        from apps.assets.models import AssetTransaction
 
         # إنشاء معاملة البيع
         transaction = AssetTransaction.objects.create(
@@ -571,6 +572,114 @@ class Asset(DocumentBaseModel):
             created_by=user
         )
 
+        # 🆕 إنشاء القيد المحاسبي
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=transaction.transaction_date,
+                end_date__gte=transaction.transaction_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        period = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year,
+            start_date__lte=transaction.transaction_date,
+            end_date__gte=transaction.transaction_date,
+            is_closed=False
+        ).first()
+
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=transaction.transaction_date,
+            entry_type='auto',
+            description=f"بيع أصل ثابت {self.asset_number} - {self.name}",
+            reference=transaction.transaction_number,
+            source_document='asset_transaction',
+            source_id=transaction.pk,
+            created_by=user
+        )
+
+        line_number = 1
+
+        # 1. البنك/الصندوق (مدين)
+        cash_account = Account.objects.get(company=self.company, code='110100')
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=cash_account,
+            description=f"حصيلة بيع أصل - {self.name}",
+            debit_amount=sale_price,
+            credit_amount=0,
+            currency=self.company.base_currency
+        )
+        line_number += 1
+
+        # 2. مجمع الإهلاك (مدين)
+        if self.accumulated_depreciation > 0:
+            acc_depreciation_account = self.category.accumulated_depreciation_account
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=acc_depreciation_account,
+                description=f"إقفال مجمع الإهلاك - {self.name}",
+                debit_amount=self.accumulated_depreciation,
+                credit_amount=0,
+                currency=self.company.base_currency
+            )
+            line_number += 1
+
+        # 3. حساب الأصل (دائن)
+        asset_account = self.category.asset_account
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=asset_account,
+            description=f"إقفال أصل - {self.name}",
+            debit_amount=0,
+            credit_amount=self.original_cost,
+            currency=self.company.base_currency
+        )
+        line_number += 1
+
+        # 4. الربح أو الخسارة
+        gain_loss = sale_price - self.book_value
+        if gain_loss > 0:
+            # ربح بيع أصول (دائن)
+            gain_account = Account.objects.get(company=self.company, code='420100')  # حساب أرباح بيع أصول
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=gain_account,
+                description=f"ربح بيع أصل - {self.name}",
+                debit_amount=0,
+                credit_amount=gain_loss,
+                currency=self.company.base_currency
+            )
+        elif gain_loss < 0:
+            # خسارة بيع أصول (مدين)
+            loss_account = Account.objects.get(company=self.company, code='520100')  # حساب خسائر بيع أصول
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=loss_account,
+                description=f"خسارة بيع أصل - {self.name}",
+                debit_amount=abs(gain_loss),
+                credit_amount=0,
+                currency=self.company.base_currency
+            )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # ربط القيد بالمعاملة
+        transaction.journal_entry = journal_entry
+        transaction.save()
+
         # تحديث حالة الأصل
         self.status = 'sold'
         self.save()
@@ -579,11 +688,12 @@ class Asset(DocumentBaseModel):
 
     @transaction.atomic
     def dispose(self, reason, user=None):
-        """استبعاد الأصل"""
+        """استبعاد الأصل مع إنشاء القيد المحاسبي"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, Account, FiscalYear, AccountingPeriod
+
         if not self.can_user_dispose(user):
             raise PermissionDenied(_('ليس لديك صلاحية استبعاد الأصول'))
-
-        from apps.assets.models import AssetTransaction
 
         # إنشاء معاملة الاستبعاد
         transaction = AssetTransaction.objects.create(
@@ -596,6 +706,87 @@ class Asset(DocumentBaseModel):
             description=reason,
             created_by=user
         )
+
+        # القيد المحاسبي
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=transaction.transaction_date,
+                end_date__gte=transaction.transaction_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        period = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year,
+            start_date__lte=transaction.transaction_date,
+            end_date__gte=transaction.transaction_date,
+            is_closed=False
+        ).first()
+
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=transaction.transaction_date,
+            entry_type='auto',
+            description=f"استبعاد أصل ثابت {self.asset_number} - {self.name}",
+            reference=transaction.transaction_number,
+            source_document='asset_transaction',
+            source_id=transaction.pk,
+            created_by=user
+        )
+
+        line_number = 1
+
+        # 1. مجمع الإهلاك (مدين)
+        if self.accumulated_depreciation > 0:
+            acc_depreciation_account = self.category.accumulated_depreciation_account
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=acc_depreciation_account,
+                description=f"إقفال مجمع الإهلاك - {self.name}",
+                debit_amount=self.accumulated_depreciation,
+                credit_amount=0,
+                currency=self.company.base_currency
+            )
+            line_number += 1
+
+        # 2. خسارة استبعاد (مدين) - إذا كان هناك قيمة دفترية متبقية
+        if self.book_value > 0:
+            loss_account = Account.objects.get(company=self.company, code='520200')  # خسائر استبعاد أصول
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=loss_account,
+                description=f"خسارة استبعاد أصل - {self.name}",
+                debit_amount=self.book_value,
+                credit_amount=0,
+                currency=self.company.base_currency
+            )
+            line_number += 1
+
+        # 3. حساب الأصل (دائن)
+        asset_account = self.category.asset_account
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=asset_account,
+            description=f"إقفال أصل مستبعد - {self.name}",
+            debit_amount=0,
+            credit_amount=self.original_cost,
+            currency=self.company.base_currency
+        )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # ربط القيد
+        transaction.journal_entry = journal_entry
+        transaction.save()
 
         # تحديث حالة الأصل
         self.status = 'disposed'

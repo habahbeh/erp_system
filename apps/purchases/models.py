@@ -272,6 +272,198 @@ class PurchaseInvoice(DocumentBaseModel):
         self.total_amount = self.subtotal_after_discount
         self.total_with_tax = self.total_amount + self.tax_amount
 
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل الفاتورة وإنشاء سند إدخال وقيد محاسبي"""
+        from django.utils import timezone
+        from apps.inventory.models import StockIn, StockDocumentLine
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+
+        if self.is_posted:
+            raise ValidationError(_('الفاتورة مرحلة مسبقاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في الفاتورة'))
+
+        # 1. إنشاء سند الإدخال
+        stock_in = StockIn.objects.create(
+            company=self.company,
+            branch=self.branch,
+            date=self.date,
+            warehouse=self.warehouse,
+            source_type='purchase',
+            supplier=self.supplier,
+            purchase_invoice=self,
+            reference=self.number,
+            notes=f"إدخال لفاتورة مشتريات {self.number}",
+            created_by=user or self.created_by
+        )
+
+        # 2. نسخ سطور الفاتورة لسند الإدخال
+        for invoice_line in self.lines.all():
+            StockDocumentLine.objects.create(
+                stock_in=stock_in,
+                item=invoice_line.item,
+                item_variant=invoice_line.item_variant,
+                quantity=invoice_line.quantity,
+                unit_cost=invoice_line.unit_price,
+                batch_number=invoice_line.batch_number,
+                expiry_date=invoice_line.expiry_date
+            )
+
+        # 3. ترحيل سند الإدخال (يحدث المخزون تلقائياً)
+        stock_in.post(user=user)
+
+        # 4. إنشاء القيد المحاسبي
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"فاتورة مشتريات {self.number} - {self.supplier.name}",
+            reference=self.number,
+            source_document='purchase_invoice',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # سطور المخزون (مدين)
+        from collections import defaultdict
+        inventory_accounts = defaultdict(lambda: {'debit': 0, 'items': []})
+
+        for line in self.lines.all():
+            inventory_account = line.item.inventory_account or Account.objects.get(
+                company=self.company, code='120000'
+            )
+            inventory_accounts[inventory_account]['debit'] += line.subtotal
+            inventory_accounts[inventory_account]['items'].append(line.item.name)
+
+        for account, data in inventory_accounts.items():
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=account,
+                description=f"مشتريات - {', '.join(data['items'][:3])}",
+                debit_amount=data['debit'],
+                credit_amount=0,
+                currency=self.currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # سطر الضريبة (مدين - قابلة للخصم)
+        if self.tax_amount > 0:
+            try:
+                tax_account = Account.objects.get(
+                    company=self.company, code='120400'  # حساب الضريبة القابلة للخصم
+                )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=tax_account,
+                    description=f"ضريبة المشتريات",
+                    debit_amount=self.tax_amount,
+                    credit_amount=0,
+                    currency=self.currency,
+                    reference=self.number
+                )
+                line_number += 1
+            except Account.DoesNotExist:
+                pass
+
+        # سطر خصم المشتريات (دائن - إذا وجد)
+        if self.discount_amount > 0 and not self.discount_affects_cost:
+            discount_account = self.discount_account or Account.objects.get(
+                company=self.company, code='530000'
+            )
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=discount_account,
+                description=f"خصم مشتريات",
+                debit_amount=0,
+                credit_amount=self.discount_amount,
+                currency=self.currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # سطر المورد (دائن)
+        supplier_account = self.supplier_account or self.supplier.get_account()
+
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=supplier_account,
+            description=f"فاتورة مشتريات - {self.supplier.name}",
+            debit_amount=0,
+            credit_amount=self.total_with_tax,
+            currency=self.currency,
+            reference=self.number,
+            partner_type='supplier',
+            partner_id=self.supplier.pk
+        )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # تحديث الفاتورة
+        self.journal_entry = journal_entry
+        self.is_posted = True
+        self.save()
+
+        return stock_in, journal_entry
+
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل الفاتورة"""
+        if not self.is_posted:
+            raise ValidationError(_('الفاتورة غير مرحلة'))
+
+        # إلغاء سند الإدخال
+        from apps.inventory.models import StockIn
+        stock_in = StockIn.objects.filter(
+            purchase_invoice=self,
+            company=self.company
+        ).first()
+
+        if stock_in:
+            stock_in.unpost()
+            stock_in.delete()
+
+        # إلغاء القيد المحاسبي
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+            self.journal_entry = None
+
+        self.is_posted = False
+        self.save()
+
     def __str__(self):
         return f"{self.number} - {self.supplier.name}"
 

@@ -222,6 +222,10 @@ class SalesInvoice(DocumentBaseModel):
         verbose_name_plural = _('فواتير المبيعات')
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
+        permissions = [
+            ('post_salesinvoice', _('يمكنه ترحيل فواتير المبيعات')),
+            ('unpost_salesinvoice', _('يمكنه إلغاء ترحيل فواتير المبيعات')),
+        ]
 
     def save(self, *args, **kwargs):
         """توليد رقم الفاتورة وحساب المجاميع"""
@@ -265,6 +269,282 @@ class SalesInvoice(DocumentBaseModel):
         # الإجماليات
         self.total_amount = self.subtotal_after_discount
         self.total_with_tax = self.total_amount + self.tax_amount
+
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل الفاتورة وإنشاء سند إخراج وقيد محاسبي"""
+        from django.utils import timezone
+        from apps.inventory.models import StockOut, StockDocumentLine, ItemStock
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+
+        if self.is_posted:
+            raise ValidationError(_('الفاتورة مرحلة مسبقاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في الفاتورة'))
+
+        # 1. إنشاء سند الإخراج
+        stock_out = StockOut.objects.create(
+            company=self.company,
+            branch=self.branch,
+            date=self.date,
+            warehouse=self.warehouse,
+            destination_type='sales',
+            customer=self.customer,
+            sales_invoice=self,
+            reference=self.number,
+            notes=f"إخراج لفاتورة مبيعات {self.number}",
+            created_by=user or self.created_by
+        )
+
+        # 2. نسخ سطور الفاتورة لسند الإخراج
+        for invoice_line in self.lines.all():
+            # الحصول على رصيد المادة
+            try:
+                stock = ItemStock.objects.get(
+                    item=invoice_line.item,
+                    item_variant=invoice_line.item_variant,
+                    warehouse=self.warehouse,
+                    company=self.company
+                )
+                unit_cost = stock.average_cost
+            except ItemStock.DoesNotExist:
+                raise ValidationError(
+                    f'لا يوجد رصيد للمادة {invoice_line.item.name} في المستودع {self.warehouse.name}'
+                )
+
+            # التحقق من الكمية المتاحة
+            available = stock.quantity - stock.reserved_quantity
+            if available < invoice_line.quantity:
+                raise ValidationError(
+                    f'الكمية المتاحة من {invoice_line.item.name} ({available}) '
+                    f'أقل من المطلوب ({invoice_line.quantity})'
+                )
+
+            # إنشاء سطر سند الإخراج
+            StockDocumentLine.objects.create(
+                stock_out=stock_out,
+                item=invoice_line.item,
+                item_variant=invoice_line.item_variant,
+                quantity=invoice_line.quantity,
+                unit_cost=unit_cost,
+                batch_number=invoice_line.batch_number,
+                expiry_date=invoice_line.expiry_date
+            )
+
+        # 3. ترحيل سند الإخراج (يحدث المخزون تلقائياً)
+        stock_out.post(user=user)
+
+        # 4. إنشاء القيد المحاسبي
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"فاتورة مبيعات {self.number} - {self.customer.name}",
+            reference=self.number,
+            source_document='sales_invoice',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+
+        # سطر العميل (مدين)
+        customer_account = self.customer_account or self.customer.get_account()
+
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=line_number,
+            account=customer_account,
+            description=f"فاتورة مبيعات - {self.customer.name}",
+            debit_amount=self.total_with_tax,
+            credit_amount=0,
+            currency=self.currency,
+            reference=self.number,
+            partner_type='customer',
+            partner_id=self.customer.pk
+        )
+        line_number += 1
+
+        # سطر الإيرادات (دائن)
+        from collections import defaultdict
+        revenue_accounts = defaultdict(lambda: {'credit': 0, 'items': []})
+
+        for line in self.lines.all():
+            revenue_account = line.revenue_account or line.item.sales_account or Account.objects.get(
+                company=self.company, code='410000'
+            )
+            revenue_accounts[revenue_account]['credit'] += line.subtotal
+            revenue_accounts[revenue_account]['items'].append(line.item.name)
+
+        for account, data in revenue_accounts.items():
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=account,
+                description=f"إيرادات - {', '.join(data['items'][:3])}",
+                debit_amount=0,
+                credit_amount=data['credit'],
+                currency=self.currency,
+                reference=self.number
+            )
+            line_number += 1
+
+        # سطر الضريبة (دائن)
+        if self.tax_amount > 0:
+            try:
+                tax_account = Account.objects.get(
+                    company=self.company, code='210200'  # حساب الضريبة المستحقة
+                )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=tax_account,
+                    description=f"ضريبة المبيعات",
+                    debit_amount=0,
+                    credit_amount=self.tax_amount,
+                    currency=self.currency,
+                    reference=self.number
+                )
+                line_number += 1
+            except Account.DoesNotExist:
+                pass
+
+        # سطر خصم المبيعات (مدين - إذا وجد)
+        if self.discount_amount > 0 and not self.discount_affects_cost:
+            discount_account = self.discount_account or Account.objects.get(
+                company=self.company, code='420000'
+            )
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=discount_account,
+                description=f"خصم مبيعات",
+                debit_amount=self.discount_amount,
+                credit_amount=0,
+                currency=self.currency,
+                reference=self.number
+            )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # تحديث الفاتورة
+        self.journal_entry = journal_entry
+        self.is_posted = True
+        self.save()
+
+        return stock_out, journal_entry
+
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل الفاتورة"""
+        if not self.is_posted:
+            raise ValidationError(_('الفاتورة غير مرحلة'))
+
+        # إلغاء سند الإخراج
+        from apps.inventory.models import StockOut
+        stock_out = StockOut.objects.filter(
+            sales_invoice=self,
+            company=self.company
+        ).first()
+
+        if stock_out:
+            stock_out.unpost()
+            stock_out.delete()
+
+        # إلغاء القيد المحاسبي
+        if self.journal_entry:
+            self.journal_entry.unpost()
+            self.journal_entry.delete()
+            self.journal_entry = None
+
+        self.is_posted = False
+        self.save()
+
+    def can_user_create(self, user):
+        """هل يمكن للمستخدم إنشاء فواتير مبيعات"""
+        if user.is_superuser:
+            return True
+        if user.has_perm('sales.add_salesinvoice'):
+            return True
+        if hasattr(user, 'profile'):
+            return user.profile.has_custom_permission('create_sales_invoice')
+        return False
+
+    def can_user_edit(self, user):
+        """هل يمكن للمستخدم تعديل الفاتورة"""
+        if self.is_posted:
+            return False
+        if user.is_superuser:
+            return True
+        if user.has_perm('sales.change_salesinvoice'):
+            return True
+        if hasattr(user, 'profile'):
+            return user.profile.has_custom_permission('edit_sales_invoice')
+        return False
+
+    def can_user_delete(self, user):
+        """هل يمكن للمستخدم حذف الفاتورة"""
+        if self.is_posted:
+            return False
+        if user.is_superuser:
+            return True
+        if user.has_perm('sales.delete_salesinvoice'):
+            return True
+        if hasattr(user, 'profile'):
+            return user.profile.has_custom_permission('delete_sales_invoice')
+        return False
+
+    def can_user_post(self, user):
+        """هل يمكن للمستخدم ترحيل الفاتورة"""
+        if user.is_superuser:
+            return True
+        if user.has_perm('sales.post_salesinvoice'):
+            return True
+        if hasattr(user, 'profile'):
+            # التحقق مع حد المبلغ
+            return user.profile.has_custom_permission_with_limit(
+                'post_sales_invoice',
+                self.total_with_tax
+            )
+        return False
+
+    def can_user_apply_discount(self, user, discount_amount):
+        """هل يمكن للمستخدم تطبيق خصم"""
+        if user.is_superuser:
+            return True
+
+        # التحقق من حد الخصم المسموح
+        if hasattr(user, 'profile'):
+            max_discount = user.profile.max_discount_percentage
+            discount_percentage = (discount_amount / self.subtotal_before_discount) * 100
+            return discount_percentage <= max_discount
+
+        return False
 
     def __str__(self):
         return f"{self.number} - {self.customer.name}"
@@ -443,6 +723,38 @@ class InvoiceItem(models.Model):
 
     def save(self, *args, **kwargs):
         """حساب المبالغ"""
+        # 🆕 إضافة: الحصول على السعر من قائمة الأسعار
+        if self.item and not self.unit_price:
+            from apps.core.models import get_item_price, PriceList
+
+            # الحصول على قائمة أسعار العميل (إذا وجدت)
+            price_list = None
+            if hasattr(self.invoice.customer, 'default_price_list'):
+                price_list = self.invoice.customer.default_price_list
+
+            # إذا لم توجد، استخدم القائمة الافتراضية
+            if not price_list:
+                price_list = PriceList.objects.filter(
+                    company=self.invoice.company,
+                    is_default=True,
+                    is_active=True
+                ).first()
+
+            # الحصول على السعر
+            if price_list:
+                self.unit_price = get_item_price(
+                    item=self.item,
+                    variant=self.item_variant,
+                    price_list=price_list,
+                    quantity=self.quantity,
+                    check_date=self.invoice.date
+                )
+
+            # إذا لم يوجد سعر، استخدم آخر سعر بيع
+            if not self.unit_price or self.unit_price == 0:
+                # يمكن إضافة last_sale_price في Item
+                self.unit_price = 0  # أو رفع خطأ
+
         # البيانات من المادة
         if self.item and not self.barcode:
             # استخدم باركود المتغير إذا وجد، وإلا باركود المادة

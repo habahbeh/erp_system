@@ -1811,3 +1811,113 @@ class ItemStock(BaseModel):
         variant_str = f" - {self.item_variant.code}" if self.item_variant else ""
         return f"{self.item.name}{variant_str} @ {self.warehouse.name}: {self.quantity}"
 
+
+class Batch(BaseModel):
+    """دفعات المواد - لتتبع FIFO/LIFO"""
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='batches',
+        verbose_name=_('المادة')
+    )
+
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='batches',
+        verbose_name=_('المتغير')
+    )
+
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.CASCADE,
+        related_name='batches',
+        verbose_name=_('المستودع')
+    )
+
+    batch_number = models.CharField(
+        _('رقم الدفعة'),
+        max_length=50
+    )
+
+    manufacturing_date = models.DateField(
+        _('تاريخ الإنتاج'),
+        null=True,
+        blank=True
+    )
+
+    expiry_date = models.DateField(
+        _('تاريخ الانتهاء'),
+        null=True,
+        blank=True
+    )
+
+    # الكميات
+    quantity = models.DecimalField(
+        _('الكمية'),
+        max_digits=12,
+        decimal_places=3,
+        default=0
+    )
+
+    reserved_quantity = models.DecimalField(
+        _('الكمية المحجوزة'),
+        max_digits=12,
+        decimal_places=3,
+        default=0
+    )
+
+    # التكلفة
+    unit_cost = models.DecimalField(
+        _('تكلفة الوحدة'),
+        max_digits=12,
+        decimal_places=3
+    )
+
+    total_value = models.DecimalField(
+        _('القيمة الإجمالية'),
+        max_digits=15,
+        decimal_places=3,
+        default=0
+    )
+
+    # المصدر
+    source_document = models.CharField(
+        _('المستند المصدر'),
+        max_length=50
+    )
+
+    source_id = models.IntegerField(
+        _('رقم المصدر')
+    )
+
+    received_date = models.DateField(
+        _('تاريخ الاستلام')
+    )
+
+    class Meta:
+        verbose_name = _('دفعة')
+        verbose_name_plural = _('الدفعات')
+        unique_together = [['item', 'item_variant', 'warehouse', 'batch_number', 'company']]
+        ordering = ['received_date']  # FIFO
+        indexes = [
+            models.Index(fields=['item', 'warehouse', 'received_date']),
+            models.Index(fields=['expiry_date']),
+        ]
+
+    def is_expired(self):
+        """هل الدفعة منتهية الصلاحية"""
+        if not self.expiry_date:
+            return False
+        from django.utils import timezone
+        return timezone.now().date() > self.expiry_date
+
+    def get_available_quantity(self):
+        """الكمية المتاحة"""
+        return self.quantity - self.reserved_quantity
+
+    def __str__(self):
+        return f"{self.item.name} - {self.batch_number}"
