@@ -42,6 +42,7 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
     'apps.core',
     'apps.accounting',
+    'apps.assets',
     # 'apps.sales',
     # 'apps.purchases',
     # 'apps.inventory',

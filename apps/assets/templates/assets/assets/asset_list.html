@@ -1,0 +1,151 @@
+{% extends 'assets/base_asset.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-box text-primary"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">عرض وإدارة جميع الأصول الثابتة</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{% url 'assets:asset_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> إضافة أصل جديد
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> البحث والفلترة
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">الفئة</label>
+                        {{ filter_form.category|add_class:"form-select" }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">الحالة</label>
+                        {{ filter_form.status|add_class:"form-select" }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">مركز التكلفة</label>
+                        {{ filter_form.cost_center|add_class:"form-select" }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">من تاريخ</label>
+                        {{ filter_form.purchase_date_from }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">إلى تاريخ</label>
+                        {{ filter_form.purchase_date_to }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">بحث</label>
+                        {{ filter_form.search }}
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DataTable Card -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="assetsTable" style="width: 100%">
+                    <thead>
+                        <tr>
+                            <th>رقم الأصل</th>
+                            <th>الاسم</th>
+                            <th>الفئة</th>
+                            <th>تاريخ الشراء</th>
+                            <th>التكلفة</th>
+                            <th>القيمة الدفترية</th>
+                            <th>الحالة</th>
+                            <th class="text-center no-print">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block asset_extra_js %}
+<script>
+$(document).ready(function() {
+    // تكوين DataTable
+    var table = $('#assetsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: "{% url 'assets:asset_datatable_ajax' %}",
+            type: "GET",
+            data: function(d) {
+                d.category = $('select[name="category"]').val();
+                d.status = $('select[name="status"]').val();
+                d.cost_center = $('select[name="cost_center"]').val();
+                d.purchase_date_from = $('input[name="purchase_date_from"]').val();
+                d.purchase_date_to = $('input[name="purchase_date_to"]').val();
+                d.search = $('input[name="search"]').val();
+            }
+        },
+        columns: [
+            { data: 0 },
+            { data: 1 },
+            { data: 2 },
+            { data: 3 },
+            { data: 4, className: 'text-end' },
+            { data: 5, className: 'text-end' },
+            { data: 6, className: 'text-center' },
+            { data: 7, orderable: false, className: 'text-center' }
+        ],
+        order: [[0, 'desc']],
+        pageLength: 25,
+        language: {
+            url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        }
+    });
+
+    // إعادة تحميل عند تغيير الفلاتر
+    $('#filterForm select, #filterForm input').on('change', function() {
+        table.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

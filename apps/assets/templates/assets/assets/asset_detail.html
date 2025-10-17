@@ -1,0 +1,472 @@
+<!-- Path: apps/assets/templates/assets/assets/asset_detail.html -->
+{% extends 'assets/base_asset.html' %}
+{% load static i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-box text-primary"></i> {{ asset.name }}
+            </h1>
+            <p class="text-muted mb-0">رقم الأصل: <strong>{{ asset.asset_number }}</strong></p>
+        </div>
+        <div class="btn-group no-print">
+            {% if can_edit %}
+            <a href="{% url 'assets:asset_update' asset.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> تعديل
+            </a>
+            {% endif %}
+            <button onclick="printReport()" class="btn btn-outline-secondary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            {% if can_delete %}
+            <a href="{% url 'assets:asset_delete' asset.pk %}"
+               class="btn btn-outline-danger"
+               onclick="return confirmDelete('{{ asset.asset_number }}')">
+                <i class="fas fa-trash"></i> حذف
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الرئيسية -->
+        <div class="col-xl-8">
+            <!-- بطاقة المعلومات العامة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary bg-opacity-10">
+                    <h5 class="mb-0 text-primary">
+                        <i class="fas fa-info-circle"></i> المعلومات العامة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">الفئة</label>
+                            <p class="mb-0"><strong>{{ asset.category.name }}</strong></p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">الحالة</label>
+                            <p class="mb-0">
+                                <span class="badge" style="background-color: {{ asset.condition.color_code }};">
+                                    {{ asset.condition.name }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">حالة النشاط</label>
+                            <p class="mb-0">
+                                {% if asset.status == 'active' %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% elif asset.status == 'inactive' %}
+                                    <span class="badge bg-secondary">غير نشط</span>
+                                {% elif asset.status == 'under_maintenance' %}
+                                    <span class="badge bg-warning">تحت الصيانة</span>
+                                {% elif asset.status == 'disposed' %}
+                                    <span class="badge bg-danger">مستبعد</span>
+                                {% elif asset.status == 'sold' %}
+                                    <span class="badge bg-info">مباع</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">تاريخ الشراء</label>
+                            <p class="mb-0"><strong>{{ asset.purchase_date }}</strong></p>
+                        </div>
+                        {% if asset.purchase_invoice_number %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">رقم الفاتورة</label>
+                            <p class="mb-0">{{ asset.purchase_invoice_number }}</p>
+                        </div>
+                        {% endif %}
+                        {% if asset.supplier %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">المورد</label>
+                            <p class="mb-0">{{ asset.supplier.name }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- المعلومات المالية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success bg-opacity-10">
+                    <h5 class="mb-0 text-success">
+                        <i class="fas fa-dollar-sign"></i> المعلومات المالية
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <label class="text-muted small d-block mb-2">التكلفة الأصلية</label>
+                                <h4 class="text-primary mb-0">{{ asset.original_cost|floatformat:3 }}</h4>
+                                <small class="text-muted">د.أ</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <label class="text-muted small d-block mb-2">الإهلاك المتراكم</label>
+                                <h4 class="text-warning mb-0">{{ asset.accumulated_depreciation|floatformat:3 }}</h4>
+                                <small class="text-muted">د.أ</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <label class="text-muted small d-block mb-2">القيمة الدفترية</label>
+                                <h4 class="text-success mb-0">{{ asset.book_value|floatformat:3 }}</h4>
+                                <small class="text-muted">د.أ</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <label class="text-muted small d-block mb-2">القيمة المتبقية</label>
+                                <h4 class="text-info mb-0">{{ asset.salvage_value|floatformat:3 }}</h4>
+                                <small class="text-muted">د.أ</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- نسبة الإهلاك -->
+                    <div class="mt-4">
+                        <label class="text-muted small d-block mb-2">نسبة الإهلاك</label>
+                        <div class="progress" style="height: 25px;">
+                            {% widthratio asset.accumulated_depreciation asset.original_cost 100 as depreciation_percentage %}
+                            <div class="progress-bar bg-warning" role="progressbar"
+                                 style="width: {{ depreciation_percentage }}%">
+                                {{ depreciation_percentage }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات الإهلاك -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger bg-opacity-10">
+                    <h5 class="mb-0 text-danger">
+                        <i class="fas fa-chart-line"></i> معلومات الإهلاك
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">طريقة الإهلاك</label>
+                            <p class="mb-0"><strong>{{ asset.depreciation_method.name }}</strong></p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">العمر الافتراضي</label>
+                            <p class="mb-0">{{ asset.useful_life_months }} شهر ({{ asset.useful_life_months|divisibleby:12 }} سنة)</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">تاريخ بدء الإهلاك</label>
+                            <p class="mb-0">{{ asset.depreciation_start_date }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">الأشهر المتبقية</label>
+                            <p class="mb-0">{{ asset.get_remaining_months }} شهر</p>
+                        </div>
+                        {% if asset.depreciation_method.method_type == 'units_of_production' %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">إجمالي الوحدات المتوقعة</label>
+                            <p class="mb-0">{{ asset.total_expected_units|floatformat:0 }} {{ asset.unit_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">الوحدات المستخدمة</label>
+                            <p class="mb-0">{{ asset.units_used|floatformat:0 }} {{ asset.unit_name }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- الموقع والمسؤولية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info bg-opacity-10">
+                    <h5 class="mb-0 text-info">
+                        <i class="fas fa-map-marker-alt"></i> الموقع والمسؤولية
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">الفرع</label>
+                            <p class="mb-0">{{ asset.branch.name }}</p>
+                        </div>
+                        {% if asset.cost_center %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">مركز التكلفة</label>
+                            <p class="mb-0">{{ asset.cost_center.name }}</p>
+                        </div>
+                        {% endif %}
+                        {% if asset.responsible_employee %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">الموظف المسؤول</label>
+                            <p class="mb-0">{{ asset.responsible_employee.get_full_name }}</p>
+                        </div>
+                        {% endif %}
+                        {% if asset.physical_location %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">الموقع الفعلي</label>
+                            <p class="mb-0">{{ asset.physical_location }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- سجل الإهلاك -->
+            {% if recent_depreciations %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> آخر سجلات الإهلاك
+                    </h5>
+                    <a href="{% url 'assets:depreciation_history' %}?asset={{ asset.pk }}"
+                       class="btn btn-sm btn-outline-primary">
+                        عرض الكل
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>مبلغ الإهلاك</th>
+                                    <th>الإهلاك المتراكم</th>
+                                    <th>القيمة الدفترية</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dep in recent_depreciations %}
+                                <tr>
+                                    <td>{{ dep.depreciation_date }}</td>
+                                    <td>{{ dep.depreciation_amount|floatformat:3 }}</td>
+                                    <td>{{ dep.accumulated_depreciation_after|floatformat:3 }}</td>
+                                    <td>{{ dep.book_value_after|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- آخر العمليات -->
+            {% if recent_transactions %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exchange-alt"></i> آخر العمليات
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>النوع</th>
+                                    <th>المبلغ</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trans in recent_transactions %}
+                                <tr>
+                                    <td>{{ trans.transaction_date }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ trans.get_transaction_type_display }}</span>
+                                    </td>
+                                    <td>{{ trans.amount|floatformat:3 }}</td>
+                                    <td>
+                                        <span class="badge bg-success">{{ trans.get_status_display }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- آخر صيانة -->
+            {% if recent_maintenances %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-wrench"></i> آخر سجلات الصيانة
+                    </h5>
+                    <a href="{% url 'assets:maintenance_list' %}?asset={{ asset.pk }}"
+                       class="btn btn-sm btn-outline-primary">
+                        عرض الكل
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>النوع</th>
+                                    <th>التكلفة</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for maint in recent_maintenances %}
+                                <tr>
+                                    <td>{{ maint.scheduled_date }}</td>
+                                    <td>{{ maint.maintenance_type.name }}</td>
+                                    <td>{{ maint.total_cost|floatformat:3 }}</td>
+                                    <td>
+                                        {% if maint.status == 'completed' %}
+                                            <span class="badge bg-success">مكتملة</span>
+                                        {% elif maint.status == 'in_progress' %}
+                                            <span class="badge bg-warning">جارية</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">مجدولة</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white text-muted small">
+                    إجمالي تكلفة الصيانة: <strong>{{ total_maintenance_cost|floatformat:3 }} د.أ</strong>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-xl-4">
+            <!-- الباركود -->
+            <div class="card shadow-sm mb-4 text-center">
+                <div class="card-body">
+                    <h6 class="mb-3">الباركود</h6>
+                    <div class="mb-3">
+                        <img src="https://barcode.tec-it.com/barcode.ashx?data={{ asset.barcode }}&code=Code128&translate-esc=on"
+                             alt="Barcode" class="img-fluid" style="max-width: 200px;">
+                    </div>
+                    <p class="mb-0 small text-muted">{{ asset.barcode }}</p>
+                </div>
+            </div>
+
+            <!-- الضمان -->
+            {% if asset.warranty_end_date %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary bg-opacity-10">
+                    <h6 class="mb-0 text-primary">
+                        <i class="fas fa-shield-alt"></i> الضمان
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if asset.is_warranty_valid %}
+                        <div class="alert alert-success mb-2">
+                            <i class="fas fa-check-circle"></i> الضمان ساري
+                        </div>
+                    {% else %}
+                        <div class="alert alert-danger mb-2">
+                            <i class="fas fa-times-circle"></i> الضمان منتهي
+                        </div>
+                    {% endif %}
+                    <p class="small mb-1"><strong>من:</strong> {{ asset.warranty_start_date }}</p>
+                    <p class="small mb-1"><strong>إلى:</strong> {{ asset.warranty_end_date }}</p>
+                    {% if asset.warranty_provider %}
+                    <p class="small mb-0"><strong>المزود:</strong> {{ asset.warranty_provider }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- المرفقات -->
+            {% if attachments %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-paperclip"></i> المرفقات ({{ attachments.count }})
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for attachment in attachments %}
+                        <a href="{{ attachment.file.url }}" target="_blank"
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-file-alt text-primary fa-2x me-3"></i>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-0">{{ attachment.title }}</h6>
+                                    <small class="text-muted">{{ attachment.get_attachment_type_display }}</small>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle"></i> معلومات إضافية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if asset.serial_number %}
+                    <p class="small mb-2">
+                        <strong>الرقم التسلسلي:</strong><br>
+                        {{ asset.serial_number }}
+                    </p>
+                    {% endif %}
+                    {% if asset.model %}
+                    <p class="small mb-2">
+                        <strong>الموديل:</strong><br>
+                        {{ asset.model }}
+                    </p>
+                    {% endif %}
+                    {% if asset.manufacturer %}
+                    <p class="small mb-2">
+                        <strong>الشركة المصنعة:</strong><br>
+                        {{ asset.manufacturer }}
+                    </p>
+                    {% endif %}
+                    <hr>
+                    <p class="small mb-1">
+                        <strong>أنشئ بواسطة:</strong><br>
+                        {{ asset.created_by.get_full_name }}
+                    </p>
+                    <p class="small mb-0 text-muted">
+                        {{ asset.created_at }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
