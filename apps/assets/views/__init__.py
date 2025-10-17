@@ -3,7 +3,13 @@
 Views تطبيق إدارة الأصول الثابتة
 """
 
+# Base Report Views
+from .base_report_views import BaseReportView, ExportMixin
+
+# Dashboard
 from .dashboard_views import AssetsDashboardView
+
+# Assets
 from .asset_views import (
     AssetListView,
     AssetCreateView,
@@ -16,6 +22,8 @@ from .asset_views import (
     AssetCategoryUpdateView,
     asset_category_datatable_ajax,
 )
+
+# Transactions
 from .transaction_views import (
     AssetTransactionListView,
     AssetPurchaseView,
@@ -25,6 +33,8 @@ from .transaction_views import (
     AssetTransferCreateView,
     asset_transaction_datatable_ajax,
 )
+
+# Maintenance
 from .maintenance_views import (
     MaintenanceScheduleListView,
     MaintenanceScheduleCreateView,
@@ -35,19 +45,31 @@ from .maintenance_views import (
     AssetMaintenanceDetailView,
     maintenance_datatable_ajax,
 )
+
+# Depreciation
 from .depreciation_views import (
     DepreciationCalculationView,
     DepreciationHistoryView,
     depreciation_history_ajax,
 )
+
+# Reports
 from .report_views import (
+    ReportsListView,
     AssetRegisterReportView,
     DepreciationReportView,
     MaintenanceReportView,
     AssetMovementReportView,
+    AssetByCostCenterReportView,
+    AssetNearEndOfLifeReportView,
+    FairValueReportView,
 )
 
 __all__ = [
+    # Base Classes
+    'BaseReportView',
+    'ExportMixin',
+
     # Dashboard
     'AssetsDashboardView',
 
@@ -88,8 +110,12 @@ __all__ = [
     'depreciation_history_ajax',
 
     # Reports
+    'ReportsListView',
     'AssetRegisterReportView',
     'DepreciationReportView',
     'MaintenanceReportView',
     'AssetMovementReportView',
+    'AssetByCostCenterReportView',
+    'AssetNearEndOfLifeReportView',
+    'FairValueReportView',
 ]
