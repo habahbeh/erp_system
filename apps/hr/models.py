@@ -8,9 +8,8 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, User, Branch
 from apps.accounting.models import Account, Currency, JournalEntry
-from apps.core.models import User, Branch
 
 
 class Department(BaseModel):

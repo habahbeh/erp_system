@@ -8,36 +8,9 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel, Customer, Item, Warehouse
+from apps.core.models import BaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod
 from apps.accounting.models import Account, Currency, JournalEntry
-from apps.core.models import User, Branch
 
-
-class PaymentMethod(BaseModel):
-    """طرق الدفع"""
-
-    code = models.CharField(
-        _('الرمز'),
-        max_length=20
-    )
-
-    name = models.CharField(
-        _('الاسم'),
-        max_length=50
-    )
-
-    is_cash = models.BooleanField(
-        _('نقدي'),
-        default=True
-    )
-
-    class Meta:
-        verbose_name = _('طريقة دفع')
-        verbose_name_plural = _('طرق الدفع')
-        unique_together = [['company', 'code']]
-
-    def __str__(self):
-        return self.name
 
 
 class SalesInvoice(BaseModel):
@@ -102,9 +75,11 @@ class SalesInvoice(BaseModel):
 
     # البيانات الإجبارية
     customer = models.ForeignKey(
-        Customer,
+        BusinessPartner,
         on_delete=models.PROTECT,
-        verbose_name=_('اسم الزبون')
+        limit_choices_to={'partner_type__in': ['customer', 'both']},
+        verbose_name=_('اسم الزبون'),
+        related_name='sales_invoices'
     )
 
     warehouse = models.ForeignKey(
@@ -339,9 +314,10 @@ class InvoiceItem(models.Model):
     )
 
     unit = models.ForeignKey(
-        'base_data.UnitOfMeasure',
+        UnitOfMeasure,
         on_delete=models.PROTECT,
-        verbose_name=_('الوحدة')
+        verbose_name=_('الوحدة'),
+        related_name='sales_invoice_items'
     )
 
     unit_price = models.DecimalField(
@@ -470,9 +446,11 @@ class Quotation(BaseModel):
     )
 
     customer = models.ForeignKey(
-        Customer,
+        BusinessPartner,
         on_delete=models.PROTECT,
-        verbose_name=_('العميل')
+        limit_choices_to={'partner_type__in': ['customer', 'both']},
+        verbose_name=_('العميل'),
+        related_name='quotations'
     )
 
     salesperson = models.ForeignKey(
@@ -626,9 +604,11 @@ class SalesOrder(BaseModel):
     )
 
     customer = models.ForeignKey(
-        Customer,
+        BusinessPartner,
         on_delete=models.PROTECT,
-        verbose_name=_('العميل')
+        limit_choices_to={'partner_type__in': ['customer', 'both']},
+        verbose_name=_('العميل'),
+        related_name='sales_orders'
     )
 
     warehouse = models.ForeignKey(

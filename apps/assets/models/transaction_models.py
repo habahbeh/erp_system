@@ -9,7 +9,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
-from apps.core.models import DocumentBaseModel
+from apps.core.models import DocumentBaseModel, BusinessPartner
 
 
 class AssetTransaction(DocumentBaseModel):
@@ -110,14 +110,13 @@ class AssetTransaction(DocumentBaseModel):
     )
 
     # الطرف الآخر (مورد/عميل)
-    counterpart_account = models.ForeignKey(
-        'accounting.Account',
+    business_partner = models.ForeignKey(
+        BusinessPartner,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='asset_transactions',
-        verbose_name=_('الطرف الآخر'),
-        help_text=_('مورد للشراء أو عميل للبيع')
+        verbose_name=_('الطرف الآخر (مورد/عميل)')
     )
 
     # المستندات

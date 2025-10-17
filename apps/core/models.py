@@ -60,6 +60,32 @@ class Currency(models.Model):
         return f"{self.name} ({self.code})"
 
 
+class PaymentMethod(BaseModel):
+    """طرق الدفع"""
+
+    code = models.CharField(
+        _('الرمز'),
+        max_length=20
+    )
+
+    name = models.CharField(
+        _('الاسم'),
+        max_length=50
+    )
+
+    is_cash = models.BooleanField(
+        _('نقدي'),
+        default=True
+    )
+
+    class Meta:
+        verbose_name = _('طريقة دفع')
+        verbose_name_plural = _('طرق الدفع')
+        unique_together = [['company', 'code']]
+
+    def __str__(self):
+        return self.name
+
 class Company(models.Model):
     """الشركة"""
 

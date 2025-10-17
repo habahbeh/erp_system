@@ -16,8 +16,11 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from decimal import Decimal
-from apps.core.models import BaseModel, DocumentBaseModel
+from apps.core.models import BaseModel, DocumentBaseModel, BusinessPartner
+from django.contrib.auth import get_user_model
 import datetime
+
+User = get_user_model()
 
 
 class AssetCategory(BaseModel):
@@ -227,14 +230,15 @@ class Asset(DocumentBaseModel):
         max_length=50,
         blank=True
     )
+
     supplier = models.ForeignKey(
-        'accounting.Account',
+        BusinessPartner,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
         related_name='supplied_assets',
-        verbose_name=_('المورد'),
-        limit_choices_to={'account_type__type_category': 'liabilities'}
+        verbose_name=_('المورد')
     )
 
     # المعلومات المالية

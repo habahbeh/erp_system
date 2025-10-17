@@ -8,9 +8,8 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel, Item, Warehouse, Customer, Supplier
+from apps.core.models import BaseModel, Item, Warehouse, BusinessPartner, User
 from apps.accounting.models import Account, JournalEntry
-from apps.core.models import User
 
 
 class StockDocument(BaseModel):
@@ -104,11 +103,13 @@ class StockIn(StockDocument):
 
     # المورد (اختياري)
     supplier = models.ForeignKey(
-        Supplier,
+        BusinessPartner,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        verbose_name=_('المورد')
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
+        verbose_name=_('المورد'),
+        related_name='stock_ins'
     )
 
     # فاتورة المشتريات المرتبطة
@@ -181,11 +182,13 @@ class StockOut(StockDocument):
 
     # العميل (اختياري)
     customer = models.ForeignKey(
-        Customer,
+        BusinessPartner,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        verbose_name=_('العميل')
+        limit_choices_to={'partner_type__in': ['customer', 'both']},
+        verbose_name=_('العميل'),
+        related_name='stock_outs'
     )
 
     # فاتورة المبيعات المرتبطة

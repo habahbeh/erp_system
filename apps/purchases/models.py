@@ -8,11 +8,8 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel, Supplier, Item, Warehouse
+from apps.core.models import BaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod
 from apps.accounting.models import Account, Currency, JournalEntry
-from apps.sales.models import PaymentMethod
-from apps.core.models import User, Branch
-
 
 class PurchaseInvoice(BaseModel):
     """فواتير المشتريات"""
@@ -45,7 +42,8 @@ class PurchaseInvoice(BaseModel):
     payment_method = models.ForeignKey(
         PaymentMethod,
         on_delete=models.PROTECT,
-        verbose_name=_('طريقة الدفع')
+        verbose_name=_('طريقة الدفع'),
+        related_name='purchase_invoices'
     )
 
     # العملة
@@ -76,9 +74,11 @@ class PurchaseInvoice(BaseModel):
 
     # البيانات الإجبارية
     supplier = models.ForeignKey(
-        Supplier,
+        BusinessPartner,
         on_delete=models.PROTECT,
-        verbose_name=_('اسم المورد')
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
+        verbose_name=_('اسم المورد'),
+        related_name='purchase_invoices'
     )
 
     warehouse = models.ForeignKey(
@@ -320,9 +320,10 @@ class PurchaseInvoiceItem(models.Model):
     )
 
     unit = models.ForeignKey(
-        'base_data.UnitOfMeasure',
+        UnitOfMeasure,
         on_delete=models.PROTECT,
-        verbose_name=_('الوحدة')
+        verbose_name=_('الوحدة'),
+        related_name='purchase_invoice_items'
     )
 
     unit_price = models.DecimalField(
@@ -456,9 +457,11 @@ class PurchaseOrder(BaseModel):
     )
 
     supplier = models.ForeignKey(
-        Supplier,
+        BusinessPartner,
         on_delete=models.PROTECT,
-        verbose_name=_('المورد')
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
+        verbose_name=_('المورد'),
+        related_name='purchase_orders'
     )
 
     warehouse = models.ForeignKey(

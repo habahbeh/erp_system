@@ -20,7 +20,7 @@ class AssetTransactionForm(forms.ModelForm):
         model = AssetTransaction
         fields = [
             'transaction_date', 'transaction_type', 'asset',
-            'amount', 'payment_method', 'counterpart_account',
+            'amount', 'payment_method', 'business_partner',
             'reference_number', 'attachment', 'description', 'notes'
         ]
         widgets = {
@@ -36,7 +36,7 @@ class AssetTransactionForm(forms.ModelForm):
                 'placeholder': '0.000'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-select'}),
-            'counterpart_account': forms.Select(attrs={'class': 'form-select'}),
+            'business_partner': forms.Select(attrs={'class': 'form-select'}),
             'reference_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'رقم الفاتورة أو المرجع'
@@ -61,7 +61,7 @@ class AssetTransactionForm(forms.ModelForm):
                 company=self.company,
                 is_active=True
             )
-            self.fields['counterpart_account'].queryset = Account.objects.filter(
+            self.fields['business_partner'].queryset = Account.objects.filter(
                 company=self.company,
                 is_active=True
             )
@@ -74,7 +74,7 @@ class AssetPurchaseForm(forms.ModelForm):
         model = AssetTransaction
         fields = [
             'transaction_date', 'asset', 'amount',
-            'payment_method', 'counterpart_account',
+            'payment_method', 'business_partner',
             'reference_number', 'attachment', 'description', 'notes'
         ]
         widgets = {
@@ -89,7 +89,7 @@ class AssetPurchaseForm(forms.ModelForm):
                 'placeholder': '0.000'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-select'}),
-            'counterpart_account': forms.Select(attrs={
+            'business_partner': forms.Select(attrs={
                 'class': 'form-select',
                 'data-placeholder': 'اختر المورد'
             }),
@@ -123,12 +123,12 @@ class AssetPurchaseForm(forms.ModelForm):
                 is_active=True
             )
             # فقط الموردين
-            self.fields['counterpart_account'].queryset = Account.objects.filter(
+            self.fields['business_partner'].queryset = Account.objects.filter(
                 company=self.company,
                 account_type__type_category='liabilities',
                 is_active=True
             )
-            self.fields['counterpart_account'].label = _('المورد')
+            self.fields['business_partner'].label = _('المورد')
 
 
 class AssetSaleForm(forms.ModelForm):
@@ -138,7 +138,7 @@ class AssetSaleForm(forms.ModelForm):
         model = AssetTransaction
         fields = [
             'transaction_date', 'asset', 'sale_price',
-            'payment_method', 'counterpart_account',
+            'payment_method', 'business_partner',
             'reference_number', 'attachment', 'description', 'notes'
         ]
         widgets = {
@@ -153,7 +153,7 @@ class AssetSaleForm(forms.ModelForm):
                 'placeholder': '0.000'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-select'}),
-            'counterpart_account': forms.Select(attrs={
+            'business_partner': forms.Select(attrs={
                 'class': 'form-select',
                 'data-placeholder': 'اختر العميل'
             }),
@@ -187,12 +187,12 @@ class AssetSaleForm(forms.ModelForm):
                 is_active=True
             )
             # فقط العملاء
-            self.fields['counterpart_account'].queryset = Account.objects.filter(
+            self.fields['business_partner'].queryset = Account.objects.filter(
                 company=self.company,
                 account_type__type_category='assets',
                 is_active=True
             )
-            self.fields['counterpart_account'].label = _('العميل')
+            self.fields['business_partner'].label = _('العميل')
 
     def clean(self):
         cleaned_data = super().clean()

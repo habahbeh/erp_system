@@ -10,7 +10,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
-from apps.core.models import DocumentBaseModel
+from apps.core.models import DocumentBaseModel, BusinessPartner
 import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -305,10 +305,11 @@ class AssetMaintenance(DocumentBaseModel):
 
     # المورد (إذا كانت صيانة خارجية)
     external_vendor = models.ForeignKey(
-        'accounting.Account',
+        BusinessPartner,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
         related_name='asset_maintenances',
         verbose_name=_('المورد الخارجي')
     )
