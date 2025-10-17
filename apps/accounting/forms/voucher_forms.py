@@ -13,29 +13,6 @@ from apps.core.models import Currency
 class PaymentVoucherForm(forms.ModelForm):
     """نموذج سند الصرف"""
 
-    # حقول البحث للحسابات
-    cash_account_search = forms.CharField(
-        label=_('حساب الصندوق/البنك'),
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن حساب الصندوق أو البنك...',
-            'data-target': 'cash_account'
-        })
-    )
-
-    expense_account_search = forms.CharField(
-        label=_('حساب المصروف'),
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن حساب المصروف (اختياري)...',
-            'data-target': 'expense_account'
-        })
-    )
-
     class Meta:
         model = PaymentVoucher
         fields = [
@@ -65,8 +42,14 @@ class PaymentVoucherForm(forms.ModelForm):
             'beneficiary_type': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'cash_account': forms.HiddenInput(),
-            'expense_account': forms.HiddenInput(),
+            'cash_account': forms.Select(attrs={
+                'class': 'form-select account-select',
+                'data-account-type': 'assets'
+            }),
+            'expense_account': forms.Select(attrs={
+                'class': 'form-select account-select',
+                'data-account-type': 'expenses'
+            }),
             'payment_method': forms.Select(attrs={
                 'class': 'form-select'
             }),
@@ -99,28 +82,39 @@ class PaymentVoucherForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.request:
-            # فلترة العملات للشركة الحالية - إصلاح العلاقة
+            # فلترة العملات للشركة الحالية
             self.fields['currency'].queryset = Currency.objects.filter(
-                companies=self.request.current_company,  # تغيير من company إلى companies
+                companies=self.request.current_company,
                 is_active=True
             )
 
             # إعداد العملة الافتراضية
             try:
                 default_currency = Currency.objects.get(
-                    companies=self.request.current_company,  # تغيير من company إلى companies
+                    companies=self.request.current_company,
                     is_base=True
                 )
                 self.fields['currency'].initial = default_currency
             except Currency.DoesNotExist:
                 pass
 
-        # إذا كان النموذج يحتوي على بيانات موجودة
-        if self.instance and self.instance.pk:
-            if self.instance.cash_account:
-                self.fields['cash_account_search'].initial = str(self.instance.cash_account)
-            if self.instance.expense_account:
-                self.fields['expense_account_search'].initial = str(self.instance.expense_account)
+            # فلترة حسابات الأصول (الصندوق/البنك)
+            self.fields['cash_account'].queryset = Account.objects.filter(
+                company=self.request.current_company,
+                account_type__type_category='assets',
+                is_suspended=False,
+                accept_entries=True
+            ).select_related('account_type')
+
+            # فلترة حسابات المصروفات
+            self.fields['expense_account'].queryset = Account.objects.filter(
+                company=self.request.current_company,
+                account_type__type_category='expenses',
+                is_suspended=False,
+                accept_entries=True
+            ).select_related('account_type')
+
+            self.fields['expense_account'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
@@ -149,29 +143,6 @@ class PaymentVoucherForm(forms.ModelForm):
 
 class ReceiptVoucherForm(forms.ModelForm):
     """نموذج سند القبض"""
-
-    # حقول البحث للحسابات
-    cash_account_search = forms.CharField(
-        label=_('حساب الصندوق/البنك'),
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن حساب الصندوق أو البنك...',
-            'data-target': 'cash_account'
-        })
-    )
-
-    income_account_search = forms.CharField(
-        label=_('حساب الإيراد'),
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control account-autocomplete',
-            'placeholder': 'ابحث عن حساب الإيراد (اختياري)...',
-            'data-target': 'income_account'
-        })
-    )
 
     class Meta:
         model = ReceiptVoucher
@@ -202,8 +173,14 @@ class ReceiptVoucherForm(forms.ModelForm):
             'payer_type': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'cash_account': forms.HiddenInput(),
-            'income_account': forms.HiddenInput(),
+            'cash_account': forms.Select(attrs={
+                'class': 'form-select account-select',
+                'data-account-type': 'assets'
+            }),
+            'income_account': forms.Select(attrs={
+                'class': 'form-select account-select',
+                'data-account-type': 'revenue'
+            }),
             'receipt_method': forms.Select(attrs={
                 'class': 'form-select'
             }),
@@ -236,28 +213,39 @@ class ReceiptVoucherForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.request:
-            # فلترة العملات للشركة الحالية - إصلاح العلاقة
+            # فلترة العملات للشركة الحالية
             self.fields['currency'].queryset = Currency.objects.filter(
-                companies=self.request.current_company,  # تغيير من company إلى companies
+                companies=self.request.current_company,
                 is_active=True
             )
 
             # إعداد العملة الافتراضية
             try:
                 default_currency = Currency.objects.get(
-                    companies=self.request.current_company,  # تغيير من company إلى companies
+                    companies=self.request.current_company,
                     is_base=True
                 )
                 self.fields['currency'].initial = default_currency
             except Currency.DoesNotExist:
                 pass
 
-        # إذا كان النموذج يحتوي على بيانات موجودة
-        if self.instance and self.instance.pk:
-            if self.instance.cash_account:
-                self.fields['cash_account_search'].initial = str(self.instance.cash_account)
-            if self.instance.income_account:
-                self.fields['income_account_search'].initial = str(self.instance.income_account)
+            # فلترة حسابات الأصول (الصندوق/البنك)
+            self.fields['cash_account'].queryset = Account.objects.filter(
+                company=self.request.current_company,
+                account_type__type_category='assets',
+                is_suspended=False,
+                accept_entries=True
+            ).select_related('account_type')
+
+            # فلترة حسابات الإيرادات
+            self.fields['income_account'].queryset = Account.objects.filter(
+                company=self.request.current_company,
+                account_type__type_category='revenue',
+                is_suspended=False,
+                accept_entries=True
+            ).select_related('account_type')
+
+            self.fields['income_account'].required = False
 
     def clean(self):
         cleaned_data = super().clean()

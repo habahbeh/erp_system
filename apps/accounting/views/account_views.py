@@ -452,47 +452,6 @@ def account_datatable_ajax(request):
         })
 
 
-# @login_required
-# @permission_required_with_message('accounting.view_account')
-# @require_http_methods(["GET"])
-# def account_hierarchy_ajax(request):
-#     """Ajax endpoint لعرض هيكل الحسابات الهرمي"""
-#
-#     if not hasattr(request, 'current_company') or not request.current_company:
-#         return JsonResponse({'error': 'لا توجد شركة محددة'})
-#
-#     try:
-#         def build_tree(parent=None, level=0):
-#             accounts = Account.objects.filter(
-#                 company=request.current_company,
-#                 parent=parent
-#             ).select_related('account_type').order_by('code')
-#
-#             result = []
-#             for account in accounts:
-#                 children = build_tree(account, level + 1) if account.children.exists() else []
-#
-#                 item = {
-#                     'id': account.pk,
-#                     'code': account.code,
-#                     'name': account.name,
-#                     'type': account.account_type.name,
-#                     'level': level,
-#                     'has_children': account.children.exists(),
-#                     'is_suspended': account.is_suspended,
-#                     'accept_entries': account.accept_entries,
-#                     'opening_balance': float(account.opening_balance),
-#                     'children': children
-#                 }
-#                 result.append(item)
-#             return result
-#
-#         tree = build_tree()
-#         return JsonResponse({'success': True, 'tree': tree})
-#
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)})
-
 
 @login_required
 @permission_required_with_message('accounting.view_account')
@@ -510,6 +469,7 @@ def account_search_ajax(request):
     # فلترة إضافية
     only_leaf = request.GET.get('only_leaf', '') == '1'  # حسابات فرعية فقط
     only_active = request.GET.get('only_active', '') == '1'  # حسابات نشطة فقط
+    account_type = request.GET.get('account_type', '')  # ✅ إضافة فلتر نوع الحساب
 
     accounts = Account.objects.filter(
         company=request.current_company
@@ -523,6 +483,10 @@ def account_search_ajax(request):
     if only_active:
         accounts = accounts.filter(is_suspended=False)
 
+    # ✅ فلترة حسب نوع الحساب
+    if account_type:
+        accounts = accounts.filter(account_type__type_category=account_type)
+
     accounts = accounts.select_related('account_type')[:20]
 
     results = []
@@ -533,6 +497,7 @@ def account_search_ajax(request):
             'code': account.code,
             'name': account.name,
             'type': account.account_type.name,
+            'type_category': account.account_type.type_category,  # ✅ إضافة التصنيف
             'level': account.level,
             'accept_entries': account.accept_entries
         })

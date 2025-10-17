@@ -602,24 +602,41 @@ def journal_entry_datatable_ajax(request):
 
 @login_required
 @permission_required_with_message('accounting.view_account')
-@require_http_methods(["GET"])
 def account_autocomplete(request):
-    """البحث التلقائي للحسابات"""
+    """
+    Autocomplete للحسابات - يستخدم في القيود والسندات
+    """
+    term = request.GET.get('term', '').strip()
 
-    query = request.GET.get('term', '')
-    if len(query) < 2:
+    if len(term) < 2:
         return JsonResponse([], safe=False)
 
-    if not hasattr(request, 'current_company') or not request.current_company:
-        return JsonResponse([], safe=False)
+    # فلترة إضافية
+    only_leaf = request.GET.get('only_leaf', '') == '1'
+    only_active = request.GET.get('only_active', '1') == '1'  # افتراضياً نشطة فقط
+    account_type = request.GET.get('account_type', '')  # ✅ إضافة فلتر نوع الحساب
 
     accounts = Account.objects.filter(
         company=request.current_company,
-        accept_entries=True,
-        is_suspended=False
     ).filter(
-        Q(code__icontains=query) | Q(name__icontains=query)
-    )[:20]
+        Q(code__icontains=term) |
+        Q(name__icontains=term) |
+        Q(name_en__icontains=term)
+    )
+
+    # فلترة الحسابات النشطة
+    if only_active:
+        accounts = accounts.filter(is_suspended=False)
+
+    # فلترة الحسابات الفرعية فقط (التي تقبل قيود)
+    if only_leaf:
+        accounts = accounts.filter(accept_entries=True)
+
+    # ✅ فلترة حسب نوع الحساب (expenses, revenue, assets, etc.)
+    if account_type:
+        accounts = accounts.filter(account_type__type_category=account_type)
+
+    accounts = accounts.select_related('account_type', 'currency')[:20]
 
     results = []
     for account in accounts:
@@ -627,7 +644,13 @@ def account_autocomplete(request):
             'id': account.id,
             'text': f"{account.code} - {account.name}",
             'code': account.code,
-            'name': account.name
+            'name': account.name,
+            'name_en': account.name_en or '',
+            'type': account.account_type.name,
+            'type_category': account.account_type.type_category,  # ✅ إضافة التصنيف
+            'currency': account.currency.code if account.currency else '',
+            'accept_entries': account.accept_entries,
+            'level': account.level,
         })
 
     return JsonResponse(results, safe=False)
