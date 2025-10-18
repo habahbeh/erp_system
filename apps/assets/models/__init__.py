@@ -1,7 +1,4 @@
 # apps/assets/models/__init__.py
-"""
-نماذج تطبيق إدارة الأصول الثابتة
-"""
 
 from .asset_models import (
     AssetCategory,
@@ -16,6 +13,8 @@ from .asset_models import (
 from .transaction_models import (
     AssetTransaction,
     AssetTransfer,
+    AssetLease,
+    LeasePayment,
 )
 
 from .maintenance_models import (
@@ -23,6 +22,35 @@ from .maintenance_models import (
     MaintenanceSchedule,
     AssetMaintenance,
 )
+
+from .physical_count_models import (
+    PhysicalCountCycle,
+    PhysicalCount,
+    PhysicalCountLine,
+    PhysicalCountAdjustment,
+)
+
+from .insurance_models import (
+    InsuranceCompany,
+    AssetInsurance,
+    InsuranceClaim,
+)
+
+from .notification_models import (
+    NotificationTemplate,
+    AssetNotification,
+    NotificationSettings,
+)
+
+from .workflow_models import (
+    ApprovalWorkflow,
+    ApprovalLevel,
+    ApprovalRequest,
+    ApprovalHistory,
+)
+
+# ✅ إضافة جديدة
+from .accounting_config import AssetAccountingConfiguration
 
 __all__ = [
     # النماذج الأساسية
@@ -37,9 +65,36 @@ __all__ = [
     # العمليات
     'AssetTransaction',
     'AssetTransfer',
+    'AssetLease',
+    'LeasePayment',
 
     # الصيانة
     'MaintenanceType',
     'MaintenanceSchedule',
     'AssetMaintenance',
+
+    # الجرد الفعلي
+    'PhysicalCountCycle',
+    'PhysicalCount',
+    'PhysicalCountLine',
+    'PhysicalCountAdjustment',
+
+    # التأمين
+    'InsuranceCompany',
+    'AssetInsurance',
+    'InsuranceClaim',
+
+    # الإشعارات
+    'NotificationTemplate',
+    'AssetNotification',
+    'NotificationSettings',
+
+    # سير العمل
+    'ApprovalWorkflow',
+    'ApprovalLevel',
+    'ApprovalRequest',
+    'ApprovalHistory',
+
+    # ✅ الإعدادات المحاسبية
+    'AssetAccountingConfiguration',
 ]

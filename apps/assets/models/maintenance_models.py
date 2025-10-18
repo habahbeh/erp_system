@@ -1,12 +1,12 @@
 # apps/assets/models/maintenance_models.py
 """
-نماذج الصيانة
+نماذج الصيانة - محسّنة
 - أنواع الصيانة
 - جدولة الصيانة الدورية
 - سجل الصيانة الفعلية
 """
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
@@ -429,10 +429,168 @@ class AssetMaintenance(DocumentBaseModel):
                 'completion_date': _('يجب تحديد تاريخ الإنجاز للصيانة المكتملة')
             })
 
-    def mark_as_completed(self, completion_date=None):
-        """وضع علامة مكتمل على الصيانة"""
+    @transaction.atomic
+    def mark_as_completed(self, completion_date=None, user=None):
+        """وضع علامة مكتمل على الصيانة مع القيد المحاسبي"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+        from ..accounting_config import AssetAccountingConfiguration
+
         self.status = 'completed'
         self.completion_date = completion_date or datetime.date.today()
+
+        # ✅ الحصول على الإعدادات
+        config = AssetAccountingConfiguration.get_or_create_for_company(self.company)
+
+        # إنشاء القيد المحاسبي للصيانة
+        if self.total_cost > 0:
+            try:
+                fiscal_year = FiscalYear.objects.get(
+                    company=self.company,
+                    start_date__lte=self.completion_date,
+                    end_date__gte=self.completion_date,
+                    is_closed=False
+                )
+            except FiscalYear.DoesNotExist:
+                raise ValidationError(_('لا توجد سنة مالية نشطة'))
+
+            period = AccountingPeriod.objects.filter(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.completion_date,
+                end_date__gte=self.completion_date,
+                is_closed=False
+            ).first()
+
+            # ✅ التحقق: هل تحسين رأسمالي؟
+            if self.is_capital_improvement:
+                # إضافة التكلفة للأصل
+                self.asset.original_cost += self.total_cost
+                self.asset.book_value += self.total_cost
+                self.asset.save()
+
+                # قيد تحسين رأسمالي
+                journal_entry = JournalEntry.objects.create(
+                    company=self.company,
+                    branch=self.branch,
+                    fiscal_year=fiscal_year,
+                    period=period,
+                    entry_date=self.completion_date,
+                    entry_type='auto',
+                    description=f"تحسين رأسمالي - صيانة {self.maintenance_number} - {self.asset.name}",
+                    reference=self.maintenance_number,
+                    source_document='asset_maintenance',
+                    source_id=self.pk,
+                    created_by=user or self.created_by
+                )
+
+                # من: حساب الأصل (مدين)
+                if not self.asset.category.asset_account:
+                    raise ValidationError(
+                        _('لم يتم تحديد حساب الأصول في فئة الأصل')
+                    )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=1,
+                    account=self.asset.category.asset_account,
+                    description=f"تحسين رأسمالي على {self.asset.name}",
+                    debit_amount=self.total_cost,
+                    credit_amount=0,
+                    currency=self.company.base_currency
+                )
+
+                # إلى: البنك/الصندوق أو المورد (دائن)
+                if self.external_vendor:
+                    # دفع للمورد
+                    payable_account = config.get_supplier_account(self.external_vendor)
+                    JournalEntryLine.objects.create(
+                        journal_entry=journal_entry,
+                        line_number=2,
+                        account=payable_account,
+                        description=f"مستحق للمورد - {self.external_vendor.name}",
+                        debit_amount=0,
+                        credit_amount=self.total_cost,
+                        currency=self.company.base_currency,
+                        partner_type='supplier',
+                        partner_id=self.external_vendor.pk
+                    )
+                else:
+                    # دفع نقدي
+                    cash_account = config.get_cash_account()
+                    JournalEntryLine.objects.create(
+                        journal_entry=journal_entry,
+                        line_number=2,
+                        account=cash_account,
+                        description=f"دفع تحسين رأسمالي",
+                        debit_amount=0,
+                        credit_amount=self.total_cost,
+                        currency=self.company.base_currency
+                    )
+
+            else:
+                # صيانة عادية - قيد مصروف
+                journal_entry = JournalEntry.objects.create(
+                    company=self.company,
+                    branch=self.branch,
+                    fiscal_year=fiscal_year,
+                    period=period,
+                    entry_date=self.completion_date,
+                    entry_type='auto',
+                    description=f"مصروف صيانة {self.maintenance_number} - {self.asset.name}",
+                    reference=self.maintenance_number,
+                    source_document='asset_maintenance',
+                    source_id=self.pk,
+                    created_by=user or self.created_by
+                )
+
+                # ✅ من: مصروف الصيانة (مدين) - ديناميكي
+                maintenance_expense_account = config.get_maintenance_expense_account(
+                    category=self.asset.category
+                )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=1,
+                    account=maintenance_expense_account,
+                    description=f"صيانة {self.asset.name}",
+                    debit_amount=self.total_cost,
+                    credit_amount=0,
+                    currency=self.company.base_currency,
+                    cost_center=self.asset.cost_center
+                )
+
+                # إلى: البنك/الصندوق أو المورد (دائن)
+                if self.external_vendor:
+                    # دفع للمورد
+                    payable_account = config.get_supplier_account(self.external_vendor)
+                    JournalEntryLine.objects.create(
+                        journal_entry=journal_entry,
+                        line_number=2,
+                        account=payable_account,
+                        description=f"مستحق للمورد - {self.external_vendor.name}",
+                        debit_amount=0,
+                        credit_amount=self.total_cost,
+                        currency=self.company.base_currency,
+                        partner_type='supplier',
+                        partner_id=self.external_vendor.pk
+                    )
+                else:
+                    # دفع نقدي
+                    cash_account = config.get_cash_account()
+                    JournalEntryLine.objects.create(
+                        journal_entry=journal_entry,
+                        line_number=2,
+                        account=cash_account,
+                        description=f"دفع نقدي لصيانة",
+                        debit_amount=0,
+                        credit_amount=self.total_cost,
+                        currency=self.company.base_currency
+                    )
+
+            # ترحيل القيد
+            journal_entry.post(user=user)
+
+            # ربط القيد بالصيانة
+            self.journal_entry = journal_entry
+
         self.save()
 
         # تحديث تاريخ الجدولة القادم إذا كانت مرتبطة بجدول

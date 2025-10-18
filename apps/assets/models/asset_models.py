@@ -1,6 +1,6 @@
 # apps/assets/models/asset_models.py
 """
-النماذج الأساسية للأصول الثابتة
+النماذج الأساسية للأصول الثابتة - محسّنة
 - فئات الأصول (هرمية)
 - طرق الإهلاك
 - حالات الأصول
@@ -13,7 +13,7 @@
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
 from django.urls import reverse
 from decimal import Decimal
 from apps.core.models import BaseModel, DocumentBaseModel, BusinessPartner
@@ -68,6 +68,37 @@ class AssetCategory(BaseModel):
         blank=True
     )
 
+    # ✅ جديد: حساب خسارة الفقد
+    loss_on_disposal_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.PROTECT,
+        related_name='asset_categories_loss',
+        verbose_name=_('حساب خسارة الفقد'),
+        null=True,
+        blank=True,
+        help_text=_('حساب خسائر الفقد أو التلف من الجرد')
+    )
+
+    gain_on_sale_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.PROTECT,
+        related_name='asset_categories_gain',
+        verbose_name=_('حساب ربح البيع'),
+        null=True,
+        blank=True,
+        help_text=_('حساب أرباح بيع الأصول من هذه الفئة')
+    )
+
+    maintenance_expense_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.PROTECT,
+        related_name='asset_categories_maint_exp',
+        verbose_name=_('حساب مصروف الصيانة'),
+        null=True,
+        blank=True,
+        help_text=_('حساب مصروفات الصيانة لهذه الفئة - اختياري')
+    )
+
     # الإعدادات الافتراضية
     default_depreciation_method = models.ForeignKey(
         'DepreciationMethod',
@@ -88,6 +119,20 @@ class AssetCategory(BaseModel):
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+
+    # ✅ جديد: فترة الجرد الافتراضية
+    default_physical_count_frequency = models.CharField(
+        _('تكرار الجرد الافتراضي'),
+        max_length=20,
+        choices=[
+            ('monthly', _('شهري')),
+            ('quarterly', _('ربع سنوي')),
+            ('semi_annual', _('نصف سنوي')),
+            ('annual', _('سنوي')),
+        ],
+        default='annual',
+        help_text=_('كم مرة يجب جرد الأصول من هذه الفئة')
     )
 
     description = models.TextField(_('الوصف'), blank=True)
@@ -188,6 +233,15 @@ class Asset(DocumentBaseModel):
         ('under_maintenance', _('تحت الصيانة')),
         ('disposed', _('مستبعد')),
         ('sold', _('مباع')),
+        ('lost', _('مفقود')),  # ✅ جديد
+        ('damaged', _('تالف')),  # ✅ جديد
+    ]
+
+    # ✅ جديد: حالة الإهلاك
+    DEPRECIATION_STATUS_CHOICES = [
+        ('active', _('نشط')),
+        ('paused', _('متوقف')),
+        ('completed', _('مكتمل')),
     ]
 
     # المعلومات الأساسية
@@ -221,6 +275,15 @@ class Asset(DocumentBaseModel):
         max_length=20,
         choices=STATUS_CHOICES,
         default='active'
+    )
+
+    # ✅ جديد: حالة الإهلاك
+    depreciation_status = models.CharField(
+        _('حالة الإهلاك'),
+        max_length=20,
+        choices=DEPRECIATION_STATUS_CHOICES,
+        default='active',
+        help_text=_('هل الإهلاك نشط أم متوقف')
     )
 
     # معلومات الشراء
@@ -338,6 +401,44 @@ class Asset(DocumentBaseModel):
         help_text=_('مثال: مبنى أ - طابق 3 - مكتب 305')
     )
 
+    # ✅ جديد: معلومات الجرد
+    last_physical_count_date = models.DateField(
+        _('آخر جرد فعلي'),
+        null=True,
+        blank=True,
+        help_text=_('تاريخ آخر جرد تم فيه التحقق من الأصل')
+    )
+    actual_location = models.CharField(
+        _('الموقع الفعلي من الجرد'),
+        max_length=200,
+        blank=True,
+        help_text=_('الموقع الفعلي المسجل في آخر جرد')
+    )
+    location_verified_date = models.DateField(
+        _('تاريخ التحقق من الموقع'),
+        null=True,
+        blank=True
+    )
+
+    # ✅ جديد: حالة التأمين
+    insurance_status = models.CharField(
+        _('حالة التأمين'),
+        max_length=20,
+        choices=[
+            ('insured', _('مؤمّن')),
+            ('not_insured', _('غير مؤمّن')),
+            ('expired', _('منتهي')),
+        ],
+        default='not_insured'
+    )
+
+    # ✅ جديد: إذا كان مستأجر
+    is_leased = models.BooleanField(
+        _('أصل مستأجر'),
+        default=False,
+        help_text=_('هل هذا الأصل مستأجر وليس مملوك')
+    )
+
     # معلومات إضافية
     serial_number = models.CharField(_('الرقم التسلسلي'), max_length=100, blank=True)
     model = models.CharField(_('الموديل'), max_length=100, blank=True)
@@ -373,6 +474,7 @@ class Asset(DocumentBaseModel):
             ('can_revalue_asset', 'يمكنه إعادة تقييم أصول'),
             ('can_dispose_asset', 'يمكنه استبعاد أصول'),
             ('can_calculate_depreciation', 'يمكنه احتساب الإهلاك'),
+            ('can_conduct_physical_count', 'يمكنه إجراء جرد'),  # ✅ جديد
         ]
 
     def save(self, *args, **kwargs):
@@ -456,8 +558,61 @@ class Asset(DocumentBaseModel):
             return False
         return datetime.date.today() <= self.warranty_end_date
 
-    # ✅ **إضافة دوال التحقق من الصلاحيات:**
+    # ✅ جديد: دوال مساعدة إضافية
+    def get_current_value(self):
+        """القيمة الحالية (القيمة الدفترية)"""
+        return self.book_value
 
+    def get_remaining_useful_life(self):
+        """العمر الافتراضي المتبقي"""
+        remaining_months = self.get_remaining_months()
+        years = remaining_months // 12
+        months = remaining_months % 12
+        return {'years': years, 'months': months}
+
+    def is_insured(self):
+        """هل الأصل مؤمّن وساري"""
+        if self.insurance_status != 'insured':
+            return False
+
+        # التحقق من وجود تأمين نشط
+        from .insurance_models import AssetInsurance
+        active_insurance = AssetInsurance.objects.filter(
+            asset=self,
+            status='active',
+            end_date__gte=datetime.date.today()
+        ).exists()
+
+        return active_insurance
+
+    def needs_physical_count(self):
+        """هل يحتاج الأصل لجرد"""
+        if not self.last_physical_count_date:
+            return True
+
+        # حساب الفترة بناءً على الفئة
+        frequency_days = {
+            'monthly': 30,
+            'quarterly': 90,
+            'semi_annual': 180,
+            'annual': 365,
+        }
+
+        days = frequency_days.get(
+            self.category.default_physical_count_frequency,
+            365
+        )
+
+        days_since_last = (datetime.date.today() - self.last_physical_count_date).days
+        return days_since_last >= days
+
+    def get_depreciation_percentage(self):
+        """نسبة الإهلاك الحالية"""
+        if self.original_cost == 0:
+            return Decimal('0')
+        return (self.accumulated_depreciation / self.original_cost) * 100
+
+    # الصلاحيات
     def can_user_purchase(self, user):
         """هل يمكن للمستخدم شراء أصول"""
         return user.has_perm('assets.can_purchase_asset')
@@ -482,13 +637,15 @@ class Asset(DocumentBaseModel):
         """هل يمكن للمستخدم احتساب الإهلاك"""
         return user.has_perm('assets.can_calculate_depreciation')
 
-    # ✅ **دوال العمليات:**
+    def can_user_conduct_physical_count(self, user):
+        """هل يمكن للمستخدم إجراء جرد"""
+        return user.has_perm('assets.can_conduct_physical_count')
 
+    # العمليات
     @transaction.atomic
     def calculate_monthly_depreciation(self, user=None):
         """احتساب الإهلاك الشهري"""
         from django.utils import timezone
-        from decimal import Decimal
 
         if not self.can_user_calculate_depreciation(user):
             raise PermissionDenied(_('ليس لديك صلاحية احتساب الإهلاك'))
@@ -498,6 +655,10 @@ class Asset(DocumentBaseModel):
 
         if self.status != 'active':
             raise ValidationError(_('الأصل غير نشط'))
+
+        # ✅ التحقق من حالة الإهلاك
+        if self.depreciation_status != 'active':
+            raise ValidationError(_('الإهلاك متوقف لهذا الأصل'))
 
         # حساب مبلغ الإهلاك الشهري
         depreciable_amount = self.get_depreciable_amount()
@@ -541,6 +702,11 @@ class Asset(DocumentBaseModel):
         # تحديث الأصل
         self.accumulated_depreciation += monthly_depreciation
         self.book_value -= monthly_depreciation
+
+        # ✅ تحديث حالة الإهلاك
+        if self.is_fully_depreciated():
+            self.depreciation_status = 'completed'
+
         self.save()
 
         return depreciation_record
@@ -549,7 +715,8 @@ class Asset(DocumentBaseModel):
     def sell(self, sale_price, buyer, user=None):
         """بيع الأصل مع إنشاء القيد المحاسبي"""
         from django.utils import timezone
-        from apps.accounting.models import JournalEntry, JournalEntryLine, Account, FiscalYear, AccountingPeriod
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+        from ..accounting_config import AssetAccountingConfiguration
 
         if not self.can_user_sell(user):
             raise PermissionDenied(_('ليس لديك صلاحية بيع الأصول'))
@@ -557,8 +724,12 @@ class Asset(DocumentBaseModel):
         if self.status != 'active':
             raise ValidationError(_('الأصل غير نشط'))
 
+        # ✅ الحصول على الإعدادات
+        config = AssetAccountingConfiguration.get_or_create_for_company(self.company)
+
         # إنشاء معاملة البيع
-        transaction = AssetTransaction.objects.create(
+        from .transaction_models import AssetTransaction
+        transaction_obj = AssetTransaction.objects.create(
             company=self.company,
             branch=self.branch,
             transaction_date=timezone.now().date(),
@@ -572,12 +743,12 @@ class Asset(DocumentBaseModel):
             created_by=user
         )
 
-        # 🆕 إنشاء القيد المحاسبي
+        # إنشاء القيد المحاسبي
         try:
             fiscal_year = FiscalYear.objects.get(
                 company=self.company,
-                start_date__lte=transaction.transaction_date,
-                end_date__gte=transaction.transaction_date,
+                start_date__lte=transaction_obj.transaction_date,
+                end_date__gte=transaction_obj.transaction_date,
                 is_closed=False
             )
         except FiscalYear.DoesNotExist:
@@ -585,8 +756,8 @@ class Asset(DocumentBaseModel):
 
         period = AccountingPeriod.objects.filter(
             fiscal_year=fiscal_year,
-            start_date__lte=transaction.transaction_date,
-            end_date__gte=transaction.transaction_date,
+            start_date__lte=transaction_obj.transaction_date,
+            end_date__gte=transaction_obj.transaction_date,
             is_closed=False
         ).first()
 
@@ -595,19 +766,19 @@ class Asset(DocumentBaseModel):
             branch=self.branch,
             fiscal_year=fiscal_year,
             period=period,
-            entry_date=transaction.transaction_date,
+            entry_date=transaction_obj.transaction_date,
             entry_type='auto',
             description=f"بيع أصل ثابت {self.asset_number} - {self.name}",
-            reference=transaction.transaction_number,
+            reference=transaction_obj.transaction_number,
             source_document='asset_transaction',
-            source_id=transaction.pk,
+            source_id=transaction_obj.pk,
             created_by=user
         )
 
         line_number = 1
 
-        # 1. البنك/الصندوق (مدين)
-        cash_account = Account.objects.get(company=self.company, code='110100')
+        # ✅ 1. البنك/الصندوق (مدين) - ديناميكي
+        cash_account = config.get_bank_account()
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,
@@ -621,11 +792,14 @@ class Asset(DocumentBaseModel):
 
         # 2. مجمع الإهلاك (مدين)
         if self.accumulated_depreciation > 0:
-            acc_depreciation_account = self.category.accumulated_depreciation_account
+            if not self.category.accumulated_depreciation_account:
+                raise ValidationError(
+                    _('لم يتم تحديد حساب مجمع الإهلاك في فئة الأصل')
+                )
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
                 line_number=line_number,
-                account=acc_depreciation_account,
+                account=self.category.accumulated_depreciation_account,
                 description=f"إقفال مجمع الإهلاك - {self.name}",
                 debit_amount=self.accumulated_depreciation,
                 credit_amount=0,
@@ -634,11 +808,14 @@ class Asset(DocumentBaseModel):
             line_number += 1
 
         # 3. حساب الأصل (دائن)
-        asset_account = self.category.asset_account
+        if not self.category.asset_account:
+            raise ValidationError(
+                _('لم يتم تحديد حساب الأصول في فئة الأصل')
+            )
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,
-            account=asset_account,
+            account=self.category.asset_account,
             description=f"إقفال أصل - {self.name}",
             debit_amount=0,
             credit_amount=self.original_cost,
@@ -646,15 +823,18 @@ class Asset(DocumentBaseModel):
         )
         line_number += 1
 
-        # 4. الربح أو الخسارة
+        # ✅ 4. الربح أو الخسارة - ديناميكي
         gain_loss = sale_price - self.book_value
         if gain_loss > 0:
             # ربح بيع أصول (دائن)
-            gain_account = Account.objects.get(company=self.company, code='420100')  # حساب أرباح بيع أصول
+            if not self.category.gain_on_sale_account:
+                raise ValidationError(
+                    _('لم يتم تحديد حساب أرباح بيع الأصول في فئة الأصل')
+                )
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
                 line_number=line_number,
-                account=gain_account,
+                account=self.category.gain_on_sale_account,
                 description=f"ربح بيع أصل - {self.name}",
                 debit_amount=0,
                 credit_amount=gain_loss,
@@ -662,11 +842,14 @@ class Asset(DocumentBaseModel):
             )
         elif gain_loss < 0:
             # خسارة بيع أصول (مدين)
-            loss_account = Account.objects.get(company=self.company, code='520100')  # حساب خسائر بيع أصول
+            if not self.category.loss_on_disposal_account:
+                raise ValidationError(
+                    _('لم يتم تحديد حساب خسائر بيع الأصول في فئة الأصل')
+                )
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
                 line_number=line_number,
-                account=loss_account,
+                account=self.category.loss_on_disposal_account,
                 description=f"خسارة بيع أصل - {self.name}",
                 debit_amount=abs(gain_loss),
                 credit_amount=0,
@@ -677,14 +860,14 @@ class Asset(DocumentBaseModel):
         journal_entry.post(user=user)
 
         # ربط القيد بالمعاملة
-        transaction.journal_entry = journal_entry
-        transaction.save()
+        transaction_obj.journal_entry = journal_entry
+        transaction_obj.save()
 
         # تحديث حالة الأصل
         self.status = 'sold'
         self.save()
 
-        return transaction
+        return transaction_obj
 
     @transaction.atomic
     def dispose(self, reason, user=None):
@@ -696,7 +879,8 @@ class Asset(DocumentBaseModel):
             raise PermissionDenied(_('ليس لديك صلاحية استبعاد الأصول'))
 
         # إنشاء معاملة الاستبعاد
-        transaction = AssetTransaction.objects.create(
+        from .transaction_models import AssetTransaction
+        transaction_obj = AssetTransaction.objects.create(
             company=self.company,
             branch=self.branch,
             transaction_date=timezone.now().date(),
@@ -711,8 +895,8 @@ class Asset(DocumentBaseModel):
         try:
             fiscal_year = FiscalYear.objects.get(
                 company=self.company,
-                start_date__lte=transaction.transaction_date,
-                end_date__gte=transaction.transaction_date,
+                start_date__lte=transaction_obj.transaction_date,
+                end_date__gte=transaction_obj.transaction_date,
                 is_closed=False
             )
         except FiscalYear.DoesNotExist:
@@ -720,8 +904,8 @@ class Asset(DocumentBaseModel):
 
         period = AccountingPeriod.objects.filter(
             fiscal_year=fiscal_year,
-            start_date__lte=transaction.transaction_date,
-            end_date__gte=transaction.transaction_date,
+            start_date__lte=transaction_obj.transaction_date,
+            end_date__gte=transaction_obj.transaction_date,
             is_closed=False
         ).first()
 
@@ -730,12 +914,12 @@ class Asset(DocumentBaseModel):
             branch=self.branch,
             fiscal_year=fiscal_year,
             period=period,
-            entry_date=transaction.transaction_date,
+            entry_date=transaction_obj.transaction_date,
             entry_type='auto',
             description=f"استبعاد أصل ثابت {self.asset_number} - {self.name}",
-            reference=transaction.transaction_number,
+            reference=transaction_obj.transaction_number,
             source_document='asset_transaction',
-            source_id=transaction.pk,
+            source_id=transaction_obj.pk,
             created_by=user
         )
 
@@ -757,7 +941,7 @@ class Asset(DocumentBaseModel):
 
         # 2. خسارة استبعاد (مدين) - إذا كان هناك قيمة دفترية متبقية
         if self.book_value > 0:
-            loss_account = Account.objects.get(company=self.company, code='520200')  # خسائر استبعاد أصول
+            loss_account = Account.objects.get(company=self.company, code='520200')
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
                 line_number=line_number,
@@ -785,15 +969,14 @@ class Asset(DocumentBaseModel):
         journal_entry.post(user=user)
 
         # ربط القيد
-        transaction.journal_entry = journal_entry
-        transaction.save()
+        transaction_obj.journal_entry = journal_entry
+        transaction_obj.save()
 
         # تحديث حالة الأصل
         self.status = 'disposed'
         self.save()
 
-        return transaction
-
+        return transaction_obj
 
 
 class AssetDepreciation(BaseModel):
@@ -866,6 +1049,22 @@ class AssetDepreciation(BaseModel):
         verbose_name=_('القيد المحاسبي')
     )
 
+    # ✅ جديد: حالة الترحيل
+    is_posted = models.BooleanField(
+        _('مرحّل'),
+        default=False,
+        help_text=_('هل تم ترحيل القيد المحاسبي')
+    )
+
+    # ✅ جديد: القيد العكسي
+    reversal_entry = models.ForeignKey(
+        'accounting.JournalEntry',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reversed_depreciations',
+        verbose_name=_('القيد العكسي')
+    )
 
     notes = models.TextField(_('ملاحظات'), blank=True)
 
@@ -889,6 +1088,7 @@ class AssetAttachment(models.Model):
         ('contract', _('عقد')),
         ('maintenance', _('مستند صيانة')),
         ('manual', _('دليل الاستخدام')),
+        ('insurance', _('مستند تأمين')),  # ✅ جديد
         ('other', _('أخرى')),
     ]
 

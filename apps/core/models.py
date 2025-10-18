@@ -386,106 +386,47 @@ class Company(models.Model):
 
         # قائمة الحسابات الافتراضية
         default_accounts = [
-            # الأصول
-            {
-                'code': '110000',
-                'name': 'الأصول المتداولة',
-                'type': 'assets',
-                'parent': None,
-                'accept_entries': False
-            },
-            {
-                'code': '110100',
-                'name': 'النقدية والبنوك',
-                'type': 'assets',
-                'parent': '110000',
-                'is_cash_account': False,
-                'is_bank_account': True
-            },
-            {
-                'code': '110200',
-                'name': 'الصندوق',
-                'type': 'assets',
-                'parent': '110000',
-                'is_cash_account': True
-            },
-            {
-                'code': '120000',
-                'name': 'المخزون',
-                'type': 'assets',
-                'parent': None
-            },
-            {
-                'code': '120300',
-                'name': 'سلف الموظفين',
-                'type': 'assets',
-                'parent': None
-            },
+            # الأصول المتداولة
+            {'code': '110000', 'name': 'الأصول المتداولة', 'type': 'assets', 'parent': None, 'accept_entries': False},
+            {'code': '110100', 'name': 'البنك', 'type': 'assets', 'parent': '110000', 'is_bank_account': True},
+            {'code': '110200', 'name': 'الصندوق', 'type': 'assets', 'parent': '110000', 'is_cash_account': True},
+            {'code': '120000', 'name': 'المخزون', 'type': 'assets', 'parent': None},
+            {'code': '120300', 'name': 'سلف الموظفين', 'type': 'assets', 'parent': None},
+            {'code': '220100', 'name': 'العملاء', 'type': 'assets', 'parent': None},
+
+            # ✅ الأصول الثابتة
+            {'code': '130000', 'name': 'الأصول الثابتة', 'type': 'assets', 'parent': None, 'accept_entries': False},
+            {'code': '130100', 'name': 'الأصول الثابتة - التكلفة', 'type': 'assets', 'parent': '130000'},
+            {'code': '131000', 'name': 'مجمع إهلاك الأصول الثابتة', 'type': 'assets', 'parent': None},
+
             # الخصوم
-            {
-                'code': '210000',
-                'name': 'الخصوم المتداولة',
-                'type': 'liabilities',
-                'parent': None,
-                'accept_entries': False
-            },
-            {
-                'code': '210100',
-                'name': 'الموردين',
-                'type': 'liabilities',
-                'parent': '210000'
-            },
-            {
-                'code': '220100',
-                'name': 'العملاء',
-                'type': 'assets',
-                'parent': None
-            },
+            {'code': '210000', 'name': 'الخصوم المتداولة', 'type': 'liabilities', 'parent': None,
+             'accept_entries': False},
+            {'code': '210100', 'name': 'الموردين', 'type': 'liabilities', 'parent': '210000'},
+            {'code': '210300', 'name': 'التزامات الإيجار التمويلي', 'type': 'liabilities', 'parent': '210000'},
+
             # حقوق الملكية
-            {
-                'code': '310000',
-                'name': 'رأس المال',
-                'type': 'equity',
-                'parent': None
-            },
+            {'code': '310000', 'name': 'رأس المال', 'type': 'equity', 'parent': None},
+
             # الإيرادات
-            {
-                'code': '410000',
-                'name': 'إيرادات المبيعات',
-                'type': 'revenue',
-                'parent': None
-            },
-            {
-                'code': '420000',
-                'name': 'خصم المبيعات',
-                'type': 'revenue',
-                'parent': None
-            },
-            # المصروفات
-            {
-                'code': '510000',
-                'name': 'تكلفة البضاعة المباعة',
-                'type': 'expenses',
-                'parent': None
-            },
-            {
-                'code': '510100',
-                'name': 'مصروف الرواتب',
-                'type': 'expenses',
-                'parent': None
-            },
-            {
-                'code': '520000',
-                'name': 'المصروفات العمومية',
-                'type': 'expenses',
-                'parent': None
-            },
-            {
-                'code': '530000',
-                'name': 'خصم المشتريات',
-                'type': 'expenses',
-                'parent': None
-            },
+            {'code': '410000', 'name': 'إيرادات المبيعات', 'type': 'revenue', 'parent': None},
+            {'code': '420000', 'name': 'خصم المبيعات', 'type': 'revenue', 'parent': None},
+            {'code': '420100', 'name': 'أرباح بيع أصول ثابتة', 'type': 'revenue', 'parent': None},
+            {'code': '420200', 'name': 'إيرادات تعويضات تأمين', 'type': 'revenue', 'parent': None},
+
+            # ✅ المصروفات - الأصول
+            {'code': '510000', 'name': 'تكلفة البضاعة المباعة', 'type': 'expenses', 'parent': None},
+            {'code': '510100', 'name': 'مصروف الرواتب', 'type': 'expenses', 'parent': None},
+            {'code': '520000', 'name': 'المصروفات العمومية', 'type': 'expenses', 'parent': None,
+             'accept_entries': False},
+            {'code': '520100', 'name': 'خسائر بيع أصول ثابتة', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520200', 'name': 'خسائر استبعاد أصول', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520300', 'name': 'مصروف الصيانة', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520400', 'name': 'مصروف الإيجار', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520500', 'name': 'مصروف فوائد', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520600', 'name': 'مصروف تحمل التأمين', 'type': 'expenses', 'parent': '520000'},
+            {'code': '520700', 'name': 'مصروف الإهلاك', 'type': 'expenses', 'parent': '520000'},
+            {'code': '530000', 'name': 'خصم المشتريات', 'type': 'expenses', 'parent': None},
         ]
 
         # إنشاء الحسابات

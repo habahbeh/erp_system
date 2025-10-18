@@ -1,146 +1,293 @@
-# Path: apps/assets/signals.py
+# apps/assets/signals.py
 """
-Signals للأحداث التلقائية في نظام الأصول
+إشارات Django للأصول الثابتة
+- إشعارات تلقائية
+- تحديثات تلقائية
 """
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from django.core.mail import send_mail
-from django.conf import settings
+from django.utils import timezone
 import datetime
 
 from .models import (
-    Asset, AssetMaintenance, MaintenanceSchedule,
-    AssetTransaction, AssetAttachment
+    Asset,
+    AssetMaintenance,
+    MaintenanceSchedule,
+    AssetInsurance,
+    PhysicalCount,
+    AssetLease,
+    LeasePayment,
 )
 
 
+# ============ إشعارات الصيانة ============
+
+@receiver(post_save, sender=MaintenanceSchedule)
+def check_maintenance_due(sender, instance, created, **kwargs):
+    """إرسال إشعار عند قرب موعد الصيانة"""
+    from .models import AssetNotification, NotificationSettings
+
+    if not instance.is_active:
+        return
+
+    if instance.is_due_soon():
+        # الحصول على المسؤول
+        responsible = instance.assigned_to or instance.asset.responsible_employee
+
+        if not responsible:
+            return
+
+        # الحصول على إعدادات الإشعارات
+        settings = NotificationSettings.objects.filter(
+            user=responsible,
+            maintenance_enabled=True
+        ).first()
+
+        if not settings:
+            return
+
+        # التحقق من عدم وجود إشعار سابق في آخر 24 ساعة
+        yesterday = timezone.now() - datetime.timedelta(days=1)
+        existing = AssetNotification.objects.filter(
+            notification_type='maintenance_due',
+            asset=instance.asset,
+            recipient=responsible,
+            created_at__gte=yesterday
+        ).exists()
+
+        if existing:
+            return
+
+        # إنشاء الإشعار
+        context = {
+            'asset_name': instance.asset.name,
+            'asset_number': instance.asset.asset_number,
+            'date': instance.next_maintenance_date.strftime('%Y-%m-%d'),
+            'location': instance.asset.physical_location or '',
+            'maintenance_type': instance.maintenance_type.name,
+        }
+
+        AssetNotification.create_notification(
+            notification_type='maintenance_due',
+            asset=instance.asset,
+            recipient=responsible,
+            context=context
+        )
+
+
+# ============ إشعارات الضمان ============
+
 @receiver(post_save, sender=Asset)
-def asset_created_handler(sender, instance, created, **kwargs):
-    """
-    عند إنشاء أصل جديد:
-    1. إنشاء جدول صيانة افتراضي إذا كانت الفئة تحتوي على إعدادات افتراضية
-    2. إرسال إشعار للمسؤول
-    """
-    if created:
-        # إنشاء جدول صيانة وقائية افتراضي (سنوي)
-        if instance.category:
-            try:
-                # البحث عن نوع صيانة وقائية
-                from .models import MaintenanceType
-                preventive_type = MaintenanceType.objects.filter(
-                    code='PREV',
-                    is_active=True
-                ).first()
+def check_warranty_expiry(sender, instance, created, **kwargs):
+    """إرسال إشعار عند قرب انتهاء الضمان"""
+    from .models import AssetNotification, NotificationSettings
 
-                if preventive_type:
-                    # إنشاء جدولة سنوية
-                    MaintenanceSchedule.objects.create(
-                        company=instance.company,
-                        branch=instance.branch,
-                        asset=instance,
-                        maintenance_type=preventive_type,
-                        frequency='annual',
-                        start_date=instance.purchase_date,
-                        next_maintenance_date=instance.purchase_date + datetime.timedelta(days=365),
-                        alert_before_days=30,
-                        description=f'صيانة وقائية سنوية - {instance.name}',
-                        created_by=instance.created_by
-                    )
-            except Exception as e:
-                pass  # فشل صامت
+    if not instance.warranty_end_date:
+        return
 
+    responsible = instance.responsible_employee
+    if not responsible:
+        return
+
+    settings = NotificationSettings.objects.filter(
+        user=responsible,
+        warranty_enabled=True
+    ).first()
+
+    if not settings:
+        return
+
+    # التحقق من قرب انتهاء الضمان
+    today = datetime.date.today()
+    days_until_expiry = (instance.warranty_end_date - today).days
+
+    if 0 <= days_until_expiry <= settings.warranty_days_before:
+        # التحقق من عدم وجود إشعار سابق
+        yesterday = timezone.now() - datetime.timedelta(days=1)
+        existing = AssetNotification.objects.filter(
+            notification_type='warranty_expiry',
+            asset=instance,
+            recipient=responsible,
+            created_at__gte=yesterday
+        ).exists()
+
+        if not existing:
+            context = {
+                'asset_name': instance.name,
+                'asset_number': instance.asset_number,
+                'date': instance.warranty_end_date.strftime('%Y-%m-%d'),
+                'days': days_until_expiry,
+            }
+
+            AssetNotification.create_notification(
+                notification_type='warranty_expiry',
+                asset=instance,
+                recipient=responsible,
+                context=context
+            )
+
+
+# ============ إشعارات التأمين ============
+
+@receiver(post_save, sender=AssetInsurance)
+def check_insurance_expiry(sender, instance, created, **kwargs):
+    """إرسال إشعار عند قرب انتهاء التأمين"""
+    from .models import AssetNotification, NotificationSettings
+
+    if instance.status != 'active':
+        return
+
+    responsible = instance.asset.responsible_employee
+    if not responsible:
+        return
+
+    settings = NotificationSettings.objects.filter(
+        user=responsible,
+        insurance_enabled=True
+    ).first()
+
+    if not settings:
+        return
+
+    # التحقق من قرب انتهاء التأمين
+    today = datetime.date.today()
+    days_until_expiry = (instance.end_date - today).days
+
+    if 0 <= days_until_expiry <= settings.insurance_days_before:
+        yesterday = timezone.now() - datetime.timedelta(days=1)
+        existing = AssetNotification.objects.filter(
+            notification_type='insurance_expiry',
+            asset=instance.asset,
+            recipient=responsible,
+            created_at__gte=yesterday
+        ).exists()
+
+        if not existing:
+            context = {
+                'asset_name': instance.asset.name,
+                'asset_number': instance.asset.asset_number,
+                'date': instance.end_date.strftime('%Y-%m-%d'),
+                'days': days_until_expiry,
+                'insurance_company': instance.insurance_company.name,
+            }
+
+            AssetNotification.create_notification(
+                notification_type='insurance_expiry',
+                asset=instance.asset,
+                recipient=responsible,
+                context=context
+            )
+
+
+# ============ إشعارات الإهلاك الكامل ============
+
+@receiver(post_save, sender=Asset)
+def check_depreciation_complete(sender, instance, created, **kwargs):
+    """إرسال إشعار عند إهلاك الأصل بالكامل"""
+    from .models import AssetNotification
+
+    if instance.is_fully_depreciated() and instance.depreciation_status == 'active':
+        responsible = instance.responsible_employee
+        if not responsible:
+            return
+
+        # التحقق من عدم وجود إشعار سابق
+        existing = AssetNotification.objects.filter(
+            notification_type='depreciation_complete',
+            asset=instance,
+            recipient=responsible
+        ).exists()
+
+        if not existing:
+            context = {
+                'asset_name': instance.name,
+                'asset_number': instance.asset_number,
+            }
+
+            AssetNotification.create_notification(
+                notification_type='depreciation_complete',
+                asset=instance,
+                recipient=responsible,
+                context=context
+            )
+
+
+# ============ تحديث حالة الأصل ============
 
 @receiver(post_save, sender=AssetMaintenance)
-def maintenance_status_changed(sender, instance, created, **kwargs):
-    """
-    عند تغيير حالة الصيانة:
-    1. تحديث حالة الأصل
-    2. إرسال إشعار
-    """
-    if not created:
-        # تحديث حالة الأصل
-        if instance.status == 'in_progress':
-            if instance.asset.status != 'under_maintenance':
-                instance.asset.status = 'under_maintenance'
-                instance.asset.save()
-
-        elif instance.status == 'completed':
-            if instance.asset.status == 'under_maintenance':
-                # التحقق من عدم وجود صيانة أخرى جارية
-                other_maintenance = AssetMaintenance.objects.filter(
-                    asset=instance.asset,
-                    status='in_progress'
-                ).exclude(pk=instance.pk).exists()
-
-                if not other_maintenance:
-                    instance.asset.status = 'active'
-                    instance.asset.save()
+def update_asset_status_on_maintenance(sender, instance, created, **kwargs):
+    """تحديث حالة الأصل عند بدء/انتهاء الصيانة"""
+    if instance.status == 'in_progress':
+        instance.asset.status = 'under_maintenance'
+        instance.asset.save(update_fields=['status'])
+    elif instance.status == 'completed':
+        if instance.asset.status == 'under_maintenance':
+            instance.asset.status = 'active'
+            instance.asset.save(update_fields=['status'])
 
 
-@receiver(pre_save, sender=AssetMaintenance)
-def check_overdue_maintenance(sender, instance, **kwargs):
-    """
-    التحقق من الصيانة المتأخرة قبل الحفظ
-    """
-    if instance.status == 'scheduled':
-        if instance.scheduled_date < datetime.date.today():
-            # يمكن إضافة منطق للتنبيه
-            pass
+# ============ تحديث حالة التأمين ============
+
+@receiver(post_save, sender=AssetInsurance)
+def update_insurance_status(sender, instance, created, **kwargs):
+    """تحديث حالة التأمين للأصل"""
+    if instance.is_active():
+        instance.asset.insurance_status = 'insured'
+    elif instance.status == 'expired':
+        instance.asset.insurance_status = 'expired'
+    else:
+        instance.asset.insurance_status = 'not_insured'
+
+    instance.asset.save(update_fields=['insurance_status'])
 
 
-@receiver(post_save, sender=AssetAttachment)
-def attachment_expiry_check(sender, instance, created, **kwargs):
-    """
-    التحقق من انتهاء صلاحية المرفقات (مثل الضمانات)
-    """
-    if instance.expiry_date:
-        days_until_expiry = (instance.expiry_date - datetime.date.today()).days
+# ============ إشعارات الإيجار ============
 
-        # إشعار قبل 30 يوم من الانتهاء
-        if 0 < days_until_expiry <= 30:
-            try:
-                # إرسال إشعار للمسؤول
-                if instance.asset.responsible_employee and instance.asset.responsible_employee.email:
-                    subject = f'تنبيه: انتهاء صلاحية {instance.get_attachment_type_display()}'
-                    message = f"""
-تنبيه: سينتهي {instance.get_attachment_type_display()} للأصل {instance.asset.name} في {instance.expiry_date}
+@receiver(post_save, sender=LeasePayment)
+def check_lease_payment_due(sender, instance, created, **kwargs):
+    """إرسال إشعار عند قرب موعد قسط الإيجار"""
+    from .models import AssetNotification, NotificationSettings
 
-عدد الأيام المتبقية: {days_until_expiry} يوم
+    if instance.is_paid:
+        return
 
-الرجاء اتخاذ الإجراء اللازم.
-                    """
+    responsible = instance.lease.asset.responsible_employee
+    if not responsible:
+        return
 
-                    send_mail(
-                        subject=subject,
-                        message=message,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[instance.asset.responsible_employee.email],
-                        fail_silently=True
-                    )
-            except Exception:
-                pass
+    settings = NotificationSettings.objects.filter(
+        user=responsible,
+        lease_enabled=True
+    ).first()
 
+    if not settings:
+        return
 
-@receiver(post_save, sender=AssetTransaction)
-def transaction_completed_handler(sender, instance, created, **kwargs):
-    """
-    عند اكتمال عملية على الأصل:
-    1. تحديث حالة الأصل
-    2. تسجيل في سجل التدقيق
-    """
-    if instance.status == 'completed':
-        # تحديث حالة الأصل حسب نوع العملية
-        if instance.transaction_type == 'sale':
-            instance.asset.status = 'sold'
-            instance.asset.save()
+    today = datetime.date.today()
+    days_until_payment = (instance.payment_date - today).days
 
-        elif instance.transaction_type == 'disposal':
-            instance.asset.status = 'disposed'
-            instance.asset.save()
+    if 0 <= days_until_payment <= settings.lease_days_before:
+        yesterday = timezone.now() - datetime.timedelta(days=1)
+        existing = AssetNotification.objects.filter(
+            notification_type='lease_payment_due',
+            asset=instance.lease.asset,
+            recipient=responsible,
+            created_at__gte=yesterday
+        ).exists()
 
+        if not existing:
+            context = {
+                'asset_name': instance.lease.asset.name,
+                'asset_number': instance.lease.asset.asset_number,
+                'date': instance.payment_date.strftime('%Y-%m-%d'),
+                'amount': str(instance.amount),
+                'payment_number': instance.payment_number,
+            }
 
-# تسجيل الـ Signals
-def register_signals():
-    """تسجيل جميع الـ Signals"""
-    pass  # يتم التسجيل تلقائياً عبر decorators
+            AssetNotification.create_notification(
+                notification_type='lease_payment_due',
+                asset=instance.lease.asset,
+                recipient=responsible,
+                context=context
+            )
