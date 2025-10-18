@@ -671,7 +671,7 @@ class PhysicalCountAdjustment(DocumentBaseModel):
         if self.loss_amount > 0:
             loss_account = asset.category.loss_on_disposal_account
             if not loss_account:
-                loss_account = Account.objects.get(company=self.company, code='520200')
+                loss_account = asset.category.loss_on_disposal_account
 
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
