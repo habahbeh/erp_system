@@ -1,15 +1,23 @@
 # apps/assets/views/__init__.py
 """
-Views تطبيق إدارة الأصول الثابتة
+Assets Views Package
+تصدير جميع views تطبيق إدارة الأصول
 """
 
-# Base Report Views
-from .base_report_views import BaseReportView, ExportMixin
+# ==================== Dashboard ====================
+from .dashboard_views import (
+    AssetDashboardView,
+    dashboard_stats_api,
+    assets_by_category_chart_api,
+    depreciation_trend_chart_api,
+    maintenance_cost_chart_api,
+    asset_age_distribution_api,
+    alerts_summary_api,
+    recent_activities_api,
+    top_assets_by_value_api,
+)
 
-# Dashboard
-from .dashboard_views import AssetsDashboardView
-
-# Assets
+# ==================== Asset Views ====================
 from .asset_views import (
     AssetListView,
     AssetCreateView,
@@ -17,61 +25,146 @@ from .asset_views import (
     AssetDetailView,
     AssetDeleteView,
     asset_datatable_ajax,
-    AssetCategoryListView,
-    AssetCategoryCreateView,
-    AssetCategoryUpdateView,
-    asset_category_datatable_ajax,
+    asset_stats_ajax,
+    asset_search_ajax,
+    asset_quick_info_ajax,
 )
 
-# Transactions
+# ==================== Transaction Views ====================
 from .transaction_views import (
     AssetTransactionListView,
-    AssetPurchaseView,
-    AssetSaleView,
-    AssetDisposalView,
+    AssetTransactionCreateView,
+    AssetTransactionDetailView,
+    AssetTransactionDeleteView,
     AssetTransferListView,
     AssetTransferCreateView,
-    asset_transaction_datatable_ajax,
+    AssetTransferDetailView,
+    AssetTransferDeleteView,
+    transaction_datatable_ajax,
+    transfer_datatable_ajax,
+    approve_transfer_ajax,
+    sell_asset_ajax,
+    dispose_asset_ajax,
 )
 
-# Maintenance
+# ==================== Depreciation Views ====================
+from .depreciation_views import (
+    AssetDepreciationListView,
+    AssetDepreciationDetailView,
+    CalculateMonthlyDepreciationView,
+    CalculateBatchDepreciationView,
+    asset_depreciation_datatable_ajax,
+    depreciation_stats_ajax,
+    calculate_depreciation_ajax,
+    calculate_batch_depreciation_ajax,
+)
+
+# ==================== Maintenance Views ====================
 from .maintenance_views import (
     MaintenanceScheduleListView,
     MaintenanceScheduleCreateView,
     MaintenanceScheduleUpdateView,
+    MaintenanceScheduleDetailView,
+    MaintenanceScheduleDeleteView,
     AssetMaintenanceListView,
     AssetMaintenanceCreateView,
     AssetMaintenanceUpdateView,
     AssetMaintenanceDetailView,
-    maintenance_datatable_ajax,
+    AssetMaintenanceDeleteView,
+    maintenance_schedule_datatable_ajax,
+    asset_maintenance_datatable_ajax,
+    mark_maintenance_completed_ajax,
 )
 
-# Depreciation
-from .depreciation_views import (
-    DepreciationCalculationView,
-    DepreciationHistoryView,
-    depreciation_history_ajax,
+# ==================== Valuation Views ====================
+from .valuation_views import (
+    AssetValuationListView,
+    AssetValuationCreateView,
+    AssetValuationDetailView,
+    AssetValuationDeleteView,
+    asset_valuation_datatable_ajax,
+    approve_valuation_ajax,
+    valuation_stats_ajax,
+    get_asset_current_value_ajax,
 )
 
-# Reports
+# ==================== Attachment Views ====================
+from .attachment_views import (
+    AssetAttachmentListView,
+    AssetAttachmentCreateView,
+    AssetAttachmentDetailView,
+    AssetAttachmentDeleteView,
+    download_attachment,
+    view_attachment,
+    asset_attachments_ajax,
+    upload_attachment_ajax,
+    delete_attachment_ajax,
+    expired_attachments_ajax,
+    expiring_soon_attachments_ajax,
+)
+
+# ==================== Settings Views ====================
+from .settings_views import (
+    # Asset Category
+    AssetCategoryListView,
+    AssetCategoryCreateView,
+    AssetCategoryUpdateView,
+    AssetCategoryDeleteView,
+    asset_category_datatable_ajax,
+
+    # Depreciation Method
+    DepreciationMethodListView,
+    DepreciationMethodCreateView,
+    DepreciationMethodUpdateView,
+    DepreciationMethodDeleteView,
+    depreciation_method_datatable_ajax,
+
+    # Asset Condition
+    AssetConditionListView,
+    AssetConditionCreateView,
+    AssetConditionUpdateView,
+    AssetConditionDeleteView,
+    asset_condition_datatable_ajax,
+
+    # Maintenance Type
+    MaintenanceTypeListView,
+    MaintenanceTypeCreateView,
+    MaintenanceTypeUpdateView,
+    MaintenanceTypeDeleteView,
+    maintenance_type_datatable_ajax,
+)
+
+# ==================== Report Views ====================
 from .report_views import (
-    ReportsListView,
     AssetRegisterReportView,
+    export_asset_register,
     DepreciationReportView,
-    MaintenanceReportView,
+    export_depreciation_report,
     AssetMovementReportView,
-    AssetByCostCenterReportView,
-    AssetNearEndOfLifeReportView,
-    FairValueReportView,
+    export_asset_movement_report,
+    MaintenanceReportView,
+    export_maintenance_report,
 )
 
-__all__ = [
-    # Base Classes
-    'BaseReportView',
-    'ExportMixin',
+# ==================== Base Report Views ====================
+from .base_report_views import (
+    BaseAssetReportView,
+    BaseAssetExportView,
+    BaseAssetReportExportView,
+)
 
+# ==================== __all__ للتصدير ====================
+__all__ = [
     # Dashboard
-    'AssetsDashboardView',
+    'AssetDashboardView',
+    'dashboard_stats_api',
+    'assets_by_category_chart_api',
+    'depreciation_trend_chart_api',
+    'maintenance_cost_chart_api',
+    'asset_age_distribution_api',
+    'alerts_summary_api',
+    'recent_activities_api',
+    'top_assets_by_value_api',
 
     # Assets
     'AssetListView',
@@ -80,42 +173,113 @@ __all__ = [
     'AssetDetailView',
     'AssetDeleteView',
     'asset_datatable_ajax',
-    'AssetCategoryListView',
-    'AssetCategoryCreateView',
-    'AssetCategoryUpdateView',
-    'asset_category_datatable_ajax',
+    'asset_stats_ajax',
+    'asset_search_ajax',
+    'asset_quick_info_ajax',
 
     # Transactions
     'AssetTransactionListView',
-    'AssetPurchaseView',
-    'AssetSaleView',
-    'AssetDisposalView',
+    'AssetTransactionCreateView',
+    'AssetTransactionDetailView',
+    'AssetTransactionDeleteView',
     'AssetTransferListView',
     'AssetTransferCreateView',
-    'asset_transaction_datatable_ajax',
+    'AssetTransferDetailView',
+    'AssetTransferDeleteView',
+    'transaction_datatable_ajax',
+    'transfer_datatable_ajax',
+    'approve_transfer_ajax',
+    'sell_asset_ajax',
+    'dispose_asset_ajax',
+
+    # Depreciation
+    'AssetDepreciationListView',
+    'AssetDepreciationDetailView',
+    'CalculateMonthlyDepreciationView',
+    'CalculateBatchDepreciationView',
+    'asset_depreciation_datatable_ajax',
+    'depreciation_stats_ajax',
+    'calculate_depreciation_ajax',
+    'calculate_batch_depreciation_ajax',
 
     # Maintenance
     'MaintenanceScheduleListView',
     'MaintenanceScheduleCreateView',
     'MaintenanceScheduleUpdateView',
+    'MaintenanceScheduleDetailView',
+    'MaintenanceScheduleDeleteView',
     'AssetMaintenanceListView',
     'AssetMaintenanceCreateView',
     'AssetMaintenanceUpdateView',
     'AssetMaintenanceDetailView',
-    'maintenance_datatable_ajax',
+    'AssetMaintenanceDeleteView',
+    'maintenance_schedule_datatable_ajax',
+    'asset_maintenance_datatable_ajax',
+    'mark_maintenance_completed_ajax',
 
-    # Depreciation
-    'DepreciationCalculationView',
-    'DepreciationHistoryView',
-    'depreciation_history_ajax',
+    # Valuation
+    'AssetValuationListView',
+    'AssetValuationCreateView',
+    'AssetValuationDetailView',
+    'AssetValuationDeleteView',
+    'asset_valuation_datatable_ajax',
+    'approve_valuation_ajax',
+    'valuation_stats_ajax',
+    'get_asset_current_value_ajax',
+
+    # Attachments
+    'AssetAttachmentListView',
+    'AssetAttachmentCreateView',
+    'AssetAttachmentDetailView',
+    'AssetAttachmentDeleteView',
+    'download_attachment',
+    'view_attachment',
+    'asset_attachments_ajax',
+    'upload_attachment_ajax',
+    'delete_attachment_ajax',
+    'expired_attachments_ajax',
+    'expiring_soon_attachments_ajax',
+
+    # Settings - Asset Category
+    'AssetCategoryListView',
+    'AssetCategoryCreateView',
+    'AssetCategoryUpdateView',
+    'AssetCategoryDeleteView',
+    'asset_category_datatable_ajax',
+
+    # Settings - Depreciation Method
+    'DepreciationMethodListView',
+    'DepreciationMethodCreateView',
+    'DepreciationMethodUpdateView',
+    'DepreciationMethodDeleteView',
+    'depreciation_method_datatable_ajax',
+
+    # Settings - Asset Condition
+    'AssetConditionListView',
+    'AssetConditionCreateView',
+    'AssetConditionUpdateView',
+    'AssetConditionDeleteView',
+    'asset_condition_datatable_ajax',
+
+    # Settings - Maintenance Type
+    'MaintenanceTypeListView',
+    'MaintenanceTypeCreateView',
+    'MaintenanceTypeUpdateView',
+    'MaintenanceTypeDeleteView',
+    'maintenance_type_datatable_ajax',
 
     # Reports
-    'ReportsListView',
     'AssetRegisterReportView',
+    'export_asset_register',
     'DepreciationReportView',
-    'MaintenanceReportView',
+    'export_depreciation_report',
     'AssetMovementReportView',
-    'AssetByCostCenterReportView',
-    'AssetNearEndOfLifeReportView',
-    'FairValueReportView',
+    'export_asset_movement_report',
+    'MaintenanceReportView',
+    'export_maintenance_report',
+
+    # Base Report Classes
+    'BaseAssetReportView',
+    'BaseAssetExportView',
+    'BaseAssetReportExportView',
 ]

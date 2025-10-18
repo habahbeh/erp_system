@@ -1,245 +1,222 @@
 # apps/assets/views/base_report_views.py
 """
-Base Classes للتقارير
-- BaseReportView: الفئة الأساسية لكل التقارير
-- ExportMixin: دعم التصدير لـ Excel و PDF
+Base Report Views - القوالب الأساسية للتقارير
 """
 
-from django.views.generic import TemplateView
+from django.shortcuts import render
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.views.generic import TemplateView
 from django.http import HttpResponse
-from django.utils.translation import gettext as _
-from django.db.models import Q, Sum, Count, Avg
-from datetime import datetime, date
+from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
+from datetime import date, datetime
+import openpyxl
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 from apps.core.mixins import CompanyMixin
-from apps.assets.utils import ExcelExporter, PDFExporter, format_currency, format_date
 
 
-class ExportMixin:
-    """
-    Mixin لدعم التصدير إلى Excel و PDF
-    """
+class BaseAssetReportView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """قالب أساسي لتقارير الأصول"""
 
-    def get_export_filename(self, format='excel'):
-        """توليد اسم الملف للتصدير"""
-        report_name = getattr(self, 'report_name', 'report')
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-        if format == 'excel':
-            return f"{report_name}_{timestamp}.xlsx"
-        elif format == 'pdf':
-            return f"{report_name}_{timestamp}.pdf"
-        else:
-            return f"{report_name}_{timestamp}.txt"
-
-    def export_to_excel(self, data, headers, title, filename=None):
-        """تصدير البيانات إلى Excel"""
-        if filename is None:
-            filename = self.get_export_filename('excel')
-
-        # إنشاء الـ Exporter
-        exporter = ExcelExporter(company_name=self.request.user.company.name)
-
-        # إضافة العنوان
-        exporter.add_title(title)
-        exporter.add_empty_row()
-
-        # إضافة معلومات التقرير
-        exporter.add_info_row('الشركة', self.request.user.company.name)
-        exporter.add_info_row('تاريخ التقرير', datetime.now().strftime('%Y-%m-%d %H:%M'))
-        exporter.add_info_row('المستخدم', self.request.user.get_full_name())
-        exporter.add_empty_row()
-
-        # إضافة فلاتر التقرير
-        filters = self.get_report_filters()
-        if filters:
-            for key, value in filters.items():
-                exporter.add_info_row(key, value)
-            exporter.add_empty_row()
-
-        # إضافة الرؤوس
-        exporter.add_headers(headers)
-
-        # إضافة البيانات
-        exporter.add_data_rows(data)
-
-        # إضافة الإجماليات
-        summary = self.get_report_summary()
-        if summary:
-            exporter.add_empty_row()
-            exporter.add_summary_row(summary)
-
-        return exporter.get_response(filename)
-
-    def export_to_pdf(self, data, headers, title, filename=None, orientation='portrait'):
-        """تصدير البيانات إلى PDF"""
-        if filename is None:
-            filename = self.get_export_filename('pdf')
-
-        # إنشاء الـ Exporter
-        exporter = PDFExporter(
-            company_name=self.request.user.company.name,
-            orientation=orientation
-        )
-
-        # إضافة العنوان
-        exporter.add_title(title)
-
-        # إضافة معلومات رأس التقرير
-        header_info = {
-            'الشركة': self.request.user.company.name,
-            'تاريخ التقرير': datetime.now().strftime('%Y-%m-%d %H:%M'),
-            'المستخدم': self.request.user.get_full_name(),
-        }
-
-        # إضافة الفلاتر
-        filters = self.get_report_filters()
-        if filters:
-            header_info.update(filters)
-
-        exporter.add_header_info(header_info)
-
-        # إضافة الجدول
-        table_data = [headers] + data
-
-        # إضافة الإجماليات
-        summary = self.get_report_summary()
-        if summary:
-            table_data.append(summary)
-
-        exporter.add_table(table_data)
-
-        return exporter.get_response(filename)
-
-    def get_report_filters(self):
-        """الحصول على الفلاتر المطبقة - يتم تجاوزها في كل تقرير"""
-        return {}
-
-    def get_report_summary(self):
-        """الحصول على صف الإجماليات - يتم تجاوزها في كل تقرير"""
-        return None
-
-
-class BaseReportView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ExportMixin, TemplateView):
-    """الفئة الأساسية لجميع التقارير"""
-
-    template_name = 'assets/reports/base_report.html'
     permission_required = 'assets.view_asset'
-    report_name = 'asset_report'
     report_title = 'تقرير الأصول'
 
+    def get_report_filters(self):
+        """الحصول على الفلاتر من GET parameters"""
+        return {
+            'date_from': self.request.GET.get('date_from', ''),
+            'date_to': self.request.GET.get('date_to', ''),
+            'category_id': self.request.GET.get('category_id', ''),
+            'status': self.request.GET.get('status', ''),
+            'cost_center_id': self.request.GET.get('cost_center_id', ''),
+        }
+
+    def get_report_data(self):
+        """يجب تنفيذها في الـ subclass"""
+        raise NotImplementedError('يجب تنفيذ get_report_data في الـ subclass')
+
     def get_context_data(self, **kwargs):
-        """بناء سياق الصفحة"""
         context = super().get_context_data(**kwargs)
 
-        # معلومات التقرير
+        filters = self.get_report_filters()
+        report_data = self.get_report_data()
+
         context.update({
-            'title': self.report_title,
-            'report_name': self.report_name,
-            'breadcrumbs': self.get_breadcrumbs(),
-            'can_export': self.request.user.has_perm('assets.view_asset'),
+            'title': _(self.report_title),
+            'filters': filters,
+            'report_data': report_data,
         })
-
-        # الفلاتر
-        filters = self.get_filters_from_request()
-        context['filters'] = filters
-
-        # البيانات
-        queryset = self.get_report_queryset(filters)
-        context['report_data'] = self.prepare_report_data(queryset)
-
-        # الإحصائيات
-        context['report_stats'] = self.get_report_statistics(queryset)
 
         return context
 
+
+class BaseAssetExportView:
+    """قالب أساسي لتصدير التقارير إلى Excel"""
+
+    def create_workbook(self, title):
+        """إنشاء Workbook جديد"""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = title[:31]  # Excel limit
+        return wb, ws
+
+    def style_header(self, ws, row, columns):
+        """تنسيق رأس الجدول"""
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        for col_num, header in enumerate(columns, 1):
+            cell = ws.cell(row=row, column=col_num)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+    def style_title(self, ws, row, title, columns_count):
+        """تنسيق عنوان التقرير"""
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=columns_count)
+        title_cell = ws.cell(row=row, column=1)
+        title_cell.value = title
+        title_cell.font = Font(bold=True, size=14, color="366092")
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    def style_subtitle(self, ws, row, text, columns_count):
+        """تنسيق عنوان فرعي"""
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=columns_count)
+        cell = ws.cell(row=row, column=1)
+        cell.value = text
+        cell.font = Font(size=10, bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    def add_data_row(self, ws, row, data):
+        """إضافة صف بيانات"""
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        for col_num, value in enumerate(data, 1):
+            cell = ws.cell(row=row, column=col_num)
+            cell.value = value
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    def add_total_row(self, ws, row, label, values, label_columns=1):
+        """إضافة صف الإجمالي"""
+        bold_font = Font(bold=True, size=11)
+        fill = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid")
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # دمج خلايا العنوان
+        if label_columns > 1:
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=label_columns)
+
+        label_cell = ws.cell(row=row, column=1)
+        label_cell.value = label
+        label_cell.font = bold_font
+        label_cell.fill = fill
+        label_cell.alignment = Alignment(horizontal="center", vertical="center")
+        label_cell.border = thin_border
+
+        # القيم
+        for col_num, value in enumerate(values, label_columns + 1):
+            cell = ws.cell(row=row, column=col_num)
+            cell.value = value
+            cell.font = bold_font
+            cell.fill = fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = thin_border
+
+    def adjust_column_widths(self, ws):
+        """ضبط عرض الأعمدة تلقائياً"""
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+    def create_response(self, wb, filename):
+        """إنشاء HTTP Response للتحميل"""
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
+
+
+class BaseAssetReportExportView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, BaseAssetExportView):
+    """قالب أساسي لتصدير تقارير الأصول"""
+
+    permission_required = 'assets.view_asset'
+    report_title = 'تقرير الأصول'
+    filename = 'asset_report.xlsx'
+
+    def get_report_data(self):
+        """يجب تنفيذها في الـ subclass"""
+        raise NotImplementedError('يجب تنفيذ get_report_data')
+
+    def get_report_columns(self):
+        """يجب تنفيذها في الـ subclass"""
+        raise NotImplementedError('يجب تنفيذ get_report_columns')
+
+    def format_row_data(self, item):
+        """يجب تنفيذها في الـ subclass"""
+        raise NotImplementedError('يجب تنفيذ format_row_data')
+
     def get(self, request, *args, **kwargs):
-        """معالجة GET request"""
-        # التحقق من طلب التصدير
-        export_format = request.GET.get('export')
+        """تصدير التقرير"""
+        # إنشاء الـ workbook
+        wb, ws = self.create_workbook(self.report_title)
 
-        if export_format in ['excel', 'pdf']:
-            return self.handle_export(export_format)
+        # العنوان الرئيسي
+        columns = self.get_report_columns()
+        self.style_title(ws, 1, f"{self.report_title} - {request.current_company.name}", len(columns))
 
-        # عرض الصفحة عادي
-        return super().get(request, *args, **kwargs)
+        # معلومات التقرير
+        today = date.today().strftime('%Y-%m-%d')
+        self.style_subtitle(ws, 2, f"تاريخ التقرير: {today}", len(columns))
 
-    def handle_export(self, format):
-        """معالجة طلب التصدير"""
-        # الحصول على الفلاتر
-        filters = self.get_filters_from_request()
+        # رأس الجدول
+        self.style_header(ws, 4, columns)
 
-        # الحصول على البيانات
-        queryset = self.get_report_queryset(filters)
+        # البيانات
+        report_data = self.get_report_data()
+        row_num = 5
 
-        # تحضير البيانات للتصدير
-        headers = self.get_export_headers()
-        data = self.prepare_export_data(queryset)
+        for item in report_data:
+            row_data = self.format_row_data(item)
+            self.add_data_row(ws, row_num, row_data)
+            row_num += 1
 
-        # التصدير
-        if format == 'excel':
-            return self.export_to_excel(
-                data=data,
-                headers=headers,
-                title=self.report_title
-            )
-        elif format == 'pdf':
-            orientation = getattr(self, 'pdf_orientation', 'portrait')
-            return self.export_to_pdf(
-                data=data,
-                headers=headers,
-                title=self.report_title,
-                orientation=orientation
-            )
+        # ضبط العرض
+        self.adjust_column_widths(ws)
 
-    def get_breadcrumbs(self):
-        """بناء مسار التنقل"""
-        from django.urls import reverse
-
-        return [
-            {'title': 'الرئيسية', 'url': reverse('core:dashboard')},
-            {'title': 'الأصول', 'url': reverse('assets:dashboard')},
-            {'title': 'التقارير', 'url': '#'},
-            {'title': self.report_title, 'url': ''},
-        ]
-
-    def get_filters_from_request(self):
-        """استخراج الفلاتر من الـ Request"""
-        filters = {}
-
-        # فلاتر مشتركة
-        if self.request.GET.get('date_from'):
-            filters['date_from'] = self.request.GET.get('date_from')
-
-        if self.request.GET.get('date_to'):
-            filters['date_to'] = self.request.GET.get('date_to')
-
-        if self.request.GET.get('category'):
-            filters['category_id'] = self.request.GET.get('category')
-
-        if self.request.GET.get('branch'):
-            filters['branch_id'] = self.request.GET.get('branch')
-
-        return filters
-
-    def get_report_queryset(self, filters):
-        """الحصول على QuerySet - يجب تجاوزها في كل تقرير"""
-        raise NotImplementedError('يجب تنفيذ get_report_queryset في التقرير')
-
-    def prepare_report_data(self, queryset):
-        """تحضير بيانات التقرير للعرض"""
-        return list(queryset)
-
-    def get_report_statistics(self, queryset):
-        """حساب الإحصائيات"""
-        return {}
-
-    def get_export_headers(self):
-        """رؤوس الأعمدة للتصدير - يجب تجاوزها"""
-        raise NotImplementedError('يجب تنفيذ get_export_headers في التقرير')
-
-    def prepare_export_data(self, queryset):
-        """تحضير البيانات للتصدير - يجب تجاوزها"""
-        raise NotImplementedError('يجب تنفيذ prepare_export_data في التقرير')
+        # الاستجابة
+        return self.create_response(wb, self.filename)

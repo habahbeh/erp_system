@@ -8,11 +8,11 @@ from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel, Item, Warehouse, BusinessPartner, User
+from apps.core.models import BaseModel, DocumentBaseModel, Item, Warehouse, BusinessPartner, User
 from apps.accounting.models import Account, JournalEntry
 
 
-class StockDocument(BaseModel):
+class StockDocument(DocumentBaseModel):
     """نموذج أساسي للمستندات المخزنية"""
 
     DOCUMENT_TYPES = [
