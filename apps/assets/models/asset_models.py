@@ -941,7 +941,13 @@ class Asset(DocumentBaseModel):
 
         # 2. خسارة استبعاد (مدين) - إذا كان هناك قيمة دفترية متبقية
         if self.book_value > 0:
-            loss_account = Account.objects.get(company=self.company, code='520200')
+            # ✅ استخدام الحساب من الفئة بدلاً من hard-coding
+            if not self.category.loss_on_disposal_account:
+                raise ValidationError(
+                    _('لم يتم تحديد حساب خسائر الاستبعاد في فئة الأصل')
+                )
+            loss_account = self.category.loss_on_disposal_account
+
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
                 line_number=line_number,
