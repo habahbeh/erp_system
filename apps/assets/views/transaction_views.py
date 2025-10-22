@@ -1,6 +1,11 @@
 # apps/assets/views/transaction_views.py
 """
-Views معاملات الأصول (شراء، بيع، استبعاد، تحويل)
+Views معاملات الأصول - محسّنة وشاملة
+- شراء وبيع الأصول
+- استبعاد الأصول
+- إعادة التقييم
+- التحويل بين الفروع
+- سير عمل الاعتماد
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -10,42 +15,63 @@ from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView, FormView
-from django.db.models import Q, Sum, Count
+from django.views.generic import (
+    ListView, CreateView, UpdateView, DeleteView,
+    DetailView, FormView, TemplateView
+)
+from django.db.models import (
+    Q, Sum, Count, Avg, Max, Min, F,
+    DecimalField, Case, When, Value
+)
+from django.db.models.functions import Coalesce, TruncMonth, TruncDate
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ValidationError, PermissionDenied
+from django.core.paginator import Paginator
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
+
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
-from ..models import AssetTransaction, AssetTransfer, Asset
-from apps.core.models import BusinessPartner
+from ..models import (
+    AssetTransaction, AssetTransfer, Asset, AssetCategory
+)
+from apps.core.models import BusinessPartner, Branch
 
+
+# ==================== Asset Transactions ====================
 
 class AssetTransactionListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة معاملات الأصول"""
+    """قائمة معاملات الأصول - محسّنة"""
 
     model = AssetTransaction
     template_name = 'assets/transaction/transaction_list.html'
     context_object_name = 'transactions'
     permission_required = 'assets.view_assettransaction'
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = AssetTransaction.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'asset', 'asset__category', 'business_partner',
-            'created_by', 'approved_by', 'journal_entry'
+            'asset', 'asset__category', 'asset__branch',
+            'business_partner', 'created_by', 'approved_by',
+            'journal_entry'
         )
 
-        # الفلترة
+        # الفلترة المتقدمة
         transaction_type = self.request.GET.get('transaction_type')
         status = self.request.GET.get('status')
         asset = self.request.GET.get('asset')
+        category = self.request.GET.get('category')
+        business_partner = self.request.GET.get('business_partner')
         date_from = self.request.GET.get('date_from')
         date_to = self.request.GET.get('date_to')
         search = self.request.GET.get('search')
@@ -59,6 +85,12 @@ class AssetTransactionListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         if asset:
             queryset = queryset.filter(asset_id=asset)
 
+        if category:
+            queryset = queryset.filter(asset__category_id=category)
+
+        if business_partner:
+            queryset = queryset.filter(business_partner_id=business_partner)
+
         if date_from:
             queryset = queryset.filter(transaction_date__gte=date_from)
 
@@ -70,21 +102,80 @@ class AssetTransactionListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
                 Q(transaction_number__icontains=search) |
                 Q(asset__asset_number__icontains=search) |
                 Q(asset__name__icontains=search) |
-                Q(reference_number__icontains=search)
+                Q(reference_number__icontains=search) |
+                Q(description__icontains=search)
             )
 
-        return queryset.order_by('-transaction_date', '-transaction_number')
+        # الترتيب
+        sort_by = self.request.GET.get('sort', '-transaction_date')
+        queryset = queryset.order_by(sort_by, '-transaction_number')
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # الفئات
+        categories = AssetCategory.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('code')
+
+        # الشركاء
+        partners = BusinessPartner.objects.filter(
+            company=self.request.current_company
+        ).order_by('name')
+
+        # إحصائيات مفصّلة
+        transactions = AssetTransaction.objects.filter(
+            company=self.request.current_company
+        )
+
+        stats = transactions.aggregate(
+            total_count=Count('id'),
+            draft_count=Count('id', filter=Q(status='draft')),
+            approved_count=Count('id', filter=Q(status='approved')),
+            completed_count=Count('id', filter=Q(status='completed')),
+            cancelled_count=Count('id', filter=Q(status='cancelled')),
+
+            # حسب النوع
+            purchase_count=Count('id', filter=Q(transaction_type='purchase')),
+            sale_count=Count('id', filter=Q(transaction_type='sale')),
+            disposal_count=Count('id', filter=Q(transaction_type='disposal')),
+            revaluation_count=Count('id', filter=Q(transaction_type='revaluation')),
+
+            # المبالغ
+            total_amount=Coalesce(Sum('amount'), Decimal('0')),
+            purchase_amount=Coalesce(
+                Sum('amount', filter=Q(transaction_type='purchase')),
+                Decimal('0')
+            ),
+            sale_amount=Coalesce(
+                Sum('sale_price', filter=Q(transaction_type='sale')),
+                Decimal('0')
+            ),
+        )
+
+        # معاملات الشهر الحالي
+        this_month = transactions.filter(
+            transaction_date__year=date.today().year,
+            transaction_date__month=date.today().month
+        ).count()
+
+        stats['this_month'] = this_month
 
         context.update({
             'title': _('معاملات الأصول'),
             'can_add': self.request.user.has_perm('assets.add_assettransaction'),
             'can_edit': self.request.user.has_perm('assets.change_assettransaction'),
             'can_delete': self.request.user.has_perm('assets.delete_assettransaction'),
+            'can_approve': self.request.user.has_perm('assets.can_approve_transactions'),
+            'can_export': self.request.user.has_perm('assets.view_assettransaction'),
             'transaction_types': AssetTransaction.TRANSACTION_TYPES,
             'status_choices': AssetTransaction.STATUS_CHOICES,
+            'categories': categories,
+            'partners': partners,
+            'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('معاملات الأصول'), 'url': ''},
@@ -94,7 +185,7 @@ class AssetTransactionListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إنشاء معاملة أصل"""
+    """إنشاء معاملة أصل - محسّن"""
 
     model = AssetTransaction
     template_name = 'assets/transaction/transaction_form.html'
@@ -109,34 +200,56 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
 
+        company = self.request.current_company
+
         form.fields['asset'].queryset = Asset.objects.filter(
-            company=self.request.current_company,
+            company=company,
             status='active'
-        )
+        ).select_related('category')
 
         form.fields['business_partner'].queryset = BusinessPartner.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).order_by('name')
+        form.fields['business_partner'].required = False
 
+        # القيم الافتراضية
         form.fields['transaction_date'].initial = date.today()
+        form.fields['payment_method'].initial = 'cash'
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
-        form.instance.status = 'draft'
+        try:
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
+            form.instance.status = 'draft'
 
-        self.object = form.save()
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم إنشاء المعاملة {self.object.transaction_number} بنجاح'
-        )
+            self.log_action('create', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم إنشاء المعاملة {self.object.transaction_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:transaction_detail', kwargs={'pk': self.object.pk})
@@ -145,6 +258,7 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('إضافة معاملة أصل'),
+            'submit_text': _('إنشاء المعاملة'),
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('معاملات الأصول'), 'url': reverse('assets:transaction_list')},
@@ -155,7 +269,7 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
 
 class AssetTransactionDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """عرض تفاصيل معاملة الأصل"""
+    """عرض تفاصيل معاملة الأصل - محسّن"""
 
     model = AssetTransaction
     template_name = 'assets/transaction/transaction_detail.html'
@@ -167,18 +281,60 @@ class AssetTransactionDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
             company=self.request.current_company
         ).select_related(
             'asset', 'asset__category', 'business_partner',
-            'created_by', 'approved_by', 'journal_entry'
+            'created_by', 'approved_by', 'journal_entry', 'branch'
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # حساب الربح/الخسارة للبيع
+        gain_loss = None
+        if self.object.transaction_type == 'sale':
+            if self.object.sale_price and self.object.asset.current_book_value:
+                gain_loss = self.object.sale_price - self.object.asset.current_book_value
+
+        # التحذيرات
+        warnings = []
+        if self.object.status == 'draft':
+            warnings.append({
+                'type': 'warning',
+                'icon': 'fa-exclamation-triangle',
+                'message': 'هذه المعاملة في وضع المسودة - يجب اعتمادها'
+            })
+
+        if gain_loss and gain_loss < 0:
+            warnings.append({
+                'type': 'danger',
+                'icon': 'fa-arrow-down',
+                'message': f'خسارة من البيع: {abs(gain_loss):,.2f}'
+            })
+        elif gain_loss and gain_loss > 0:
+            warnings.append({
+                'type': 'success',
+                'icon': 'fa-arrow-up',
+                'message': f'ربح من البيع: {gain_loss:,.2f}'
+            })
+
         context.update({
             'title': f'المعاملة {self.object.transaction_number}',
-            'can_edit': self.request.user.has_perm('assets.change_assettransaction') and self.object.status == 'draft',
-            'can_delete': self.request.user.has_perm(
-                'assets.delete_assettransaction') and self.object.status == 'draft',
-            'can_approve': self.request.user.has_perm(
-                'assets.change_assettransaction') and self.object.status == 'draft',
+            'can_edit': (
+                    self.request.user.has_perm('assets.change_assettransaction') and
+                    self.object.status == 'draft'
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assettransaction') and
+                    self.object.status == 'draft'
+            ),
+            'can_approve': (
+                    self.request.user.has_perm('assets.can_approve_transactions') and
+                    self.object.status == 'draft'
+            ),
+            'can_cancel': (
+                    self.request.user.has_perm('assets.change_assettransaction') and
+                    self.object.status in ['draft', 'approved']
+            ),
+            'gain_loss': gain_loss,
+            'warnings': warnings,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('معاملات الأصول'), 'url': reverse('assets:transaction_list')},
@@ -189,7 +345,7 @@ class AssetTransactionDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
 
 class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل معاملة أصل"""
+    """تعديل معاملة أصل - محسّن"""
 
     model = AssetTransaction
     template_name = 'assets/transaction/transaction_form.html'
@@ -210,26 +366,43 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
 
+        company = self.request.current_company
+
         form.fields['asset'].queryset = Asset.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).select_related('category')
 
         form.fields['business_partner'].queryset = BusinessPartner.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).order_by('name')
+        form.fields['business_partner'].required = False
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        self.object = form.save()
+        try:
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم تحديث المعاملة {self.object.transaction_number} بنجاح'
-        )
+            self.log_action('update', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم تحديث المعاملة {self.object.transaction_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:transaction_detail', kwargs={'pk': self.object.pk})
@@ -238,6 +411,8 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
         context = super().get_context_data(**kwargs)
         context.update({
             'title': f'تعديل المعاملة {self.object.transaction_number}',
+            'submit_text': _('حفظ التعديلات'),
+            'is_update': True,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('معاملات الأصول'), 'url': reverse('assets:transaction_list')},
@@ -250,7 +425,7 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
 
 class AssetTransactionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
-    """حذف معاملة أصل"""
+    """حذف معاملة أصل - محسّن"""
 
     model = AssetTransaction
     template_name = 'assets/transaction/transaction_confirm_delete.html'
@@ -263,21 +438,129 @@ class AssetTransactionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
             status='draft'
         )
 
+    @transaction.atomic
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
 
         if self.object.status != 'draft':
-            messages.error(request, _('لا يمكن حذف معاملة معتمدة'))
+            messages.error(request, '❌ لا يمكن حذف معاملة معتمدة')
             return redirect('assets:transaction_detail', pk=self.object.pk)
 
-        messages.success(request, f'تم حذف المعاملة {self.object.transaction_number} بنجاح')
+        transaction_number = self.object.transaction_number
+        messages.success(request, f'✅ تم حذف المعاملة {transaction_number} بنجاح')
+
         return super().delete(request, *args, **kwargs)
+
+
+class ApproveTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """اعتماد المعاملة - جديد"""
+
+    template_name = 'assets/transaction/approve_transaction.html'
+    permission_required = 'assets.can_approve_transactions'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        transaction_id = self.kwargs.get('pk')
+        trans = get_object_or_404(
+            AssetTransaction,
+            pk=transaction_id,
+            company=self.request.current_company,
+            status='draft'
+        )
+
+        context.update({
+            'title': f'اعتماد المعاملة {trans.transaction_number}',
+            'transaction': trans,
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('معاملات الأصول'), 'url': reverse('assets:transaction_list')},
+                {'title': trans.transaction_number, 'url': reverse('assets:transaction_detail', args=[trans.pk])},
+                {'title': _('اعتماد'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            transaction_id = kwargs.get('pk')
+            trans = get_object_or_404(
+                AssetTransaction,
+                pk=transaction_id,
+                company=request.current_company,
+                status='draft'
+            )
+
+            approval_notes = request.POST.get('approval_notes', '')
+
+            # اعتماد المعاملة
+            trans.status = 'approved'
+            trans.approved_by = request.user
+            trans.approved_at = timezone.now()
+            if approval_notes:
+                trans.notes = f"{trans.notes}\nملاحظات الاعتماد: {approval_notes}" if trans.notes else f"ملاحظات الاعتماد: {approval_notes}"
+            trans.save()
+
+            messages.success(
+                request,
+                f'✅ تم اعتماد المعاملة {trans.transaction_number} بنجاح'
+            )
+
+            return redirect('assets:transaction_detail', pk=trans.pk)
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في الاعتماد: {str(e)}')
+            return redirect('assets:transaction_detail', pk=transaction_id)
+
+
+class CancelTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """إلغاء المعاملة - جديد"""
+
+    template_name = 'assets/transaction/cancel_transaction.html'
+    permission_required = 'assets.change_assettransaction'
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            transaction_id = kwargs.get('pk')
+            trans = get_object_or_404(
+                AssetTransaction,
+                pk=transaction_id,
+                company=request.current_company
+            )
+
+            if trans.status not in ['draft', 'approved']:
+                messages.error(request, 'لا يمكن إلغاء هذه المعاملة')
+                return redirect('assets:transaction_detail', pk=trans.pk)
+
+            cancellation_reason = request.POST.get('cancellation_reason', '')
+
+            # إلغاء المعاملة
+            trans.status = 'cancelled'
+            trans.notes = f"{trans.notes}\nإلغاء: {cancellation_reason}" if trans.notes else f"إلغاء: {cancellation_reason}"
+            trans.save()
+
+            messages.success(
+                request,
+                f'✅ تم إلغاء المعاملة {trans.transaction_number} بنجاح'
+            )
+
+            return redirect('assets:transaction_detail', pk=trans.pk)
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في الإلغاء: {str(e)}')
+            return redirect('assets:transaction_detail', pk=transaction_id)
 
 
 # ==================== Specific Transaction Types ====================
 
-class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
-    """بيع أصل"""
+class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """بيع أصل - محسّن"""
 
     template_name = 'assets/transaction/sell_asset.html'
     permission_required = 'assets.can_sell_asset'
@@ -296,9 +579,16 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, F
                 status='active'
             )
 
+        # الشركاء (المشترين)
+        buyers = BusinessPartner.objects.filter(
+            company=self.request.current_company,
+            partner_type__in=['customer', 'both']
+        ).order_by('name')
+
         context.update({
             'title': _('بيع أصل'),
             'asset': asset,
+            'buyers': buyers,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('بيع أصل'), 'url': ''},
@@ -312,15 +602,20 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, F
             asset_id = request.POST.get('asset_id')
             sale_price = Decimal(request.POST.get('sale_price', 0))
             buyer_id = request.POST.get('buyer_id')
+            sale_date = request.POST.get('sale_date', date.today())
+            payment_method = request.POST.get('payment_method', 'cash')
+            reference_number = request.POST.get('reference_number', '')
+            description = request.POST.get('description', '')
 
             if not asset_id or not sale_price or not buyer_id:
-                messages.error(request, 'يجب إدخال جميع البيانات المطلوبة')
+                messages.error(request, '❌ يجب إدخال جميع البيانات المطلوبة')
                 return redirect('assets:sell_asset')
 
             asset = get_object_or_404(
                 Asset,
                 pk=asset_id,
-                company=request.current_company
+                company=request.current_company,
+                status='active'
             )
 
             buyer = get_object_or_404(
@@ -333,33 +628,44 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, F
             transaction_obj = asset.sell(
                 sale_price=sale_price,
                 buyer=buyer,
+                sale_date=sale_date,
+                payment_method=payment_method,
+                reference_number=reference_number,
+                description=description,
                 user=request.user
             )
 
-            messages.success(
-                request,
-                f'تم بيع الأصل {asset.asset_number} بنجاح بمبلغ {sale_price:,.2f}'
-            )
+            # حساب الربح/الخسارة
+            gain_loss = sale_price - asset.current_book_value
+
+            if gain_loss > 0:
+                message = f'✅ تم بيع الأصل {asset.asset_number} بنجاح بمبلغ {sale_price:,.2f} بربح {gain_loss:,.2f}'
+            elif gain_loss < 0:
+                message = f'✅ تم بيع الأصل {asset.asset_number} بنجاح بمبلغ {sale_price:,.2f} بخسارة {abs(gain_loss):,.2f}'
+            else:
+                message = f'✅ تم بيع الأصل {asset.asset_number} بنجاح بمبلغ {sale_price:,.2f}'
+
+            messages.success(request, message)
 
             return redirect('assets:transaction_detail', pk=transaction_obj.pk)
 
         except ValidationError as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:sell_asset')
 
         except PermissionDenied as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:asset_list')
 
         except Exception as e:
             import traceback
             print(traceback.format_exc())
-            messages.error(request, f'خطأ في بيع الأصل: {str(e)}')
+            messages.error(request, f'❌ خطأ في بيع الأصل: {str(e)}')
             return redirect('assets:sell_asset')
 
 
-class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
-    """استبعاد أصل"""
+class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """استبعاد أصل - محسّن"""
 
     template_name = 'assets/transaction/dispose_asset.html'
     permission_required = 'assets.can_dispose_asset'
@@ -381,6 +687,14 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
         context.update({
             'title': _('استبعاد أصل'),
             'asset': asset,
+            'disposal_reasons': [
+                ('damaged', 'تالف'),
+                ('obsolete', 'قديم ومتقادم'),
+                ('lost', 'مفقود'),
+                ('stolen', 'مسروق'),
+                ('end_of_life', 'انتهاء العمر الإنتاجي'),
+                ('other', 'أخرى'),
+            ],
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('استبعاد أصل'), 'url': ''},
@@ -392,10 +706,12 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
     def post(self, request, *args, **kwargs):
         try:
             asset_id = request.POST.get('asset_id')
+            disposal_date = request.POST.get('disposal_date', date.today())
             reason = request.POST.get('reason', '')
+            description = request.POST.get('description', '')
 
             if not asset_id or not reason:
-                messages.error(request, 'يجب تحديد الأصل وسبب الاستبعاد')
+                messages.error(request, '❌ يجب تحديد الأصل وسبب الاستبعاد')
                 return redirect('assets:dispose_asset')
 
             asset = get_object_or_404(
@@ -406,34 +722,36 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
 
             # استبعاد الأصل
             transaction_obj = asset.dispose(
+                disposal_date=disposal_date,
                 reason=reason,
+                description=description,
                 user=request.user
             )
 
             messages.success(
                 request,
-                f'تم استبعاد الأصل {asset.asset_number} بنجاح'
+                f'✅ تم استبعاد الأصل {asset.asset_number} بنجاح'
             )
 
             return redirect('assets:transaction_detail', pk=transaction_obj.pk)
 
         except ValidationError as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:dispose_asset')
 
         except PermissionDenied as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:asset_list')
 
         except Exception as e:
             import traceback
             print(traceback.format_exc())
-            messages.error(request, f'خطأ في استبعاد الأصل: {str(e)}')
+            messages.error(request, f'❌ خطأ في استبعاد الأصل: {str(e)}')
             return redirect('assets:dispose_asset')
 
 
-class RevalueAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
-    """إعادة تقييم أصل"""
+class RevalueAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """إعادة تقييم أصل - مكتمل"""
 
     template_name = 'assets/transaction/revalue_asset.html'
     permission_required = 'assets.can_revalue_asset'
@@ -461,32 +779,88 @@ class RevalueAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
         })
         return context
 
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            asset_id = request.POST.get('asset_id')
+            new_value = Decimal(request.POST.get('new_value', 0))
+            revaluation_date = request.POST.get('revaluation_date', date.today())
+            reason = request.POST.get('reason', '')
+
+            if not asset_id or not new_value:
+                messages.error(request, '❌ يجب إدخال الأصل والقيمة الجديدة')
+                return redirect('assets:revalue_asset')
+
+            asset = get_object_or_404(
+                Asset,
+                pk=asset_id,
+                company=request.current_company
+            )
+
+            old_value = asset.current_book_value
+            difference = new_value - old_value
+
+            # إنشاء معاملة إعادة التقييم
+            transaction_obj = AssetTransaction.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                transaction_type='revaluation',
+                transaction_date=revaluation_date,
+                asset=asset,
+                amount=abs(difference),
+                description=f'إعادة تقييم من {old_value:,.2f} إلى {new_value:,.2f}. السبب: {reason}',
+                created_by=request.user,
+                status='draft'
+            )
+
+            messages.success(
+                request,
+                f'✅ تم إنشاء معاملة إعادة التقييم بنجاح. الفرق: {difference:,.2f}'
+            )
+
+            return redirect('assets:transaction_detail', pk=transaction_obj.pk)
+
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:revalue_asset')
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في إعادة التقييم: {str(e)}')
+            return redirect('assets:revalue_asset')
+
 
 # ==================== Asset Transfers ====================
 
 class AssetTransferListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة تحويلات الأصول"""
+    """قائمة تحويلات الأصول - محسّنة"""
 
     model = AssetTransfer
     template_name = 'assets/transfer/transfer_list.html'
     context_object_name = 'transfers'
     permission_required = 'assets.view_assettransfer'
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = AssetTransfer.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'asset', 'from_branch', 'to_branch',
+            'asset', 'asset__category',
+            'from_branch', 'to_branch',
             'from_cost_center', 'to_cost_center',
+            'from_employee', 'to_employee',
             'requested_by', 'approved_by'
         )
 
-        # الفلترة
+        # الفلترة المتقدمة
         status = self.request.GET.get('status')
         asset = self.request.GET.get('asset')
+        category = self.request.GET.get('category')
         from_branch = self.request.GET.get('from_branch')
         to_branch = self.request.GET.get('to_branch')
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
         search = self.request.GET.get('search')
 
         if status:
@@ -495,30 +869,81 @@ class AssetTransferListView(LoginRequiredMixin, PermissionRequiredMixin, Company
         if asset:
             queryset = queryset.filter(asset_id=asset)
 
+        if category:
+            queryset = queryset.filter(asset__category_id=category)
+
         if from_branch:
             queryset = queryset.filter(from_branch_id=from_branch)
 
         if to_branch:
             queryset = queryset.filter(to_branch_id=to_branch)
 
+        if date_from:
+            queryset = queryset.filter(transfer_date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(transfer_date__lte=date_to)
+
         if search:
             queryset = queryset.filter(
                 Q(transfer_number__icontains=search) |
                 Q(asset__asset_number__icontains=search) |
-                Q(asset__name__icontains=search)
+                Q(asset__name__icontains=search) |
+                Q(reason__icontains=search)
             )
 
-        return queryset.order_by('-transfer_date', '-transfer_number')
+        # الترتيب
+        sort_by = self.request.GET.get('sort', '-transfer_date')
+        queryset = queryset.order_by(sort_by, '-transfer_number')
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # الفروع
+        branches = Branch.objects.filter(
+            company=self.request.current_company
+        ).order_by('code')
+
+        # الفئات
+        categories = AssetCategory.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('code')
+
+        # إحصائيات مفصّلة
+        transfers = AssetTransfer.objects.filter(
+            company=self.request.current_company
+        )
+
+        stats = transfers.aggregate(
+            total_count=Count('id'),
+            pending_count=Count('id', filter=Q(status='pending')),
+            approved_count=Count('id', filter=Q(status='approved')),
+            completed_count=Count('id', filter=Q(status='completed')),
+            rejected_count=Count('id', filter=Q(status='rejected')),
+            cancelled_count=Count('id', filter=Q(status='cancelled')),
+        )
+
+        # تحويلات الشهر الحالي
+        this_month = transfers.filter(
+            transfer_date__year=date.today().year,
+            transfer_date__month=date.today().month
+        ).count()
+
+        stats['this_month'] = this_month
 
         context.update({
             'title': _('تحويلات الأصول'),
             'can_add': self.request.user.has_perm('assets.add_assettransfer'),
             'can_edit': self.request.user.has_perm('assets.change_assettransfer'),
             'can_approve': self.request.user.has_perm('assets.can_transfer_asset'),
+            'can_export': self.request.user.has_perm('assets.view_assettransfer'),
             'status_choices': AssetTransfer.STATUS_CHOICES,
+            'branches': branches,
+            'categories': categories,
+            'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('تحويلات الأصول'), 'url': ''},
@@ -528,7 +953,7 @@ class AssetTransferListView(LoginRequiredMixin, PermissionRequiredMixin, Company
 
 
 class AssetTransferCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إنشاء تحويل أصل"""
+    """إنشاء تحويل أصل - محسّن"""
 
     model = AssetTransfer
     template_name = 'assets/transfer/transfer_form.html'
@@ -543,31 +968,51 @@ class AssetTransferCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
 
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=self.request.current_company,
-            status='active'
-        )
+        company = self.request.current_company
 
+        form.fields['asset'].queryset = Asset.objects.filter(
+            company=company,
+            status='active'
+        ).select_related('category', 'branch')
+
+        # القيم الافتراضية
         form.fields['transfer_date'].initial = date.today()
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
-        form.instance.requested_by = self.request.user
-        form.instance.status = 'pending'
+        try:
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
+            form.instance.requested_by = self.request.user
+            form.instance.status = 'pending'
 
-        self.object = form.save()
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم إنشاء طلب التحويل {self.object.transfer_number} بنجاح'
-        )
+            self.log_action('create', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم إنشاء طلب التحويل {self.object.transfer_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:transfer_detail', kwargs={'pk': self.object.pk})
@@ -576,6 +1021,7 @@ class AssetTransferCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('طلب تحويل أصل'),
+            'submit_text': _('إنشاء الطلب'),
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('تحويلات الأصول'), 'url': reverse('assets:transfer_list')},
@@ -586,7 +1032,7 @@ class AssetTransferCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
 
 class AssetTransferDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """عرض تفاصيل تحويل الأصل"""
+    """عرض تفاصيل تحويل الأصل - محسّن"""
 
     model = AssetTransfer
     template_name = 'assets/transfer/transfer_detail.html'
@@ -597,20 +1043,76 @@ class AssetTransferDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         return AssetTransfer.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'asset', 'from_branch', 'to_branch',
+            'asset', 'asset__category',
+            'from_branch', 'to_branch',
             'from_cost_center', 'to_cost_center',
             'from_employee', 'to_employee',
-            'requested_by', 'approved_by', 'delivered_by', 'received_by'
+            'requested_by', 'approved_by', 'delivered_by', 'received_by',
+            'created_by'
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Timeline
+        timeline = []
+
+        if self.object.created_at:
+            timeline.append({
+                'date': self.object.created_at,
+                'user': self.object.requested_by,
+                'action': 'طلب التحويل',
+                'icon': 'fa-plus-circle',
+                'color': 'primary'
+            })
+
+        if self.object.approved_at:
+            timeline.append({
+                'date': self.object.approved_at,
+                'user': self.object.approved_by,
+                'action': 'اعتماد التحويل',
+                'icon': 'fa-check-circle',
+                'color': 'success'
+            })
+
+        if self.object.received_at:
+            timeline.append({
+                'date': self.object.received_at,
+                'user': self.object.received_by,
+                'action': 'استلام الأصل',
+                'icon': 'fa-handshake',
+                'color': 'info'
+            })
+
+        # التحذيرات
+        warnings = []
+        if self.object.status == 'pending':
+            warnings.append({
+                'type': 'warning',
+                'icon': 'fa-clock',
+                'message': 'التحويل في انتظار الاعتماد'
+            })
+
         context.update({
             'title': f'التحويل {self.object.transfer_number}',
-            'can_edit': self.request.user.has_perm('assets.change_assettransfer') and self.object.status == 'pending',
-            'can_approve': self.request.user.has_perm('assets.can_transfer_asset') and self.object.status == 'pending',
-            'can_complete': self.request.user.has_perm(
-                'assets.can_transfer_asset') and self.object.status == 'approved',
+            'can_edit': (
+                    self.request.user.has_perm('assets.change_assettransfer') and
+                    self.object.status == 'pending'
+            ),
+            'can_approve': (
+                    self.request.user.has_perm('assets.can_transfer_asset') and
+                    self.object.status == 'pending'
+            ),
+            'can_complete': (
+                    self.request.user.has_perm('assets.can_transfer_asset') and
+                    self.object.status == 'approved'
+            ),
+            'can_reject': (
+                    self.request.user.has_perm('assets.can_transfer_asset') and
+                    self.object.status == 'pending'
+            ),
+            'timeline': sorted(timeline, key=lambda x: x['date']),
+            'warnings': warnings,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('تحويلات الأصول'), 'url': reverse('assets:transfer_list')},
@@ -621,7 +1123,7 @@ class AssetTransferDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
 
 class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل تحويل أصل"""
+    """تعديل تحويل أصل - محسّن"""
 
     model = AssetTransfer
     template_name = 'assets/transfer/transfer_form.html'
@@ -639,16 +1141,41 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
             status='pending'
         )
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+
+        company = self.request.current_company
+
+        form.fields['asset'].queryset = Asset.objects.filter(
+            company=company
+        ).select_related('category', 'branch')
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+
+        return form
+
     @transaction.atomic
     def form_valid(self, form):
-        self.object = form.save()
+        try:
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم تحديث طلب التحويل {self.object.transfer_number} بنجاح'
-        )
+            self.log_action('update', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم تحديث طلب التحويل {self.object.transfer_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:transfer_detail', kwargs={'pk': self.object.pk})
@@ -657,6 +1184,8 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         context = super().get_context_data(**kwargs)
         context.update({
             'title': f'تعديل التحويل {self.object.transfer_number}',
+            'submit_text': _('حفظ التعديلات'),
+            'is_update': True,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('تحويلات الأصول'), 'url': reverse('assets:transfer_list')},
@@ -667,13 +1196,13 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         return context
 
 
-# ==================== Ajax Views ====================
+# ==================== Ajax Views - محسّنة ====================
 
 @login_required
 @permission_required_with_message('assets.can_transfer_asset')
 @require_http_methods(["POST"])
 def approve_transfer(request, pk):
-    """اعتماد تحويل أصل"""
+    """اعتماد تحويل أصل - محسّن"""
 
     try:
         transfer = get_object_or_404(
@@ -683,11 +1212,13 @@ def approve_transfer(request, pk):
             status='pending'
         )
 
-        from django.utils import timezone
+        approval_notes = request.POST.get('approval_notes', '')
 
         transfer.status = 'approved'
         transfer.approved_by = request.user
         transfer.approved_at = timezone.now()
+        if approval_notes:
+            transfer.notes = f"{transfer.notes}\nملاحظات الاعتماد: {approval_notes}" if transfer.notes else f"ملاحظات الاعتماد: {approval_notes}"
         transfer.save()
 
         return JsonResponse({
@@ -696,6 +1227,8 @@ def approve_transfer(request, pk):
         })
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'message': f'خطأ في اعتماد التحويل: {str(e)}'
@@ -705,8 +1238,44 @@ def approve_transfer(request, pk):
 @login_required
 @permission_required_with_message('assets.can_transfer_asset')
 @require_http_methods(["POST"])
+def reject_transfer(request, pk):
+    """رفض تحويل أصل - جديد"""
+
+    try:
+        transfer = get_object_or_404(
+            AssetTransfer,
+            pk=pk,
+            company=request.current_company,
+            status='pending'
+        )
+
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        transfer.status = 'rejected'
+        transfer.approved_by = request.user
+        transfer.approved_at = timezone.now()
+        transfer.notes = f"{transfer.notes}\nسبب الرفض: {rejection_reason}" if transfer.notes else f"سبب الرفض: {rejection_reason}"
+        transfer.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم رفض التحويل {transfer.transfer_number}'
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في رفض التحويل: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.can_transfer_asset')
+@require_http_methods(["POST"])
 def complete_transfer(request, pk):
-    """إكمال تحويل أصل"""
+    """إكمال تحويل أصل - محسّن"""
 
     try:
         transfer = get_object_or_404(
@@ -715,8 +1284,6 @@ def complete_transfer(request, pk):
             company=request.current_company,
             status='approved'
         )
-
-        from django.utils import timezone
 
         with transaction.atomic():
             # تحديث التحويل
@@ -750,7 +1317,7 @@ def complete_transfer(request, pk):
 @permission_required_with_message('assets.view_assettransaction')
 @require_http_methods(["GET"])
 def transaction_datatable_ajax(request):
-    """Ajax endpoint لجدول المعاملات"""
+    """Ajax endpoint لجدول المعاملات - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({
@@ -761,44 +1328,94 @@ def transaction_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 10))
-    search_value = request.GET.get('search[value]', '')
-
     try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الفلاتر
+        transaction_type = request.GET.get('transaction_type', '')
+        status = request.GET.get('status', '')
+
+        # Query
         queryset = AssetTransaction.objects.filter(
             company=request.current_company
-        ).select_related('asset', 'business_partner', 'journal_entry')
+        ).select_related(
+            'asset', 'asset__category', 'business_partner', 'journal_entry'
+        )
 
+        # تطبيق الفلاتر
+        if transaction_type:
+            queryset = queryset.filter(transaction_type=transaction_type)
+
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # البحث
         if search_value:
             queryset = queryset.filter(
                 Q(transaction_number__icontains=search_value) |
                 Q(asset__asset_number__icontains=search_value) |
-                Q(asset__name__icontains=search_value)
+                Q(asset__name__icontains=search_value) |
+                Q(reference_number__icontains=search_value)
             )
 
-        queryset = queryset.order_by('-transaction_date', '-transaction_number')
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        total_records = AssetTransaction.objects.filter(company=request.current_company).count()
+        order_columns = {
+            '0': 'transaction_number',
+            '1': 'transaction_date',
+            '2': 'transaction_type',
+            '3': 'asset__asset_number',
+            '4': 'asset__name',
+            '5': 'amount',
+        }
+
+        if order_column_index and order_column_index in order_columns:
+            order_field = order_columns[order_column_index]
+            if order_dir == 'desc':
+                order_field = f'-{order_field}'
+            queryset = queryset.order_by(order_field, '-transaction_number')
+        else:
+            queryset = queryset.order_by('-transaction_date', '-transaction_number')
+
+        # العد
+        total_records = AssetTransaction.objects.filter(
+            company=request.current_company
+        ).count()
         filtered_records = queryset.count()
 
+        # Pagination
         queryset = queryset[start:start + length]
 
+        # إعداد البيانات
         data = []
         can_view = request.user.has_perm('assets.view_assettransaction')
 
         for trans in queryset:
+            # الحالة
             status_map = {
-                'draft': '<span class="badge bg-secondary">مسودة</span>',
-                'approved': '<span class="badge bg-info">معتمد</span>',
-                'completed': '<span class="badge bg-success">مكتمل</span>',
-                'cancelled': '<span class="badge bg-danger">ملغي</span>',
+                'draft': '<span class="badge bg-secondary"><i class="fas fa-file"></i> مسودة</span>',
+                'approved': '<span class="badge bg-info"><i class="fas fa-check"></i> معتمد</span>',
+                'completed': '<span class="badge bg-success"><i class="fas fa-check-double"></i> مكتمل</span>',
+                'cancelled': '<span class="badge bg-danger"><i class="fas fa-ban"></i> ملغي</span>',
             }
             status_badge = status_map.get(trans.status, trans.status)
 
+            # النوع
+            type_icons = {
+                'purchase': '<i class="fas fa-shopping-cart text-success"></i>',
+                'sale': '<i class="fas fa-hand-holding-usd text-primary"></i>',
+                'disposal': '<i class="fas fa-trash text-danger"></i>',
+                'revaluation': '<i class="fas fa-balance-scale text-info"></i>',
+            }
+            type_icon = type_icons.get(trans.transaction_type, '')
             type_display = dict(AssetTransaction.TRANSACTION_TYPES).get(trans.transaction_type, trans.transaction_type)
 
+            # أزرار الإجراءات
             actions = []
 
             if can_view:
@@ -809,15 +1426,18 @@ def transaction_datatable_ajax(request):
                     </a>
                 ''')
 
-            actions_html = ' '.join(actions) if actions else '-'
+            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                trans.transaction_number,
+                f'<a href="{reverse("assets:transaction_detail", args=[trans.pk])}">{trans.transaction_number}</a>',
                 trans.transaction_date.strftime('%Y-%m-%d'),
-                type_display,
-                trans.asset.asset_number,
-                trans.asset.name,
-                f"{trans.amount:,.2f}",
+                f'{type_icon} {type_display}',
+                f'<a href="{reverse("assets:asset_detail", args=[trans.asset.pk])}">{trans.asset.asset_number}</a>',
+                f'''<div>
+                    <strong>{trans.asset.name}</strong>
+                    <br><small class="text-muted">{trans.asset.category.name}</small>
+                </div>''',
+                f'<div class="text-end"><strong>{trans.amount:,.2f}</strong></div>',
                 status_badge,
                 actions_html
             ])
@@ -838,14 +1458,14 @@ def transaction_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
-        })
+        }, status=500)
 
 
 @login_required
 @permission_required_with_message('assets.view_assettransfer')
 @require_http_methods(["GET"])
 def transfer_datatable_ajax(request):
-    """Ajax endpoint لجدول التحويلات"""
+    """Ajax endpoint لجدول التحويلات - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({
@@ -856,16 +1476,27 @@ def transfer_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 10))
-    search_value = request.GET.get('search[value]', '')
-
     try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الفلاتر
+        status = request.GET.get('status', '')
+
+        # Query
         queryset = AssetTransfer.objects.filter(
             company=request.current_company
-        ).select_related('asset', 'from_branch', 'to_branch')
+        ).select_related(
+            'asset', 'asset__category', 'from_branch', 'to_branch'
+        )
 
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # البحث
         if search_value:
             queryset = queryset.filter(
                 Q(transfer_number__icontains=search_value) |
@@ -873,40 +1504,72 @@ def transfer_datatable_ajax(request):
                 Q(asset__name__icontains=search_value)
             )
 
-        queryset = queryset.order_by('-transfer_date', '-transfer_number')
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        total_records = AssetTransfer.objects.filter(company=request.current_company).count()
+        order_columns = {
+            '0': 'transfer_number',
+            '1': 'transfer_date',
+            '2': 'asset__asset_number',
+            '3': 'from_branch__name',
+        }
+
+        if order_column_index and order_column_index in order_columns:
+            order_field = order_columns[order_column_index]
+            if order_dir == 'desc':
+                order_field = f'-{order_field}'
+            queryset = queryset.order_by(order_field, '-transfer_number')
+        else:
+            queryset = queryset.order_by('-transfer_date', '-transfer_number')
+
+        # العد
+        total_records = AssetTransfer.objects.filter(
+            company=request.current_company
+        ).count()
         filtered_records = queryset.count()
 
+        # Pagination
         queryset = queryset[start:start + length]
 
+        # إعداد البيانات
         data = []
+        can_view = request.user.has_perm('assets.view_assettransfer')
 
         for transfer in queryset:
+            # الحالة
             status_map = {
-                'pending': '<span class="badge bg-warning">معلق</span>',
-                'approved': '<span class="badge bg-info">معتمد</span>',
-                'completed': '<span class="badge bg-success">مكتمل</span>',
-                'rejected': '<span class="badge bg-danger">مرفوض</span>',
-                'cancelled': '<span class="badge bg-secondary">ملغي</span>',
+                'pending': '<span class="badge bg-warning"><i class="fas fa-clock"></i> معلق</span>',
+                'approved': '<span class="badge bg-info"><i class="fas fa-check"></i> معتمد</span>',
+                'completed': '<span class="badge bg-success"><i class="fas fa-check-double"></i> مكتمل</span>',
+                'rejected': '<span class="badge bg-danger"><i class="fas fa-times"></i> مرفوض</span>',
+                'cancelled': '<span class="badge bg-secondary"><i class="fas fa-ban"></i> ملغي</span>',
             }
             status_badge = status_map.get(transfer.status, transfer.status)
 
+            # أزرار الإجراءات
             actions = []
-            actions.append(f'''
-                <a href="{reverse('assets:transfer_detail', args=[transfer.pk])}" 
-                   class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
-                    <i class="fas fa-eye"></i>
-                </a>
-            ''')
 
-            actions_html = ' '.join(actions)
+            if can_view:
+                actions.append(f'''
+                    <a href="{reverse('assets:transfer_detail', args=[transfer.pk])}" 
+                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                ''')
+
+            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                transfer.transfer_number,
+                f'<a href="{reverse("assets:transfer_detail", args=[transfer.pk])}">{transfer.transfer_number}</a>',
                 transfer.transfer_date.strftime('%Y-%m-%d'),
-                transfer.asset.asset_number,
-                f"{transfer.from_branch.name} → {transfer.to_branch.name}",
+                f'<a href="{reverse("assets:asset_detail", args=[transfer.asset.pk])}">{transfer.asset.asset_number}</a>',
+                f'''<div>
+                    <i class="fas fa-arrow-right text-muted mx-2"></i>
+                    <strong>{transfer.from_branch.name}</strong>
+                    <i class="fas fa-arrow-right text-primary mx-2"></i>
+                    <strong class="text-primary">{transfer.to_branch.name}</strong>
+                </div>''',
                 status_badge,
                 actions_html
             ])
@@ -927,34 +1590,246 @@ def transfer_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
-        })
+        }, status=500)
 
 
 @login_required
-@permission_required_with_message('assets.change_assettransaction')
+@permission_required_with_message('assets.can_approve_transactions')
 @require_http_methods(["POST"])
-def post_transaction(request, pk):
-    """ترحيل معاملة أصل"""
+def approve_transaction_ajax(request, pk):
+    """اعتماد معاملة عبر Ajax - جديد"""
 
     try:
         trans = get_object_or_404(
             AssetTransaction,
             pk=pk,
             company=request.current_company,
-            status='approved'
+            status='draft'
         )
 
-        with transaction.atomic():
-            trans.status = 'completed'
-            trans.save()
+        approval_notes = request.POST.get('approval_notes', '')
+
+        trans.status = 'approved'
+        trans.approved_by = request.user
+        trans.approved_at = timezone.now()
+        if approval_notes:
+            trans.notes = f"{trans.notes}\nملاحظات: {approval_notes}" if trans.notes else f"ملاحظات: {approval_notes}"
+        trans.save()
 
         return JsonResponse({
             'success': True,
-            'message': f'تم ترحيل المعاملة {trans.transaction_number} بنجاح'
+            'message': f'تم اعتماد المعاملة {trans.transaction_number} بنجاح'
         })
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
-            'message': f'خطأ في ترحيل المعاملة: {str(e)}'
+            'message': f'خطأ في الاعتماد: {str(e)}'
         }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.change_assettransaction')
+@require_http_methods(["POST"])
+def cancel_transaction_ajax(request, pk):
+    """إلغاء معاملة عبر Ajax - جديد"""
+
+    try:
+        trans = get_object_or_404(
+            AssetTransaction,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if trans.status not in ['draft', 'approved']:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن إلغاء هذه المعاملة'
+            }, status=400)
+
+        cancellation_reason = request.POST.get('cancellation_reason', '')
+
+        trans.status = 'cancelled'
+        trans.notes = f"{trans.notes}\nإلغاء: {cancellation_reason}" if trans.notes else f"إلغاء: {cancellation_reason}"
+        trans.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم إلغاء المعاملة {trans.transaction_number} بنجاح'
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في الإلغاء: {str(e)}'
+        }, status=500)
+
+
+# ==================== Export Functions - جديد ====================
+
+@login_required
+@permission_required_with_message('assets.view_assettransaction')
+@require_http_methods(["GET"])
+def export_transactions_excel(request):
+    """تصدير المعاملات إلى Excel - جديد"""
+
+    try:
+        # إنشاء workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Transactions"
+
+        # تنسيق الرأس
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Headers
+        headers = [
+            'Transaction Number', 'Date', 'Type',
+            'Asset Number', 'Asset Name', 'Amount',
+            'Sale Price', 'Business Partner', 'Status'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # البيانات
+        transactions = AssetTransaction.objects.filter(
+            company=request.current_company
+        ).select_related(
+            'asset', 'business_partner'
+        ).order_by('-transaction_date')
+
+        row_num = 2
+        for trans in transactions:
+            ws.cell(row=row_num, column=1, value=trans.transaction_number)
+            ws.cell(row=row_num, column=2, value=trans.transaction_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=3, value=trans.get_transaction_type_display())
+            ws.cell(row=row_num, column=4, value=trans.asset.asset_number)
+            ws.cell(row=row_num, column=5, value=trans.asset.name)
+            ws.cell(row=row_num, column=6, value=float(trans.amount))
+            ws.cell(row=row_num, column=7, value=float(trans.sale_price) if trans.sale_price else '')
+            ws.cell(row=row_num, column=8, value=trans.business_partner.name if trans.business_partner else '')
+            ws.cell(row=row_num, column=9, value=trans.get_status_display())
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="transactions.xlsx"'
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:transaction_list')
+
+
+@login_required
+@permission_required_with_message('assets.view_assettransfer')
+@require_http_methods(["GET"])
+def export_transfers_excel(request):
+    """تصدير التحويلات إلى Excel - جديد"""
+
+    try:
+        # إنشاء workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Transfers"
+
+        # تنسيق الرأس
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Headers
+        headers = [
+            'Transfer Number', 'Date', 'Asset Number', 'Asset Name',
+            'From Branch', 'To Branch', 'Status', 'Requested By'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # البيانات
+        transfers = AssetTransfer.objects.filter(
+            company=request.current_company
+        ).select_related(
+            'asset', 'from_branch', 'to_branch', 'requested_by'
+        ).order_by('-transfer_date')
+
+        row_num = 2
+        for transfer in transfers:
+            ws.cell(row=row_num, column=1, value=transfer.transfer_number)
+            ws.cell(row=row_num, column=2, value=transfer.transfer_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=3, value=transfer.asset.asset_number)
+            ws.cell(row=row_num, column=4, value=transfer.asset.name)
+            ws.cell(row=row_num, column=5, value=transfer.from_branch.name)
+            ws.cell(row=row_num, column=6, value=transfer.to_branch.name)
+            ws.cell(row=row_num, column=7, value=transfer.get_status_display())
+            ws.cell(row=row_num, column=8, value=transfer.requested_by.get_full_name())
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="transfers.xlsx"'
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:transfer_list')

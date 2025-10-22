@@ -1,6 +1,11 @@
 # apps/assets/views/depreciation_views.py
 """
-Views إدارة الإهلاك
+Views إدارة الإهلاك - محسّنة وشاملة
+- احتساب الإهلاك الفردي والجماعي
+- جداول الإهلاك المستقبلية
+- عكس الإهلاك
+- إيقاف/استئناف الإهلاك
+- تقارير مفصّلة
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -10,54 +15,76 @@ from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
-from django.views.generic import ListView, DetailView, FormView
-from django.db.models import Q, Sum, Count
+from django.views.generic import ListView, DetailView, FormView, TemplateView
+from django.db.models import (
+    Q, Sum, Count, Avg, Max, Min, F,
+    DecimalField, Case, When, Value
+)
+from django.db.models.functions import Coalesce, TruncMonth
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ValidationError, PermissionDenied
+from django.core.paginator import Paginator
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
+
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
-from ..models import Asset, AssetDepreciation
-from apps.accounting.models import FiscalYear, AccountingPeriod
+from ..models import Asset, AssetDepreciation, AssetCategory
+from apps.accounting.models import FiscalYear, AccountingPeriod, JournalEntry
 
+
+# ==================== List & Detail Views ====================
 
 class AssetDepreciationListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة سجلات الإهلاك"""
+    """قائمة سجلات الإهلاك - محسّنة"""
 
     model = AssetDepreciation
     template_name = 'assets/depreciation/depreciation_list.html'
     context_object_name = 'depreciation_records'
     permission_required = 'assets.view_asset'
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = AssetDepreciation.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'asset', 'asset__category', 'fiscal_year',
-            'period', 'created_by', 'journal_entry'
+            'asset', 'asset__category', 'asset__branch',
+            'fiscal_year', 'period', 'created_by', 'journal_entry'
         )
 
-        # الفلترة
+        # الفلترة المتقدمة
         asset = self.request.GET.get('asset')
+        category = self.request.GET.get('category')
         fiscal_year = self.request.GET.get('fiscal_year')
         period = self.request.GET.get('period')
+        branch = self.request.GET.get('branch')
         date_from = self.request.GET.get('date_from')
         date_to = self.request.GET.get('date_to')
         is_posted = self.request.GET.get('is_posted')
+        search = self.request.GET.get('search')
 
         if asset:
             queryset = queryset.filter(asset_id=asset)
+
+        if category:
+            queryset = queryset.filter(asset__category_id=category)
 
         if fiscal_year:
             queryset = queryset.filter(fiscal_year_id=fiscal_year)
 
         if period:
             queryset = queryset.filter(period_id=period)
+
+        if branch:
+            queryset = queryset.filter(asset__branch_id=branch)
 
         if date_from:
             queryset = queryset.filter(depreciation_date__gte=date_from)
@@ -68,7 +95,18 @@ class AssetDepreciationListView(LoginRequiredMixin, PermissionRequiredMixin, Com
         if is_posted:
             queryset = queryset.filter(is_posted=(is_posted == '1'))
 
-        return queryset.order_by('-depreciation_date', '-id')
+        if search:
+            queryset = queryset.filter(
+                Q(asset__asset_number__icontains=search) |
+                Q(asset__name__icontains=search) |
+                Q(asset__name_en__icontains=search)
+            )
+
+        # الترتيب
+        sort_by = self.request.GET.get('sort', '-depreciation_date')
+        queryset = queryset.order_by(sort_by, '-id')
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -78,16 +116,38 @@ class AssetDepreciationListView(LoginRequiredMixin, PermissionRequiredMixin, Com
             company=self.request.current_company
         ).order_by('-start_date')
 
-        # إحصائيات
-        stats = self.get_queryset().aggregate(
-            total_depreciation=Sum('depreciation_amount'),
-            count=Count('id')
+        # الفئات
+        categories = AssetCategory.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('code')
+
+        # إحصائيات مفصّلة
+        queryset = self.get_queryset()
+        stats = queryset.aggregate(
+            total_depreciation=Coalesce(Sum('depreciation_amount'), Decimal('0')),
+            count=Count('id'),
+            avg_depreciation=Coalesce(Avg('depreciation_amount'), Decimal('0')),
+            max_depreciation=Coalesce(Max('depreciation_amount'), Decimal('0')),
+            min_depreciation=Coalesce(Min('depreciation_amount'), Decimal('0')),
         )
+
+        # إحصائيات حسب الحالة
+        posted_count = queryset.filter(is_posted=True).count()
+        unposted_count = queryset.filter(is_posted=False).count()
+
+        stats.update({
+            'posted_count': posted_count,
+            'unposted_count': unposted_count,
+            'posted_percentage': round((posted_count / stats['count'] * 100), 2) if stats['count'] > 0 else 0,
+        })
 
         context.update({
             'title': _('سجلات الإهلاك'),
             'can_calculate': self.request.user.has_perm('assets.can_calculate_depreciation'),
+            'can_export': self.request.user.has_perm('assets.view_asset'),
             'fiscal_years': fiscal_years,
+            'categories': categories,
             'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
@@ -98,7 +158,7 @@ class AssetDepreciationListView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
 
 class AssetDepreciationDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """عرض تفاصيل سجل الإهلاك"""
+    """عرض تفاصيل سجل الإهلاك - محسّن"""
 
     model = AssetDepreciation
     template_name = 'assets/depreciation/depreciation_detail.html'
@@ -109,14 +169,57 @@ class AssetDepreciationDetailView(LoginRequiredMixin, PermissionRequiredMixin, C
         return AssetDepreciation.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'asset', 'asset__category', 'fiscal_year',
-            'period', 'created_by', 'journal_entry'
+            'asset', 'asset__category', 'asset__depreciation_method',
+            'fiscal_year', 'period', 'created_by',
+            'journal_entry', 'reversal_entry'
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # معلومات إضافية
+        asset = self.object.asset
+
+        # نسبة الإهلاك في هذا السجل
+        if asset.original_cost > 0:
+            depreciation_pct_this_record = (
+                    self.object.depreciation_amount / asset.original_cost * 100
+            )
+        else:
+            depreciation_pct_this_record = 0
+
+        # الأشهر المتبقية عند هذا السجل
+        if self.object.depreciation_date:
+            months_passed = (
+                    (self.object.depreciation_date.year - asset.depreciation_start_date.year) * 12 +
+                    (self.object.depreciation_date.month - asset.depreciation_start_date.month)
+            )
+            months_remaining = max(0, asset.useful_life_months - months_passed)
+        else:
+            months_remaining = asset.get_remaining_months()
+
+        # السجلات السابقة واللاحقة
+        previous_record = AssetDepreciation.objects.filter(
+            asset=asset,
+            depreciation_date__lt=self.object.depreciation_date
+        ).order_by('-depreciation_date').first()
+
+        next_record = AssetDepreciation.objects.filter(
+            asset=asset,
+            depreciation_date__gt=self.object.depreciation_date
+        ).order_by('depreciation_date').first()
+
         context.update({
             'title': f'سجل إهلاك - {self.object.asset.asset_number}',
+            'can_reverse': (
+                    self.request.user.has_perm('assets.can_calculate_depreciation') and
+                    self.object.is_posted and
+                    not self.object.reversal_entry
+            ),
+            'depreciation_pct_this_record': depreciation_pct_this_record,
+            'months_remaining': months_remaining,
+            'previous_record': previous_record,
+            'next_record': next_record,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('سجلات الإهلاك'), 'url': reverse('assets:depreciation_list')},
@@ -126,8 +229,10 @@ class AssetDepreciationDetailView(LoginRequiredMixin, PermissionRequiredMixin, C
         return context
 
 
-class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
-    """احتساب إهلاك أصل واحد"""
+# ==================== Calculation Views ====================
+
+class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """احتساب إهلاك أصل واحد - محسّن"""
 
     template_name = 'assets/depreciation/calculate_depreciation.html'
     permission_required = 'assets.can_calculate_depreciation'
@@ -145,9 +250,25 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 company=self.request.current_company
             )
 
+            # معلومات الإهلاك
+            depreciation_info = self.get_depreciation_info(asset)
+        else:
+            depreciation_info = None
+
+        # الأصول المؤهلة للإهلاك
+        eligible_assets = Asset.objects.filter(
+            company=self.request.current_company,
+            status='active',
+            depreciation_status='active'
+        ).exclude(
+            depreciation_method__method_type='units_of_production'
+        ).select_related('category')[:20]
+
         context.update({
             'title': _('احتساب الإهلاك'),
             'asset': asset,
+            'depreciation_info': depreciation_info,
+            'eligible_assets': eligible_assets,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('احتساب الإهلاك'), 'url': ''},
@@ -155,13 +276,38 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
         })
         return context
 
+    def get_depreciation_info(self, asset):
+        """حساب معلومات الإهلاك المتوقعة"""
+        depreciable_amount = asset.get_depreciable_amount()
+
+        if asset.depreciation_method.method_type == 'straight_line':
+            monthly_depreciation = depreciable_amount / asset.useful_life_months
+        elif asset.depreciation_method.method_type == 'declining_balance':
+            rate = asset.depreciation_method.rate_percentage / 100
+            monthly_depreciation = asset.book_value * (rate / 12)
+        else:
+            monthly_depreciation = Decimal('0')
+
+        # التأكد من عدم تجاوز المبلغ القابل للإهلاك
+        remaining = depreciable_amount - asset.accumulated_depreciation
+        if monthly_depreciation > remaining:
+            monthly_depreciation = remaining
+
+        return {
+            'expected_amount': monthly_depreciation,
+            'remaining_depreciable': remaining,
+            'remaining_months': asset.get_remaining_months(),
+            'current_book_value': asset.book_value,
+            'expected_book_value': asset.book_value - monthly_depreciation,
+        }
+
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         try:
             asset_id = request.POST.get('asset_id')
 
             if not asset_id:
-                messages.error(request, 'يجب تحديد الأصل')
+                messages.error(request, '❌ يجب تحديد الأصل')
                 return redirect('assets:calculate_depreciation')
 
             asset = get_object_or_404(
@@ -175,28 +321,28 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
             messages.success(
                 request,
-                f'تم احتساب إهلاك الأصل {asset.asset_number} بمبلغ {depreciation_record.depreciation_amount:,.2f} بنجاح'
+                f'✅ تم احتساب إهلاك الأصل {asset.asset_number} بمبلغ {depreciation_record.depreciation_amount:,.2f} بنجاح'
             )
 
             return redirect('assets:depreciation_detail', pk=depreciation_record.pk)
 
         except ValidationError as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:calculate_depreciation')
 
         except PermissionDenied as e:
-            messages.error(request, str(e))
+            messages.error(request, f'❌ {str(e)}')
             return redirect('assets:asset_list')
 
         except Exception as e:
             import traceback
             print(traceback.format_exc())
-            messages.error(request, f'خطأ في احتساب الإهلاك: {str(e)}')
+            messages.error(request, f'❌ خطأ في احتساب الإهلاك: {str(e)}')
             return redirect('assets:calculate_depreciation')
 
 
-class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, FormView):
-    """احتساب الإهلاك الجماعي"""
+class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """احتساب الإهلاك الجماعي - محسّن"""
 
     template_name = 'assets/depreciation/bulk_calculate.html'
     permission_required = 'assets.can_calculate_depreciation'
@@ -204,18 +350,50 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        company = self.request.current_company
+
         # الأصول المؤهلة للإهلاك
-        eligible_assets = Asset.objects.filter(
-            company=self.request.current_company,
+        eligible_assets_query = Asset.objects.filter(
+            company=company,
             status='active',
             depreciation_status='active'
         ).exclude(
             depreciation_method__method_type='units_of_production'
-        ).count()
+        )
+
+        eligible_count = eligible_assets_query.count()
+
+        # إحصائيات الأصول المؤهلة
+        eligible_stats = eligible_assets_query.aggregate(
+            total_book_value=Coalesce(Sum('book_value'), Decimal('0')),
+            avg_book_value=Coalesce(Avg('book_value'), Decimal('0')),
+        )
+
+        # الفئات
+        categories = AssetCategory.objects.filter(
+            company=company,
+            is_active=True
+        ).annotate(
+            eligible_count=Count(
+                'assets',
+                filter=Q(
+                    assets__status='active',
+                    assets__depreciation_status='active'
+                )
+            )
+        ).filter(eligible_count__gt=0).order_by('code')
+
+        # آخر عملية إهلاك جماعي
+        last_bulk = AssetDepreciation.objects.filter(
+            company=company
+        ).order_by('-created_at').first()
 
         context.update({
             'title': _('احتساب الإهلاك الجماعي'),
-            'eligible_assets': eligible_assets,
+            'eligible_count': eligible_count,
+            'eligible_stats': eligible_stats,
+            'categories': categories,
+            'last_bulk': last_bulk,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('احتساب الإهلاك الجماعي'), 'url': ''},
@@ -229,6 +407,10 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
             category_id = request.POST.get('category_id')
             branch_id = request.POST.get('branch_id')
 
+            # خيارات إضافية
+            skip_errors = request.POST.get('skip_errors', 'on') == 'on'
+            create_summary = request.POST.get('create_summary', 'on') == 'on'
+
             # الأصول المؤهلة
             assets = Asset.objects.filter(
                 company=request.current_company,
@@ -236,7 +418,7 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
                 depreciation_status='active'
             ).exclude(
                 depreciation_method__method_type='units_of_production'
-            )
+            ).select_related('category', 'depreciation_method')
 
             if category_id:
                 assets = assets.filter(category_id=category_id)
@@ -247,45 +429,172 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
             # احتساب الإهلاك لكل أصل
             success_count = 0
             error_count = 0
+            total_amount = Decimal('0')
             errors = []
+            success_assets = []
 
             for asset in assets:
                 try:
-                    asset.calculate_monthly_depreciation(user=request.user)
+                    depreciation_record = asset.calculate_monthly_depreciation(user=request.user)
                     success_count += 1
+                    total_amount += depreciation_record.depreciation_amount
+                    success_assets.append({
+                        'asset_number': asset.asset_number,
+                        'amount': depreciation_record.depreciation_amount
+                    })
                 except Exception as e:
                     error_count += 1
-                    errors.append(f"{asset.asset_number}: {str(e)}")
+                    error_msg = f"{asset.asset_number}: {str(e)}"
+                    errors.append(error_msg)
 
-            # الرسائل
+                    if not skip_errors:
+                        # في حالة عدم تجاوز الأخطاء، نوقف العملية
+                        raise Exception(f'فشل في الأصل {asset.asset_number}: {str(e)}')
+
+            # الرسائل النهائية
             if success_count > 0:
                 messages.success(
                     request,
-                    f'تم احتساب الإهلاك لـ {success_count} أصل بنجاح'
+                    f'✅ تم احتساب الإهلاك لـ {success_count} أصل بنجاح. '
+                    f'إجمالي الإهلاك: {total_amount:,.2f}'
                 )
 
             if error_count > 0:
+                error_summary = ', '.join(errors[:5])
+                if len(errors) > 5:
+                    error_summary += f' ... و {len(errors) - 5} أخطاء أخرى'
+
                 messages.warning(
                     request,
-                    f'فشل احتساب {error_count} أصل. الأخطاء: {", ".join(errors[:5])}'
+                    f'⚠️ فشل احتساب {error_count} أصل. الأخطاء: {error_summary}'
                 )
+
+            # حفظ ملخص في session للعرض
+            if create_summary:
+                request.session['bulk_depreciation_summary'] = {
+                    'success_count': success_count,
+                    'error_count': error_count,
+                    'total_amount': float(total_amount),
+                    'date': timezone.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'success_assets': success_assets[:10],  # أول 10 فقط
+                    'errors': errors[:10],
+                }
 
             return redirect('assets:depreciation_list')
 
         except Exception as e:
             import traceback
             print(traceback.format_exc())
-            messages.error(request, f'خطأ في الاحتساب الجماعي: {str(e)}')
+            messages.error(request, f'❌ خطأ في الاحتساب الجماعي: {str(e)}')
             return redirect('assets:bulk_calculate_depreciation')
 
 
-# ==================== Ajax Views ====================
+# ==================== Additional Actions ====================
+
+class PauseDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """إيقاف الإهلاك مؤقتاً - جديد"""
+
+    template_name = 'assets/depreciation/pause_depreciation.html'
+    permission_required = 'assets.can_calculate_depreciation'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        asset_id = self.kwargs.get('asset_id')
+        asset = get_object_or_404(
+            Asset,
+            pk=asset_id,
+            company=self.request.current_company
+        )
+
+        context.update({
+            'title': f'إيقاف إهلاك الأصل {asset.asset_number}',
+            'asset': asset,
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': asset.asset_number, 'url': reverse('assets:asset_detail', args=[asset.pk])},
+                {'title': _('إيقاف الإهلاك'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            asset_id = kwargs.get('asset_id')
+            asset = get_object_or_404(
+                Asset,
+                pk=asset_id,
+                company=request.current_company
+            )
+
+            if asset.depreciation_status == 'paused':
+                messages.warning(request, '⚠️ الإهلاك متوقف مسبقاً')
+                return redirect('assets:asset_detail', pk=asset.pk)
+
+            reason = request.POST.get('reason', '')
+
+            # تحديث الحالة
+            asset.depreciation_status = 'paused'
+            asset.save()
+
+            # تسجيل في الملاحظات
+            note = f"تم إيقاف الإهلاك مؤقتاً. السبب: {reason}"
+            asset.notes = f"{asset.notes}\n{note}" if asset.notes else note
+            asset.save()
+
+            messages.success(request, f'✅ تم إيقاف إهلاك الأصل {asset.asset_number} بنجاح')
+            return redirect('assets:asset_detail', pk=asset.pk)
+
+        except Exception as e:
+            messages.error(request, f'❌ خطأ: {str(e)}')
+            return redirect('assets:asset_detail', pk=asset_id)
+
+
+class ResumeDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """استئناف الإهلاك - جديد"""
+
+    template_name = 'assets/depreciation/resume_depreciation.html'
+    permission_required = 'assets.can_calculate_depreciation'
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            asset_id = kwargs.get('asset_id')
+            asset = get_object_or_404(
+                Asset,
+                pk=asset_id,
+                company=request.current_company
+            )
+
+            if asset.depreciation_status != 'paused':
+                messages.warning(request, '⚠️ الإهلاك ليس متوقفاً')
+                return redirect('assets:asset_detail', pk=asset.pk)
+
+            # تحديث الحالة
+            asset.depreciation_status = 'active'
+            asset.save()
+
+            # تسجيل في الملاحظات
+            note = f"تم استئناف الإهلاك بتاريخ {timezone.now().strftime('%Y-%m-%d')}"
+            asset.notes = f"{asset.notes}\n{note}" if asset.notes else note
+            asset.save()
+
+            messages.success(request, f'✅ تم استئناف إهلاك الأصل {asset.asset_number} بنجاح')
+            return redirect('assets:asset_detail', pk=asset.pk)
+
+        except Exception as e:
+            messages.error(request, f'❌ خطأ: {str(e)}')
+            return redirect('assets:asset_detail', pk=asset_id)
+
+
+# ==================== Ajax Views - محسّنة ====================
 
 @login_required
 @permission_required_with_message('assets.view_asset')
 @require_http_methods(["GET"])
 def depreciation_datatable_ajax(request):
-    """Ajax endpoint لجدول سجلات الإهلاك"""
+    """Ajax endpoint لجدول سجلات الإهلاك - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({
@@ -296,19 +605,24 @@ def depreciation_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 10))
-    search_value = request.GET.get('search[value]', '')
-
-    # الفلاتر المخصصة
-    is_posted = request.GET.get('is_posted', '')
-    fiscal_year = request.GET.get('fiscal_year', '')
-
     try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الفلاتر المخصصة
+        is_posted = request.GET.get('is_posted', '')
+        fiscal_year = request.GET.get('fiscal_year', '')
+        category = request.GET.get('category', '')
+
+        # Query
         queryset = AssetDepreciation.objects.filter(
             company=request.current_company
-        ).select_related('asset', 'fiscal_year', 'period', 'journal_entry')
+        ).select_related(
+            'asset', 'asset__category', 'fiscal_year',
+            'period', 'journal_entry', 'created_by'
+        )
 
         # تطبيق الفلاتر
         if is_posted:
@@ -317,29 +631,65 @@ def depreciation_datatable_ajax(request):
         if fiscal_year:
             queryset = queryset.filter(fiscal_year_id=fiscal_year)
 
+        if category:
+            queryset = queryset.filter(asset__category_id=category)
+
         # البحث العام
         if search_value:
             queryset = queryset.filter(
                 Q(asset__asset_number__icontains=search_value) |
-                Q(asset__name__icontains=search_value)
+                Q(asset__name__icontains=search_value) |
+                Q(asset__name_en__icontains=search_value)
             )
 
-        queryset = queryset.order_by('-depreciation_date', '-id')
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        total_records = AssetDepreciation.objects.filter(company=request.current_company).count()
+        order_columns = {
+            '0': 'depreciation_date',
+            '1': 'asset__asset_number',
+            '2': 'asset__name',
+            '3': 'depreciation_amount',
+            '4': 'accumulated_depreciation_after',
+            '5': 'book_value_after',
+        }
+
+        if order_column_index and order_column_index in order_columns:
+            order_field = order_columns[order_column_index]
+            if order_dir == 'desc':
+                order_field = f'-{order_field}'
+            queryset = queryset.order_by(order_field, '-id')
+        else:
+            queryset = queryset.order_by('-depreciation_date', '-id')
+
+        # العد
+        total_records = AssetDepreciation.objects.filter(
+            company=request.current_company
+        ).count()
         filtered_records = queryset.count()
 
+        # Pagination
         queryset = queryset[start:start + length]
 
+        # إعداد البيانات
         data = []
         can_view = request.user.has_perm('assets.view_asset')
+        can_view_journal = request.user.has_perm('accounting.view_journalentry')
 
         for dep in queryset:
             # الحالة
             if dep.is_posted:
-                status_badge = '<span class="badge bg-success">مرحّل</span>'
+                status_badge = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> مرحّل</span>'
             else:
-                status_badge = '<span class="badge bg-warning">غير مرحّل</span>'
+                status_badge = '<span class="badge bg-warning"><i class="fas fa-clock"></i> غير مرحّل</span>'
+
+            # نسبة الإهلاك
+            if dep.asset.original_cost > 0:
+                pct = (dep.depreciation_amount / dep.asset.original_cost * 100)
+                pct_badge = f'<small class="text-muted">{pct:.2f}%</small>'
+            else:
+                pct_badge = ''
 
             # أزرار الإجراءات
             actions = []
@@ -352,7 +702,7 @@ def depreciation_datatable_ajax(request):
                     </a>
                 ''')
 
-            if dep.journal_entry:
+            if dep.journal_entry and can_view_journal:
                 actions.append(f'''
                     <a href="{reverse('accounting:journal_entry_detail', args=[dep.journal_entry.pk])}" 
                        class="btn btn-outline-secondary btn-sm" title="القيد" data-bs-toggle="tooltip">
@@ -360,15 +710,21 @@ def depreciation_datatable_ajax(request):
                     </a>
                 ''')
 
-            actions_html = ' '.join(actions) if actions else '-'
+            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
                 dep.depreciation_date.strftime('%Y-%m-%d'),
-                dep.asset.asset_number,
-                dep.asset.name,
-                f"{dep.depreciation_amount:,.2f}",
-                f"{dep.accumulated_depreciation_after:,.2f}",
-                f"{dep.book_value_after:,.2f}",
+                f'<a href="{reverse("assets:asset_detail", args=[dep.asset.pk])}">{dep.asset.asset_number}</a>',
+                f'''<div>
+                    <strong>{dep.asset.name}</strong>
+                    <br><small class="text-muted">{dep.asset.category.name}</small>
+                </div>''',
+                f'''<div class="text-end">
+                    <strong>{dep.depreciation_amount:,.2f}</strong>
+                    {pct_badge}
+                </div>''',
+                f'<div class="text-end">{dep.accumulated_depreciation_after:,.2f}</div>',
+                f'<div class="text-end">{dep.book_value_after:,.2f}</div>',
                 status_badge,
                 actions_html
             ])
@@ -389,107 +745,101 @@ def depreciation_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
-        })
+        }, status=500)
 
 
 @login_required
 @permission_required_with_message('assets.view_asset')
 @require_http_methods(["GET"])
 def depreciation_schedule_ajax(request):
-    """جدول الإهلاك المستقبلي لأصل معين"""
+    """جدول الإهلاك المستقبلي - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
-        return JsonResponse({'error': 'لا توجد شركة محددة'}, status=400)
-
-    asset_id = request.GET.get('asset_id')
-
-    if not asset_id:
-        return JsonResponse({'error': 'يجب تحديد الأصل'}, status=400)
+        return JsonResponse({'success': False, 'error': 'لا توجد شركة محددة'}, status=400)
 
     try:
+        asset_id = request.GET.get('asset_id')
+        months_ahead = int(request.GET.get('months', 24))
+
+        if not asset_id:
+            return JsonResponse({'success': False, 'error': 'يجب تحديد الأصل'}, status=400)
+
         asset = get_object_or_404(
             Asset,
             pk=asset_id,
             company=request.current_company
         )
 
-        # حساب جدول الإهلاك المستقبلي
+        # حساب جدول الإهلاك
         schedule = []
         remaining_months = asset.get_remaining_months()
+        months_to_calculate = min(remaining_months, months_ahead)
 
-        if asset.depreciation_method.method_type == 'straight_line':
-            depreciable_amount = asset.get_depreciable_amount()
-            monthly_depreciation = depreciable_amount / asset.useful_life_months
+        depreciable_amount = asset.get_depreciable_amount()
+        current_accumulated = asset.accumulated_depreciation
+        current_book_value = asset.book_value
+        current_date = date.today()
 
-            current_accumulated = asset.accumulated_depreciation
-            current_book_value = asset.book_value
+        for i in range(months_to_calculate):
+            month_date = current_date + relativedelta(months=i)
 
-            from dateutil.relativedelta import relativedelta
-            current_date = date.today()
-
-            for i in range(min(remaining_months, 24)):  # أول 24 شهر
-                month_date = current_date + relativedelta(months=i)
-
-                # التأكد من عدم تجاوز المبلغ القابل للإهلاك
-                remaining = depreciable_amount - current_accumulated
-                if monthly_depreciation > remaining:
-                    monthly_depreciation = remaining
-
-                if monthly_depreciation <= 0:
-                    break
-
-                current_accumulated += monthly_depreciation
-                current_book_value -= monthly_depreciation
-
-                schedule.append({
-                    'month': month_date.strftime('%Y-%m'),
-                    'depreciation_amount': float(monthly_depreciation),
-                    'accumulated_depreciation': float(current_accumulated),
-                    'book_value': float(current_book_value)
-                })
-
-        elif asset.depreciation_method.method_type == 'declining_balance':
-            rate = asset.depreciation_method.rate_percentage / 100
-
-            current_accumulated = asset.accumulated_depreciation
-            current_book_value = asset.book_value
-
-            from dateutil.relativedelta import relativedelta
-            current_date = date.today()
-
-            for i in range(min(remaining_months, 24)):
-                month_date = current_date + relativedelta(months=i)
-
+            # حساب الإهلاك الشهري
+            if asset.depreciation_method.method_type == 'straight_line':
+                monthly_depreciation = depreciable_amount / asset.useful_life_months
+            elif asset.depreciation_method.method_type == 'declining_balance':
+                rate = asset.depreciation_method.rate_percentage / 100
                 monthly_depreciation = current_book_value * (rate / 12)
+            else:
+                monthly_depreciation = Decimal('0')
 
-                # التأكد من عدم تجاوز المبلغ القابل للإهلاك
-                depreciable_amount = asset.get_depreciable_amount()
-                remaining = depreciable_amount - current_accumulated
+            # التأكد من عدم تجاوز المبلغ القابل للإهلاك
+            remaining = depreciable_amount - current_accumulated
+            if monthly_depreciation > remaining:
+                monthly_depreciation = remaining
 
-                if monthly_depreciation > remaining:
-                    monthly_depreciation = remaining
+            if monthly_depreciation <= 0:
+                break
 
-                if monthly_depreciation <= 0:
-                    break
+            # التحديث
+            current_accumulated += monthly_depreciation
+            current_book_value -= monthly_depreciation
 
-                current_accumulated += monthly_depreciation
-                current_book_value -= monthly_depreciation
+            # نسبة الإهلاك
+            depreciation_pct = (
+                (current_accumulated / asset.original_cost * 100)
+                if asset.original_cost > 0 else 0
+            )
 
-                schedule.append({
-                    'month': month_date.strftime('%Y-%m'),
-                    'depreciation_amount': float(monthly_depreciation),
-                    'accumulated_depreciation': float(current_accumulated),
-                    'book_value': float(current_book_value)
-                })
+            schedule.append({
+                'month': month_date.strftime('%Y-%m'),
+                'month_display': month_date.strftime('%B %Y'),
+                'depreciation_amount': float(monthly_depreciation),
+                'accumulated_depreciation': float(current_accumulated),
+                'book_value': float(current_book_value),
+                'depreciation_percentage': round(float(depreciation_pct), 2),
+            })
+
+        # ملخص
+        summary = {
+            'total_future_depreciation': sum(item['depreciation_amount'] for item in schedule),
+            'final_book_value': schedule[-1]['book_value'] if schedule else float(asset.book_value),
+            'months_calculated': len(schedule),
+            'will_be_fully_depreciated': len(schedule) < remaining_months,
+        }
 
         return JsonResponse({
             'success': True,
             'schedule': schedule,
+            'summary': summary,
             'asset': {
                 'asset_number': asset.asset_number,
                 'name': asset.name,
+                'original_cost': float(asset.original_cost),
                 'current_book_value': float(asset.book_value),
-                'remaining_months': remaining_months
+                'current_accumulated': float(asset.accumulated_depreciation),
+                'salvage_value': float(asset.salvage_value),
+                'remaining_months': remaining_months,
+                'depreciation_method': asset.depreciation_method.name,
             }
         })
 
@@ -506,7 +856,7 @@ def depreciation_schedule_ajax(request):
 @permission_required_with_message('assets.can_calculate_depreciation')
 @require_http_methods(["POST"])
 def calculate_single_depreciation_ajax(request, pk):
-    """احتساب إهلاك أصل واحد عبر Ajax"""
+    """احتساب إهلاك أصل واحد عبر Ajax - محسّن"""
 
     try:
         asset = get_object_or_404(
@@ -521,10 +871,18 @@ def calculate_single_depreciation_ajax(request, pk):
         return JsonResponse({
             'success': True,
             'message': f'تم احتساب الإهلاك بنجاح',
-            'depreciation_amount': float(depreciation_record.depreciation_amount),
-            'book_value': float(depreciation_record.book_value_after),
-            'journal_entry_number': depreciation_record.journal_entry.number if depreciation_record.journal_entry else None,
-            'depreciation_id': depreciation_record.pk
+            'data': {
+                'depreciation_id': depreciation_record.pk,
+                'depreciation_amount': float(depreciation_record.depreciation_amount),
+                'accumulated_depreciation': float(depreciation_record.accumulated_depreciation_after),
+                'book_value': float(depreciation_record.book_value_after),
+                'depreciation_date': depreciation_record.depreciation_date.strftime('%Y-%m-%d'),
+                'journal_entry_number': (
+                    depreciation_record.journal_entry.number
+                    if depreciation_record.journal_entry else None
+                ),
+                'is_posted': depreciation_record.is_posted,
+            }
         })
 
     except ValidationError as e:
@@ -546,3 +904,190 @@ def calculate_single_depreciation_ajax(request, pk):
             'success': False,
             'message': f'خطأ في احتساب الإهلاك: {str(e)}'
         }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.can_calculate_depreciation')
+@require_http_methods(["POST"])
+def reverse_depreciation_ajax(request, pk):
+    """عكس قيد إهلاك - جديد"""
+
+    try:
+        depreciation = get_object_or_404(
+            AssetDepreciation,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if not depreciation.is_posted:
+            return JsonResponse({
+                'success': False,
+                'message': 'القيد غير مرحّل'
+            }, status=400)
+
+        if depreciation.reversal_entry:
+            return JsonResponse({
+                'success': False,
+                'message': 'القيد معكوس مسبقاً'
+            }, status=400)
+
+        # عكس القيد المحاسبي
+        from apps.accounting.models import JournalEntry
+
+        reversal_entry = depreciation.journal_entry.reverse(
+            user=request.user,
+            reversal_date=date.today(),
+            reason=f"عكس إهلاك {depreciation.asset.asset_number}"
+        )
+
+        # تحديث سجل الإهلاك
+        depreciation.reversal_entry = reversal_entry
+        depreciation.save()
+
+        # تحديث الأصل
+        asset = depreciation.asset
+        asset.accumulated_depreciation -= depreciation.depreciation_amount
+        asset.book_value += depreciation.depreciation_amount
+        asset.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'تم عكس قيد الإهلاك بنجاح',
+            'reversal_entry_number': reversal_entry.number,
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في عكس القيد: {str(e)}'
+        }, status=500)
+
+
+# ==================== Export Functions ====================
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def export_depreciation_schedule_excel(request):
+    """تصدير جدول الإهلاك إلى Excel - جديد"""
+
+    try:
+        asset_id = request.GET.get('asset_id')
+        months = int(request.GET.get('months', 24))
+
+        if not asset_id:
+            messages.error(request, 'يجب تحديد الأصل')
+            return redirect('assets:depreciation_list')
+
+        asset = get_object_or_404(
+            Asset,
+            pk=asset_id,
+            company=request.current_company
+        )
+
+        # إنشاء workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Depreciation Schedule"
+
+        # تنسيق الرأس
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # معلومات الأصل
+        ws['A1'] = 'Asset Number:'
+        ws['B1'] = asset.asset_number
+        ws['A2'] = 'Asset Name:'
+        ws['B2'] = asset.name
+        ws['A3'] = 'Original Cost:'
+        ws['B3'] = float(asset.original_cost)
+        ws['A4'] = 'Salvage Value:'
+        ws['B4'] = float(asset.salvage_value)
+        ws['A5'] = 'Current Book Value:'
+        ws['B5'] = float(asset.book_value)
+
+        # Headers للجدول
+        headers = [
+            'Month', 'Depreciation Amount',
+            'Accumulated Depreciation', 'Book Value',
+            'Depreciation %'
+        ]
+
+        row_num = 7
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # حساب البيانات
+        depreciable_amount = asset.get_depreciable_amount()
+        current_accumulated = asset.accumulated_depreciation
+        current_book_value = asset.book_value
+        current_date = date.today()
+
+        row_num = 8
+        for i in range(min(asset.get_remaining_months(), months)):
+            month_date = current_date + relativedelta(months=i)
+
+            if asset.depreciation_method.method_type == 'straight_line':
+                monthly_dep = depreciable_amount / asset.useful_life_months
+            elif asset.depreciation_method.method_type == 'declining_balance':
+                rate = asset.depreciation_method.rate_percentage / 100
+                monthly_dep = current_book_value * (rate / 12)
+            else:
+                monthly_dep = Decimal('0')
+
+            remaining = depreciable_amount - current_accumulated
+            if monthly_dep > remaining:
+                monthly_dep = remaining
+
+            if monthly_dep <= 0:
+                break
+
+            current_accumulated += monthly_dep
+            current_book_value -= monthly_dep
+
+            depreciation_pct = (
+                (current_accumulated / asset.original_cost * 100)
+                if asset.original_cost > 0 else 0
+            )
+
+            ws.cell(row=row_num, column=1, value=month_date.strftime('%Y-%m'))
+            ws.cell(row=row_num, column=2, value=float(monthly_dep))
+            ws.cell(row=row_num, column=3, value=float(current_accumulated))
+            ws.cell(row=row_num, column=4, value=float(current_book_value))
+            ws.cell(row=row_num, column=5, value=float(depreciation_pct))
+
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 25
+        ws.column_dimensions['D'].width = 20
+        ws.column_dimensions['E'].width = 15
+
+        # حفظ
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="depreciation_schedule_{asset.asset_number}.xlsx"'
+        )
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:depreciation_list')

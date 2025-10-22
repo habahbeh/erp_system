@@ -1,6 +1,11 @@
 # apps/assets/views/insurance_views.py
 """
-Views إدارة التأمين على الأصول
+Views إدارة التأمين على الأصول - محسّنة وشاملة
+- إدارة شركات التأمين
+- إدارة البوليصات
+- إدارة المطالبات
+- تجديد البوليصات
+- تقارير التأمين
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -10,24 +15,41 @@ from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-from django.db.models import Q, Sum, Count
+from django.views.generic import (
+    ListView, CreateView, UpdateView, DeleteView,
+    DetailView, TemplateView
+)
+from django.db.models import (
+    Q, Sum, Count, Avg, Max, Min, F,
+    DecimalField, Case, When, Value
+)
+from django.db.models.functions import Coalesce, TruncMonth
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.db import transaction
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
+from django.core.paginator import Paginator
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
+
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
-from ..models import InsuranceCompany, AssetInsurance, InsuranceClaim, Asset
+from ..models import (
+    InsuranceCompany, AssetInsurance, InsuranceClaim,
+    Asset, AssetCategory
+)
 
 
 # ==================== Insurance Companies ====================
 
 class InsuranceCompanyListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة شركات التأمين"""
+    """قائمة شركات التأمين - محسّنة"""
 
     model = InsuranceCompany
     template_name = 'assets/insurance/company_list.html'
@@ -38,25 +60,73 @@ class InsuranceCompanyListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     def get_queryset(self):
         queryset = InsuranceCompany.objects.filter(
             company=self.request.current_company
+        ).annotate(
+            active_policies_count=Count(
+                'insurance_policies',
+                filter=Q(insurance_policies__status='active')
+            ),
+            total_coverage=Coalesce(
+                Sum(
+                    'insurance_policies__coverage_amount',
+                    filter=Q(insurance_policies__status='active')
+                ),
+                Decimal('0')
+            ),
+            total_premiums=Coalesce(
+                Sum(
+                    'insurance_policies__premium_amount',
+                    filter=Q(insurance_policies__status='active')
+                ),
+                Decimal('0')
+            )
         )
 
+        # الفلترة
         search = self.request.GET.get('search')
+        has_active = self.request.GET.get('has_active')
+
         if search:
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(name__icontains=search) |
-                Q(name_en__icontains=search)
+                Q(name_en__icontains=search) |
+                Q(email__icontains=search) |
+                Q(phone__icontains=search)
             )
 
-        return queryset.order_by('name')
+        if has_active == '1':
+            queryset = queryset.filter(active_policies_count__gt=0)
+
+        # الترتيب
+        sort_by = self.request.GET.get('sort', 'name')
+        queryset = queryset.order_by(sort_by)
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # إحصائيات
+        companies = InsuranceCompany.objects.filter(
+            company=self.request.current_company
+        )
+
+        stats = {
+            'total_companies': companies.count(),
+            'with_active_policies': companies.annotate(
+                count=Count(
+                    'insurance_policies',
+                    filter=Q(insurance_policies__status='active')
+                )
+            ).filter(count__gt=0).count(),
+        }
+
         context.update({
             'title': _('شركات التأمين'),
             'can_add': self.request.user.has_perm('assets.add_insurancecompany'),
             'can_edit': self.request.user.has_perm('assets.change_insurancecompany'),
             'can_delete': self.request.user.has_perm('assets.delete_insurancecompany'),
+            'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('شركات التأمين'), 'url': ''},
@@ -66,7 +136,7 @@ class InsuranceCompanyListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class InsuranceCompanyCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إنشاء شركة تأمين"""
+    """إنشاء شركة تأمين - محسّن"""
 
     model = InsuranceCompany
     template_name = 'assets/insurance/company_form.html'
@@ -79,19 +149,42 @@ class InsuranceCompanyCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     ]
     success_url = reverse_lazy('assets:insurance_company_list')
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+
+        return form
+
     @transaction.atomic
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.created_by = self.request.user
-        self.object = form.save()
+        try:
+            form.instance.company = self.request.current_company
+            form.instance.created_by = self.request.user
+            self.object = form.save()
 
-        messages.success(self.request, f'تم إنشاء شركة التأمين {self.object.name} بنجاح')
-        return redirect(self.success_url)
+            self.log_action('create', self.object)
+
+            messages.success(
+                self.request,
+                f'✅ تم إنشاء شركة التأمين {self.object.name} بنجاح'
+            )
+            return redirect(self.success_url)
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('إضافة شركة تأمين'),
+            'submit_text': _('إنشاء الشركة'),
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('شركات التأمين'), 'url': reverse('assets:insurance_company_list')},
@@ -102,7 +195,7 @@ class InsuranceCompanyCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
 
 class InsuranceCompanyUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل شركة تأمين"""
+    """تعديل شركة تأمين - محسّن"""
 
     model = InsuranceCompany
     template_name = 'assets/insurance/company_form.html'
@@ -118,27 +211,120 @@ class InsuranceCompanyUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def get_queryset(self):
         return InsuranceCompany.objects.filter(company=self.request.current_company)
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+
+        return form
+
     @transaction.atomic
     def form_valid(self, form):
-        self.object = form.save()
-        messages.success(self.request, f'تم تحديث شركة التأمين {self.object.name} بنجاح')
-        return redirect(self.success_url)
+        try:
+            self.object = form.save()
+
+            self.log_action('update', self.object)
+
+            messages.success(
+                self.request,
+                f'✅ تم تحديث شركة التأمين {self.object.name} بنجاح'
+            )
+            return redirect(self.success_url)
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
             'title': f'تعديل شركة التأمين {self.object.name}',
+            'submit_text': _('حفظ التعديلات'),
+            'is_update': True,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('شركات التأمين'), 'url': reverse('assets:insurance_company_list')},
-                {'title': _('تعديل'), 'url': ''},
+                {'title': self.object.name, 'url': ''},
+            ]
+        })
+        return context
+
+
+class InsuranceCompanyDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """عرض تفاصيل شركة التأمين - جديد"""
+
+    model = InsuranceCompany
+    template_name = 'assets/insurance/company_detail.html'
+    context_object_name = 'insurance_company'
+    permission_required = 'assets.view_insurancecompany'
+
+    def get_queryset(self):
+        return InsuranceCompany.objects.filter(
+            company=self.request.current_company
+        ).prefetch_related('insurance_policies')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # البوليصات
+        policies = self.object.insurance_policies.select_related(
+            'asset', 'asset__category'
+        ).order_by('-start_date')
+
+        # إحصائيات البوليصات
+        policy_stats = policies.aggregate(
+            total_count=Count('id'),
+            active_count=Count('id', filter=Q(status='active')),
+            total_coverage=Coalesce(
+                Sum('coverage_amount', filter=Q(status='active')),
+                Decimal('0')
+            ),
+            total_premiums=Coalesce(
+                Sum('premium_amount', filter=Q(status='active')),
+                Decimal('0')
+            ),
+        )
+
+        # المطالبات
+        claims = InsuranceClaim.objects.filter(
+            insurance__insurance_company=self.object
+        ).select_related('insurance__asset').order_by('-filed_date')[:10]
+
+        # إحصائيات المطالبات
+        claim_stats = InsuranceClaim.objects.filter(
+            insurance__insurance_company=self.object
+        ).aggregate(
+            total_count=Count('id'),
+            approved_count=Count('id', filter=Q(status='approved')),
+            paid_count=Count('id', filter=Q(status='paid')),
+            total_claimed=Coalesce(Sum('claim_amount'), Decimal('0')),
+            total_approved=Coalesce(Sum('approved_amount'), Decimal('0')),
+        )
+
+        context.update({
+            'title': f'شركة التأمين: {self.object.name}',
+            'can_edit': self.request.user.has_perm('assets.change_insurancecompany'),
+            'can_delete': self.request.user.has_perm('assets.delete_insurancecompany'),
+            'policies': policies[:10],
+            'policy_stats': policy_stats,
+            'claims': claims,
+            'claim_stats': claim_stats,
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('شركات التأمين'), 'url': reverse('assets:insurance_company_list')},
+                {'title': self.object.name, 'url': ''},
             ]
         })
         return context
 
 
 class InsuranceCompanyDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
-    """حذف شركة تأمين"""
+    """حذف شركة تأمين - محسّن"""
 
     model = InsuranceCompany
     template_name = 'assets/insurance/company_confirm_delete.html'
@@ -148,38 +334,51 @@ class InsuranceCompanyDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def get_queryset(self):
         return InsuranceCompany.objects.filter(company=self.request.current_company)
 
+    @transaction.atomic
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
 
-        if self.object.insurance_policies.exists():
-            messages.error(request, _('لا يمكن حذف شركة تأمين لديها بوليصات'))
+        # التحقق
+        policy_count = self.object.insurance_policies.count()
+        if policy_count > 0:
+            messages.error(
+                request,
+                f'❌ لا يمكن حذف شركة تأمين لديها {policy_count} بوليصات'
+            )
             return redirect('assets:insurance_company_list')
 
-        messages.success(request, f'تم حذف شركة التأمين {self.object.name} بنجاح')
+        company_name = self.object.name
+        messages.success(request, f'✅ تم حذف شركة التأمين {company_name} بنجاح')
+
         return super().delete(request, *args, **kwargs)
 
 
 # ==================== Asset Insurance ====================
 
 class AssetInsuranceListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة بوليصات التأمين"""
+    """قائمة بوليصات التأمين - محسّنة"""
 
     model = AssetInsurance
     template_name = 'assets/insurance/insurance_list.html'
     context_object_name = 'insurances'
     permission_required = 'assets.view_assetinsurance'
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = AssetInsurance.objects.filter(
             company=self.request.current_company
-        ).select_related('insurance_company', 'asset')
+        ).select_related(
+            'insurance_company', 'asset', 'asset__category', 'asset__branch'
+        )
 
-        # الفلترة
+        # الفلترة المتقدمة
         status = self.request.GET.get('status')
         insurance_company = self.request.GET.get('insurance_company')
         asset = self.request.GET.get('asset')
+        category = self.request.GET.get('category')
+        coverage_type = self.request.GET.get('coverage_type')
         expiring_soon = self.request.GET.get('expiring_soon')
+        search = self.request.GET.get('search')
 
         if status:
             queryset = queryset.filter(status=status)
@@ -190,14 +389,33 @@ class AssetInsuranceListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         if asset:
             queryset = queryset.filter(asset_id=asset)
 
+        if category:
+            queryset = queryset.filter(asset__category_id=category)
+
+        if coverage_type:
+            queryset = queryset.filter(coverage_type=coverage_type)
+
         if expiring_soon == '1':
-            expiry_date = date.today() + timedelta(days=30)
+            expiry_date = date.today() + timedelta(days=60)
             queryset = queryset.filter(
                 status='active',
-                end_date__lte=expiry_date
+                end_date__lte=expiry_date,
+                end_date__gte=date.today()
             )
 
-        return queryset.order_by('-start_date', '-policy_number')
+        if search:
+            queryset = queryset.filter(
+                Q(policy_number__icontains=search) |
+                Q(asset__asset_number__icontains=search) |
+                Q(asset__name__icontains=search) |
+                Q(insurance_company__name__icontains=search)
+            )
+
+        # الترتيب
+        sort_by = self.request.GET.get('sort', '-start_date')
+        queryset = queryset.order_by(sort_by, '-policy_number')
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -205,22 +423,63 @@ class AssetInsuranceListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         # شركات التأمين
         insurance_companies = InsuranceCompany.objects.filter(
             company=self.request.current_company
+        ).order_by('name')
+
+        # الفئات
+        categories = AssetCategory.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('code')
+
+        # إحصائيات مفصّلة
+        insurances = AssetInsurance.objects.filter(
+            company=self.request.current_company
         )
 
-        # البوليصات المنتهية قريباً
-        expiring_count = AssetInsurance.objects.filter(
-            company=self.request.current_company,
+        stats = insurances.aggregate(
+            total_count=Count('id'),
+            active_count=Count('id', filter=Q(status='active')),
+            expired_count=Count('id', filter=Q(status='expired')),
+            total_coverage=Coalesce(
+                Sum('coverage_amount', filter=Q(status='active')),
+                Decimal('0')
+            ),
+            total_premiums=Coalesce(
+                Sum('premium_amount', filter=Q(status='active')),
+                Decimal('0')
+            ),
+            avg_coverage=Coalesce(
+                Avg('coverage_amount', filter=Q(status='active')),
+                Decimal('0')
+            ),
+        )
+
+        # البوليصات المنتهية قريباً (30 يوم)
+        expiring_30 = insurances.filter(
             status='active',
-            end_date__lte=date.today() + timedelta(days=30)
+            end_date__lte=date.today() + timedelta(days=30),
+            end_date__gte=date.today()
+        ).count()
+
+        # البوليصات المنتهية قريباً (60 يوم)
+        expiring_60 = insurances.filter(
+            status='active',
+            end_date__lte=date.today() + timedelta(days=60),
+            end_date__gte=date.today()
         ).count()
 
         context.update({
             'title': _('بوليصات التأمين'),
             'can_add': self.request.user.has_perm('assets.add_assetinsurance'),
             'can_edit': self.request.user.has_perm('assets.change_assetinsurance'),
+            'can_export': self.request.user.has_perm('assets.view_assetinsurance'),
             'status_choices': AssetInsurance.STATUS_CHOICES,
+            'coverage_types': AssetInsurance.COVERAGE_TYPES,
             'insurance_companies': insurance_companies,
-            'expiring_count': expiring_count,
+            'categories': categories,
+            'stats': stats,
+            'expiring_30': expiring_30,
+            'expiring_60': expiring_60,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('بوليصات التأمين'), 'url': ''},
@@ -230,7 +489,7 @@ class AssetInsuranceListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
 
 
 class AssetInsuranceCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إنشاء بوليصة تأمين"""
+    """إنشاء بوليصة تأمين - محسّن"""
 
     model = AssetInsurance
     template_name = 'assets/insurance/insurance_form.html'
@@ -246,33 +505,59 @@ class AssetInsuranceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
 
+        company = self.request.current_company
+
         form.fields['insurance_company'].queryset = InsuranceCompany.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).order_by('name')
 
         form.fields['asset'].queryset = Asset.objects.filter(
-            company=self.request.current_company,
+            company=company,
             status='active'
-        )
+        ).select_related('category')
 
+        # القيم الافتراضية
         form.fields['start_date'].initial = date.today()
+        form.fields['status'].initial = 'active'
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
+        try:
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
 
-        self.object = form.save()
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم إنشاء البوليصة {self.object.policy_number} بنجاح'
-        )
+            # تحديث حالة التأمين في الأصل
+            asset = self.object.asset
+            asset.insurance_status = 'insured'
+            asset.save()
 
-        return redirect(self.get_success_url())
+            self.log_action('create', self.object)
+
+            messages.success(
+                self.request,
+                f'✅ تم إنشاء البوليصة {self.object.policy_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:insurance_detail', kwargs={'pk': self.object.pk})
@@ -281,6 +566,7 @@ class AssetInsuranceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('إضافة بوليصة تأمين'),
+            'submit_text': _('إنشاء البوليصة'),
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('بوليصات التأمين'), 'url': reverse('assets:insurance_list')},
@@ -291,7 +577,7 @@ class AssetInsuranceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """عرض تفاصيل بوليصة التأمين"""
+    """عرض تفاصيل بوليصة التأمين - محسّن"""
 
     model = AssetInsurance
     template_name = 'assets/insurance/insurance_detail.html'
@@ -301,19 +587,65 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     def get_queryset(self):
         return AssetInsurance.objects.filter(
             company=self.request.current_company
-        ).select_related('insurance_company', 'asset', 'created_by')
+        ).select_related(
+            'insurance_company', 'asset', 'asset__category',
+            'created_by', 'renewed_from'
+        ).prefetch_related('claims', 'renewals')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         # المطالبات
-        claims = self.object.claims.order_by('-filed_date')
+        claims = self.object.claims.select_related('filed_by').order_by('-filed_date')
+
+        # إحصائيات المطالبات
+        claim_stats = claims.aggregate(
+            total_count=Count('id'),
+            approved_count=Count('id', filter=Q(status='approved')),
+            paid_count=Count('id', filter=Q(status='paid')),
+            rejected_count=Count('id', filter=Q(status='rejected')),
+            total_claimed=Coalesce(Sum('claim_amount'), Decimal('0')),
+            total_approved=Coalesce(Sum('approved_amount'), Decimal('0')),
+        )
+
+        # الأيام المتبقية
+        if self.object.end_date:
+            days_remaining = (self.object.end_date - date.today()).days
+        else:
+            days_remaining = None
+
+        # التجديدات
+        renewals = self.object.renewals.order_by('-start_date')[:5]
+
+        # التحذيرات
+        warnings = []
+        if self.object.is_expiring_soon():
+            warnings.append({
+                'type': 'warning',
+                'icon': 'fa-exclamation-triangle',
+                'message': f'البوليصة تنتهي قريباً في {self.object.end_date}'
+            })
+
+        if self.object.status == 'expired':
+            warnings.append({
+                'type': 'danger',
+                'icon': 'fa-times-circle',
+                'message': 'البوليصة منتهية'
+            })
 
         context.update({
             'title': f'البوليصة {self.object.policy_number}',
             'can_edit': self.request.user.has_perm('assets.change_assetinsurance'),
             'can_add_claim': self.request.user.has_perm('assets.add_insuranceclaim'),
+            'can_renew': (
+                    self.request.user.has_perm('assets.add_assetinsurance') and
+                    self.object.status in ['active', 'expired']
+            ),
             'claims': claims,
+            'claim_stats': claim_stats,
+            'days_remaining': days_remaining,
+            'renewals': renewals,
+            'warnings': warnings,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('بوليصات التأمين'), 'url': reverse('assets:insurance_list')},
@@ -324,7 +656,7 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل بوليصة تأمين"""
+    """تعديل بوليصة تأمين - محسّن"""
 
     model = AssetInsurance
     template_name = 'assets/insurance/insurance_form.html'
@@ -343,26 +675,59 @@ class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
 
+        company = self.request.current_company
+
         form.fields['insurance_company'].queryset = InsuranceCompany.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).order_by('name')
 
         form.fields['asset'].queryset = Asset.objects.filter(
-            company=self.request.current_company
-        )
+            company=company
+        ).select_related('category')
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        self.object = form.save()
+        try:
+            old_status = self.object.status
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم تحديث البوليصة {self.object.policy_number} بنجاح'
-        )
+            # تحديث حالة التأمين في الأصل
+            if old_status != self.object.status:
+                asset = self.object.asset
+                if self.object.status == 'active':
+                    asset.insurance_status = 'insured'
+                elif self.object.status in ['expired', 'cancelled']:
+                    # التحقق من وجود بوليصات أخرى نشطة
+                    other_active = AssetInsurance.objects.filter(
+                        asset=asset,
+                        status='active'
+                    ).exclude(pk=self.object.pk).exists()
 
-        return redirect(self.get_success_url())
+                    if not other_active:
+                        asset.insurance_status = 'expired'
+                asset.save()
+
+            self.log_action('update', self.object)
+
+            messages.success(
+                self.request,
+                f'✅ تم تحديث البوليصة {self.object.policy_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:insurance_detail', kwargs={'pk': self.object.pk})
@@ -371,6 +736,8 @@ class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         context = super().get_context_data(**kwargs)
         context.update({
             'title': f'تعديل البوليصة {self.object.policy_number}',
+            'submit_text': _('حفظ التعديلات'),
+            'is_update': True,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('بوليصات التأمين'), 'url': reverse('assets:insurance_list')},
@@ -381,26 +748,120 @@ class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         return context
 
 
+class RenewInsuranceView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """تجديد بوليصة تأمين - جديد"""
+
+    template_name = 'assets/insurance/renew_insurance.html'
+    permission_required = 'assets.add_assetinsurance'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        insurance_id = self.kwargs.get('pk')
+        insurance = get_object_or_404(
+            AssetInsurance,
+            pk=insurance_id,
+            company=self.request.current_company
+        )
+
+        # الفترة المقترحة (سنة واحدة)
+        suggested_start = insurance.end_date + timedelta(days=1)
+        suggested_end = suggested_start + timedelta(days=365)
+
+        context.update({
+            'title': f'تجديد البوليصة {insurance.policy_number}',
+            'insurance': insurance,
+            'suggested_start': suggested_start,
+            'suggested_end': suggested_end,
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('بوليصات التأمين'), 'url': reverse('assets:insurance_list')},
+                {'title': insurance.policy_number, 'url': reverse('assets:insurance_detail', args=[insurance.pk])},
+                {'title': _('تجديد'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            insurance_id = kwargs.get('pk')
+            old_insurance = get_object_or_404(
+                AssetInsurance,
+                pk=insurance_id,
+                company=request.current_company
+            )
+
+            # البيانات الجديدة
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            coverage_amount = Decimal(request.POST.get('coverage_amount', old_insurance.coverage_amount))
+            premium_amount = Decimal(request.POST.get('premium_amount', old_insurance.premium_amount))
+
+            # إنشاء البوليصة الجديدة
+            new_insurance = AssetInsurance.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                insurance_company=old_insurance.insurance_company,
+                asset=old_insurance.asset,
+                coverage_type=old_insurance.coverage_type,
+                coverage_description=old_insurance.coverage_description,
+                coverage_amount=coverage_amount,
+                premium_amount=premium_amount,
+                deductible_amount=old_insurance.deductible_amount,
+                payment_frequency=old_insurance.payment_frequency,
+                start_date=start_date,
+                end_date=end_date,
+                status='active',
+                renewed_from=old_insurance,
+                created_by=request.user,
+            )
+
+            # تحديث البوليصة القديمة
+            old_insurance.status = 'expired'
+            old_insurance.save()
+
+            messages.success(
+                request,
+                f'✅ تم تجديد البوليصة بنجاح. رقم البوليصة الجديدة: {new_insurance.policy_number}'
+            )
+
+            return redirect('assets:insurance_detail', pk=new_insurance.pk)
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في التجديد: {str(e)}')
+            return redirect('assets:insurance_detail', pk=insurance_id)
+
+
 # ==================== Insurance Claims ====================
 
 class InsuranceClaimListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, ListView):
-    """قائمة مطالبات التأمين"""
+    """قائمة مطالبات التأمين - محسّنة"""
 
     model = InsuranceClaim
     template_name = 'assets/insurance/claim_list.html'
     context_object_name = 'claims'
     permission_required = 'assets.view_insuranceclaim'
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = InsuranceClaim.objects.filter(
             company=self.request.current_company
-        ).select_related('insurance', 'insurance__asset', 'filed_by', 'reviewed_by')
+        ).select_related(
+            'insurance', 'insurance__asset', 'insurance__insurance_company',
+            'filed_by', 'reviewed_by'
+        )
 
-        # الفلترة
+        # الفلترة المتقدمة
         status = self.request.GET.get('status')
         claim_type = self.request.GET.get('claim_type')
         insurance = self.request.GET.get('insurance')
+        insurance_company = self.request.GET.get('insurance_company')
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+        search = self.request.GET.get('search')
 
         if status:
             queryset = queryset.filter(status=status)
@@ -411,17 +872,71 @@ class InsuranceClaimListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
         if insurance:
             queryset = queryset.filter(insurance_id=insurance)
 
-        return queryset.order_by('-filed_date', '-claim_number')
+        if insurance_company:
+            queryset = queryset.filter(insurance__insurance_company_id=insurance_company)
+
+        if date_from:
+            queryset = queryset.filter(filed_date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(filed_date__lte=date_to)
+
+        if search:
+            queryset = queryset.filter(
+                Q(claim_number__icontains=search) |
+                Q(insurance__asset__asset_number__icontains=search) |
+                Q(insurance__asset__name__icontains=search) |
+                Q(incident_description__icontains=search)
+            )
+
+        # الترتيب
+        sort_by = self.request.GET.get('sort', '-filed_date')
+        queryset = queryset.order_by(sort_by, '-claim_number')
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # شركات التأمين
+        insurance_companies = InsuranceCompany.objects.filter(
+            company=self.request.current_company
+        ).order_by('name')
+
+        # إحصائيات مفصّلة
+        claims = InsuranceClaim.objects.filter(
+            company=self.request.current_company
+        )
+
+        stats = claims.aggregate(
+            total_count=Count('id'),
+            filed_count=Count('id', filter=Q(status='filed')),
+            under_review_count=Count('id', filter=Q(status='under_review')),
+            approved_count=Count('id', filter=Q(status='approved')),
+            rejected_count=Count('id', filter=Q(status='rejected')),
+            paid_count=Count('id', filter=Q(status='paid')),
+            total_claimed=Coalesce(Sum('claim_amount'), Decimal('0')),
+            total_approved=Coalesce(Sum('approved_amount'), Decimal('0')),
+            avg_claim=Coalesce(Avg('claim_amount'), Decimal('0')),
+        )
+
+        # نسبة الموافقة
+        if stats['total_count'] > 0:
+            approval_rate = (stats['approved_count'] + stats['paid_count']) / stats['total_count'] * 100
+        else:
+            approval_rate = 0
+
+        stats['approval_rate'] = round(approval_rate, 2)
 
         context.update({
             'title': _('مطالبات التأمين'),
             'can_add': self.request.user.has_perm('assets.add_insuranceclaim'),
             'can_edit': self.request.user.has_perm('assets.change_insuranceclaim'),
+            'can_export': self.request.user.has_perm('assets.view_insuranceclaim'),
             'status_choices': InsuranceClaim.STATUS_CHOICES,
             'claim_types': InsuranceClaim.CLAIM_TYPES,
+            'insurance_companies': insurance_companies,
+            'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('مطالبات التأمين'), 'url': ''},
@@ -431,7 +946,7 @@ class InsuranceClaimListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
 
 
 class InsuranceClaimCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, CreateView):
-    """إنشاء مطالبة تأمين"""
+    """إنشاء مطالبة تأمين - محسّن"""
 
     model = InsuranceClaim
     template_name = 'assets/insurance/claim_form.html'
@@ -451,26 +966,43 @@ class InsuranceClaimCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             status='active'
         ).select_related('asset', 'insurance_company')
 
+        # القيم الافتراضية
         form.fields['incident_date'].initial = date.today()
+        form.fields['claim_type'].initial = 'accident'
+
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 4})
 
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
-        form.instance.filed_by = self.request.user
-        form.instance.status = 'filed'
+        try:
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
+            form.instance.filed_by = self.request.user
+            form.instance.filed_date = date.today()
+            form.instance.status = 'filed'
 
-        self.object = form.save()
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم تقديم المطالبة {self.object.claim_number} بنجاح'
-        )
+            self.log_action('create', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم تقديم المطالبة {self.object.claim_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:claim_detail', kwargs={'pk': self.object.pk})
@@ -479,6 +1011,7 @@ class InsuranceClaimCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         context = super().get_context_data(**kwargs)
         context.update({
             'title': _('تقديم مطالبة تأمين'),
+            'submit_text': _('تقديم المطالبة'),
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('مطالبات التأمين'), 'url': reverse('assets:claim_list')},
@@ -489,7 +1022,7 @@ class InsuranceClaimCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class InsuranceClaimDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
-    """عرض تفاصيل مطالبة التأمين"""
+    """عرض تفاصيل مطالبة التأمين - محسّن"""
 
     model = InsuranceClaim
     template_name = 'assets/insurance/claim_detail.html'
@@ -501,18 +1034,47 @@ class InsuranceClaimDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             company=self.request.current_company
         ).select_related(
             'insurance', 'insurance__asset', 'insurance__insurance_company',
-            'filed_by', 'reviewed_by', 'journal_entry'
+            'filed_by', 'reviewed_by', 'journal_entry', 'created_by'
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # الفرق بين المطالب والمعتمد
+        if self.object.approved_amount:
+            difference = self.object.approved_amount - self.object.claim_amount
+            difference_pct = (difference / self.object.claim_amount * 100) if self.object.claim_amount > 0 else 0
+        else:
+            difference = None
+            difference_pct = None
+
+        # مدة المعالجة
+        if self.object.review_date and self.object.filed_date:
+            processing_days = (self.object.review_date - self.object.filed_date).days
+        else:
+            processing_days = None
+
         context.update({
             'title': f'المطالبة {self.object.claim_number}',
-            'can_edit': self.request.user.has_perm('assets.change_insuranceclaim') and self.object.status in ['filed',
-                                                                                                              'under_review'],
-            'can_approve': self.request.user.has_perm('assets.change_insuranceclaim') and self.object.status in [
-                'filed', 'under_review'],
-            'can_pay': self.request.user.has_perm('assets.change_insuranceclaim') and self.object.status == 'approved',
+            'can_edit': (
+                    self.request.user.has_perm('assets.change_insuranceclaim') and
+                    self.object.status in ['filed', 'under_review']
+            ),
+            'can_approve': (
+                    self.request.user.has_perm('assets.change_insuranceclaim') and
+                    self.object.status in ['filed', 'under_review']
+            ),
+            'can_pay': (
+                    self.request.user.has_perm('assets.change_insuranceclaim') and
+                    self.object.status == 'approved'
+            ),
+            'can_cancel': (
+                    self.request.user.has_perm('assets.change_insuranceclaim') and
+                    self.object.status in ['filed', 'under_review']
+            ),
+            'difference': difference,
+            'difference_pct': difference_pct,
+            'processing_days': processing_days,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('مطالبات التأمين'), 'url': reverse('assets:claim_list')},
@@ -523,7 +1085,7 @@ class InsuranceClaimDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
 
 class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
-    """تعديل مطالبة تأمين"""
+    """تعديل مطالبة تأمين - محسّن"""
 
     model = InsuranceClaim
     template_name = 'assets/insurance/claim_form.html'
@@ -547,18 +1109,32 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             company=self.request.current_company
         ).select_related('asset', 'insurance_company')
 
+        # إضافة classes
+        for field_name, field in form.fields.items():
+            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
+                field.widget.attrs.update({'class': 'form-control'})
+            elif field.widget.__class__.__name__ == 'Textarea':
+                field.widget.attrs.update({'class': 'form-control', 'rows': 4})
+
         return form
 
     @transaction.atomic
     def form_valid(self, form):
-        self.object = form.save()
+        try:
+            self.object = form.save()
 
-        messages.success(
-            self.request,
-            f'تم تحديث المطالبة {self.object.claim_number} بنجاح'
-        )
+            self.log_action('update', self.object)
 
-        return redirect(self.get_success_url())
+            messages.success(
+                self.request,
+                f'✅ تم تحديث المطالبة {self.object.claim_number} بنجاح'
+            )
+
+            return redirect(self.get_success_url())
+
+        except Exception as e:
+            messages.error(self.request, f'❌ خطأ: {str(e)}')
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse('assets:claim_detail', kwargs={'pk': self.object.pk})
@@ -567,6 +1143,8 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         context = super().get_context_data(**kwargs)
         context.update({
             'title': f'تعديل المطالبة {self.object.claim_number}',
+            'submit_text': _('حفظ التعديلات'),
+            'is_update': True,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('مطالبات التأمين'), 'url': reverse('assets:claim_list')},
@@ -577,13 +1155,13 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         return context
 
 
-# ==================== Ajax Views ====================
+# ==================== Ajax Views - محسّنة ====================
 
 @login_required
 @permission_required_with_message('assets.change_insuranceclaim')
 @require_http_methods(["POST"])
 def approve_insurance_claim(request, pk):
-    """اعتماد مطالبة تأمين"""
+    """اعتماد مطالبة تأمين - محسّن"""
 
     try:
         claim = get_object_or_404(
@@ -592,9 +1170,16 @@ def approve_insurance_claim(request, pk):
             company=request.current_company
         )
 
-        approved_amount = Decimal(request.POST.get('approved_amount', 0))
+        if claim.status not in ['filed', 'under_review']:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن اعتماد هذه المطالبة'
+            }, status=400)
 
-        if not approved_amount:
+        approved_amount = Decimal(request.POST.get('approved_amount', 0))
+        deductible = Decimal(request.POST.get('deductible_applied', 0))
+
+        if not approved_amount or approved_amount <= 0:
             return JsonResponse({
                 'success': False,
                 'message': 'يجب تحديد المبلغ المعتمد'
@@ -603,12 +1188,15 @@ def approve_insurance_claim(request, pk):
         # اعتماد المطالبة
         claim.approve(
             approved_amount=approved_amount,
+            deductible_applied=deductible,
             user=request.user
         )
 
         return JsonResponse({
             'success': True,
-            'message': f'تم اعتماد المطالبة {claim.claim_number} بمبلغ {approved_amount:,.2f}'
+            'message': f'تم اعتماد المطالبة {claim.claim_number} بمبلغ {approved_amount:,.2f}',
+            'claim_number': claim.claim_number,
+            'approved_amount': float(approved_amount),
         })
 
     except ValidationError as e:
@@ -629,8 +1217,56 @@ def approve_insurance_claim(request, pk):
 @login_required
 @permission_required_with_message('assets.change_insuranceclaim')
 @require_http_methods(["POST"])
+def reject_insurance_claim(request, pk):
+    """رفض مطالبة تأمين - جديد"""
+
+    try:
+        claim = get_object_or_404(
+            InsuranceClaim,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if claim.status not in ['filed', 'under_review']:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن رفض هذه المطالبة'
+            }, status=400)
+
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        if not rejection_reason:
+            return JsonResponse({
+                'success': False,
+                'message': 'يجب تحديد سبب الرفض'
+            }, status=400)
+
+        # رفض المطالبة
+        claim.status = 'rejected'
+        claim.rejection_reason = rejection_reason
+        claim.reviewed_by = request.user
+        claim.review_date = date.today()
+        claim.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم رفض المطالبة {claim.claim_number}',
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في رفض المطالبة: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.change_insuranceclaim')
+@require_http_methods(["POST"])
 def process_claim_payment(request, pk):
-    """معالجة دفع مطالبة تأمين"""
+    """معالجة دفع مطالبة تأمين - محسّن"""
 
     try:
         claim = get_object_or_404(
@@ -645,7 +1281,8 @@ def process_claim_payment(request, pk):
 
         return JsonResponse({
             'success': True,
-            'message': f'تم معالجة دفع المطالبة {claim.claim_number} بنجاح'
+            'message': f'تم معالجة دفع المطالبة {claim.claim_number} بنجاح',
+            'journal_entry_number': claim.journal_entry.number if claim.journal_entry else None,
         })
 
     except ValidationError as e:
@@ -664,10 +1301,49 @@ def process_claim_payment(request, pk):
 
 
 @login_required
+@permission_required_with_message('assets.change_insuranceclaim')
+@require_http_methods(["POST"])
+def cancel_insurance_claim(request, pk):
+    """إلغاء مطالبة تأمين - جديد"""
+
+    try:
+        claim = get_object_or_404(
+            InsuranceClaim,
+            pk=pk,
+            company=request.current_company
+        )
+
+        if claim.status not in ['filed', 'under_review']:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن إلغاء هذه المطالبة'
+            }, status=400)
+
+        reason = request.POST.get('reason', '')
+
+        claim.status = 'cancelled'
+        claim.notes = f"{claim.notes}\nإلغاء: {reason}" if claim.notes else f"إلغاء: {reason}"
+        claim.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم إلغاء المطالبة {claim.claim_number}',
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في إلغاء المطالبة: {str(e)}'
+        }, status=500)
+
+
+@login_required
 @permission_required_with_message('assets.view_assetinsurance')
 @require_http_methods(["GET"])
 def insurance_datatable_ajax(request):
-    """Ajax endpoint لجدول بوليصات التأمين"""
+    """Ajax endpoint لجدول بوليصات التأمين - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({
@@ -678,62 +1354,114 @@ def insurance_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 10))
-    search_value = request.GET.get('search[value]', '')
-
     try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الفلاتر
+        status = request.GET.get('status', '')
+        insurance_company = request.GET.get('insurance_company', '')
+
+        # Query
         queryset = AssetInsurance.objects.filter(
             company=request.current_company
-        ).select_related('insurance_company', 'asset')
+        ).select_related(
+            'insurance_company', 'asset', 'asset__category'
+        )
 
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if insurance_company:
+            queryset = queryset.filter(insurance_company_id=insurance_company)
+
+        # البحث
         if search_value:
             queryset = queryset.filter(
                 Q(policy_number__icontains=search_value) |
                 Q(asset__asset_number__icontains=search_value) |
-                Q(asset__name__icontains=search_value)
+                Q(asset__name__icontains=search_value) |
+                Q(insurance_company__name__icontains=search_value)
             )
 
-        queryset = queryset.order_by('-start_date', '-policy_number')
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        total_records = AssetInsurance.objects.filter(company=request.current_company).count()
+        order_columns = {
+            '0': 'policy_number',
+            '1': 'asset__asset_number',
+            '2': 'insurance_company__name',
+            '3': 'coverage_type',
+            '4': 'coverage_amount',
+            '5': 'end_date',
+        }
+
+        if order_column_index and order_column_index in order_columns:
+            order_field = order_columns[order_column_index]
+            if order_dir == 'desc':
+                order_field = f'-{order_field}'
+            queryset = queryset.order_by(order_field, '-policy_number')
+        else:
+            queryset = queryset.order_by('-start_date', '-policy_number')
+
+        # العد
+        total_records = AssetInsurance.objects.filter(
+            company=request.current_company
+        ).count()
         filtered_records = queryset.count()
 
+        # Pagination
         queryset = queryset[start:start + length]
 
+        # إعداد البيانات
         data = []
+        can_view = request.user.has_perm('assets.view_assetinsurance')
 
         for insurance in queryset:
+            # الحالة
             status_map = {
-                'draft': '<span class="badge bg-secondary">مسودة</span>',
-                'active': '<span class="badge bg-success">نشط</span>',
-                'expired': '<span class="badge bg-danger">منتهي</span>',
-                'cancelled': '<span class="badge bg-dark">ملغي</span>',
+                'draft': '<span class="badge bg-secondary"><i class="fas fa-file"></i> مسودة</span>',
+                'active': '<span class="badge bg-success"><i class="fas fa-check-circle"></i> نشط</span>',
+                'expired': '<span class="badge bg-danger"><i class="fas fa-times-circle"></i> منتهي</span>',
+                'cancelled': '<span class="badge bg-dark"><i class="fas fa-ban"></i> ملغي</span>',
             }
             status_badge = status_map.get(insurance.status, insurance.status)
 
             # التحقق من قرب الانتهاء
-            if insurance.is_expiring_soon():
-                status_badge += ' <span class="badge bg-warning">قريب الانتهاء</span>'
+            if insurance.is_expiring_soon() and insurance.status == 'active':
+                days_remaining = (insurance.end_date - date.today()).days
+                status_badge += f' <span class="badge bg-warning" title="{days_remaining} يوم متبقي"><i class="fas fa-exclamation-triangle"></i></span>'
 
+            # أزرار الإجراءات
             actions = []
-            actions.append(f'''
-                <a href="{reverse('assets:insurance_detail', args=[insurance.pk])}" 
-                   class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
-                    <i class="fas fa-eye"></i>
-                </a>
-            ''')
 
-            actions_html = ' '.join(actions)
+            if can_view:
+                actions.append(f'''
+                    <a href="{reverse('assets:insurance_detail', args=[insurance.pk])}" 
+                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                ''')
+
+            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                insurance.policy_number,
-                insurance.asset.asset_number,
-                insurance.insurance_company.name,
+                f'<a href="{reverse("assets:insurance_detail", args=[insurance.pk])}">{insurance.policy_number}</a>',
+                f'<a href="{reverse("assets:asset_detail", args=[insurance.asset.pk])}">{insurance.asset.asset_number}</a>',
+                f'''<div>
+                    <strong>{insurance.insurance_company.name}</strong>
+                    <br><small class="text-muted">{insurance.insurance_company.phone or ''}</small>
+                </div>''',
                 insurance.get_coverage_type_display(),
-                f"{insurance.coverage_amount:,.2f}",
-                insurance.end_date.strftime('%Y-%m-%d'),
+                f'<div class="text-end"><strong>{insurance.coverage_amount:,.2f}</strong></div>',
+                f'''<div>
+                    {insurance.end_date.strftime('%Y-%m-%d')}
+                    <br><small class="text-muted">تبدأ: {insurance.start_date.strftime('%Y-%m-%d')}</small>
+                </div>''',
                 status_badge,
                 actions_html
             ])
@@ -754,14 +1482,14 @@ def insurance_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
-        })
+        }, status=500)
 
 
 @login_required
 @permission_required_with_message('assets.view_insuranceclaim')
 @require_http_methods(["GET"])
 def claim_datatable_ajax(request):
-    """Ajax endpoint لجدول مطالبات التأمين"""
+    """Ajax endpoint لجدول مطالبات التأمين - محسّن"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({
@@ -772,59 +1500,108 @@ def claim_datatable_ajax(request):
             'error': 'لا توجد شركة محددة'
         })
 
-    draw = int(request.GET.get('draw', 1))
-    start = int(request.GET.get('start', 0))
-    length = int(request.GET.get('length', 10))
-    search_value = request.GET.get('search[value]', '')
-
     try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الفلاتر
+        status = request.GET.get('status', '')
+        claim_type = request.GET.get('claim_type', '')
+
+        # Query
         queryset = InsuranceClaim.objects.filter(
             company=request.current_company
-        ).select_related('insurance__asset')
+        ).select_related(
+            'insurance__asset', 'insurance__insurance_company', 'filed_by'
+        )
 
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if claim_type:
+            queryset = queryset.filter(claim_type=claim_type)
+
+        # البحث
         if search_value:
             queryset = queryset.filter(
                 Q(claim_number__icontains=search_value) |
-                Q(insurance__asset__asset_number__icontains=search_value)
+                Q(insurance__asset__asset_number__icontains=search_value) |
+                Q(insurance__asset__name__icontains=search_value) |
+                Q(incident_description__icontains=search_value)
             )
 
-        queryset = queryset.order_by('-filed_date', '-claim_number')
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        total_records = InsuranceClaim.objects.filter(company=request.current_company).count()
+        order_columns = {
+            '0': 'claim_number',
+            '1': 'filed_date',
+            '2': 'claim_type',
+            '3': 'insurance__asset__asset_number',
+            '4': 'claim_amount',
+            '5': 'approved_amount',
+        }
+
+        if order_column_index and order_column_index in order_columns:
+            order_field = order_columns[order_column_index]
+            if order_dir == 'desc':
+                order_field = f'-{order_field}'
+            queryset = queryset.order_by(order_field, '-claim_number')
+        else:
+            queryset = queryset.order_by('-filed_date', '-claim_number')
+
+        # العد
+        total_records = InsuranceClaim.objects.filter(
+            company=request.current_company
+        ).count()
         filtered_records = queryset.count()
 
+        # Pagination
         queryset = queryset[start:start + length]
 
+        # إعداد البيانات
         data = []
+        can_view = request.user.has_perm('assets.view_insuranceclaim')
 
         for claim in queryset:
+            # الحالة
             status_map = {
-                'filed': '<span class="badge bg-info">مقدم</span>',
-                'under_review': '<span class="badge bg-warning">قيد المراجعة</span>',
-                'approved': '<span class="badge bg-primary">معتمد</span>',
-                'rejected': '<span class="badge bg-danger">مرفوض</span>',
-                'paid': '<span class="badge bg-success">مدفوع</span>',
-                'cancelled': '<span class="badge bg-dark">ملغي</span>',
+                'filed': '<span class="badge bg-info"><i class="fas fa-file-upload"></i> مقدم</span>',
+                'under_review': '<span class="badge bg-warning"><i class="fas fa-search"></i> قيد المراجعة</span>',
+                'approved': '<span class="badge bg-primary"><i class="fas fa-check"></i> معتمد</span>',
+                'rejected': '<span class="badge bg-danger"><i class="fas fa-times"></i> مرفوض</span>',
+                'paid': '<span class="badge bg-success"><i class="fas fa-money-bill"></i> مدفوع</span>',
+                'cancelled': '<span class="badge bg-dark"><i class="fas fa-ban"></i> ملغي</span>',
             }
             status_badge = status_map.get(claim.status, claim.status)
 
+            # أزرار الإجراءات
             actions = []
-            actions.append(f'''
-                <a href="{reverse('assets:claim_detail', args=[claim.pk])}" 
-                   class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
-                    <i class="fas fa-eye"></i>
-                </a>
-            ''')
 
-            actions_html = ' '.join(actions)
+            if can_view:
+                actions.append(f'''
+                    <a href="{reverse('assets:claim_detail', args=[claim.pk])}" 
+                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                ''')
+
+            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                claim.claim_number,
+                f'<a href="{reverse("assets:claim_detail", args=[claim.pk])}">{claim.claim_number}</a>',
                 claim.filed_date.strftime('%Y-%m-%d'),
                 claim.get_claim_type_display(),
-                claim.insurance.asset.asset_number,
-                f"{claim.claim_amount:,.2f}",
-                f"{claim.approved_amount:,.2f}" if claim.approved_amount else '-',
+                f'''<div>
+                    <strong>{claim.insurance.asset.asset_number}</strong>
+                    <br><small class="text-muted">{claim.insurance.asset.name}</small>
+                </div>''',
+                f'<div class="text-end"><strong>{claim.claim_amount:,.2f}</strong></div>',
+                f'<div class="text-end">{claim.approved_amount:,.2f}</div>' if claim.approved_amount else '<span class="text-muted">-</span>',
                 status_badge,
                 actions_html
             ])
@@ -845,18 +1622,17 @@ def claim_datatable_ajax(request):
             'recordsFiltered': 0,
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
-        })
+        }, status=500)
 
 
 @login_required
 @permission_required_with_message('assets.view_assetinsurance')
 @require_http_methods(["GET"])
 def insurance_expiring_ajax(request):
-    """البوليصات المنتهية قريباً"""
-
-    days = int(request.GET.get('days', 30))
+    """البوليصات المنتهية قريباً - محسّن"""
 
     try:
+        days = int(request.GET.get('days', 30))
         expiry_date = date.today() + timedelta(days=days)
 
         insurances = AssetInsurance.objects.filter(
@@ -864,27 +1640,123 @@ def insurance_expiring_ajax(request):
             status='active',
             end_date__lte=expiry_date,
             end_date__gte=date.today()
-        ).select_related('asset', 'insurance_company').order_by('end_date')
+        ).select_related(
+            'asset', 'asset__category', 'insurance_company'
+        ).order_by('end_date')
 
         results = []
         for insurance in insurances:
             remaining_days = (insurance.end_date - date.today()).days
             results.append({
+                'id': insurance.id,
                 'policy_number': insurance.policy_number,
-                'asset': insurance.asset.name,
+                'asset_number': insurance.asset.asset_number,
+                'asset_name': insurance.asset.name,
+                'category': insurance.asset.category.name,
                 'insurance_company': insurance.insurance_company.name,
                 'end_date': insurance.end_date.strftime('%Y-%m-%d'),
                 'remaining_days': remaining_days,
-                'coverage_amount': float(insurance.coverage_amount)
+                'coverage_amount': float(insurance.coverage_amount),
+                'premium_amount': float(insurance.premium_amount),
+                'url': reverse('assets:insurance_detail', args=[insurance.pk]),
             })
 
         return JsonResponse({
             'success': True,
+            'count': len(results),
             'insurances': results
         })
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'error': f'خطأ في تحميل البيانات: {str(e)}'
         }, status=500)
+
+
+# ==================== Export Functions - جديد ====================
+
+@login_required
+@permission_required_with_message('assets.view_assetinsurance')
+@require_http_methods(["GET"])
+def export_insurance_list_excel(request):
+    """تصدير قائمة البوليصات إلى Excel - جديد"""
+
+    try:
+        # إنشاء workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Insurance Policies"
+
+        # تنسيق الرأس
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Headers
+        headers = [
+            'Policy Number', 'Asset Number', 'Asset Name',
+            'Insurance Company', 'Coverage Type', 'Coverage Amount',
+            'Premium Amount', 'Start Date', 'End Date', 'Status'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # البيانات
+        insurances = AssetInsurance.objects.filter(
+            company=request.current_company
+        ).select_related(
+            'asset', 'insurance_company'
+        ).order_by('-start_date')
+
+        row_num = 2
+        for insurance in insurances:
+            ws.cell(row=row_num, column=1, value=insurance.policy_number)
+            ws.cell(row=row_num, column=2, value=insurance.asset.asset_number)
+            ws.cell(row=row_num, column=3, value=insurance.asset.name)
+            ws.cell(row=row_num, column=4, value=insurance.insurance_company.name)
+            ws.cell(row=row_num, column=5, value=insurance.get_coverage_type_display())
+            ws.cell(row=row_num, column=6, value=float(insurance.coverage_amount))
+            ws.cell(row=row_num, column=7, value=float(insurance.premium_amount))
+            ws.cell(row=row_num, column=8, value=insurance.start_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=9, value=insurance.end_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=10, value=insurance.get_status_display())
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="insurance_policies.xlsx"'
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:insurance_list')
