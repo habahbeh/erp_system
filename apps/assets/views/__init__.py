@@ -27,6 +27,7 @@ __all__ = [
     'AssetCategoryDeleteView',
     'AssetCategoryDetailView',
     'asset_category_datatable_ajax',
+    'category_tree_ajax',
 
     # Assets
     'AssetListView',
@@ -36,6 +37,27 @@ __all__ = [
     'AssetDeleteView',
     'asset_datatable_ajax',
     'asset_autocomplete',
+    'generate_asset_number',
+    'asset_barcode_pdf',
+    'asset_qr_code',
+    'upload_attachment',
+    'delete_attachment',
+    'bulk_import_assets',
+    'download_import_template',
+    'bulk_update_status',
+    'bulk_update_location',
+
+    # Depreciation Methods
+    'DepreciationMethodListView',
+    'DepreciationMethodCreateView',
+    'DepreciationMethodUpdateView',
+    'DepreciationMethodDeleteView',
+
+    # Asset Conditions
+    'AssetConditionListView',
+    'AssetConditionCreateView',
+    'AssetConditionUpdateView',
+    'AssetConditionDeleteView',
 
     # Depreciation
     'AssetDepreciationListView',
