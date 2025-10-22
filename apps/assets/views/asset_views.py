@@ -21,6 +21,16 @@ import json
 from datetime import date, timedelta
 from decimal import Decimal
 
+from io import BytesIO
+import pandas as pd
+from openpyxl import Workbook
+
+import qrcode
+import barcode
+from barcode.writer import ImageWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
 from ..models import (
@@ -544,6 +554,140 @@ class AssetCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         messages.success(request, f'تم حذف الفئة {self.object.code} بنجاح')
         return super().delete(request, *args, **kwargs)
 
+# ==================== Depreciation Methods ====================
+
+class DepreciationMethodListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    """قائمة طرق الإهلاك"""
+    model = DepreciationMethod
+    template_name = 'assets/depreciation_method/method_list.html'
+    context_object_name = 'methods'
+    permission_required = 'assets.view_depreciationmethod'
+    paginate_by = 50
+
+    def get_queryset(self):
+        return DepreciationMethod.objects.filter(is_active=True).order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': _('طرق الإهلاك'),
+            'can_add': self.request.user.has_perm('assets.add_depreciationmethod'),
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('طرق الإهلاك'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class DepreciationMethodCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    """إنشاء طريقة إهلاك"""
+    model = DepreciationMethod
+    template_name = 'assets/depreciation_method/method_form.html'
+    permission_required = 'assets.add_depreciationmethod'
+    fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
+    success_url = reverse_lazy('assets:depreciation_method_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, f'تم إنشاء طريقة الإهلاك {form.instance.name} بنجاح')
+        return super().form_valid(form)
+
+
+class DepreciationMethodUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    """تعديل طريقة إهلاك"""
+    model = DepreciationMethod
+    template_name = 'assets/depreciation_method/method_form.html'
+    permission_required = 'assets.change_depreciationmethod'
+    fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
+    success_url = reverse_lazy('assets:depreciation_method_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, f'تم تحديث طريقة الإهلاك {form.instance.name} بنجاح')
+        return super().form_valid(form)
+
+
+class DepreciationMethodDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    """حذف طريقة إهلاك"""
+    model = DepreciationMethod
+    template_name = 'assets/depreciation_method/method_confirm_delete.html'
+    permission_required = 'assets.delete_depreciationmethod'
+    success_url = reverse_lazy('assets:depreciation_method_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if Asset.objects.filter(depreciation_method=self.object).exists():
+            messages.error(request, _('لا يمكن حذف طريقة إهلاك مستخدمة'))
+            return redirect('assets:depreciation_method_list')
+        messages.success(request, f'تم حذف طريقة الإهلاك {self.object.name} بنجاح')
+        return super().delete(request, *args, **kwargs)
+
+
+# ==================== Asset Conditions ====================
+
+class AssetConditionListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    """قائمة حالات الأصول"""
+    model = AssetCondition
+    template_name = 'assets/condition/condition_list.html'
+    context_object_name = 'conditions'
+    permission_required = 'assets.view_assetcondition'
+    paginate_by = 50
+
+    def get_queryset(self):
+        return AssetCondition.objects.filter(is_active=True).order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'title': _('حالات الأصول'),
+            'can_add': self.request.user.has_perm('assets.add_assetcondition'),
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('حالات الأصول'), 'url': ''},
+            ]
+        })
+        return context
+
+
+class AssetConditionCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    """إنشاء حالة أصل"""
+    model = AssetCondition
+    template_name = 'assets/condition/condition_form.html'
+    permission_required = 'assets.add_assetcondition'
+    fields = ['code', 'name', 'name_en', 'description', 'is_active']
+    success_url = reverse_lazy('assets:condition_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, f'تم إنشاء الحالة {form.instance.name} بنجاح')
+        return super().form_valid(form)
+
+
+class AssetConditionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    """تعديل حالة أصل"""
+    model = AssetCondition
+    template_name = 'assets/condition/condition_form.html'
+    permission_required = 'assets.change_assetcondition'
+    fields = ['code', 'name', 'name_en', 'description', 'is_active']
+    success_url = reverse_lazy('assets:condition_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, f'تم تحديث الحالة {form.instance.name} بنجاح')
+        return super().form_valid(form)
+
+
+class AssetConditionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    """حذف حالة أصل"""
+    model = AssetCondition
+    template_name = 'assets/condition/condition_confirm_delete.html'
+    permission_required = 'assets.delete_assetcondition'
+    success_url = reverse_lazy('assets:condition_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if Asset.objects.filter(condition=self.object).exists():
+            messages.error(request, _('لا يمكن حذف حالة مستخدمة'))
+            return redirect('assets:condition_list')
+        messages.success(request, f'تم حذف الحالة {self.object.name} بنجاح')
+        return super().delete(request, *args, **kwargs)
 
 class AssetCategoryDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
     """عرض تفاصيل فئة الأصول"""
@@ -869,3 +1013,269 @@ def asset_category_datatable_ajax(request):
             'data': [],
             'error': f'خطأ في تحميل البيانات: {str(e)}'
         })
+
+
+@login_required
+@permission_required_with_message('assets.view_assetcategory')
+@require_http_methods(["GET"])
+def category_tree_ajax(request):
+    """شجرة الفئات"""
+    try:
+        categories = AssetCategory.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).select_related('parent')
+
+        def build_tree(parent=None):
+            items = []
+            cats = categories.filter(parent=parent)
+            for cat in cats:
+                items.append({
+                    'id': cat.id,
+                    'text': cat.name,
+                    'children': build_tree(cat)
+                })
+            return items
+
+        tree = build_tree()
+        return JsonResponse({'tree': tree})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.add_asset')
+@require_http_methods(["GET"])
+def generate_asset_number(request):
+    """توليد رقم أصل تلقائي"""
+    try:
+        category_id = request.GET.get('category_id')
+
+        if category_id:
+            category = get_object_or_404(AssetCategory, pk=category_id)
+            prefix = category.code
+        else:
+            prefix = 'AST'
+
+        last_asset = Asset.objects.filter(
+            company=request.current_company,
+            asset_number__startswith=prefix
+        ).order_by('-asset_number').first()
+
+        if last_asset:
+            last_number = int(last_asset.asset_number.replace(prefix, ''))
+            new_number = f"{prefix}{last_number + 1:05d}"
+        else:
+            new_number = f"{prefix}00001"
+
+        return JsonResponse({'asset_number': new_number})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def asset_barcode_pdf(request, pk):
+    """طباعة باركود الأصل PDF"""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    import barcode
+    from barcode.writer import ImageWriter
+    from io import BytesIO
+
+    try:
+        asset = get_object_or_404(Asset, pk=pk, company=request.current_company)
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="barcode_{asset.asset_number}.pdf"'
+
+        p = canvas.Canvas(response, pagesize=A4)
+
+        # توليد الباركود
+        if asset.barcode:
+            code = barcode.get('code128', asset.barcode, writer=ImageWriter())
+            buffer = BytesIO()
+            code.write(buffer)
+            buffer.seek(0)
+
+            p.drawImage(buffer, 100, 700, width=400, height=100)
+
+        p.drawString(100, 650, f"Asset: {asset.name}")
+        p.drawString(100, 630, f"Number: {asset.asset_number}")
+
+        p.showPage()
+        p.save()
+
+        return response
+    except Exception as e:
+        messages.error(request, f'خطأ: {str(e)}')
+        return redirect('assets:asset_detail', pk=pk)
+
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def asset_qr_code(request, pk):
+    """QR Code للأصل"""
+    import qrcode
+    from io import BytesIO
+
+    try:
+        asset = get_object_or_404(Asset, pk=pk, company=request.current_company)
+
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr_data = f"{asset.asset_number}|{asset.name}"
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        return HttpResponse(buffer.read(), content_type='image/png')
+    except Exception as e:
+        return HttpResponse(status=500)
+
+
+@login_required
+@permission_required_with_message('assets.change_asset')
+@require_http_methods(["POST"])
+def upload_attachment(request, pk):
+    """رفع مرفق"""
+    try:
+        asset = get_object_or_404(Asset, pk=pk, company=request.current_company)
+        file = request.FILES.get('file')
+
+        if file:
+            attachment = AssetAttachment.objects.create(
+                asset=asset,
+                file=file,
+                file_name=file.name,
+                file_size=file.size,
+                uploaded_by=request.user
+            )
+            return JsonResponse({'success': True, 'id': attachment.id})
+
+        return JsonResponse({'error': 'لا يوجد ملف'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.change_asset')
+@require_http_methods(["POST"])
+def delete_attachment(request, pk):
+    """حذف مرفق"""
+    try:
+        attachment = get_object_or_404(AssetAttachment, pk=pk)
+        attachment.delete()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.add_asset')
+@require_http_methods(["POST"])
+def bulk_import_assets(request):
+    """استيراد جماعي للأصول"""
+    import pandas as pd
+
+    try:
+        file = request.FILES.get('file')
+        if not file:
+            return JsonResponse({'error': 'لا يوجد ملف'}, status=400)
+
+        df = pd.read_excel(file)
+
+        success_count = 0
+        error_count = 0
+
+        for index, row in df.iterrows():
+            try:
+                Asset.objects.create(
+                    company=request.current_company,
+                    asset_number=row['asset_number'],
+                    name=row['name'],
+                    category_id=row['category_id'],
+                    acquisition_cost=row['acquisition_cost'],
+                    created_by=request.user
+                )
+                success_count += 1
+            except:
+                error_count += 1
+
+        return JsonResponse({
+            'success': True,
+            'imported': success_count,
+            'errors': error_count
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def download_import_template(request):
+    """تحميل قالب الاستيراد"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Assets Template"
+
+    headers = ['asset_number', 'name', 'category_id', 'acquisition_cost', 'acquisition_date']
+    ws.append(headers)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="assets_template.xlsx"'
+    return response
+
+
+@login_required
+@permission_required_with_message('assets.change_asset')
+@require_http_methods(["POST"])
+def bulk_update_status(request):
+    """تحديث حالة جماعي"""
+    try:
+        asset_ids = request.POST.getlist('asset_ids[]')
+        status = request.POST.get('status')
+
+        updated = Asset.objects.filter(
+            id__in=asset_ids,
+            company=request.current_company
+        ).update(status=status)
+
+        return JsonResponse({'success': True, 'updated': updated})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.change_asset')
+@require_http_methods(["POST"])
+def bulk_update_location(request):
+    """تحديث موقع جماعي"""
+    try:
+        asset_ids = request.POST.getlist('asset_ids[]')
+        location = request.POST.get('location')
+
+        updated = Asset.objects.filter(
+            id__in=asset_ids,
+            company=request.current_company
+        ).update(physical_location=location)
+
+        return JsonResponse({'success': True, 'updated': updated})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

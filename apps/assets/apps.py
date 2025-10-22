@@ -12,5 +12,8 @@ class AssetsConfig(AppConfig):
     verbose_name = 'إدارة الأصول الثابتة'
 
     def ready(self):
-        """تفعيل الـ Signals عند تحميل التطبيق"""
-        import apps.assets.signals
+        # استيراد الـ signals إن وجدت
+        try:
+            import apps.assets.signals
+        except ImportError:
+            pass

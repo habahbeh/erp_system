@@ -1,9 +1,4 @@
 # apps/assets/views/__init__.py
-"""
-Assets Views Package
-مركز تجميع جميع الـ Views لنظام الأصول الثابتة
-"""
-
 from .dashboard import *
 from .asset_views import *
 from .depreciation_views import *
@@ -18,34 +13,20 @@ from .report_views import *
 from .api_views import *
 
 __all__ = [
-    # ==================== Dashboard ====================
+    # Dashboard
     'AssetDashboardView',
     'dashboard_stats_ajax',
     'depreciation_chart_ajax',
     'maintenance_chart_ajax',
     'asset_status_chart_ajax',
 
-    # ==================== Asset Base ====================
     # Asset Categories
     'AssetCategoryListView',
     'AssetCategoryCreateView',
     'AssetCategoryUpdateView',
     'AssetCategoryDeleteView',
     'AssetCategoryDetailView',
-    'category_datatable_ajax',
-    'category_tree_ajax',
-
-    # Depreciation Methods
-    'DepreciationMethodListView',
-    'DepreciationMethodCreateView',
-    'DepreciationMethodUpdateView',
-    'DepreciationMethodDeleteView',
-
-    # Asset Conditions
-    'AssetConditionListView',
-    'AssetConditionCreateView',
-    'AssetConditionUpdateView',
-    'AssetConditionDeleteView',
+    'asset_category_datatable_ajax',
 
     # Assets
     'AssetListView',
@@ -54,22 +35,9 @@ __all__ = [
     'AssetUpdateView',
     'AssetDeleteView',
     'asset_datatable_ajax',
-    'asset_search_ajax',
-    'generate_asset_number',
-    'asset_barcode_pdf',
-    'asset_qr_code',
+    'asset_autocomplete',
 
-    # Asset Attachments
-    'upload_attachment',
-    'delete_attachment',
-
-    # Bulk Operations
-    'bulk_import_assets',
-    'download_import_template',
-    'bulk_update_status',
-    'bulk_update_location',
-
-    # ==================== Depreciation ====================
+    # Depreciation
     'AssetDepreciationListView',
     'AssetDepreciationDetailView',
     'CalculateDepreciationView',
@@ -78,8 +46,7 @@ __all__ = [
     'depreciation_schedule_ajax',
     'calculate_single_depreciation_ajax',
 
-    # ==================== Transactions ====================
-    # Asset Transactions
+    # Transactions
     'AssetTransactionListView',
     'AssetTransactionCreateView',
     'AssetTransactionDetailView',
@@ -87,13 +54,11 @@ __all__ = [
     'AssetTransactionDeleteView',
     'transaction_datatable_ajax',
     'post_transaction',
-
-    # Specific Transaction Types
     'SellAssetView',
     'DisposeAssetView',
     'RevalueAssetView',
 
-    # Asset Transfers
+    # Transfers
     'AssetTransferListView',
     'AssetTransferCreateView',
     'AssetTransferDetailView',
@@ -102,14 +67,11 @@ __all__ = [
     'complete_transfer',
     'transfer_datatable_ajax',
 
-    # ==================== Maintenance ====================
-    # Maintenance Types
+    # Maintenance
     'MaintenanceTypeListView',
     'MaintenanceTypeCreateView',
     'MaintenanceTypeUpdateView',
     'MaintenanceTypeDeleteView',
-
-    # Maintenance Schedules
     'MaintenanceScheduleListView',
     'MaintenanceScheduleCreateView',
     'MaintenanceScheduleDetailView',
@@ -117,8 +79,6 @@ __all__ = [
     'MaintenanceScheduleDeleteView',
     'schedule_datatable_ajax',
     'generate_schedule_dates',
-
-    # Asset Maintenance
     'AssetMaintenanceListView',
     'AssetMaintenanceCreateView',
     'AssetMaintenanceDetailView',
@@ -126,51 +86,39 @@ __all__ = [
     'complete_maintenance',
     'maintenance_datatable_ajax',
 
-    # ==================== Physical Count ====================
-    # Physical Count Cycles
+    # Physical Count
     'PhysicalCountCycleListView',
     'PhysicalCountCycleCreateView',
     'PhysicalCountCycleDetailView',
     'PhysicalCountCycleUpdateView',
     'cycle_datatable_ajax',
-
-    # Physical Counts
     'PhysicalCountListView',
     'PhysicalCountCreateView',
     'PhysicalCountDetailView',
     'PhysicalCountUpdateView',
     'approve_physical_count',
     'count_datatable_ajax',
-
-    # Physical Count Lines
     'PhysicalCountLineUpdateView',
     'count_line_ajax',
     'barcode_scan_ajax',
     'upload_count_photo',
-
-    # Physical Count Adjustments
     'PhysicalCountAdjustmentListView',
     'PhysicalCountAdjustmentCreateView',
     'PhysicalCountAdjustmentDetailView',
     'post_adjustment',
     'adjustment_datatable_ajax',
 
-    # ==================== Insurance ====================
-    # Insurance Companies
+    # Insurance
     'InsuranceCompanyListView',
     'InsuranceCompanyCreateView',
     'InsuranceCompanyUpdateView',
     'InsuranceCompanyDeleteView',
-
-    # Asset Insurance
     'AssetInsuranceListView',
     'AssetInsuranceCreateView',
     'AssetInsuranceDetailView',
     'AssetInsuranceUpdateView',
     'insurance_datatable_ajax',
     'insurance_expiring_ajax',
-
-    # Insurance Claims
     'InsuranceClaimListView',
     'InsuranceClaimCreateView',
     'InsuranceClaimDetailView',
@@ -179,29 +127,26 @@ __all__ = [
     'process_claim_payment',
     'claim_datatable_ajax',
 
-    # ==================== Lease ====================
+    # Lease
     'AssetLeaseListView',
     'AssetLeaseCreateView',
     'AssetLeaseDetailView',
     'AssetLeaseUpdateView',
     'lease_datatable_ajax',
-
     'LeasePaymentListView',
     'LeasePaymentCreateView',
     'process_lease_payment',
     'payment_datatable_ajax',
 
-    # ==================== Workflow ====================
+    # Workflow
     'ApprovalWorkflowListView',
     'ApprovalWorkflowCreateView',
     'ApprovalWorkflowDetailView',
     'ApprovalWorkflowUpdateView',
     'ApprovalWorkflowDeleteView',
-
     'ApprovalLevelCreateView',
     'ApprovalLevelUpdateView',
     'ApprovalLevelDeleteView',
-
     'ApprovalRequestListView',
     'ApprovalRequestDetailView',
     'approve_request',
@@ -209,7 +154,7 @@ __all__ = [
     'request_datatable_ajax',
     'my_pending_approvals_ajax',
 
-    # ==================== Notifications ====================
+    # Notifications
     'notifications_dashboard',
     'overdue_maintenance_list',
     'upcoming_maintenance_list',
@@ -218,7 +163,7 @@ __all__ = [
     'notification_count_ajax',
     'notification_details_ajax',
 
-    # ==================== Reports ====================
+    # Reports
     'reports_dashboard',
     'asset_register_report',
     'depreciation_report',
@@ -226,12 +171,10 @@ __all__ = [
     'asset_movement_report',
     'valuation_report',
     'physical_count_report',
-
-    # Export Functions
     'export_asset_register_excel',
     'export_depreciation_excel',
 
-    # ==================== API Views ====================
+    # API
     'asset_search_api',
     'asset_details_api',
     'category_assets_api',

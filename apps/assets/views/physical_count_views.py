@@ -1052,7 +1052,6 @@ def adjustment_datatable_ajax(request):
 @require_http_methods(["POST"])
 def upload_count_photo(request):
     """رفع صورة للجرد"""
-
     try:
         line_id = request.POST.get('line_id')
         photo = request.FILES.get('photo')
@@ -1066,11 +1065,21 @@ def upload_count_photo(request):
             physical_count__company=request.current_company
         )
 
-        # حفظ الصورة (يمكن تحسينه باستخدام storage)
-        # هنا مثال بسيط
+        # حفظ الملف
+        import os
+        from django.conf import settings
+
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'count_photos', line.physical_count.count_number)
+        os.makedirs(upload_dir, exist_ok=True)
+
+        photo_path = os.path.join(upload_dir, photo.name)
+        with open(photo_path, 'wb+') as destination:
+            for chunk in photo.chunks():
+                destination.write(chunk)
+
         photo_url = f"/media/count_photos/{line.physical_count.count_number}/{photo.name}"
 
-        # إضافة الرابط للصور
+        # إضافة للقائمة
         photos = line.photos if line.photos else []
         photos.append(photo_url)
         line.photos = photos
@@ -1083,6 +1092,8 @@ def upload_count_photo(request):
         })
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'message': f'خطأ في رفع الصورة: {str(e)}'
