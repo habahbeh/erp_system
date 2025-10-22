@@ -15,13 +15,15 @@ from .lease_views import *
 from .workflow_views import *
 from .notification_views import *
 from .report_views import *
+from .api_views import *
 
 __all__ = [
     # ==================== Dashboard ====================
     'AssetDashboardView',
-    'dashboard_stats_api',
-    'depreciation_alerts_api',
-    'maintenance_alerts_api',
+    'dashboard_stats_ajax',
+    'depreciation_chart_ajax',
+    'maintenance_chart_ajax',
+    'asset_status_chart_ajax',
 
     # ==================== Asset Base ====================
     # Asset Categories
@@ -30,8 +32,8 @@ __all__ = [
     'AssetCategoryUpdateView',
     'AssetCategoryDeleteView',
     'AssetCategoryDetailView',
-    'asset_category_datatable_ajax',
-    'asset_category_tree_ajax',
+    'category_datatable_ajax',
+    'category_tree_ajax',
 
     # Depreciation Methods
     'DepreciationMethodListView',
@@ -52,24 +54,20 @@ __all__ = [
     'AssetUpdateView',
     'AssetDeleteView',
     'asset_datatable_ajax',
-    'asset_autocomplete',
     'asset_search_ajax',
-    'generate_asset_qr_code',
-    'asset_timeline_ajax',
+    'generate_asset_number',
+    'asset_barcode_pdf',
+    'asset_qr_code',
 
     # Asset Attachments
-    'AssetAttachmentCreateView',
-    'AssetAttachmentDeleteView',
-
-    # Asset Valuations
-    'AssetValuationListView',
-    'AssetValuationCreateView',
-    'AssetValuationDetailView',
-    'AssetValuationApproveView',
+    'upload_attachment',
+    'delete_attachment',
 
     # Bulk Operations
-    'asset_bulk_import',
-    'asset_bulk_export',
+    'bulk_import_assets',
+    'download_import_template',
+    'bulk_update_status',
+    'bulk_update_location',
 
     # ==================== Depreciation ====================
     'AssetDepreciationListView',
@@ -88,12 +86,12 @@ __all__ = [
     'AssetTransactionUpdateView',
     'AssetTransactionDeleteView',
     'transaction_datatable_ajax',
+    'post_transaction',
 
     # Specific Transaction Types
     'SellAssetView',
     'DisposeAssetView',
     'RevalueAssetView',
-    'post_transaction',
 
     # Asset Transfers
     'AssetTransferListView',
@@ -200,59 +198,51 @@ __all__ = [
     'ApprovalWorkflowUpdateView',
     'ApprovalWorkflowDeleteView',
 
+    'ApprovalLevelCreateView',
+    'ApprovalLevelUpdateView',
+    'ApprovalLevelDeleteView',
+
     'ApprovalRequestListView',
     'ApprovalRequestDetailView',
     'approve_request',
     'reject_request',
-    'workflow_datatable_ajax',
+    'request_datatable_ajax',
+    'my_pending_approvals_ajax',
 
     # ==================== Notifications ====================
-    'NotificationTemplateListView',
-    'NotificationTemplateCreateView',
-    'NotificationTemplateUpdateView',
-    'NotificationTemplateDeleteView',
-
-    'AssetNotificationListView',
-    'mark_notification_read',
-    'mark_all_read',
-    'notification_ajax',
-
-    'NotificationSettingsView',
-    'update_notification_settings',
+    'notifications_dashboard',
+    'overdue_maintenance_list',
+    'upcoming_maintenance_list',
+    'expiring_insurance_list',
+    'overdue_lease_payments_list',
+    'notification_count_ajax',
+    'notification_details_ajax',
 
     # ==================== Reports ====================
-    # Asset Reports
-    'AssetReportView',
-    'AssetByCategoryReportView',
-    'AssetByBranchReportView',
-    'AssetByCostCenterReportView',
-    'BookValueSummaryReportView',
-
-    # Depreciation Reports
-    'DepreciationReportView',
-    'DepreciationScheduleReportView',
-    'FullyDepreciatedAssetsReportView',
-
-    # Maintenance Reports
-    'MaintenanceDueReportView',
-    'MaintenanceCostAnalysisReportView',
-
-    # Physical Count Reports
-    'PhysicalCountVarianceReportView',
-    'MissingAssetsReportView',
-
-    # Other Reports
-    'WarrantyExpiryReportView',
-    'InsuranceExpiryReportView',
-    'DisposedAssetsReportView',
-    'AssetMovementReportView',
+    'reports_dashboard',
+    'asset_register_report',
+    'depreciation_report',
+    'maintenance_report',
+    'asset_movement_report',
+    'valuation_report',
+    'physical_count_report',
 
     # Export Functions
-    'export_assets',
-    'export_asset_categories',
-    'export_depreciation_schedule',
-    'export_maintenance_analysis',
-    'export_physical_count_variance',
-    'export_insurance_report',
-    'export_lease_schedule',
+    'export_asset_register_excel',
+    'export_depreciation_excel',
+
+    # ==================== API Views ====================
+    'asset_search_api',
+    'asset_details_api',
+    'category_assets_api',
+    'asset_stats_api',
+    'depreciation_schedule_api',
+    'maintenance_alerts_api',
+    'insurance_alerts_api',
+    'barcode_scan_api',
+    'asset_condition_list_api',
+    'depreciation_method_list_api',
+    'category_list_api',
+    'validate_asset_number_api',
+    'asset_qr_code_api',
 ]

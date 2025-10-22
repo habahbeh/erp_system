@@ -13,12 +13,12 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.generic import TemplateView
-from django.db.models import Sum, Count, Q, F, DecimalField
+from django.db.models import Sum, Count, Q, F, DecimalField, Case, When, Value
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
-import datetime
+from datetime import date, timedelta
 
 from apps.core.mixins import CompanyMixin
 from apps.core.decorators import permission_required_with_message
@@ -61,6 +61,9 @@ class AssetDashboardView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
         # إحصائيات حسب الفئة
         category_stats = self.get_category_stats()
 
+        # المعاملات الأخيرة
+        recent_transactions = self.get_recent_transactions()
+
         context.update({
             'title': _('لوحة تحكم الأصول الثابتة'),
             'stats': stats,
@@ -70,6 +73,7 @@ class AssetDashboardView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             'expiry_alerts': expiry_alerts,
             'recent_assets': recent_assets,
             'category_stats': category_stats,
+            'recent_transactions': recent_transactions,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': ''},
             ]
@@ -98,12 +102,18 @@ class AssetDashboardView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             status__in=['disposed', 'sold']
         ).count()
 
+        inactive = Asset.objects.filter(
+            company=self.request.current_company,
+            status='inactive'
+        ).count()
+
         return {
             'total_assets': total_assets,
             'active_assets': active_assets,
             'under_maintenance': under_maintenance,
             'disposed': disposed,
-            'active_percentage': (active_assets / total_assets * 100) if total_assets > 0 else 0
+            'inactive': inactive,
+            'active_percentage': round((active_assets / total_assets * 100), 2) if total_assets > 0 else 0
         }
 
     def get_financial_stats(self):
@@ -112,96 +122,130 @@ class AssetDashboardView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             company=self.request.current_company,
             status='active'
         ).aggregate(
-            total_cost=Coalesce(Sum('original_cost'), Decimal('0')),
+            total_cost=Coalesce(Sum('acquisition_cost'), Decimal('0')),
             total_depreciation=Coalesce(Sum('accumulated_depreciation'), Decimal('0')),
             total_book_value=Coalesce(Sum('book_value'), Decimal('0'))
         )
+
+        depreciation_percentage = 0
+        if financial['total_cost'] > 0:
+            depreciation_percentage = round(
+                float(financial['total_depreciation'] / financial['total_cost'] * 100),
+                2
+            )
 
         return {
             'total_cost': financial['total_cost'],
             'total_depreciation': financial['total_depreciation'],
             'total_book_value': financial['total_book_value'],
-            'depreciation_percentage': (
-                    financial['total_depreciation'] / financial['total_cost'] * 100
-            ) if financial['total_cost'] > 0 else 0
+            'depreciation_percentage': depreciation_percentage
         }
 
     def get_maintenance_alerts(self):
         """تنبيهات الصيانة المستحقة خلال 30 يوم"""
-        today = datetime.date.today()
-        due_date = today + datetime.timedelta(days=30)
+        today = date.today()
+        due_date = today + timedelta(days=30)
 
-        schedules = MaintenanceSchedule.objects.filter(
+        # الصيانة المتأخرة
+        overdue = MaintenanceSchedule.objects.filter(
             company=self.request.current_company,
             is_active=True,
-            next_maintenance_date__lte=due_date,
-            next_maintenance_date__gte=today
+            next_maintenance_date__lt=today
+        ).count()
+
+        # الصيانة القادمة
+        upcoming = MaintenanceSchedule.objects.filter(
+            company=self.request.current_company,
+            is_active=True,
+            next_maintenance_date__gte=today,
+            next_maintenance_date__lte=due_date
         ).select_related('asset', 'maintenance_type').order_by('next_maintenance_date')[:5]
 
-        return schedules
+        return {
+            'overdue_count': overdue,
+            'upcoming_schedules': upcoming
+        }
 
     def get_depreciation_alerts(self):
         """الأصول القريبة من الإهلاك الكامل (>90%)"""
         assets = Asset.objects.filter(
             company=self.request.current_company,
-            status='active'
+            status='active',
+            acquisition_cost__gt=0
         ).annotate(
             depreciation_percentage=Case(
-                When(original_cost=0, then=0),
-                default=(F('accumulated_depreciation') * 100.0) / F('original_cost'),
-                output_field=DecimalField()
+                When(acquisition_cost=0, then=Value(0)),
+                default=(F('accumulated_depreciation') * 100.0) / F('acquisition_cost'),
+                output_field=DecimalField(max_digits=5, decimal_places=2)
             )
         ).filter(
             depreciation_percentage__gte=90,
             depreciation_percentage__lt=100
-        ).order_by('-depreciation_percentage')[:5]
+        ).select_related('category').order_by('-depreciation_percentage')[:5]
 
         return assets
 
     def get_expiry_alerts(self):
         """تنبيهات انتهاء الضمان والتأمين"""
-        today = datetime.date.today()
-        expiry_date = today + datetime.timedelta(days=30)
+        today = date.today()
+        expiry_date = today + timedelta(days=60)
 
         # الضمانات المنتهية
         warranty_expiring = Asset.objects.filter(
             company=self.request.current_company,
             status='active',
             warranty_end_date__isnull=False,
-            warranty_end_date__lte=expiry_date,
-            warranty_end_date__gte=today
-        ).count()
+            warranty_end_date__gte=today,
+            warranty_end_date__lte=expiry_date
+        ).select_related('category').order_by('warranty_end_date')[:5]
 
         # التأمينات المنتهية
         insurance_expiring = AssetInsurance.objects.filter(
             company=self.request.current_company,
             status='active',
-            end_date__lte=expiry_date,
-            end_date__gte=today
-        ).count()
+            end_date__gte=today,
+            end_date__lte=expiry_date
+        ).select_related('asset', 'insurance_company').order_by('end_date')[:5]
 
         return {
             'warranty_expiring': warranty_expiring,
-            'insurance_expiring': insurance_expiring
+            'insurance_expiring': insurance_expiring,
+            'warranty_count': warranty_expiring.count(),
+            'insurance_count': insurance_expiring.count()
         }
 
     def get_recent_assets(self):
         """الأصول المضافة خلال آخر 30 يوم"""
-        thirty_days_ago = datetime.date.today() - datetime.timedelta(days=30)
+        thirty_days_ago = date.today() - timedelta(days=30)
 
         return Asset.objects.filter(
             company=self.request.current_company,
             created_at__gte=thirty_days_ago
-        ).select_related('category').order_by('-created_at')[:5]
+        ).select_related('category', 'branch').order_by('-created_at')[:5]
 
     def get_category_stats(self):
         """إحصائيات حسب الفئة"""
         return AssetCategory.objects.filter(
-            company=self.request.current_company
+            is_active=True
         ).annotate(
-            asset_count=Count('assets', filter=Q(assets__status='active')),
-            total_value=Coalesce(Sum('assets__book_value', filter=Q(assets__status='active')), Decimal('0'))
+            asset_count=Count(
+                'assets',
+                filter=Q(assets__company=self.request.current_company, assets__status='active')
+            ),
+            total_value=Coalesce(
+                Sum(
+                    'assets__book_value',
+                    filter=Q(assets__company=self.request.current_company, assets__status='active')
+                ),
+                Decimal('0')
+            )
         ).filter(asset_count__gt=0).order_by('-total_value')[:10]
+
+    def get_recent_transactions(self):
+        """المعاملات الأخيرة"""
+        return AssetTransaction.objects.filter(
+            company=self.request.current_company
+        ).select_related('asset', 'business_partner').order_by('-transaction_date')[:5]
 
 
 # ==================== Ajax Endpoints ====================
@@ -209,80 +253,178 @@ class AssetDashboardView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
 @login_required
 @permission_required_with_message('assets.view_asset')
 @require_http_methods(["GET"])
-def dashboard_stats_api(request):
+def dashboard_stats_ajax(request):
     """API للحصول على إحصائيات Dashboard محدثة"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({'error': 'لا توجد شركة محددة'}, status=400)
 
-    # إحصائيات أساسية
-    stats = {
-        'total_assets': Asset.objects.filter(company=request.current_company).count(),
-        'active_assets': Asset.objects.filter(company=request.current_company, status='active').count(),
-        'total_book_value': float(
-            Asset.objects.filter(
-                company=request.current_company,
-                status='active'
-            ).aggregate(total=Coalesce(Sum('book_value'), 0))['total']
-        ),
-        'maintenance_due': MaintenanceSchedule.objects.filter(
+    try:
+        # إحصائيات أساسية
+        total_assets = Asset.objects.filter(company=request.current_company).count()
+        active_assets = Asset.objects.filter(company=request.current_company, status='active').count()
+
+        # القيمة الدفترية الإجمالية
+        book_value_data = Asset.objects.filter(
+            company=request.current_company,
+            status='active'
+        ).aggregate(
+            total=Coalesce(Sum('book_value'), Decimal('0'))
+        )
+
+        # الصيانة المستحقة
+        today = date.today()
+        maintenance_due = MaintenanceSchedule.objects.filter(
             company=request.current_company,
             is_active=True,
-            next_maintenance_date__lte=datetime.date.today() + datetime.timedelta(days=7)
+            next_maintenance_date__lte=today + timedelta(days=7)
         ).count()
-    }
 
-    return JsonResponse(stats)
+        stats = {
+            'total_assets': total_assets,
+            'active_assets': active_assets,
+            'total_book_value': float(book_value_data['total']),
+            'maintenance_due': maintenance_due
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required
 @permission_required_with_message('assets.view_asset')
 @require_http_methods(["GET"])
-def depreciation_alerts_api(request):
-    """API لتنبيهات الإهلاك"""
+def depreciation_chart_ajax(request):
+    """بيانات رسم الإهلاك الشهري"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({'error': 'لا توجد شركة محددة'}, status=400)
 
-    # الأصول القريبة من الإهلاك الكامل
-    alerts = Asset.objects.filter(
-        company=request.current_company,
-        status='active'
-    ).annotate(
-        depreciation_percentage=(F('accumulated_depreciation') * 100.0) / F('original_cost')
-    ).filter(
-        depreciation_percentage__gte=90
-    ).values(
-        'id', 'asset_number', 'name', 'depreciation_percentage'
-    )[:10]
+    try:
+        from django.db.models.functions import TruncMonth
 
-    return JsonResponse({'alerts': list(alerts)})
+        year = int(request.GET.get('year', date.today().year))
+
+        # الإهلاك الشهري
+        monthly_depreciation = AssetDepreciation.objects.filter(
+            company=request.current_company,
+            depreciation_date__year=year
+        ).annotate(
+            month=TruncMonth('depreciation_date')
+        ).values('month').annotate(
+            total=Sum('depreciation_amount')
+        ).order_by('month')
+
+        labels = []
+        data = []
+
+        for item in monthly_depreciation:
+            labels.append(item['month'].strftime('%B'))
+            data.append(float(item['total']))
+
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'data': data
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required
-@permission_required_with_message('assets.view_assetmaintenance')
+@permission_required_with_message('assets.view_asset')
 @require_http_methods(["GET"])
-def maintenance_alerts_api(request):
-    """API لتنبيهات الصيانة"""
+def maintenance_chart_ajax(request):
+    """بيانات رسم تكلفة الصيانة"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({'error': 'لا توجد شركة محددة'}, status=400)
 
-    today = datetime.date.today()
-    due_date = today + datetime.timedelta(days=int(request.GET.get('days', 30)))
+    try:
+        from django.db.models.functions import TruncMonth
 
-    schedules = MaintenanceSchedule.objects.filter(
-        company=request.current_company,
-        is_active=True,
-        next_maintenance_date__lte=due_date,
-        next_maintenance_date__gte=today
-    ).select_related('asset', 'maintenance_type').values(
-        'id',
-        'asset__asset_number',
-        'asset__name',
-        'maintenance_type__name',
-        'next_maintenance_date',
-        'estimated_cost'
-    ).order_by('next_maintenance_date')
+        year = int(request.GET.get('year', date.today().year))
 
-    return JsonResponse({'maintenance_alerts': list(schedules)})
+        # تكلفة الصيانة الشهرية
+        monthly_maintenance = AssetMaintenance.objects.filter(
+            company=request.current_company,
+            scheduled_date__year=year,
+            status='completed'
+        ).annotate(
+            month=TruncMonth('scheduled_date')
+        ).values('month').annotate(
+            total=Sum(F('labor_cost') + F('parts_cost') + F('other_cost'))
+        ).order_by('month')
+
+        labels = []
+        data = []
+
+        for item in monthly_maintenance:
+            labels.append(item['month'].strftime('%B'))
+            data.append(float(item['total']))
+
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'data': data
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def asset_status_chart_ajax(request):
+    """بيانات رسم توزيع الأصول حسب الحالة"""
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({'error': 'لا توجد شركة محددة'}, status=400)
+
+    try:
+        # توزيع الأصول حسب الحالة
+        status_distribution = Asset.objects.filter(
+            company=request.current_company
+        ).values('status').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        labels = []
+        data = []
+        colors = {
+            'active': '#28a745',
+            'inactive': '#6c757d',
+            'under_maintenance': '#ffc107',
+            'disposed': '#dc3545',
+            'sold': '#17a2b8',
+            'lost': '#e83e8c'
+        }
+        background_colors = []
+
+        for item in status_distribution:
+            status_display = dict(Asset.STATUS_CHOICES).get(item['status'], item['status'])
+            labels.append(status_display)
+            data.append(item['count'])
+            background_colors.append(colors.get(item['status'], '#6c757d'))
+
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'data': data,
+            'backgroundColor': background_colors
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
