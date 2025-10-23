@@ -279,6 +279,170 @@ class AssetInsurance(DocumentBaseModel):
 
         return None
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل البوليصة؟"""
+        # لا يمكن تعديل البوليصة إذا كانت منتهية أو ملغاة
+        if self.status in ['expired', 'cancelled']:
+            return False
+
+        # لا يمكن تعديل إذا كان هناك مطالبات مدفوعة
+        if hasattr(self, 'claims'):
+            paid_claims = self.claims.filter(status='paid').exists()
+            if paid_claims:
+                return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف البوليصة؟"""
+        # لا يمكن حذف بوليصة نشطة
+        if self.status == 'active':
+            return False
+
+        # لا يمكن حذف إذا كان هناك مطالبات
+        if hasattr(self, 'claims') and self.claims.exists():
+            return False
+
+        return True
+
+    def can_activate(self):
+        """هل يمكن تفعيل البوليصة؟"""
+        import datetime
+
+        # يمكن التفعيل فقط من المسودة
+        if self.status != 'draft':
+            return False
+
+        # يجب أن تكون التواريخ صحيحة
+        today = datetime.date.today()
+        if self.start_date > self.end_date:
+            return False
+
+        # يجب أن يكون هناك قسط محدد
+        if self.premium_amount <= 0:
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💰 Accounting Methods - الطرق المحاسبية
+    # ═══════════════════════════════════════════════════════════════
+
+    @transaction.atomic
+    def create_premium_payment_journal_entry(self, payment_date=None, user=None):
+        """إنشاء قيد محاسبي لدفع قسط التأمين"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+        from ..accounting_config import AssetAccountingConfiguration
+
+        if self.status not in ['draft', 'active']:
+            raise ValidationError(
+                f'لا يمكن إنشاء قيد دفع لبوليصة {self.get_status_display()}'
+            )
+
+        if not payment_date:
+            payment_date = timezone.now().date()
+
+        # الحصول على الإعدادات المحاسبية
+        config = AssetAccountingConfiguration.get_or_create_for_company(self.company)
+        insurance_accounts = config.get_insurance_accounts()
+
+        # الحصول على السنة المالية والفترة
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=payment_date,
+                end_date__gte=payment_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError('لا توجد سنة مالية نشطة لتاريخ الدفع')
+
+        period = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year,
+            start_date__lte=payment_date,
+            end_date__gte=payment_date,
+            is_closed=False
+        ).first()
+
+        if not period:
+            raise ValidationError('لا توجد فترة محاسبية نشطة لتاريخ الدفع')
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=payment_date,
+            entry_type='insurance_premium',
+            description=f'دفع قسط تأمين البوليصة {self.policy_number} - {self.asset.name}',
+            reference=self.policy_number,
+            source_model='asset_insurance',
+            source_id=self.id,
+            status='draft',
+            created_by=user
+        )
+
+        # السطر 1: مدين - مصروف التأمين
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=1,
+            account=insurance_accounts['expense'],
+            description=f'قسط تأمين - {self.asset.name} - {self.insurance_company.name}',
+            debit_amount=self.premium_amount,
+            credit_amount=0,
+            currency=self.company.base_currency,
+            cost_center=self.asset.cost_center if self.asset.cost_center else None
+        )
+
+        # السطر 2: دائن - حساب الدفع
+        payment_account = self.get_payment_account()
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=2,
+            account=payment_account,
+            description=f'دفع قسط تأمين لـ {self.insurance_company.name}',
+            debit_amount=0,
+            credit_amount=self.premium_amount,
+            currency=self.company.base_currency
+        )
+
+        # حساب الإجماليات
+        journal_entry.calculate_totals()
+
+        # تفعيل البوليصة إذا كانت مسودة
+        if self.status == 'draft':
+            self.status = 'active'
+            self.asset.insurance_status = 'insured'
+            self.asset.save(update_fields=['insurance_status'])
+            self.save(update_fields=['status'])
+
+        return journal_entry
+
+    def get_payment_account(self):
+        """الحصول على حساب الدفع للتأمين"""
+        from apps.accounting.models import Account
+        from ..accounting_config import AssetAccountingConfiguration
+
+        # الحصول على الإعدادات المحاسبية
+        config = AssetAccountingConfiguration.get_or_create_for_company(self.company)
+
+        # الحساب الأفضل: حساب شركة التأمين إذا كان لديها حساب
+        if hasattr(self.insurance_company, 'supplier_account') and self.insurance_company.supplier_account:
+            return self.insurance_company.supplier_account
+
+        # البديل: حساب الموردين العام أو البنك
+        try:
+            return config.get_supplier_account()
+        except:
+            # آخر بديل: حساب البنك
+            return config.get_bank_account()
+
 
 class InsuranceClaim(DocumentBaseModel):
     """مطالبات التأمين"""
@@ -475,6 +639,70 @@ class InsuranceClaim(DocumentBaseModel):
             raise ValidationError({
                 'approved_amount': _('المبلغ المعتمد لا يمكن أن يتجاوز مبلغ المطالبة')
             })
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل المطالبة؟"""
+        # لا يمكن تعديل المطالبة إذا كانت معتمدة أو مدفوعة أو ملغاة
+        if self.status in ['approved', 'paid', 'cancelled']:
+            return False
+
+        # لا يمكن تعديل إذا كان هناك قيد محاسبي مرحل
+        if self.journal_entry and self.journal_entry.status == 'posted':
+            return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف المطالبة؟"""
+        # لا يمكن حذف مطالبة معتمدة أو مدفوعة
+        if self.status in ['approved', 'paid']:
+            return False
+
+        # لا يمكن حذف إذا كان هناك قيد محاسبي
+        if self.journal_entry:
+            return False
+
+        return True
+
+    def can_approve(self):
+        """هل يمكن اعتماد المطالبة؟"""
+        # يمكن الاعتماد فقط من حالة مقدم أو قيد المراجعة
+        if self.status not in ['filed', 'under_review']:
+            return False
+
+        # يجب أن يكون مبلغ المطالبة أكبر من صفر
+        if self.claim_amount <= 0:
+            return False
+
+        # يجب أن تكون البوليصة نشطة
+        if not self.insurance.is_active():
+            return False
+
+        return True
+
+    def can_process_payment(self):
+        """هل يمكن معالجة دفع المطالبة؟"""
+        # يمكن الدفع فقط للمطالبات المعتمدة
+        if self.status != 'approved':
+            return False
+
+        # يجب ألا يكون هناك قيد محاسبي مسبق
+        if self.journal_entry:
+            return False
+
+        # يجب أن يكون المبلغ المعتمد أكبر من صفر
+        if self.approved_amount <= 0:
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💼 Business Methods - طرق العمليات
+    # ═══════════════════════════════════════════════════════════════
 
     @transaction.atomic
     def approve(self, approved_amount, user=None):

@@ -218,12 +218,30 @@ class AssetCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
             form.instance.currency = self.request.current_company.base_currency
 
         try:
+            # حفظ الأصل
             self.object = form.save()
 
-            messages.success(
-                self.request,
-                f'✅ تم إنشاء الأصل {self.object.asset_number} بنجاح'
-            )
+            # ✅ إنشاء القيد المحاسبي إذا طُلب
+            create_journal = self.request.POST.get('create_journal_entry')
+            journal_entry = None
+
+            if create_journal:
+                try:
+                    journal_entry = self.object.create_purchase_journal_entry(user=self.request.user)
+                    messages.success(
+                        self.request,
+                        f'✅ تم إنشاء الأصل {self.object.asset_number} والقيد المحاسبي {journal_entry.number} بنجاح'
+                    )
+                except ValidationError as e:
+                    messages.warning(
+                        self.request,
+                        f'⚠️ تم إنشاء الأصل {self.object.asset_number} لكن فشل إنشاء القيد: {str(e)}'
+                    )
+            else:
+                messages.success(
+                    self.request,
+                    f'✅ تم إنشاء الأصل {self.object.asset_number} بنجاح'
+                )
 
             # Log the action
             self.log_action('create', self.object)
@@ -245,6 +263,7 @@ class AssetCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
         context.update({
             'title': _('إضافة أصل جديد'),
             'submit_text': _('إنشاء الأصل'),
+            'show_create_journal_option': True,  # ✅ إظهار خيار إنشاء القيد المحاسبي
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('الأصول'), 'url': reverse('assets:asset_list')},
@@ -304,6 +323,14 @@ class AssetUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
 
     @transaction.atomic
     def form_valid(self, form):
+        # ✅ التحقق من إمكانية التعديل
+        if not self.object.can_edit():
+            messages.error(
+                self.request,
+                _('❌ لا يمكن تعديل هذا الأصل (مباع، مستبعد، أو له معاملات مرحّلة)')
+            )
+            return redirect('assets:asset_detail', pk=self.object.pk)
+
         try:
             old_values = {
                 'status': self.object.status,
@@ -443,13 +470,19 @@ class AssetDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
 
         context.update({
             'title': f'الأصل {self.object.asset_number}',
-            'can_edit': self.request.user.has_perm('assets.change_asset'),
-            'can_delete': self.request.user.has_perm('assets.delete_asset'),
+            # ✅ استخدام methods من الـ model للصلاحيات
+            'can_edit': self.request.user.has_perm('assets.change_asset') and self.object.can_edit(),
+            'can_delete': self.request.user.has_perm('assets.delete_asset') and self.object.can_delete(),
+            'can_depreciate': self.request.user.has_perm('assets.can_calculate_depreciation') and self.object.can_depreciate(),
             'can_calculate_depreciation': self.request.user.has_perm('assets.can_calculate_depreciation'),
             'can_sell': self.request.user.has_perm('assets.can_sell_asset'),
             'can_dispose': self.request.user.has_perm('assets.can_dispose_asset'),
             'can_transfer': self.request.user.has_perm('assets.can_transfer_asset'),
             'can_revalue': self.request.user.has_perm('assets.can_revalue_asset'),
+            # ✅ معلومات محاسبية إضافية
+            'current_book_value': self.object.get_current_book_value(),
+            'total_accumulated_depreciation': self.object.get_total_accumulated_depreciation(),
+            # البيانات الموجودة
             'depreciation_records': depreciation_records,
             'maintenances': maintenances,
             'attachments': attachments,
@@ -484,24 +517,12 @@ class AssetDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
 
-        # التحقق من إمكانية الحذف
-        errors = []
-
-        if self.object.status in ['sold', 'disposed']:
-            errors.append('لا يمكن حذف أصل مباع أو مستبعد')
-
-        if self.object.depreciation_records.exists():
-            errors.append('لا يمكن حذف أصل له سجلات إهلاك')
-
-        if self.object.transactions.exists():
-            errors.append('لا يمكن حذف أصل له معاملات مالية')
-
-        if self.object.maintenances.filter(status='in_progress').exists():
-            errors.append('لا يمكن حذف أصل له صيانة جارية')
-
-        if errors:
-            for error in errors:
-                messages.error(request, f'❌ {error}')
+        # ✅ التحقق من إمكانية الحذف باستخدام الـ method
+        if not self.object.can_delete():
+            messages.error(
+                request,
+                _('❌ لا يمكن حذف هذا الأصل (له إهلاك، معاملات، صيانة، تأمين، أو جرد)')
+            )
             return redirect('assets:asset_detail', pk=self.object.pk)
 
         asset_number = self.object.asset_number

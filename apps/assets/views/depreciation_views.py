@@ -216,6 +216,10 @@ class AssetDepreciationDetailView(LoginRequiredMixin, PermissionRequiredMixin, C
                     self.object.is_posted and
                     not self.object.reversal_entry
             ),
+            'can_calculate_next': (
+                    self.request.user.has_perm('assets.can_calculate_depreciation') and
+                    asset.can_depreciate()  # ✅ استخدام method من Model
+            ),
             'depreciation_pct_this_record': depreciation_pct_this_record,
             'months_remaining': months_remaining,
             'previous_record': previous_record,
@@ -316,7 +320,16 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 company=request.current_company
             )
 
-            # احتساب الإهلاك
+            # ✅ التحقق من إمكانية احتساب الإهلاك
+            if not asset.can_depreciate():
+                messages.error(
+                    request,
+                    f'❌ لا يمكن احتساب إهلاك للأصل {asset.asset_number}. '
+                    f'تحقق من حالة الأصل وحالة الإهلاك'
+                )
+                return redirect('assets:asset_detail', pk=asset.pk)
+
+            # ✅ احتساب الإهلاك
             depreciation_record = asset.calculate_monthly_depreciation(user=request.user)
 
             messages.success(
@@ -528,8 +541,13 @@ class PauseDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Company
                 company=request.current_company
             )
 
+            # ✅ التحقق من الحالة الحالية
             if asset.depreciation_status == 'paused':
                 messages.warning(request, '⚠️ الإهلاك متوقف مسبقاً')
+                return redirect('assets:asset_detail', pk=asset.pk)
+
+            if asset.depreciation_status == 'fully_depreciated':
+                messages.error(request, '❌ الأصل مهلك بالكامل، لا يمكن إيقافه')
                 return redirect('assets:asset_detail', pk=asset.pk)
 
             reason = request.POST.get('reason', '')

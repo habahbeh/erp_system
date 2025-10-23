@@ -924,7 +924,11 @@ class AssetMaintenanceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
             'title': f'الصيانة {self.object.maintenance_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.change_assetmaintenance') and
-                    self.object.status != 'completed'
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assetmaintenance') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_start': (
                     self.request.user.has_perm('assets.change_assetmaintenance') and
@@ -932,7 +936,7 @@ class AssetMaintenanceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
             ),
             'can_complete': (
                     self.request.user.has_perm('assets.change_assetmaintenance') and
-                    self.object.status == 'in_progress'
+                    self.object.can_complete()  # ✅ استخدام method من Model
             ),
             'can_cancel': (
                     self.request.user.has_perm('assets.change_assetmaintenance') and
@@ -1006,6 +1010,14 @@ class AssetMaintenanceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذه الصيانة. قد تكون مكتملة أو لديها قيد محاسبي مرحل'
+                )
+                return self.form_invalid(form)
+
             self.object = form.save()
 
             self.log_action('update', self.object)
@@ -1017,6 +1029,9 @@ class AssetMaintenanceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -1166,15 +1181,21 @@ def complete_maintenance(request, pk):
         maintenance = get_object_or_404(
             AssetMaintenance,
             pk=pk,
-            company=request.current_company,
-            status='in_progress'
+            company=request.current_company
         )
+
+        # ✅ التحقق من إمكانية الإكمال
+        if not maintenance.can_complete():
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن إكمال هذه الصيانة. يجب أن تكون جارية ولديها تكلفة'
+            }, status=400)
 
         completion_date = request.POST.get('completion_date', date.today())
         issues_found = request.POST.get('issues_found', '')
         recommendations = request.POST.get('recommendations', '')
 
-        # إكمال الصيانة
+        # ✅ إكمال الصيانة (يستخدم create_journal_entry داخلياً)
         maintenance.mark_as_completed(
             completion_date=completion_date,
             user=request.user

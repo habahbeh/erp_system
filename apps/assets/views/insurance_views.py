@@ -635,11 +635,26 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
         context.update({
             'title': f'البوليصة {self.object.policy_number}',
-            'can_edit': self.request.user.has_perm('assets.change_assetinsurance'),
+            'can_edit': (
+                    self.request.user.has_perm('assets.change_assetinsurance') and
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assetinsurance') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
+            ),
+            'can_activate': (
+                    self.request.user.has_perm('assets.change_assetinsurance') and
+                    self.object.can_activate()  # ✅ استخدام method من Model
+            ),
             'can_add_claim': self.request.user.has_perm('assets.add_insuranceclaim'),
             'can_renew': (
                     self.request.user.has_perm('assets.add_assetinsurance') and
                     self.object.status in ['active', 'expired']
+            ),
+            'can_pay_premium': (
+                    self.request.user.has_perm('assets.change_assetinsurance') and
+                    self.object.status in ['draft', 'active']  # ✅ يمكن دفع قسط
             ),
             'claims': claims,
             'claim_stats': claim_stats,
@@ -697,6 +712,14 @@ class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذه البوليصة. قد تكون منتهية أو ملغاة أو لديها مطالبات مدفوعة'
+                )
+                return self.form_invalid(form)
+
             old_status = self.object.status
             self.object = form.save()
 
@@ -832,6 +855,81 @@ class RenewInsuranceView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             import traceback
             print(traceback.format_exc())
             messages.error(request, f'❌ خطأ في التجديد: {str(e)}')
+            return redirect('assets:insurance_detail', pk=insurance_id)
+
+
+class PayPremiumView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """دفع قسط التأمين - جديد"""
+
+    template_name = 'assets/insurance/pay_premium.html'
+    permission_required = 'assets.change_assetinsurance'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        insurance_id = self.kwargs.get('pk')
+        insurance = get_object_or_404(
+            AssetInsurance,
+            pk=insurance_id,
+            company=self.request.current_company
+        )
+
+        context.update({
+            'title': f'دفع قسط التأمين - {insurance.policy_number}',
+            'insurance': insurance,
+            'can_pay': insurance.status in ['draft', 'active'],
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('بوليصات التأمين'), 'url': reverse('assets:insurance_list')},
+                {'title': insurance.policy_number, 'url': reverse('assets:insurance_detail', args=[insurance.pk])},
+                {'title': _('دفع قسط'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            insurance_id = kwargs.get('pk')
+            insurance = get_object_or_404(
+                AssetInsurance,
+                pk=insurance_id,
+                company=request.current_company
+            )
+
+            # التحقق من الحالة
+            if insurance.status not in ['draft', 'active']:
+                messages.error(
+                    request,
+                    f'❌ لا يمكن دفع قسط لبوليصة {insurance.get_status_display()}'
+                )
+                return redirect('assets:insurance_detail', pk=insurance.pk)
+
+            payment_date = request.POST.get('payment_date')
+            if not payment_date:
+                payment_date = None
+
+            # ✅ إنشاء قيد دفع القسط
+            journal_entry = insurance.create_premium_payment_journal_entry(
+                payment_date=payment_date,
+                user=request.user
+            )
+
+            messages.success(
+                request,
+                f'✅ تم تسجيل دفع قسط التأمين بمبلغ {insurance.premium_amount:,.2f} '
+                f'وإنشاء القيد {journal_entry.number} بنجاح'
+            )
+
+            return redirect('assets:insurance_detail', pk=insurance.pk)
+
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:insurance_detail', pk=insurance_id)
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في دفع القسط: {str(e)}')
             return redirect('assets:insurance_detail', pk=insurance_id)
 
 
@@ -1058,15 +1156,19 @@ class InsuranceClaimDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             'title': f'المطالبة {self.object.claim_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.change_insuranceclaim') and
-                    self.object.status in ['filed', 'under_review']
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_insuranceclaim') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_approve': (
                     self.request.user.has_perm('assets.change_insuranceclaim') and
-                    self.object.status in ['filed', 'under_review']
+                    self.object.can_approve()  # ✅ استخدام method من Model
             ),
             'can_pay': (
                     self.request.user.has_perm('assets.change_insuranceclaim') and
-                    self.object.status == 'approved'
+                    self.object.can_process_payment()  # ✅ استخدام method من Model
             ),
             'can_cancel': (
                     self.request.user.has_perm('assets.change_insuranceclaim') and
@@ -1121,6 +1223,14 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذه المطالبة. قد تكون معتمدة أو مدفوعة أو ملغاة'
+                )
+                return self.form_invalid(form)
+
             self.object = form.save()
 
             self.log_action('update', self.object)
@@ -1132,6 +1242,9 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -1170,10 +1283,11 @@ def approve_insurance_claim(request, pk):
             company=request.current_company
         )
 
-        if claim.status not in ['filed', 'under_review']:
+        # ✅ التحقق من إمكانية الاعتماد
+        if not claim.can_approve():
             return JsonResponse({
                 'success': False,
-                'message': 'لا يمكن اعتماد هذه المطالبة'
+                'message': 'لا يمكن اعتماد هذه المطالبة. تحقق من حالتها والبوليصة'
             }, status=400)
 
         approved_amount = Decimal(request.POST.get('approved_amount', 0))
@@ -1272,11 +1386,17 @@ def process_claim_payment(request, pk):
         claim = get_object_or_404(
             InsuranceClaim,
             pk=pk,
-            company=request.current_company,
-            status='approved'
+            company=request.current_company
         )
 
-        # معالجة الدفع
+        # ✅ التحقق من إمكانية معالجة الدفع
+        if not claim.can_process_payment():
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن معالجة دفع هذه المطالبة. يجب أن تكون معتمدة وليس لديها قيد محاسبي مسبق'
+            }, status=400)
+
+        # ✅ معالجة الدفع
         claim.process_payment(user=request.user)
 
         return JsonResponse({

@@ -45,7 +45,7 @@ from ..models import (
     PhysicalCountCycle, PhysicalCount, PhysicalCountLine,
     PhysicalCountAdjustment, Asset, AssetCategory, AssetCondition
 )
-from apps.core.models import Branch, Employee
+from apps.core.models import Branch
 
 
 # ==================== Physical Count Cycles ====================
@@ -281,15 +281,19 @@ class PhysicalCountCycleDetailView(LoginRequiredMixin, PermissionRequiredMixin, 
             'title': f'دورة الجرد {self.object.cycle_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'planning'
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.can_conduct_physical_count') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_start': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'planning'
+                    self.object.can_start()  # ✅ استخدام method من Model
             ),
             'can_complete': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'in_progress'
+                    self.object.can_complete()  # ✅ استخدام method من Model
             ),
             'counts': counts[:10],
             'count_stats': count_stats,
@@ -338,6 +342,14 @@ class PhysicalCountCycleUpdateView(LoginRequiredMixin, PermissionRequiredMixin, 
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذه الدورة. قد تكون مكتملة أو لديها جرد معتمد'
+                )
+                return self.form_invalid(form)
+
             self.object = form.save()
 
             self.log_action('update', self.object)
@@ -349,6 +361,9 @@ class PhysicalCountCycleUpdateView(LoginRequiredMixin, PermissionRequiredMixin, 
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -385,14 +400,11 @@ class StartCycleView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             cycle = get_object_or_404(
                 PhysicalCountCycle,
                 pk=cycle_id,
-                company=request.current_company,
-                status='planning'
+                company=request.current_company
             )
 
-            # بدء الدورة
-            cycle.status = 'in_progress'
-            cycle.actual_start_date = date.today()
-            cycle.save()
+            # ✅ بدء الدورة باستخدام model method
+            cycle.start_cycle(user=request.user)
 
             messages.success(
                 request,
@@ -401,6 +413,9 @@ class StartCycleView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
             return redirect('assets:cycle_detail', pk=cycle.pk)
 
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:cycle_detail', pk=cycle_id)
         except Exception as e:
             import traceback
             print(traceback.format_exc())
@@ -421,26 +436,11 @@ class CompleteCycleView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
             cycle = get_object_or_404(
                 PhysicalCountCycle,
                 pk=cycle_id,
-                company=request.current_company,
-                status='in_progress'
+                company=request.current_company
             )
 
-            # التحقق من إكمال جميع عمليات الجرد
-            pending_counts = cycle.physical_counts.filter(
-                status__in=['draft', 'in_progress']
-            ).count()
-
-            if pending_counts > 0:
-                messages.error(
-                    request,
-                    f'❌ يوجد {pending_counts} عمليات جرد لم تكتمل بعد'
-                )
-                return redirect('assets:cycle_detail', pk=cycle.pk)
-
-            # إكمال الدورة
-            cycle.status = 'completed'
-            cycle.actual_completion_date = date.today()
-            cycle.save()
+            # ✅ إكمال الدورة باستخدام model method
+            cycle.complete_cycle(user=request.user)
 
             messages.success(
                 request,
@@ -449,6 +449,9 @@ class CompleteCycleView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
 
             return redirect('assets:cycle_detail', pk=cycle.pk)
 
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:cycle_detail', pk=cycle_id)
         except Exception as e:
             import traceback
             print(traceback.format_exc())
@@ -755,19 +758,23 @@ class PhysicalCountDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
             'title': f'عملية الجرد {self.object.count_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'draft'
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.can_conduct_physical_count') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_start': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'draft'
+                    self.object.can_start()  # ✅ استخدام method من Model
             ),
             'can_complete': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'in_progress'
+                    self.object.can_complete()  # ✅ استخدام method من Model
             ),
             'can_approve': (
                     self.request.user.has_perm('assets.can_conduct_physical_count') and
-                    self.object.status == 'completed'
+                    self.object.can_approve()  # ✅ استخدام method من Model
             ),
             'lines': lines[:50],  # أول 50 سطر
             'variances': variances[:20],

@@ -425,11 +425,19 @@ class AssetLeaseDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
             'title': f'عقد الإيجار {self.object.lease_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.change_assetlease') and
-                    self.object.status in ['draft', 'active']
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assetlease') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
+            ),
+            'can_activate': (
+                    self.request.user.has_perm('assets.change_assetlease') and
+                    self.object.can_activate()  # ✅ استخدام method من Model
             ),
             'can_terminate': (
                     self.request.user.has_perm('assets.change_assetlease') and
-                    self.object.status == 'active'
+                    self.object.can_terminate()  # ✅ استخدام method من Model
             ),
             'can_renew': (
                     self.request.user.has_perm('assets.add_assetlease') and
@@ -503,6 +511,14 @@ class AssetLeaseUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذا العقد. قد يكون مكتمل أو منهي أو لديه دفعات مدفوعة'
+                )
+                return self.form_invalid(form)
+
             old_status = self.object.status
             self.object = form.save()
 
@@ -520,6 +536,9 @@ class AssetLeaseUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -651,18 +670,18 @@ class TerminateLeaseView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             lease = get_object_or_404(
                 AssetLease,
                 pk=lease_id,
-                company=request.current_company,
-                status='active'
+                company=request.current_company
             )
 
             termination_reason = request.POST.get('termination_reason', '')
-            termination_fee = Decimal(request.POST.get('termination_fee', 0))
+            termination_date = request.POST.get('termination_date', date.today())
 
-            # إنهاء العقد
-            lease.status = 'terminated'
-            lease.termination_date = date.today()
-            lease.notes = f"{lease.notes}\nإنهاء العقد: {termination_reason}" if lease.notes else f"إنهاء العقد: {termination_reason}"
-            lease.save()
+            # ✅ إنهاء العقد باستخدام model method
+            lease.terminate(
+                termination_date=termination_date,
+                reason=termination_reason,
+                user=request.user
+            )
 
             # إلغاء الدفعات المتبقية
             remaining = lease.payments.filter(is_paid=False).update(
@@ -676,6 +695,9 @@ class TerminateLeaseView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
 
             return redirect('assets:lease_detail', pk=lease.pk)
 
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:lease_detail', pk=lease_id)
         except Exception as e:
             import traceback
             print(traceback.format_exc())
@@ -1046,9 +1068,17 @@ class LeasePaymentDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compan
 
         context.update({
             'title': f'الدفعة رقم {self.object.payment_number} - {self.object.lease.lease_number}',
+            'can_edit': (
+                    self.request.user.has_perm('assets.change_assetlease') and
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assetlease') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
+            ),
             'can_pay': (
                     self.request.user.has_perm('assets.change_assetlease') and
-                    not self.object.is_paid
+                    self.object.can_pay()  # ✅ استخدام method من Model
             ),
             'previous': previous,
             'next_payment': next_payment,

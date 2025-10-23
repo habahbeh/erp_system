@@ -211,6 +211,114 @@ class AssetTransaction(DocumentBaseModel):
                     'business_partner': _('يجب تحديد المورد')
                 })
 
+    # ============================================================
+    # Validation Methods - متى يمكن التعديل/الحذف/الإتمام
+    # ============================================================
+
+    def can_edit(self):
+        """
+        هل يمكن تعديل العملية؟
+
+        Returns:
+            bool: True إذا كان يمكن التعديل
+        """
+        # لا يمكن تعديل العملية المكتملة أو الملغاة
+        if self.status in ['completed', 'cancelled']:
+            return False
+
+        # إذا كان لها قيد محاسبي مرحّل
+        if self.journal_entry and self.journal_entry.status == 'posted':
+            return False
+
+        return True
+
+    def can_delete(self):
+        """
+        هل يمكن حذف العملية؟
+
+        Returns:
+            bool: True إذا كان يمكن الحذف
+        """
+        # لا يمكن حذف العملية المكتملة
+        if self.status == 'completed':
+            return False
+
+        # إذا كان لها قيد محاسبي
+        if self.journal_entry:
+            return False
+
+        return True
+
+    def can_post(self):
+        """
+        هل يمكن ترحيل العملية (إنشاء القيد)؟
+
+        Returns:
+            bool: True إذا كان يمكن الترحيل
+        """
+        # يجب أن تكون معتمدة
+        if self.status != 'approved':
+            return False
+
+        # لا يجب أن يكون لها قيد مسبقاً
+        if self.journal_entry:
+            return False
+
+        return True
+
+    # ============================================================
+    # Accounting Methods - إنشاء القيود المحاسبية
+    # ============================================================
+
+    @transaction.atomic
+    def create_journal_entry(self, user=None):
+        """
+        إنشاء قيد محاسبي حسب نوع العملية
+
+        Args:
+            user: المستخدم الذي ينشئ القيد
+
+        Returns:
+            JournalEntry: القيد المحاسبي المنشأ
+        """
+        if self.transaction_type == 'purchase':
+            return self.asset.create_purchase_journal_entry(user=user)
+        elif self.transaction_type == 'sale':
+            return self.asset.sell(
+                sale_price=self.sale_price,
+                buyer=self.business_partner,
+                user=user
+            )
+        elif self.transaction_type == 'disposal':
+            return self.asset.dispose(
+                reason=self.description,
+                user=user
+            )
+        else:
+            raise ValidationError(
+                f'نوع العملية {self.get_transaction_type_display()} لا يدعم إنشاء قيد تلقائياً'
+            )
+
+    def post(self, user=None):
+        """
+        ترحيل العملية (إنشاء القيد وتحديث الحالة)
+
+        Args:
+            user: المستخدم الذي يرحّل
+        """
+        if not self.can_post():
+            raise ValidationError('لا يمكن ترحيل هذه العملية')
+
+        # إنشاء القيد
+        journal_entry = self.create_journal_entry(user=user)
+
+        # تحديث الحالة
+        self.status = 'completed'
+        self.journal_entry = journal_entry
+        self.save()
+
+        return journal_entry
+
 
 class AssetTransfer(DocumentBaseModel):
     """تحويل الأصول بين الفروع/الأقسام/الموظفين"""
@@ -373,6 +481,171 @@ class AssetTransfer(DocumentBaseModel):
         """التحقق من صحة البيانات"""
         if self.from_branch == self.to_branch and self.from_cost_center == self.to_cost_center and self.from_employee == self.to_employee:
             raise ValidationError(_('يجب أن يكون هناك تغيير في الموقع أو المسؤولية'))
+
+    # ============================================================
+    # Validation Methods - متى يمكن التعديل/الحذف/الإتمام
+    # ============================================================
+
+    def can_edit(self):
+        """
+        هل يمكن تعديل التحويل؟
+
+        Returns:
+            bool: True إذا كان يمكن التعديل
+        """
+        # يمكن التعديل فقط إذا كان معلق أو مرفوض
+        if self.status not in ['pending', 'rejected']:
+            return False
+
+        # إذا تم التسليم أو الاستلام، لا يمكن التعديل
+        if self.delivered_at or self.received_at:
+            return False
+
+        return True
+
+    def can_delete(self):
+        """
+        هل يمكن حذف التحويل؟
+
+        Returns:
+            bool: True إذا كان يمكن الحذف
+        """
+        # يمكن الحذف فقط إذا كان معلق
+        if self.status != 'pending':
+            return False
+
+        # إذا تم التسليم أو الاستلام، لا يمكن الحذف
+        if self.delivered_at or self.received_at:
+            return False
+
+        return True
+
+    def can_approve(self):
+        """
+        هل يمكن الموافقة على التحويل؟
+
+        Returns:
+            bool: True إذا كان يمكن الموافقة
+        """
+        # يمكن الموافقة فقط إذا كان معلق
+        if self.status != 'pending':
+            return False
+
+        return True
+
+    def can_reject(self):
+        """
+        هل يمكن رفض التحويل؟
+
+        Returns:
+            bool: True إذا كان يمكن الرفض
+        """
+        # يمكن الرفض فقط إذا كان معلق
+        if self.status != 'pending':
+            return False
+
+        return True
+
+    def can_complete(self):
+        """
+        هل يمكن إكمال التحويل؟
+
+        Returns:
+            bool: True إذا كان يمكن الإكمال
+        """
+        # يجب أن يكون معتمد
+        if self.status != 'approved':
+            return False
+
+        # يجب أن يكون تم التسليم والاستلام
+        if not self.delivered_at or not self.received_at:
+            return False
+
+        return True
+
+    # ============================================================
+    # Business Methods - العمليات التجارية
+    # ============================================================
+
+    @transaction.atomic
+    def approve(self, user=None):
+        """
+        الموافقة على التحويل
+
+        Args:
+            user: المستخدم الموافق
+
+        Returns:
+            self: التحويل بعد الموافقة
+        """
+        from django.utils import timezone
+
+        # ✅ استخدام validation method
+        if not self.can_approve():
+            raise ValidationError(_('لا يمكن الموافقة على هذا التحويل. تحقق من حالته'))
+
+        self.status = 'approved'
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        self.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+
+        return self
+
+    @transaction.atomic
+    def reject(self, reason='', user=None):
+        """
+        رفض التحويل
+
+        Args:
+            reason: سبب الرفض
+            user: المستخدم الرافض
+
+        Returns:
+            self: التحويل بعد الرفض
+        """
+        # ✅ استخدام validation method
+        if not self.can_reject():
+            raise ValidationError(_('لا يمكن رفض هذا التحويل. تحقق من حالته'))
+
+        self.status = 'rejected'
+        if reason:
+            self.notes = f"{self.notes}\n\nسبب الرفض: {reason}" if self.notes else f"سبب الرفض: {reason}"
+        self.save(update_fields=['status', 'notes', 'updated_at'])
+
+        return self
+
+    @transaction.atomic
+    def complete(self, user=None):
+        """
+        إكمال التحويل وتحديث بيانات الأصل
+
+        Args:
+            user: المستخدم المكمل
+
+        Returns:
+            self: التحويل بعد الإكمال
+        """
+        # ✅ استخدام validation method
+        if not self.can_complete():
+            raise ValidationError(_('لا يمكن إكمال هذا التحويل. تحقق من حالته والتسليم والاستلام'))
+
+        # تحديث بيانات الأصل
+        asset = self.asset
+        asset.branch = self.to_branch
+
+        if self.to_cost_center:
+            asset.cost_center = self.to_cost_center
+
+        if self.to_employee:
+            asset.assigned_to = self.to_employee
+
+        asset.save(update_fields=['branch', 'cost_center', 'assigned_to', 'updated_at'])
+
+        # تحديث حالة التحويل
+        self.status = 'completed'
+        self.save(update_fields=['status', 'updated_at'])
+
+        return self
 
 
 # ✅ جديد: نظام الاستئجار
@@ -578,6 +851,197 @@ class AssetLease(DocumentBaseModel):
         """المبلغ المتبقي"""
         return self.total_payments - self.get_paid_amount()
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل عقد الإيجار؟"""
+        # لا يمكن تعديل عقد مكتمل أو منهي
+        if self.status in ['completed', 'terminated']:
+            return False
+
+        # لا يمكن تعديل إذا كانت هناك دفعات مدفوعة
+        if self.payments.filter(is_paid=True).exists():
+            return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف عقد الإيجار؟"""
+        # لا يمكن حذف عقد نشط أو مكتمل
+        if self.status in ['active', 'completed']:
+            return False
+
+        # لا يمكن حذف إذا كانت هناك دفعات
+        if self.payments.exists():
+            return False
+
+        return True
+
+    def can_activate(self):
+        """هل يمكن تفعيل عقد الإيجار؟"""
+        # يمكن التفعيل فقط من حالة مسودة
+        if self.status != 'draft':
+            return False
+
+        # يجب أن يكون هناك مبلغ شهري
+        if self.monthly_payment <= 0:
+            return False
+
+        return True
+
+    def can_terminate(self):
+        """هل يمكن إنهاء عقد الإيجار؟"""
+        # يمكن الإنهاء من حالة نشط فقط
+        if self.status != 'active':
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💰 Accounting Methods - الطرق المحاسبية
+    # ═══════════════════════════════════════════════════════════════
+
+    @transaction.atomic
+    def create_journal_entry(self, payment_date=None, payment_amount=None, user=None):
+        """إنشاء قيد محاسبي لدفعة الإيجار"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod, Account
+
+        if not payment_date:
+            payment_date = timezone.now().date()
+
+        if not payment_amount:
+            payment_amount = self.monthly_payment
+
+        # الحصول على السنة المالية والفترة
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=payment_date,
+                end_date__gte=payment_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError('لا توجد سنة مالية نشطة لتاريخ الدفع')
+
+        period = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year,
+            start_date__lte=payment_date,
+            end_date__gte=payment_date,
+            is_closed=False
+        ).first()
+
+        if not period:
+            raise ValidationError('لا توجد فترة محاسبية نشطة لتاريخ الدفع')
+
+        # الحصول على الحسابات المحاسبية
+        # للإيجار التشغيلي: مصروف
+        # للإيجار التمويلي: التزام طويل الأجل + فائدة
+        if self.lease_type == 'operating':
+            # مصروف إيجار تشغيلي
+            try:
+                expense_account = Account.objects.get(
+                    company=self.company,
+                    code='520100',  # مصاريف إيجار
+                    is_active=True
+                )
+            except Account.DoesNotExist:
+                raise ValidationError('لم يتم العثور على حساب مصاريف الإيجار (520100)')
+        else:
+            # إيجار تمويلي - التزام
+            try:
+                liability_account = Account.objects.get(
+                    company=self.company,
+                    code='220100',  # التزامات إيجار تمويلي
+                    is_active=True
+                )
+            except Account.DoesNotExist:
+                raise ValidationError('لم يتم العثور على حساب التزامات الإيجار التمويلي (220100)')
+
+            expense_account = liability_account
+
+        # حساب الدفع (نقدية أو موردين)
+        try:
+            payment_account = Account.objects.get(
+                company=self.company,
+                code='110100',  # النقدية
+                is_active=True
+            )
+        except Account.DoesNotExist:
+            raise ValidationError('لم يتم العثور على حساب النقدية (110100)')
+
+        # إنشاء القيد المحاسبي
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=payment_date,
+            entry_type='lease_payment',
+            description=f'دفع إيجار {self.get_lease_type_display()} - {self.asset.name}',
+            reference=self.lease_number,
+            source_model='asset_lease',
+            source_id=self.id,
+            status='draft',
+            created_by=user
+        )
+
+        # السطر 1: مدين - مصروف/التزام
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=1,
+            account=expense_account,
+            description=f'إيجار {self.asset.name} - {payment_date}',
+            debit_amount=payment_amount,
+            credit_amount=0,
+            currency=self.company.base_currency,
+            cost_center=self.asset.cost_center if self.asset.cost_center else None
+        )
+
+        # السطر 2: دائن - النقدية
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=2,
+            account=payment_account,
+            description=f'دفع إيجار - {self.lessor.name}',
+            debit_amount=0,
+            credit_amount=payment_amount,
+            currency=self.company.base_currency
+        )
+
+        # حساب الإجماليات
+        journal_entry.calculate_totals()
+
+        return journal_entry
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💼 Business Methods - طرق العمليات
+    # ═══════════════════════════════════════════════════════════════
+
+    @transaction.atomic
+    def terminate(self, termination_date=None, reason='', user=None):
+        """إنهاء عقد الإيجار"""
+        import datetime
+
+        if not self.can_terminate():
+            raise ValidationError('لا يمكن إنهاء هذا العقد. يجب أن يكون نشطاً')
+
+        if not termination_date:
+            termination_date = datetime.date.today()
+
+        self.status = 'terminated'
+        self.notes = f"{self.notes}\n\nتم الإنهاء بتاريخ {termination_date}. السبب: {reason}" if self.notes else f"تم الإنهاء بتاريخ {termination_date}. السبب: {reason}"
+        self.save()
+
+        # تحديث حالة الأصل
+        if self.asset.status == 'leased':
+            self.asset.status = 'active'
+            self.asset.save(update_fields=['status'])
+
+        return self
+
 
 class LeasePayment(models.Model):
     """دفعات الإيجار"""
@@ -640,6 +1104,58 @@ class LeasePayment(models.Model):
     def __str__(self):
         return f"{self.lease.lease_number} - قسط {self.payment_number} - {self.amount}"
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل الدفعة؟"""
+        # لا يمكن تعديل دفعة مدفوعة
+        if self.is_paid:
+            return False
+
+        # لا يمكن تعديل إذا كان لها قيد محاسبي
+        if self.journal_entry:
+            return False
+
+        # لا يمكن تعديل إذا كان العقد منهي أو مكتمل
+        if self.lease.status in ['terminated', 'completed']:
+            return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف الدفعة؟"""
+        # لا يمكن حذف دفعة مدفوعة
+        if self.is_paid:
+            return False
+
+        # لا يمكن حذف إذا كان لها قيد محاسبي
+        if self.journal_entry:
+            return False
+
+        return True
+
+    def can_pay(self):
+        """هل يمكن دفع الدفعة؟"""
+        # لا يمكن الدفع إذا كانت مدفوعة مسبقاً
+        if self.is_paid:
+            return False
+
+        # لا يمكن الدفع إذا كان العقد غير نشط
+        if self.lease.status != 'active':
+            return False
+
+        # يجب أن يكون المبلغ أكبر من صفر
+        if self.amount <= 0:
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💰 Accounting Methods - الطرق المحاسبية
+    # ═══════════════════════════════════════════════════════════════
+
     @transaction.atomic
     def process_payment(self, user=None):
         """معالجة دفعة الإيجار مع القيد المحاسبي"""
@@ -647,8 +1163,9 @@ class LeasePayment(models.Model):
         from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
         from ..accounting_config import AssetAccountingConfiguration
 
-        if self.is_paid:
-            raise ValidationError(_('الدفعة مدفوعة مسبقاً'))
+        # ✅ استخدام validation method
+        if not self.can_pay():
+            raise ValidationError(_('لا يمكن دفع هذه الدفعة. تحقق من حالتها وحالة العقد'))
 
         # ✅ الحصول على الإعدادات
         config = AssetAccountingConfiguration.get_or_create_for_company(self.lease.company)

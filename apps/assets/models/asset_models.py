@@ -641,6 +641,294 @@ class Asset(DocumentBaseModel):
         """هل يمكن للمستخدم إجراء جرد"""
         return user.has_perm('assets.can_conduct_physical_count')
 
+    # ============================================================
+    # Validation Methods - متى يمكن التعديل/الحذف/الإهلاك
+    # ============================================================
+
+    def can_edit(self):
+        """
+        هل يمكن تعديل الأصل؟
+
+        Returns:
+            bool: True إذا كان يمكن التعديل
+
+        القواعد:
+            - لا يمكن تعديل أصل مباع أو مستبعد
+            - لا يمكن تعديل أصل له قيد مرحّل
+        """
+        # لا يمكن تعديل الأصول المباعة أو المستبعدة
+        if self.status in ['sold', 'disposed', 'lost']:
+            return False
+
+        # إذا كان له معاملات مرحّلة، لا يمكن التعديل
+        if hasattr(self, 'transactions'):
+            posted_transactions = self.transactions.filter(status='posted').exists()
+            if posted_transactions:
+                return False
+
+        return True
+
+    def can_delete(self):
+        """
+        هل يمكن حذف الأصل؟
+
+        Returns:
+            bool: True إذا كان يمكن الحذف
+
+        القواعد:
+            - لا يمكن حذف أصل له إهلاك محسوب
+            - لا يمكن حذف أصل له معاملات
+            - لا يمكن حذف أصل له صيانة أو تأمين
+        """
+        # إذا كان له إهلاك متراكم
+        if self.accumulated_depreciation > 0:
+            return False
+
+        # إذا كان له معاملات
+        if hasattr(self, 'transactions') and self.transactions.exists():
+            return False
+
+        # إذا كان له صيانة
+        if hasattr(self, 'maintenances') and self.maintenances.exists():
+            return False
+
+        # إذا كان له تأمين
+        if hasattr(self, 'insurances') and self.insurances.exists():
+            return False
+
+        # إذا كان له جرد
+        if hasattr(self, 'physical_count_lines') and self.physical_count_lines.exists():
+            return False
+
+        return True
+
+    def can_depreciate(self):
+        """
+        هل يمكن إهلاك الأصل؟
+
+        Returns:
+            bool: True إذا كان يمكن الإهلاك
+        """
+        if self.status != 'active':
+            return False
+
+        if self.depreciation_status != 'active':
+            return False
+
+        if self.is_fully_depreciated():
+            return False
+
+        if not self.depreciation_method:
+            return False
+
+        return True
+
+    # ============================================================
+    # Helper Methods - دوال مساعدة محاسبية
+    # ============================================================
+
+    def get_current_book_value(self):
+        """
+        حساب القيمة الدفترية الحالية
+
+        Returns:
+            Decimal: القيمة الدفترية = التكلفة الأصلية - مجمع الإهلاك
+        """
+        return self.original_cost - self.accumulated_depreciation
+
+    def get_total_accumulated_depreciation(self):
+        """
+        مجموع الإهلاك المتراكم من سجلات AssetDepreciation
+
+        Returns:
+            Decimal: مجموع الإهلاك المرحّل فقط
+        """
+        from django.db.models import Sum
+
+        total = AssetDepreciation.objects.filter(
+            asset=self,
+            status='posted'  # فقط المرحّل
+        ).aggregate(
+            total=Sum('depreciation_amount')
+        )['total'] or Decimal('0')
+
+        return total
+
+    def get_payment_account(self):
+        """
+        الحصول على حساب الدفع المناسب (مورد أو نقدية)
+
+        Returns:
+            Account: الحساب المحاسبي للدفع
+        """
+        from apps.accounting.models import Account
+
+        # إذا كان هناك مورد وله حساب محدد
+        if self.supplier and hasattr(self.supplier, 'supplier_account') and self.supplier.supplier_account:
+            return self.supplier.supplier_account
+
+        # الحساب الافتراضي: الصندوق أو البنك
+        try:
+            return Account.objects.get(
+                company=self.company,
+                code='110200',  # الصندوق
+                is_active=True
+            )
+        except Account.DoesNotExist:
+            # إذا لم يوجد الصندوق، استخدم أول حساب نقدية
+            return Account.objects.filter(
+                company=self.company,
+                account_type__code__startswith='11',  # الأصول المتداولة - النقدية
+                is_active=True
+            ).first()
+
+    # ============================================================
+    # Accounting Methods - إنشاء القيود المحاسبية
+    # ============================================================
+
+    @transaction.atomic
+    def create_purchase_journal_entry(self, user=None):
+        """
+        إنشاء قيد شراء الأصل تلقائياً
+
+        القيد:
+            مدين: حساب الأصول (من الفئة)
+            دائن: حساب الموردين أو النقدية
+
+        Args:
+            user: المستخدم الذي ينشئ القيد
+
+        Returns:
+            JournalEntry: القيد المحاسبي المنشأ
+
+        Raises:
+            ValidationError: إذا كانت الحسابات غير محددة
+        """
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
+
+        # التحقق من الحسابات المحاسبية
+        if not self.category.asset_account:
+            raise ValidationError(
+                f'لم يتم تحديد حساب الأصول للفئة {self.category.name}'
+            )
+
+        # تحديد حساب الدفع
+        payment_account = self.get_payment_account()
+        if not payment_account:
+            raise ValidationError('لم يتم العثور على حساب دفع مناسب')
+
+        # الحصول على السنة والفترة المالية
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.purchase_date,
+                end_date__gte=self.purchase_date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValidationError(_('لا توجد سنة مالية نشطة تشمل تاريخ الشراء'))
+
+        period = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year,
+            start_date__lte=self.purchase_date,
+            end_date__gte=self.purchase_date,
+            is_closed=False
+        ).first()
+
+        # إنشاء القيد
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.purchase_date,
+            entry_type='asset_purchase',
+            description=f'شراء أصل ثابت: {self.name}',
+            reference=self.asset_number,
+            source_model='asset',
+            source_id=self.id,
+            status='draft',
+            created_by=user
+        )
+
+        # السطر الأول: مدين حساب الأصول
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=1,
+            account=self.category.asset_account,
+            description=f'شراء {self.name}',
+            debit_amount=self.purchase_price,
+            credit_amount=0,
+            currency=self.currency,
+            cost_center=self.cost_center
+        )
+
+        # السطر الثاني: دائن حساب الدفع
+        JournalEntryLine.objects.create(
+            journal_entry=journal_entry,
+            line_number=2,
+            account=payment_account,
+            description=f'دفع ثمن {self.name}' + (f' - {self.supplier.name}' if self.supplier else ''),
+            debit_amount=0,
+            credit_amount=self.purchase_price,
+            currency=self.currency
+        )
+
+        # حساب إجماليات القيد
+        journal_entry.calculate_totals()
+
+        return journal_entry
+
+    @transaction.atomic
+    def create_transfer_journal_entry(self, to_branch, to_cost_center=None, transfer_date=None, user=None):
+        """
+        تسجيل تحويل الأصل بين الفروع أو مراكز التكلفة
+
+        ملاحظة: عادةً لا يحتاج قيد محاسبي، فقط تحديث البيانات
+        لكن يتم تسجيل العملية في AssetTransfer
+
+        Args:
+            to_branch: الفرع المستهدف
+            to_cost_center: مركز التكلفة المستهدف (اختياري)
+            transfer_date: تاريخ التحويل
+            user: المستخدم
+
+        Returns:
+            AssetTransfer: سجل التحويل
+        """
+        from datetime import date
+        from .transaction_models import AssetTransfer
+
+        if not transfer_date:
+            transfer_date = date.today()
+
+        # حفظ البيانات القديمة
+        old_branch = self.branch
+        old_cost_center = self.cost_center
+
+        # تحديث الأصل
+        self.branch = to_branch
+        if to_cost_center:
+            self.cost_center = to_cost_center
+        self.save()
+
+        # إنشاء سجل التحويل
+        transfer = AssetTransfer.objects.create(
+            company=self.company,
+            branch=old_branch,
+            asset=self,
+            from_branch=old_branch,
+            to_branch=to_branch,
+            from_cost_center=old_cost_center,
+            to_cost_center=to_cost_center,
+            transfer_date=transfer_date,
+            status='completed',
+            created_by=user
+        )
+
+        return transfer
+
     # العمليات
     @transaction.atomic
     def calculate_monthly_depreciation(self, user=None):

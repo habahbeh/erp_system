@@ -70,7 +70,7 @@ urlpatterns = [
     path('transactions/<int:pk>/update/', AssetTransactionUpdateView.as_view(), name='transaction_update'),
     path('transactions/<int:pk>/delete/', AssetTransactionDeleteView.as_view(), name='transaction_delete'),
     path('ajax/transactions/datatable/', transaction_datatable_ajax, name='transaction_datatable_ajax'),
-    path('ajax/transactions/<int:pk>/post/', post_transaction, name='post_transaction'),
+    path('transactions/<int:pk>/post/', PostTransactionView.as_view(), name='post_transaction'),
 
     # Specific Transactions
     path('transactions/sell/', SellAssetView.as_view(), name='sell_asset'),
@@ -84,6 +84,7 @@ urlpatterns = [
     path('transfers/<int:pk>/update/', AssetTransferUpdateView.as_view(), name='transfer_update'),
     path('ajax/transfers/datatable/', transfer_datatable_ajax, name='transfer_datatable_ajax'),
     path('ajax/transfers/<int:pk>/approve/', approve_transfer, name='approve_transfer'),
+    path('ajax/transfers/<int:pk>/reject/', reject_transfer, name='reject_transfer'),
     path('ajax/transfers/<int:pk>/complete/', complete_transfer, name='complete_transfer'),
 
     # ==================== Maintenance ====================
@@ -113,6 +114,8 @@ urlpatterns = [
     path('physical-count/cycles/<int:pk>/', PhysicalCountCycleDetailView.as_view(), name='cycle_detail'),
     path('physical-count/cycles/<int:pk>/update/', PhysicalCountCycleUpdateView.as_view(), name='cycle_update'),
     path('ajax/cycles/datatable/', cycle_datatable_ajax, name='cycle_datatable_ajax'),
+    path('ajax/cycles/<int:pk>/start/', StartCycleView.as_view(), name='start_cycle'),
+    path('ajax/cycles/<int:pk>/complete/', CompleteCycleView.as_view(), name='complete_cycle'),
 
     path('physical-count/', PhysicalCountListView.as_view(), name='count_list'),
     path('physical-count/create/', PhysicalCountCreateView.as_view(), name='count_create'),
@@ -157,6 +160,9 @@ urlpatterns = [
     path('leases/create/', AssetLeaseCreateView.as_view(), name='lease_create'),
     path('leases/<int:pk>/', AssetLeaseDetailView.as_view(), name='lease_detail'),
     path('leases/<int:pk>/update/', AssetLeaseUpdateView.as_view(), name='lease_update'),
+    path('leases/<int:pk>/terminate/', TerminateLeaseView.as_view(), name='terminate_lease'),
+    path('leases/<int:pk>/renew/', RenewLeaseView.as_view(), name='renew_lease'),
+    path('leases/<int:pk>/exercise-purchase/', ExercisePurchaseOptionView.as_view(), name='exercise_purchase'),
     path('ajax/leases/datatable/', lease_datatable_ajax, name='lease_datatable_ajax'),
 
     path('lease-payments/', LeasePaymentListView.as_view(), name='payment_list'),

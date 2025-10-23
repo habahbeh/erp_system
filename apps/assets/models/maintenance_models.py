@@ -608,3 +608,95 @@ class AssetMaintenance(DocumentBaseModel):
         if self.status in ['completed', 'cancelled']:
             return False
         return datetime.date.today() > self.scheduled_date
+
+    # ============================================================
+    # Validation Methods - متى يمكن التعديل/الحذف/الإتمام
+    # ============================================================
+
+    def can_edit(self):
+        """
+        هل يمكن تعديل الصيانة؟
+
+        Returns:
+            bool: True إذا كان يمكن التعديل
+        """
+        # لا يمكن تعديل الصيانة المكتملة أو الملغاة
+        if self.status in ['completed', 'cancelled']:
+            return False
+
+        # إذا كان لها قيد محاسبي مرحّل
+        if self.journal_entry and self.journal_entry.status == 'posted':
+            return False
+
+        return True
+
+    def can_delete(self):
+        """
+        هل يمكن حذف الصيانة؟
+
+        Returns:
+            bool: True إذا كان يمكن الحذف
+        """
+        # لا يمكن حذف الصيانة المكتملة
+        if self.status == 'completed':
+            return False
+
+        # إذا كان لها قيد محاسبي
+        if self.journal_entry:
+            return False
+
+        return True
+
+    def can_complete(self):
+        """
+        هل يمكن إتمام الصيانة؟
+
+        Returns:
+            bool: True إذا كان يمكن الإتمام
+        """
+        # يجب أن تكون مجدولة أو جارية
+        if self.status not in ['scheduled', 'in_progress']:
+            return False
+
+        # يجب تحديد التكلفة
+        if self.total_cost == 0:
+            return False
+
+        return True
+
+    # ============================================================
+    # Accounting Methods - إنشاء القيود المحاسبية
+    # ============================================================
+
+    @transaction.atomic
+    def create_journal_entry(self, user=None):
+        """
+        إنشاء قيد الصيانة (wrapper للـ mark_as_completed)
+
+        Args:
+            user: المستخدم الذي ينشئ القيد
+
+        Returns:
+            JournalEntry: القيد المحاسبي المنشأ
+        """
+        # استخدام mark_as_completed الموجود
+        self.mark_as_completed(user=user)
+        return self.journal_entry
+
+    def get_payment_account(self):
+        """
+        الحصول على حساب الدفع المناسب
+
+        Returns:
+            Account: الحساب المحاسبي للدفع
+        """
+        from ..accounting_config import AssetAccountingConfiguration
+
+        config = AssetAccountingConfiguration.get_or_create_for_company(self.company)
+
+        if self.external_vendor:
+            # دفع للمورد
+            return config.get_supplier_account(self.external_vendor)
+        else:
+            # دفع نقدي
+            return config.get_cash_account()

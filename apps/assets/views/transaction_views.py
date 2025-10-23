@@ -319,15 +319,19 @@ class AssetTransactionDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
             'title': f'المعاملة {self.object.transaction_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.change_assettransaction') and
-                    self.object.status == 'draft'
+                    self.object.can_edit()  # ✅ استخدام method من Model
             ),
             'can_delete': (
                     self.request.user.has_perm('assets.delete_assettransaction') and
-                    self.object.status == 'draft'
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_approve': (
                     self.request.user.has_perm('assets.can_approve_transactions') and
                     self.object.status == 'draft'
+            ),
+            'can_post': (
+                    self.request.user.has_perm('assets.can_approve_transactions') and
+                    self.object.can_post()  # ✅ استخدام method من Model
             ),
             'can_cancel': (
                     self.request.user.has_perm('assets.change_assettransaction') and
@@ -389,6 +393,14 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذه المعاملة. قد تكون مكتملة أو لديها قيد محاسبي مرحل'
+                )
+                return self.form_invalid(form)
+
             self.object = form.save()
 
             self.log_action('update', self.object)
@@ -400,6 +412,9 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -442,8 +457,9 @@ class AssetTransactionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
 
-        if self.object.status != 'draft':
-            messages.error(request, '❌ لا يمكن حذف معاملة معتمدة')
+        # ✅ استخدام method من Model للتحقق
+        if not self.object.can_delete():
+            messages.error(request, '❌ لا يمكن حذف هذه المعاملة. قد تكون مكتملة أو لديها قيد محاسبي')
             return redirect('assets:transaction_detail', pk=self.object.pk)
 
         transaction_number = self.object.transaction_number
@@ -554,6 +570,74 @@ class CancelTransactionView(LoginRequiredMixin, PermissionRequiredMixin, Company
             import traceback
             print(traceback.format_exc())
             messages.error(request, f'❌ خطأ في الإلغاء: {str(e)}')
+            return redirect('assets:transaction_detail', pk=transaction_id)
+
+
+class PostTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """ترحيل المعاملة (إنشاء القيد المحاسبي وإكمال العملية) - جديد"""
+
+    template_name = 'assets/transaction/post_transaction.html'
+    permission_required = 'assets.can_approve_transactions'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        transaction_id = self.kwargs.get('pk')
+        trans = get_object_or_404(
+            AssetTransaction,
+            pk=transaction_id,
+            company=self.request.current_company,
+            status='approved'
+        )
+
+        context.update({
+            'title': f'ترحيل المعاملة {trans.transaction_number}',
+            'transaction': trans,
+            'can_post': trans.can_post(),
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('معاملات الأصول'), 'url': reverse('assets:transaction_list')},
+                {'title': trans.transaction_number, 'url': reverse('assets:transaction_detail', args=[trans.pk])},
+                {'title': _('ترحيل'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            transaction_id = kwargs.get('pk')
+            trans = get_object_or_404(
+                AssetTransaction,
+                pk=transaction_id,
+                company=request.current_company
+            )
+
+            # ✅ التحقق من إمكانية الترحيل
+            if not trans.can_post():
+                messages.error(
+                    request,
+                    '❌ لا يمكن ترحيل هذه المعاملة. يجب أن تكون معتمدة وليس لديها قيد محاسبي مسبق'
+                )
+                return redirect('assets:transaction_detail', pk=trans.pk)
+
+            # ✅ ترحيل المعاملة (إنشاء القيد وتحديث الحالة)
+            journal_entry = trans.post(user=request.user)
+
+            messages.success(
+                request,
+                f'✅ تم ترحيل المعاملة {trans.transaction_number} بنجاح وإنشاء القيد {journal_entry.number}'
+            )
+
+            return redirect('assets:transaction_detail', pk=trans.pk)
+
+        except ValidationError as e:
+            messages.error(request, f'❌ {str(e)}')
+            return redirect('assets:transaction_detail', pk=transaction_id)
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            messages.error(request, f'❌ خطأ في الترحيل: {str(e)}')
             return redirect('assets:transaction_detail', pk=transaction_id)
 
 
@@ -1097,19 +1181,23 @@ class AssetTransferDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
             'title': f'التحويل {self.object.transfer_number}',
             'can_edit': (
                     self.request.user.has_perm('assets.change_assettransfer') and
-                    self.object.status == 'pending'
+                    self.object.can_edit()  # ✅ استخدام method من Model
+            ),
+            'can_delete': (
+                    self.request.user.has_perm('assets.delete_assettransfer') and
+                    self.object.can_delete()  # ✅ استخدام method من Model
             ),
             'can_approve': (
                     self.request.user.has_perm('assets.can_transfer_asset') and
-                    self.object.status == 'pending'
+                    self.object.can_approve()  # ✅ استخدام method من Model
             ),
             'can_complete': (
                     self.request.user.has_perm('assets.can_transfer_asset') and
-                    self.object.status == 'approved'
+                    self.object.can_complete()  # ✅ استخدام method من Model
             ),
             'can_reject': (
                     self.request.user.has_perm('assets.can_transfer_asset') and
-                    self.object.status == 'pending'
+                    self.object.can_reject()  # ✅ استخدام method من Model
             ),
             'timeline': sorted(timeline, key=lambda x: x['date']),
             'warnings': warnings,
@@ -1162,6 +1250,14 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # ✅ التحقق من إمكانية التعديل
+            if not self.object.can_edit():
+                messages.error(
+                    self.request,
+                    '❌ لا يمكن تعديل هذا التحويل. قد يكون معتمد أو مكتمل أو تم التسليم/الاستلام'
+                )
+                return self.form_invalid(form)
+
             self.object = form.save()
 
             self.log_action('update', self.object)
@@ -1173,6 +1269,9 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
             return redirect(self.get_success_url())
 
+        except ValidationError as e:
+            messages.error(self.request, f'❌ {str(e)}')
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'❌ خطأ: {str(e)}')
             return self.form_invalid(form)
@@ -1208,24 +1307,28 @@ def approve_transfer(request, pk):
         transfer = get_object_or_404(
             AssetTransfer,
             pk=pk,
-            company=request.current_company,
-            status='pending'
+            company=request.current_company
         )
 
         approval_notes = request.POST.get('approval_notes', '')
 
-        transfer.status = 'approved'
-        transfer.approved_by = request.user
-        transfer.approved_at = timezone.now()
+        # ✅ اعتماد التحويل باستخدام model method
+        transfer.approve(user=request.user)
+
         if approval_notes:
             transfer.notes = f"{transfer.notes}\nملاحظات الاعتماد: {approval_notes}" if transfer.notes else f"ملاحظات الاعتماد: {approval_notes}"
-        transfer.save()
+            transfer.save(update_fields=['notes', 'updated_at'])
 
         return JsonResponse({
             'success': True,
             'message': f'تم اعتماد التحويل {transfer.transfer_number} بنجاح'
         })
 
+    except ValidationError as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
     except Exception as e:
         import traceback
         print(traceback.format_exc())
@@ -1245,23 +1348,24 @@ def reject_transfer(request, pk):
         transfer = get_object_or_404(
             AssetTransfer,
             pk=pk,
-            company=request.current_company,
-            status='pending'
+            company=request.current_company
         )
 
         rejection_reason = request.POST.get('rejection_reason', '')
 
-        transfer.status = 'rejected'
-        transfer.approved_by = request.user
-        transfer.approved_at = timezone.now()
-        transfer.notes = f"{transfer.notes}\nسبب الرفض: {rejection_reason}" if transfer.notes else f"سبب الرفض: {rejection_reason}"
-        transfer.save()
+        # ✅ رفض التحويل باستخدام model method
+        transfer.reject(reason=rejection_reason, user=request.user)
 
         return JsonResponse({
             'success': True,
             'message': f'تم رفض التحويل {transfer.transfer_number}'
         })
 
+    except ValidationError as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
     except Exception as e:
         import traceback
         print(traceback.format_exc())
@@ -1281,29 +1385,33 @@ def complete_transfer(request, pk):
         transfer = get_object_or_404(
             AssetTransfer,
             pk=pk,
-            company=request.current_company,
-            status='approved'
+            company=request.current_company
         )
 
-        with transaction.atomic():
-            # تحديث التحويل
-            transfer.status = 'completed'
+        # تحديث بيانات التسليم والاستلام إذا لم تكن موجودة
+        if not transfer.delivered_at:
+            transfer.delivered_by = request.user
+            transfer.delivered_at = timezone.now()
+
+        if not transfer.received_at:
             transfer.received_by = request.user
             transfer.received_at = timezone.now()
-            transfer.save()
 
-            # تحديث الأصل
-            asset = transfer.asset
-            asset.branch = transfer.to_branch
-            asset.cost_center = transfer.to_cost_center
-            asset.responsible_employee = transfer.to_employee
-            asset.save()
+        transfer.save(update_fields=['delivered_by', 'delivered_at', 'received_by', 'received_at', 'updated_at'])
+
+        # ✅ إكمال التحويل باستخدام model method
+        transfer.complete(user=request.user)
 
         return JsonResponse({
             'success': True,
             'message': f'تم إكمال التحويل {transfer.transfer_number} بنجاح'
         })
 
+    except ValidationError as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
     except Exception as e:
         import traceback
         print(traceback.format_exc())

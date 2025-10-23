@@ -155,6 +155,99 @@ class PhysicalCountCycle(BaseModel):
             return 0
         return (self.counted_assets / self.total_assets) * 100
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل دورة الجرد؟"""
+        # لا يمكن تعديل دورة مكتملة أو ملغاة
+        if self.status in ['completed', 'cancelled']:
+            return False
+
+        # لا يمكن تعديل إذا كانت جارية ولديها جرد معتمد
+        if self.status == 'in_progress':
+            has_approved_counts = self.physical_counts.filter(
+                status='approved'
+            ).exists()
+            if has_approved_counts:
+                return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف دورة الجرد؟"""
+        # لا يمكن حذف دورة جارية أو مكتملة
+        if self.status in ['in_progress', 'completed']:
+            return False
+
+        # لا يمكن حذف إذا كان لديها عمليات جرد
+        if self.physical_counts.exists():
+            return False
+
+        return True
+
+    def can_start(self):
+        """هل يمكن بدء دورة الجرد؟"""
+        # يمكن البدء فقط من حالة التخطيط
+        if self.status != 'planning':
+            return False
+
+        # يجب أن يكون هناك فروع مشمولة
+        if not self.branches.exists():
+            return False
+
+        # يجب تحديد قائد الفريق
+        if not self.team_leader:
+            return False
+
+        return True
+
+    def can_complete(self):
+        """هل يمكن إكمال دورة الجرد؟"""
+        # يمكن الإكمال فقط من حالة جارية
+        if self.status != 'in_progress':
+            return False
+
+        # يجب أن تكون جميع عمليات الجرد مكتملة أو معتمدة
+        pending_counts = self.physical_counts.filter(
+            status__in=['draft', 'in_progress']
+        ).exists()
+
+        if pending_counts:
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💼 Business Methods - طرق العمليات
+    # ═══════════════════════════════════════════════════════════════
+
+    @transaction.atomic
+    def start_cycle(self, user=None):
+        """بدء دورة الجرد"""
+        if not self.can_start():
+            raise ValidationError('لا يمكن بدء هذه الدورة. تحقق من الحالة والبيانات المطلوبة')
+
+        self.status = 'in_progress'
+        self.save(update_fields=['status', 'updated_at'])
+
+        return self
+
+    @transaction.atomic
+    def complete_cycle(self, user=None):
+        """إكمال دورة الجرد"""
+        if not self.can_complete():
+            raise ValidationError('لا يمكن إكمال هذه الدورة. تحقق من حالة عمليات الجرد')
+
+        # تحديث الإحصائيات النهائية
+        self.update_statistics()
+
+        self.status = 'completed'
+        self.save(update_fields=['status', 'updated_at'])
+
+        return self
+
 
 class PhysicalCount(DocumentBaseModel):
     """عملية جرد فعلية واحدة"""
@@ -300,16 +393,86 @@ class PhysicalCount(DocumentBaseModel):
         if self.cycle:
             self.cycle.update_statistics()
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🔒 Validation Methods - التحقق من الصلاحيات
+    # ═══════════════════════════════════════════════════════════════
+
+    def can_edit(self):
+        """هل يمكن تعديل الجرد؟"""
+        # لا يمكن تعديل جرد معتمد أو ملغي
+        if self.status in ['approved', 'cancelled']:
+            return False
+
+        # لا يمكن تعديل إذا كانت الدورة مكتملة
+        if self.cycle and self.cycle.status == 'completed':
+            return False
+
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف الجرد؟"""
+        # لا يمكن حذف جرد معتمد
+        if self.status == 'approved':
+            return False
+
+        # لا يمكن حذف إذا كان له سطور جرد
+        if self.lines.exists():
+            return False
+
+        return True
+
+    def can_approve(self):
+        """هل يمكن اعتماد الجرد؟"""
+        # يمكن الاعتماد فقط من حالة مكتمل
+        if self.status != 'completed':
+            return False
+
+        # يجب أن تكون جميع الأصول مجردة
+        if self.counted_assets < self.total_assets:
+            return False
+
+        # يجب أن يكون هناك أصول للجرد
+        if self.total_assets == 0:
+            return False
+
+        return True
+
+    def can_start(self):
+        """هل يمكن بدء الجرد؟"""
+        # يمكن البدء فقط من حالة مسودة
+        if self.status != 'draft':
+            return False
+
+        # يجب أن يكون هناك فريق مسؤول
+        if not self.responsible_team.exists():
+            return False
+
+        return True
+
+    def can_complete(self):
+        """هل يمكن إكمال الجرد؟"""
+        # يمكن الإكمال من حالة جاري فقط
+        if self.status != 'in_progress':
+            return False
+
+        # يجب جرد جميع الأصول
+        if self.counted_assets < self.total_assets:
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════
+    # 💼 Business Methods - طرق العمليات
+    # ═══════════════════════════════════════════════════════════════
+
     @transaction.atomic
     def approve(self, user):
         """اعتماد الجرد"""
         from django.utils import timezone
 
-        if self.status != 'completed':
-            raise ValidationError(_('يجب إكمال الجرد قبل الاعتماد'))
-
-        if self.counted_assets < self.total_assets:
-            raise ValidationError(_('يوجد أصول لم يتم جردها بعد'))
+        # ✅ استخدام validation method
+        if not self.can_approve():
+            raise ValidationError(_('لا يمكن اعتماد هذا الجرد. تحقق من حالته والأصول المجردة'))
 
         self.status = 'approved'
         self.approved_by = user
