@@ -142,6 +142,7 @@ urlpatterns = [
     path('ajax/accounts/hierarchy/', account_views.account_hierarchy_ajax, name='account_hierarchy_ajax'),
     path('ajax/accounts/<int:pk>/mini/', account_views.account_detail_mini, name='account_detail_mini'),
     path('ajax/accounts/stats/', account_views.account_stats_ajax, name='account_stats_ajax'),
+    path('ajax/accounts/quick-create/', account_views.quick_create_account_ajax, name='quick_create_account_ajax'),
 
     # Reports Ajax
     path('ajax/accounts/search-for-reports/', report_views.account_search_for_reports,
@@ -213,6 +214,7 @@ urlpatterns = [
 
     # Fiscal Management Export
     path('fiscal-years/export/', report_views.export_fiscal_years, name='export_fiscal_years'),
+    path('fiscal-years/<int:fiscal_year_id>/export-report/', report_views.export_fiscal_year_report, name='export_fiscal_year_report'),
     path('periods/export/', report_views.export_periods, name='export_periods'),
 
     # ========== REPORTS EXPORT ==========

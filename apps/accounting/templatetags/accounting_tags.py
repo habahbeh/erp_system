@@ -338,6 +338,21 @@ def subtract(value, arg):
         return 0
 
 
+@register.filter
+def days_between(start_date, end_date):
+    """
+    حساب عدد الأيام بين تاريخين
+    Usage: {{ start_date|days_between:end_date }}
+    """
+    try:
+        if not start_date or not end_date:
+            return 0
+        delta = end_date - start_date
+        return delta.days + 1
+    except (AttributeError, TypeError):
+        return 0
+
+
 @register.simple_tag(takes_context=True)
 def active_nav_class(context, url_name, exact=False):
     """

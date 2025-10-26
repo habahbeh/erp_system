@@ -20,7 +20,8 @@ from datetime import date, timedelta
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
-from ..models import JournalEntry, JournalEntryLine, JournalEntryTemplate, Account
+from apps.core.models import Currency
+from ..models import JournalEntry, JournalEntryLine, JournalEntryTemplate, Account, AccountType
 from ..forms.journal_forms import (
     JournalEntryForm, JournalEntryLineForm, JournalEntryTemplateForm,
     QuickJournalEntryForm, JournalEntryLineFormSet
@@ -182,7 +183,9 @@ class JournalEntryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('القيود اليومية'), 'url': reverse('accounting:journal_entry_list')},
                 {'title': _('إنشاء قيد جديد'), 'url': ''},
-            ]
+            ],
+            'account_types': AccountType.objects.all(),
+            'currencies': Currency.objects.filter(is_active=True),
         })
         return context
 
@@ -297,7 +300,9 @@ class JournalEntryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('القيود اليومية'), 'url': reverse('accounting:journal_entry_list')},
                 {'title': f'تعديل {self.object.number}', 'url': ''},
-            ]
+            ],
+            'account_types': AccountType.objects.all(),
+            'currencies': Currency.objects.filter(is_active=True),
         })
         return context
 

@@ -366,6 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initCompanySwitcher();
     initFormEnhancements();
     initDeleteConfirmation();
+    initArabicNumbers(); // تحويل الأرقام إلى العربية
 
     // Make fontController global
     window.fontController = fontController;
@@ -392,7 +393,72 @@ window.ERPUtils = {
             month: 'long',
             day: 'numeric'
         });
+    },
+    // تحويل الأرقام الإنجليزية إلى عربية
+    toArabicNumbers: function(str) {
+        const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return String(str).replace(/[0-9]/g, function(digit) {
+            return arabicNumbers[digit];
+        });
+    },
+    // تحويل جميع الأرقام في عنصر HTML
+    convertNumbersInElement: function(element) {
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        const nodesToUpdate = [];
+        let node;
+
+        while (node = walker.nextNode()) {
+            if (node.nodeValue && /\d/.test(node.nodeValue)) {
+                nodesToUpdate.push(node);
+            }
+        }
+
+        nodesToUpdate.forEach(node => {
+            node.nodeValue = this.toArabicNumbers(node.nodeValue);
+        });
     }
 };
+
+// ============================================
+// 10. Auto Convert Numbers to Arabic
+// ============================================
+function initArabicNumbers() {
+    // تحويل الأرقام عند تحميل الصفحة
+    const contentArea = document.querySelector('.main-content') || document.body;
+
+    // تحويل الأرقام الموجودة
+    if (contentArea) {
+        window.ERPUtils.convertNumbersInElement(contentArea);
+    }
+
+    // مراقبة التغييرات الديناميكية
+    if (contentArea && typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        window.ERPUtils.convertNumbersInElement(node);
+                    } else if (node.nodeType === Node.TEXT_NODE && /\d/.test(node.nodeValue)) {
+                        node.nodeValue = window.ERPUtils.toArabicNumbers(node.nodeValue);
+                    }
+                });
+            });
+        });
+
+        observer.observe(contentArea, {
+            childList: true,
+            subtree: true,
+            characterData: false
+        });
+    }
+
+    console.log('✅ Arabic numbers converter initialized');
+}
 
 console.log('✅ main.js loaded successfully');

@@ -112,40 +112,71 @@ select[data-select2-id] {
     margin-bottom: 2rem;
 }
 
-.line-row {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border-right: 4px solid #0d6efd;
-    position: relative;
+/* جدول السطور */
+#linesTable {
+    font-size: 0.95rem;
 }
 
-.line-row.to-delete {
-    border-right-color: #dc3545;
-    background: #f8d7da;
-}
-
-.delete-line-btn {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-}
-
-.line-number {
-    position: absolute;
-    top: -10px;
-    right: 15px;
-    background: #0d6efd;
+#linesTable thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#linesTable thead th {
+    border: none;
+    padding: 0.75rem 0.5rem;
+    font-weight: 600;
+    vertical-align: middle;
+    text-align: center;
+}
+
+#linesTable tbody tr {
+    transition: background-color 0.2s;
+}
+
+#linesTable tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#linesTable tbody tr.to-delete {
+    background-color: #f8d7da;
+    opacity: 0.5;
+}
+
+#linesTable tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+.row-number-cell {
+    text-align: center;
     font-weight: bold;
+    color: #6c757d;
+    width: 40px;
+}
+
+.actions-cell {
+    width: 50px;
+    text-align: center;
+}
+
+.action-btn {
+    padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
+}
+
+/* Form Controls in Table */
+#linesTable .form-control,
+#linesTable .form-select {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+}
+
+#linesTable .form-check-input {
+    margin-top: 0.25rem;
 }
 
 .balance-display {
@@ -153,7 +184,7 @@ select[data-select2-id] {
     border: 2px solid #0d6efd;
     border-radius: 10px;
     padding: 1.5rem;
-    margin: 1.5rem 0;
+    margin: 1.5rem;
 }
 
 .balance-display.balanced {
@@ -164,6 +195,31 @@ select[data-select2-id] {
 .balance-display.unbalanced {
     background: #f8d7da;
     border-color: #dc3545;
+}
+
+/* Table Scrolling */
+.table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Sticky Header */
+#linesTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* Better Select2 in table */
+.select2-container {
+    width: 100% !important;
+}
+
+/* Focus styles */
+#linesTable .form-control:focus,
+#linesTable .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
 }
 </style>
 {% endblock %}
@@ -448,9 +504,26 @@ select[data-select2-id] {
                             <i class="fas fa-plus me-1"></i>إضافة سطر
                         </button>
                     </div>
-                    <div class="card-body">
-                        <div id="linesContainer">
-                            <!-- سيتم إضافة السطور هنا ديناميكياً -->
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0" id="linesTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th style="width: 25%;">الحساب</th>
+                                        <th style="width: 20%;">البيان</th>
+                                        <th style="width: 10%;">مدين</th>
+                                        <th style="width: 10%;">دائن</th>
+                                        <th style="width: 10%;">المرجع</th>
+                                        <th style="width: 12%;">م. التكلفة</th>
+                                        <th style="width: 8%;" class="text-center">الخيارات</th>
+                                        <th style="width: 50px;" class="text-center">حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="linesContainer">
+                                    <!-- سيتم إضافة السطور هنا ديناميكياً -->
+                                </tbody>
+                            </table>
                         </div>
 
                         <!-- Balance Display -->
@@ -551,73 +624,136 @@ select[data-select2-id] {
     </form>
 </div>
 
+<!-- Quick Add Account Modal -->
+<div class="modal fade" id="quickAddAccountModal" tabindex="-1" aria-labelledby="quickAddAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="quickAddAccountModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>إضافة حساب سريع
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickAccountForm">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label required-field">الرمز</label>
+                            <input type="text" class="form-control" id="quick_code" name="code" required placeholder="مثال: 1111">
+                            <small class="form-text text-muted">أرقام وحروف فقط</small>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label required-field">اسم الحساب</label>
+                            <input type="text" class="form-control" id="quick_name" name="name" required placeholder="اسم الحساب">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label required-field">نوع الحساب</label>
+                            <select class="form-select" id="quick_account_type" name="account_type" required>
+                                <option value="">اختر النوع...</option>
+                                {% for account_type in account_types %}
+                                <option value="{{ account_type.id }}">{{ account_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label required-field">طبيعة الحساب</label>
+                            <select class="form-select" id="quick_nature" name="nature" required>
+                                <option value="debit">مدين</option>
+                                <option value="credit">دائن</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">الحساب الأب</label>
+                            <select class="form-select" id="quick_parent" name="parent">
+                                <option value="">لا يوجد (حساب رئيسي)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">العملة</label>
+                            <select class="form-select" id="quick_currency" name="currency">
+                                <option value="">افتراضي</option>
+                                {% for currency in currencies %}
+                                <option value="{{ currency.id }}" {% if currency.is_default %}selected{% endif %}>{{ currency.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>سيتم إنشاء الحساب كحساب نشط يقبل القيود</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-primary" id="saveQuickAccountBtn">
+                    <i class="fas fa-save me-1"></i>حفظ
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Line Template (Hidden) -->
 <template id="lineTemplate">
-    <div class="line-row" data-line-index="">
-        <div class="line-number">1</div>
-        <button type="button" class="btn btn-danger btn-sm delete-line-btn" onclick="deleteLine(this)">
-            <i class="fas fa-times"></i>
-        </button>
-
-        <div class="row g-2">
-            <div class="col-md-6">
-                <label class="form-label">الحساب <span class="text-danger">*</span></label>
-                <select class="form-select account-select" name="account_INDEX" required>
+    <tr class="journal-row" data-line-index="">
+        <td class="row-number-cell row-number">1</td>
+        <td class="account-cell">
+            <div class="input-group input-group-sm">
+                <select class="form-select form-select-sm account-select" name="account_INDEX" required>
                     <option value="">اختر الحساب...</option>
                     {% for account in accounts %}
                         <option value="{{ account.id }}">{{ account.code }} - {{ account.name }}</option>
                     {% endfor %}
                 </select>
+                <button type="button" class="btn btn-outline-success btn-sm add-account-btn" title="إضافة حساب جديد">
+                    <i class="fas fa-plus"></i>
+                </button>
             </div>
-
-            <div class="col-md-6">
-                <label class="form-label">البيان</label>
-                <input type="text" class="form-control" name="description_INDEX" placeholder="وصف العملية">
-            </div>
-        </div>
-
-        <div class="row g-2 mt-2">
-            <div class="col-md-3">
-                <label class="form-label">مدين</label>
-                <input type="number" class="form-control debit-input" name="debit_INDEX" placeholder="0.00" step="0.01" min="0">
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">دائن</label>
-                <input type="number" class="form-control credit-input" name="credit_INDEX" placeholder="0.00" step="0.01" min="0">
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">المرجع</label>
-                <input type="text" class="form-control" name="reference_INDEX" placeholder="اختياري">
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">مركز التكلفة</label>
-                <select class="form-select" name="cost_center_INDEX">
-                    <option value="">اختياري</option>
-                    {% for cost_center in cost_centers %}
-                        <option value="{{ cost_center.id }}">{{ cost_center.code }} - {{ cost_center.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <div class="row g-2 mt-2">
-            <div class="col-md-6">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="required_INDEX" checked>
-                    <label class="form-check-label">سطر إجباري</label>
+        </td>
+        <td class="description-cell">
+            <input type="text" class="form-control form-control-sm" name="description_INDEX" placeholder="البيان">
+        </td>
+        <td class="debit-cell">
+            <input type="number" class="form-control form-control-sm debit-input" name="debit_INDEX"
+                   placeholder="0.00" step="0.01" min="0">
+        </td>
+        <td class="credit-cell">
+            <input type="number" class="form-control form-control-sm credit-input" name="credit_INDEX"
+                   placeholder="0.00" step="0.01" min="0">
+        </td>
+        <td class="reference-cell">
+            <input type="text" class="form-control form-control-sm" name="reference_INDEX" placeholder="مرجع">
+        </td>
+        <td class="cost-center-cell">
+            <select class="form-select form-select-sm" name="cost_center_INDEX">
+                <option value="">لا يوجد</option>
+                {% for cost_center in cost_centers %}
+                    <option value="{{ cost_center.id }}">{{ cost_center.code }} - {{ cost_center.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="options-cell text-center">
+            <div class="d-flex flex-column gap-1">
+                <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input" type="checkbox" name="required_INDEX" checked title="إجباري">
+                    <label class="form-check-label" style="font-size: 0.75rem;">إجباري</label>
+                </div>
+                <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input" type="checkbox" name="amount_editable_INDEX" checked title="قابل للتعديل">
+                    <label class="form-check-label" style="font-size: 0.75rem;">قابل للتعديل</label>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="amount_editable_INDEX" checked>
-                    <label class="form-check-label">المبلغ قابل للتعديل</label>
-                </div>
-            </div>
-        </div>
-    </div>
+        </td>
+        <td class="actions-cell text-center">
+            <button type="button" class="btn btn-danger btn-sm action-btn" onclick="deleteLine(this)" title="حذف">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    </tr>
 </template>
 {% endblock %}
 
@@ -703,7 +839,7 @@ $(document).ready(function() {
     // Amount Input Handler
     // ==============================
     $(document).on('input', '.debit-input, .credit-input', function() {
-        var row = $(this).closest('.line-row');
+        var row = $(this).closest('.journal-row');
         if ($(this).hasClass('debit-input') && parseFloat($(this).val()) > 0) {
             row.find('.credit-input').val('');
         } else if ($(this).hasClass('credit-input') && parseFloat($(this).val()) > 0) {
@@ -726,7 +862,7 @@ $(document).ready(function() {
         e.preventDefault();
 
         const lines = [];
-        $('.line-row').each(function(index) {
+        $('.journal-row').each(function(index) {
             const account = $(this).find('.account-select').val();
             const debit = $(this).find('.debit-input').val();
             const credit = $(this).find('.credit-input').val();
@@ -796,10 +932,10 @@ function addNewLine() {
     const template = document.getElementById('lineTemplate');
     const clone = template.content.cloneNode(true);
 
-    const lineRow = clone.querySelector('.line-row');
-    lineRow.setAttribute('data-line-index', lineCounter);
+    const row = clone.querySelector('.journal-row');
+    row.setAttribute('data-line-index', lineCounter);
 
-    lineRow.querySelectorAll('[name]').forEach(function(element) {
+    row.querySelectorAll('[name]').forEach(function(element) {
         const name = element.getAttribute('name');
         element.setAttribute('name', name.replace('INDEX', lineCounter));
         element.setAttribute('id', 'id_' + name.replace('INDEX', lineCounter));
@@ -823,9 +959,9 @@ function addNewLine() {
 // Delete Line
 // ==============================
 function deleteLine(button) {
-    const lineRow = $(button).closest('.line-row');
+    const row = $(button).closest('.journal-row');
 
-    if ($('.line-row').length <= 1) {
+    if ($('.journal-row').length <= 1) {
         Swal.fire({
             icon: 'warning',
             title: 'تنبيه',
@@ -845,7 +981,7 @@ function deleteLine(button) {
         confirmButtonColor: '#dc3545'
     }).then((result) => {
         if (result.isConfirmed) {
-            lineRow.addClass('to-delete').fadeOut(300, function() {
+            row.addClass('to-delete').fadeOut(300, function() {
                 $(this).remove();
                 updateLineNumbers();
                 calculateBalance();
@@ -858,8 +994,8 @@ function deleteLine(button) {
 // Update Line Numbers
 // ==============================
 function updateLineNumbers() {
-    $('.line-row').each(function(index) {
-        $(this).find('.line-number').text(index + 1);
+    $('.journal-row').each(function(index) {
+        $(this).find('.row-number').text(index + 1);
     });
 }
 
@@ -897,5 +1033,189 @@ function calculateBalance() {
         balanceDisplay.removeClass('balanced').addClass('unbalanced');
     }
 }
+
+// ========== Quick Add Account Modal ==========
+let currentAccountSelect = null; // Track which account select triggered the modal
+
+// Initialize Select2 for parent account in modal
+function initializeParentAccountSelect2() {
+    $('#quick_parent').select2({
+        dropdownParent: $('#quickAddAccountModal'),
+        placeholder: 'لا يوجد (حساب رئيسي)',
+        allowClear: true,
+        dir: 'rtl',
+        language: {
+            noResults: function() {
+                return 'لا توجد نتائج';
+            },
+            searching: function() {
+                return 'جاري البحث...';
+            }
+        },
+        ajax: {
+            url: '{% url "accounting:account_search_ajax" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    term: params.term || '',
+                    only_active: '1'
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(account) {
+                        return {
+                            id: account.id,
+                            text: account.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        },
+        minimumInputLength: 2
+    });
+}
+
+// Handle Add Account Button Click
+$(document).on('click', '.add-account-btn', function() {
+    currentAccountSelect = $(this).closest('.input-group').find('.account-select');
+
+    // Reset form
+    $('#quickAccountForm')[0].reset();
+
+    // Reset Select2
+    if ($('#quick_parent').hasClass('select2-hidden-accessible')) {
+        $('#quick_parent').val(null).trigger('change');
+    }
+
+    // Show modal
+    $('#quickAddAccountModal').modal('show');
+});
+
+// Handle Save Quick Account
+$('#saveQuickAccountBtn').on('click', function() {
+    const btn = $(this);
+    const form = $('#quickAccountForm');
+
+    // Basic validation
+    const code = $('#quick_code').val().trim();
+    const name = $('#quick_name').val().trim();
+    const accountType = $('#quick_account_type').val();
+
+    if (!code || !name || !accountType) {
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: 'الرجاء ملء جميع الحقول المطلوبة',
+            confirmButtonText: 'حسناً'
+        });
+        return;
+    }
+
+    // Disable button
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...');
+
+    // Send AJAX request
+    $.ajax({
+        url: '{% url "accounting:quick_create_account_ajax" %}',
+        type: 'POST',
+        data: form.serialize(),
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                // Add new account to select dropdown
+                const newOption = new Option(
+                    response.account.full_name,
+                    response.account.id,
+                    true,
+                    true
+                );
+
+                // Add to current select
+                if (currentAccountSelect) {
+                    currentAccountSelect.append(newOption).trigger('change');
+                }
+
+                // Add to all account selects for future use
+                $('.account-select').each(function() {
+                    if (!$(this).find(`option[value="${response.account.id}"]`).length) {
+                        $(this).append(new Option(
+                            response.account.full_name,
+                            response.account.id
+                        ));
+                    }
+                });
+
+                // Add to parent account select2 for future use
+                if ($('#quick_parent').hasClass('select2-hidden-accessible')) {
+                    const newParentOption = new Option(
+                        response.account.full_name,
+                        response.account.id,
+                        false,
+                        false
+                    );
+                    $('#quick_parent').append(newParentOption);
+                }
+
+                // Close modal
+                $('#quickAddAccountModal').modal('hide');
+
+                // Show success message
+                Swal.fire({
+                    icon: 'success',
+                    title: 'نجح',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: response.error,
+                    confirmButtonText: 'حسناً'
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            let errorMessage = 'حدث خطأ أثناء إنشاء الحساب';
+
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMessage = xhr.responseJSON.error;
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: errorMessage,
+                confirmButtonText: 'حسناً'
+            });
+        },
+        complete: function() {
+            // Re-enable button
+            btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i>حفظ');
+        }
+    });
+});
+
+// Reset form when modal is hidden
+$('#quickAddAccountModal').on('hidden.bs.modal', function() {
+    $('#quickAccountForm')[0].reset();
+    if ($('#quick_parent').hasClass('select2-hidden-accessible')) {
+        $('#quick_parent').val(null).trigger('change');
+    }
+    currentAccountSelect = null;
+});
+
+// Initialize Select2 when modal is shown
+$('#quickAddAccountModal').on('shown.bs.modal', function() {
+    if (!$('#quick_parent').hasClass('select2-hidden-accessible')) {
+        initializeParentAccountSelect2();
+    }
+});
 </script>
 {% endblock %}

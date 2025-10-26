@@ -244,6 +244,12 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        company = self.request.current_company
+
+        # إنشاء الـ form
+        from ..forms import SingleAssetDepreciationCalculationForm
+        form = SingleAssetDepreciationCalculationForm(company=company)
+
         asset_id = self.request.GET.get('asset_id') or self.kwargs.get('asset_id')
         asset = None
 
@@ -251,8 +257,10 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
             asset = get_object_or_404(
                 Asset,
                 pk=asset_id,
-                company=self.request.current_company
+                company=company
             )
+            # تعيين الأصل في الـ form
+            form.initial['asset'] = asset
 
             # معلومات الإهلاك
             depreciation_info = self.get_depreciation_info(asset)
@@ -261,7 +269,7 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
         # الأصول المؤهلة للإهلاك
         eligible_assets = Asset.objects.filter(
-            company=self.request.current_company,
+            company=company,
             status='active',
             depreciation_status='active'
         ).exclude(
@@ -269,6 +277,7 @@ class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, Com
         ).select_related('category')[:20]
 
         context.update({
+            'form': form,
             'title': _('احتساب الإهلاك'),
             'asset': asset,
             'depreciation_info': depreciation_info,
@@ -365,6 +374,10 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
 
         company = self.request.current_company
 
+        # إنشاء الـ form
+        from ..forms import BulkDepreciationCalculationForm
+        form = BulkDepreciationCalculationForm(company=company)
+
         # الأصول المؤهلة للإهلاك
         eligible_assets_query = Asset.objects.filter(
             company=company,
@@ -402,6 +415,7 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
         ).order_by('-created_at').first()
 
         context.update({
+            'form': form,
             'title': _('احتساب الإهلاك الجماعي'),
             'eligible_count': eligible_count,
             'eligible_stats': eligible_stats,
@@ -500,6 +514,64 @@ class BulkDepreciationCalculationView(LoginRequiredMixin, PermissionRequiredMixi
             print(traceback.format_exc())
             messages.error(request, f'❌ خطأ في الاحتساب الجماعي: {str(e)}')
             return redirect('assets:bulk_calculate_depreciation')
+
+
+@login_required
+@require_http_methods(["GET"])
+def bulk_depreciation_preview_ajax(request):
+    """معاينة الأصول المؤهلة للإهلاك الجماعي عبر AJAX"""
+    try:
+        company = request.current_company
+
+        # الحصول على الفلاتر من الطلب
+        calculation_date_str = request.GET.get('calculation_date')
+        category_id = request.GET.get('category')
+
+        # بناء الاستعلام للأصول المؤهلة
+        assets = Asset.objects.filter(
+            company=company,
+            status='active',
+            depreciation_status='active',
+            is_active=True
+        ).exclude(
+            depreciation_method__method_type='units_of_production'
+        ).select_related('category', 'depreciation_method')
+
+        # تطبيق فلتر الفئة إذا وجد
+        if category_id:
+            assets = assets.filter(category_id=category_id)
+
+        # إعداد بيانات الأصول للعرض
+        assets_data = []
+        for asset in assets[:100]:  # حد أقصى 100 أصل للمعاينة
+            # حساب الإهلاك المقدر
+            estimated_depreciation = Decimal('0')
+            if asset.depreciation_method:
+                if asset.depreciation_method.method_type == 'straight_line':
+                    estimated_depreciation = asset.book_value / (asset.useful_life_months or 1)
+                elif asset.depreciation_method.method_type == 'declining_balance':
+                    rate = asset.depreciation_method.rate or Decimal('0')
+                    estimated_depreciation = asset.book_value * (rate / Decimal('100')) / Decimal('12')
+
+            assets_data.append({
+                'asset_number': asset.asset_number,
+                'name': asset.name,
+                'category': asset.category.name if asset.category else '-',
+                'book_value': float(asset.book_value),
+                'estimated_depreciation': float(estimated_depreciation)
+            })
+
+        return JsonResponse({
+            'success': True,
+            'assets': assets_data,
+            'total_count': assets.count()
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
 
 
 # ==================== Additional Actions ====================

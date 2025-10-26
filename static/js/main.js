@@ -378,10 +378,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================
 window.ERPUtils = {
     formatNumber: function(num) {
-        return num.toLocaleString('ar-EG');
+        return num.toLocaleString('en-US');
     },
     formatCurrency: function(amount, currency = 'JOD') {
-        return new Intl.NumberFormat('ar-JO', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: currency
         }).format(amount);
@@ -391,6 +391,35 @@ window.ERPUtils = {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
+        });
+    },
+    // تحويل الأرقام الإنجليزية إلى عربية
+    toArabicNumbers: function(str) {
+        const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return String(str).replace(/[0-9]/g, function(digit) {
+            return arabicNumbers[digit];
+        });
+    },
+    // تحويل جميع الأرقام في عنصر HTML
+    convertNumbersInElement: function(element) {
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        const nodesToUpdate = [];
+        let node;
+
+        while (node = walker.nextNode()) {
+            if (node.nodeValue && /\d/.test(node.nodeValue)) {
+                nodesToUpdate.push(node);
+            }
+        }
+
+        nodesToUpdate.forEach(node => {
+            node.nodeValue = this.toArabicNumbers(node.nodeValue);
         });
     }
 };

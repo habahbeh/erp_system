@@ -716,3 +716,96 @@ def account_detail_mini(request, pk):
                 'error': str(e)
             })
         return HttpResponse(f'<div class="alert alert-danger">خطأ: {str(e)}</div>')
+
+
+@login_required
+@permission_required_with_message('accounting.add_account')
+@require_http_methods(["POST"])
+def quick_create_account_ajax(request):
+    """إنشاء حساب جديد عبر AJAX - للاستخدام من القيود اليومية"""
+
+    try:
+        company = request.current_company
+
+        # Get form data
+        code = request.POST.get('code', '').strip()
+        name = request.POST.get('name', '').strip()
+        account_type_id = request.POST.get('account_type')
+        parent_id = request.POST.get('parent')
+        currency_id = request.POST.get('currency')
+        nature = request.POST.get('nature', 'debit')
+
+        # Validation
+        if not code or not name or not account_type_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'الرمز والاسم ونوع الحساب مطلوبة'
+            })
+
+        # Check if code already exists
+        if Account.objects.filter(company=company, code=code).exists():
+            return JsonResponse({
+                'success': False,
+                'error': f'الرمز {code} موجود مسبقاً'
+            })
+
+        # Get account type
+        try:
+            account_type = AccountType.objects.get(pk=account_type_id)
+        except AccountType.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'نوع الحساب غير موجود'
+            })
+
+        # Get parent if provided
+        parent = None
+        if parent_id:
+            try:
+                parent = Account.objects.get(pk=parent_id, company=company)
+            except Account.DoesNotExist:
+                pass
+
+        # Get currency
+        currency = None
+        if currency_id:
+            try:
+                currency = Currency.objects.get(pk=currency_id)
+            except Currency.DoesNotExist:
+                # Use company default currency
+                currency = company.default_currency
+        else:
+            currency = company.default_currency
+
+        # Create account
+        account = Account.objects.create(
+            company=company,
+            branch=request.current_branch,
+            created_by=request.user,
+            code=code,
+            name=name,
+            account_type=account_type,
+            parent=parent,
+            currency=currency,
+            nature=nature,
+            accept_entries=True,  # Quick created accounts usually accept entries
+            is_suspended=False
+        )
+
+        return JsonResponse({
+            'success': True,
+            'account': {
+                'id': account.id,
+                'code': account.code,
+                'name': account.name,
+                'full_name': f"{account.code} - {account.name}",
+                'type': account.account_type.name
+            },
+            'message': f'تم إنشاء الحساب {account.name} بنجاح'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'حدث خطأ: {str(e)}'
+        })

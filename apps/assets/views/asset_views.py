@@ -24,6 +24,7 @@ from decimal import Decimal
 
 from io import BytesIO
 import pandas as pd
+import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
@@ -49,7 +50,7 @@ class AssetListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, L
     """قائمة الأصول الثابتة"""
 
     model = Asset
-    template_name = 'assets/asset/asset_list.html'
+    template_name = 'assets/assets/asset_list.html'
     context_object_name = 'assets'
     permission_required = 'assets.view_asset'
     paginate_by = 25
@@ -159,7 +160,7 @@ class AssetCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """إنشاء أصل جديد"""
 
     model = Asset
-    template_name = 'assets/asset/asset_form.html'
+    template_name = 'assets/assets/asset_form.html'
     permission_required = 'assets.add_asset'
     fields = [
         'name', 'name_en', 'category', 'condition', 'status',
@@ -277,7 +278,7 @@ class AssetUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """تعديل أصل"""
 
     model = Asset
-    template_name = 'assets/asset/asset_form.html'
+    template_name = 'assets/assets/asset_form.html'
     permission_required = 'assets.change_asset'
     fields = [
         'name', 'name_en', 'category', 'condition', 'status',
@@ -380,7 +381,7 @@ class AssetDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """عرض تفاصيل الأصل"""
 
     model = Asset
-    template_name = 'assets/asset/asset_detail.html'
+    template_name = 'assets/assets/asset_detail.html'
     context_object_name = 'asset'
     permission_required = 'assets.view_asset'
 
@@ -480,7 +481,7 @@ class AssetDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
             'can_transfer': self.request.user.has_perm('assets.can_transfer_asset'),
             'can_revalue': self.request.user.has_perm('assets.can_revalue_asset'),
             # ✅ معلومات محاسبية إضافية
-            'current_book_value': self.object.get_current_book_value(),
+            'current_book_value': self.object.current_book_value,
             'total_accumulated_depreciation': self.object.get_total_accumulated_depreciation(),
             # البيانات الموجودة
             'depreciation_records': depreciation_records,
@@ -506,7 +507,7 @@ class AssetDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """حذف أصل"""
 
     model = Asset
-    template_name = 'assets/asset/asset_confirm_delete.html'
+    template_name = 'assets/assets/asset_confirm_delete.html'
     permission_required = 'assets.delete_asset'
     success_url = reverse_lazy('assets:asset_list')
 
@@ -537,7 +538,7 @@ class AssetCategoryListView(LoginRequiredMixin, PermissionRequiredMixin, Company
     """قائمة فئات الأصول"""
 
     model = AssetCategory
-    template_name = 'assets/category/category_list.html'
+    template_name = 'assets/categories/category_list.html'
     context_object_name = 'categories'
     permission_required = 'assets.view_assetcategory'
     paginate_by = 50
@@ -595,7 +596,7 @@ class AssetCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """إنشاء فئة أصول جديدة"""
 
     model = AssetCategory
-    template_name = 'assets/category/category_form.html'
+    template_name = 'assets/categories/category_form.html'
     permission_required = 'assets.add_assetcategory'
     fields = [
         'code', 'name', 'name_en', 'parent',
@@ -684,7 +685,7 @@ class AssetCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """تعديل فئة أصول"""
 
     model = AssetCategory
-    template_name = 'assets/category/category_form.html'
+    template_name = 'assets/categories/category_form.html'
     permission_required = 'assets.change_assetcategory'
     fields = [
         'code', 'name', 'name_en', 'parent',
@@ -776,7 +777,7 @@ class AssetCategoryDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """عرض تفاصيل فئة الأصول"""
 
     model = AssetCategory
-    template_name = 'assets/category/category_detail.html'
+    template_name = 'assets/categories/category_detail.html'
     context_object_name = 'category'
     permission_required = 'assets.view_assetcategory'
 
@@ -834,7 +835,7 @@ class AssetCategoryDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """حذف فئة أصول"""
 
     model = AssetCategory
-    template_name = 'assets/category/category_confirm_delete.html'
+    template_name = 'assets/categories/category_confirm_delete.html'
     permission_required = 'assets.delete_assetcategory'
     success_url = reverse_lazy('assets:category_list')
 
@@ -871,7 +872,7 @@ class DepreciationMethodListView(LoginRequiredMixin, PermissionRequiredMixin, Li
     """قائمة طرق الإهلاك"""
 
     model = DepreciationMethod
-    template_name = 'assets/depreciation_method/method_list.html'
+    template_name = 'assets/categories/depreciation_method_list.html'
     context_object_name = 'methods'
     permission_required = 'assets.view_depreciationmethod'
     paginate_by = 50
@@ -921,7 +922,7 @@ class DepreciationMethodCreateView(LoginRequiredMixin, PermissionRequiredMixin, 
     """إنشاء طريقة إهلاك"""
 
     model = DepreciationMethod
-    template_name = 'assets/depreciation_method/method_form.html'
+    template_name = 'assets/categories/depreciation_method_form.html'
     permission_required = 'assets.add_depreciationmethod'
     fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
     success_url = reverse_lazy('assets:depreciation_method_list')
@@ -961,7 +962,7 @@ class DepreciationMethodUpdateView(LoginRequiredMixin, PermissionRequiredMixin, 
     """تعديل طريقة إهلاك"""
 
     model = DepreciationMethod
-    template_name = 'assets/depreciation_method/method_form.html'
+    template_name = 'assets/categories/depreciation_method_form.html'
     permission_required = 'assets.change_depreciationmethod'
     fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
     success_url = reverse_lazy('assets:depreciation_method_list')
@@ -999,7 +1000,7 @@ class DepreciationMethodDetailView(LoginRequiredMixin, PermissionRequiredMixin, 
     """عرض تفاصيل طريقة الإهلاك"""
 
     model = DepreciationMethod
-    template_name = 'assets/depreciation_method/method_detail.html'
+    template_name = 'assets/categories/depreciation_method_detail.html'
     context_object_name = 'method'
     permission_required = 'assets.view_depreciationmethod'
 
@@ -1038,7 +1039,7 @@ class DepreciationMethodDeleteView(LoginRequiredMixin, PermissionRequiredMixin, 
     """حذف طريقة إهلاك"""
 
     model = DepreciationMethod
-    template_name = 'assets/depreciation_method/method_confirm_delete.html'
+    template_name = 'assets/categories/depreciation_method_confirm_delete.html'
     permission_required = 'assets.delete_depreciationmethod'
     success_url = reverse_lazy('assets:depreciation_method_list')
 
@@ -1066,7 +1067,7 @@ class AssetConditionListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
     """قائمة حالات الأصول"""
 
     model = AssetCondition
-    template_name = 'assets/condition/condition_list.html'
+    template_name = 'assets/categories/condition_list.html'
     context_object_name = 'conditions'
     permission_required = 'assets.view_assetcondition'
     paginate_by = 50
@@ -1109,7 +1110,7 @@ class AssetConditionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
     """إنشاء حالة أصل"""
 
     model = AssetCondition
-    template_name = 'assets/condition/condition_form.html'
+    template_name = 'assets/categories/condition_form.html'
     permission_required = 'assets.add_assetcondition'
     fields = ['name', 'name_en', 'color_code', 'description', 'is_active']
     success_url = reverse_lazy('assets:condition_list')
@@ -1152,7 +1153,7 @@ class AssetConditionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upda
     """تعديل حالة أصل"""
 
     model = AssetCondition
-    template_name = 'assets/condition/condition_form.html'
+    template_name = 'assets/categories/condition_form.html'
     permission_required = 'assets.change_assetcondition'
     fields = ['name', 'name_en', 'color_code', 'description', 'is_active']
     success_url = reverse_lazy('assets:condition_list')
@@ -1196,7 +1197,7 @@ class AssetConditionDetailView(LoginRequiredMixin, PermissionRequiredMixin, Deta
     """عرض تفاصيل حالة الأصل"""
 
     model = AssetCondition
-    template_name = 'assets/condition/condition_detail.html'
+    template_name = 'assets/categories/condition_detail.html'
     context_object_name = 'condition'
     permission_required = 'assets.view_assetcondition'
 
@@ -1238,7 +1239,7 @@ class AssetConditionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Dele
     """حذف حالة أصل"""
 
     model = AssetCondition
-    template_name = 'assets/condition/condition_confirm_delete.html'
+    template_name = 'assets/categories/condition_confirm_delete.html'
     permission_required = 'assets.delete_assetcondition'
     success_url = reverse_lazy('assets:condition_list')
 
@@ -1266,7 +1267,7 @@ class AssetAttachmentListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """قائمة مرفقات الأصول"""
 
     model = AssetAttachment
-    template_name = 'assets/attachment/attachment_list.html'
+    template_name = 'assets/assets/attachment_list.html'
     context_object_name = 'attachments'
     permission_required = 'assets.view_asset'
     paginate_by = 50
@@ -1340,7 +1341,7 @@ class AssetAttachmentCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     """إضافة مرفق جديد"""
 
     model = AssetAttachment
-    template_name = 'assets/attachment/attachment_form.html'
+    template_name = 'assets/assets/attachment_form.html'
     permission_required = 'assets.change_asset'
     fields = ['title', 'attachment_type', 'file', 'issue_date', 'expiry_date', 'description']
 
@@ -1396,7 +1397,7 @@ class AssetAttachmentUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     """تعديل مرفق"""
 
     model = AssetAttachment
-    template_name = 'assets/attachment/attachment_form.html'
+    template_name = 'assets/assets/attachment_form.html'
     permission_required = 'assets.change_asset'
     fields = ['title', 'attachment_type', 'file', 'issue_date', 'expiry_date', 'description']
 
@@ -1451,7 +1452,7 @@ class AssetAttachmentDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
     """حذف مرفق"""
 
     model = AssetAttachment
-    template_name = 'assets/attachment/attachment_confirm_delete.html'
+    template_name = 'assets/assets/attachment_confirm_delete.html'
     permission_required = 'assets.change_asset'
 
     def get_queryset(self):
@@ -1482,7 +1483,7 @@ class AssetValuationListView(LoginRequiredMixin, PermissionRequiredMixin, Compan
     """قائمة إعادة تقييم الأصول"""
 
     model = AssetValuation
-    template_name = 'assets/valuation/valuation_list.html'
+    template_name = 'assets/assets/valuation_list.html'
     context_object_name = 'valuations'
     permission_required = 'assets.view_asset'
     paginate_by = 50
@@ -1574,7 +1575,7 @@ class AssetValuationCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     """إنشاء إعادة تقييم"""
 
     model = AssetValuation
-    template_name = 'assets/valuation/valuation_form.html'
+    template_name = 'assets/assets/valuation_form.html'
     permission_required = 'assets.can_revalue_asset'
     fields = [
         'valuation_date', 'new_value', 'reason',
@@ -1662,7 +1663,7 @@ class AssetValuationDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     """عرض تفاصيل إعادة التقييم"""
 
     model = AssetValuation
-    template_name = 'assets/valuation/valuation_detail.html'
+    template_name = 'assets/assets/valuation_detail.html'
     context_object_name = 'valuation'
     permission_required = 'assets.view_asset'
 
@@ -1764,12 +1765,12 @@ def asset_datatable_ajax(request):
         order_dir = request.GET.get('order[0][dir]', 'desc')
 
         order_columns = {
-            '0': 'asset_number',
-            '1': 'name',
-            '2': 'category__code',
-            '3': 'purchase_date',
-            '4': 'book_value',
-            '5': 'status',
+            '1': 'asset_number',
+            '2': 'name',
+            '3': 'category__code',
+            '4': 'purchase_date',
+            '5': 'book_value',
+            '6': 'status',
         }
 
         if order_column_index and order_column_index in order_columns:
@@ -1778,7 +1779,7 @@ def asset_datatable_ajax(request):
                 order_field = f'-{order_field}'
             queryset = queryset.order_by(order_field, '-asset_number')
         else:
-            queryset = queryset.order_by('-purchase_date', '-asset_number')
+            queryset = queryset.order_by('-asset_number')
 
         # العد الإجمالي
         total_records = Asset.objects.filter(company=request.current_company).count()
@@ -1806,18 +1807,13 @@ def asset_datatable_ajax(request):
             }
             status_badge = status_map.get(asset.status, asset.status)
 
-            # الحالة الفعلية
-            condition_html = ''
-            if asset.condition:
-                condition_html = f'<span class="badge" style="background-color: {asset.condition.color_code}">{asset.condition.name}</span>'
-
             # أزرار الإجراءات
             actions = []
 
             # رابط العرض
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:asset_detail', args=[asset.pk])}" 
+                    <a href="{reverse('assets:asset_detail', args=[asset.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
@@ -1826,7 +1822,7 @@ def asset_datatable_ajax(request):
             # رابط التعديل
             if can_edit and asset.status not in ['sold', 'disposed']:
                 actions.append(f'''
-                    <a href="{reverse('assets:asset_update', args=[asset.pk])}" 
+                    <a href="{reverse('assets:asset_update', args=[asset.pk])}"
                        class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
                         <i class="fas fa-edit"></i>
                     </a>
@@ -1835,8 +1831,8 @@ def asset_datatable_ajax(request):
             # رابط الحذف
             if can_delete and asset.status not in ['sold', 'disposed']:
                 actions.append(f'''
-                    <button type="button" class="btn btn-outline-danger btn-sm" 
-                            onclick="deleteAsset({asset.pk}, '{asset.asset_number}')" 
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                            onclick="deleteAsset({asset.pk}, '{asset.asset_number}')"
                             title="حذف" data-bs-toggle="tooltip">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -1844,22 +1840,11 @@ def asset_datatable_ajax(request):
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
-            # نسبة الإهلاك
-            depreciation_pct = asset.get_depreciation_percentage()
-            depreciation_html = f'''
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar bg-{
-            'success' if depreciation_pct < 50 else
-            'warning' if depreciation_pct < 80 else
-            'danger'
-            }" role="progressbar" style="width: {depreciation_pct}%" 
-                         aria-valuenow="{depreciation_pct}" aria-valuemin="0" aria-valuemax="100">
-                        {depreciation_pct:.1f}%
-                    </div>
-                </div>
-            '''
+            # Checkbox
+            checkbox_html = f'<input type="checkbox" class="asset-checkbox" value="{asset.pk}">'
 
             data.append([
+                checkbox_html,
                 f'<a href="{reverse("assets:asset_detail", args=[asset.pk])}">{asset.asset_number}</a>',
                 f'''<div>
                     <strong>{asset.name}</strong>
@@ -1869,13 +1854,11 @@ def asset_datatable_ajax(request):
                     <span class="badge bg-light text-dark">{asset.category.code}</span>
                     <small class="d-block text-muted">{asset.category.name}</small>
                 </div>''',
-                condition_html or '-',
                 asset.purchase_date.strftime('%Y-%m-%d'),
                 f'''<div class="text-end">
                     <div><strong>{asset.book_value:,.2f}</strong> {asset.currency.code if asset.currency else ''}</div>
                     <small class="text-muted">من أصل {asset.original_cost:,.2f}</small>
                 </div>''',
-                depreciation_html,
                 status_badge,
                 actions_html
             ])
@@ -1963,6 +1946,156 @@ def asset_autocomplete(request):
 
 
 @login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def asset_stats_ajax(request):
+    """إحصائيات الأصول - للبطاقات الإحصائية"""
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({'success': False, 'error': 'لا توجد شركة محددة'}, status=400)
+
+    try:
+        assets = Asset.objects.filter(company=request.current_company)
+
+        stats = {
+            'total_assets': assets.count(),
+            'active_assets': assets.filter(status='active').count(),
+            'total_cost': float(assets.aggregate(
+                total=Coalesce(Sum('original_cost'), Decimal('0'))
+            )['total']),
+            'total_book_value': float(assets.aggregate(
+                total=Coalesce(Sum('book_value'), Decimal('0'))
+            )['total']),
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_asset')
+@require_http_methods(["GET"])
+def asset_export(request):
+    """تصدير الأصول إلى Excel"""
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        messages.error(request, 'لا توجد شركة محددة')
+        return redirect('assets:asset_list')
+
+    try:
+        # الفلاتر
+        status = request.GET.get('status', '')
+        category = request.GET.get('category', '')
+        condition = request.GET.get('condition', '')
+        search_filter = request.GET.get('search_filter', '')
+
+        # البحث والفلترة
+        queryset = Asset.objects.filter(
+            company=request.current_company
+        ).select_related(
+            'category', 'condition', 'cost_center', 'currency',
+            'responsible_employee', 'depreciation_method'
+        )
+
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if category:
+            queryset = queryset.filter(category_id=category)
+
+        if condition:
+            queryset = queryset.filter(condition_id=condition)
+
+        if search_filter:
+            queryset = queryset.filter(
+                Q(asset_number__icontains=search_filter) |
+                Q(name__icontains=search_filter) |
+                Q(name_en__icontains=search_filter) |
+                Q(serial_number__icontains=search_filter) |
+                Q(barcode__icontains=search_filter)
+            )
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "الأصول"
+
+        # العناوين
+        headers = [
+            'رقم الأصل', 'الاسم', 'الاسم بالإنجليزية', 'التصنيف',
+            'الحالة', 'تاريخ الشراء', 'التكلفة الأصلية', 'القيمة الدفترية',
+            'العملة', 'حالة الأصل', 'طريقة الإهلاك', 'العمر الإنتاجي (شهر)',
+            'الموقع الفعلي', 'الرقم التسلسلي', 'الموديل', 'الشركة المصنعة',
+            'الباركود', 'المسؤول', 'مركز التكلفة', 'ملاحظات'
+        ]
+
+        # كتابة العناوين
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.font = openpyxl.styles.Font(color="FFFFFF", bold=True)
+            cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+
+        # كتابة البيانات
+        for row_num, asset in enumerate(queryset, 2):
+            ws.cell(row=row_num, column=1, value=asset.asset_number)
+            ws.cell(row=row_num, column=2, value=asset.name)
+            ws.cell(row=row_num, column=3, value=asset.name_en or '')
+            ws.cell(row=row_num, column=4, value=f"{asset.category.code} - {asset.category.name}")
+            ws.cell(row=row_num, column=5, value=asset.condition.name if asset.condition else '')
+            ws.cell(row=row_num, column=6, value=asset.purchase_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=7, value=float(asset.original_cost))
+            ws.cell(row=row_num, column=8, value=float(asset.book_value))
+            ws.cell(row=row_num, column=9, value=asset.currency.code if asset.currency else '')
+            ws.cell(row=row_num, column=10, value=asset.get_status_display())
+            ws.cell(row=row_num, column=11, value=asset.depreciation_method.name if asset.depreciation_method else '')
+            ws.cell(row=row_num, column=12, value=asset.useful_life_months or '')
+            ws.cell(row=row_num, column=13, value=asset.physical_location or '')
+            ws.cell(row=row_num, column=14, value=asset.serial_number or '')
+            ws.cell(row=row_num, column=15, value=asset.model or '')
+            ws.cell(row=row_num, column=16, value=asset.manufacturer or '')
+            ws.cell(row=row_num, column=17, value=asset.barcode or '')
+            ws.cell(row=row_num, column=18, value=asset.responsible_employee.get_full_name() if asset.responsible_employee else '')
+            ws.cell(row=row_num, column=19, value=asset.cost_center.name if asset.cost_center else '')
+            ws.cell(row=row_num, column=20, value=asset.notes or '')
+
+        # تعديل عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="assets_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        wb.save(response)
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'حدث خطأ أثناء تصدير البيانات: {str(e)}')
+        return redirect('assets:asset_list')
+
+
+@login_required
 @permission_required_with_message('assets.view_assetcategory')
 @require_http_methods(["GET"])
 def asset_category_datatable_ajax(request):
@@ -1983,6 +2116,12 @@ def asset_category_datatable_ajax(request):
         length = int(request.GET.get('length', 10))
         search_value = request.GET.get('search[value]', '').strip()
 
+        # الحصول على معايير الفلترة الإضافية
+        parent_filter = request.GET.get('parent', '')
+        level_filter = request.GET.get('level', '')
+        is_active_filter = request.GET.get('is_active', '')
+        search_filter = request.GET.get('search_filter', '')
+
         # البحث والفلترة
         queryset = AssetCategory.objects.filter(
             company=request.current_company
@@ -1993,6 +2132,28 @@ def asset_category_datatable_ajax(request):
                 Decimal('0')
             )
         )
+
+        # فلتر الفئة الأب
+        if parent_filter == 'null':
+            queryset = queryset.filter(parent__isnull=True)
+        elif parent_filter:
+            queryset = queryset.filter(parent_id=parent_filter)
+
+        # فلتر المستوى
+        if level_filter:
+            queryset = queryset.filter(level=int(level_filter))
+
+        # فلتر الحالة
+        if is_active_filter:
+            queryset = queryset.filter(is_active=bool(int(is_active_filter)))
+
+        # البحث النصي
+        if search_filter:
+            queryset = queryset.filter(
+                Q(code__icontains=search_filter) |
+                Q(name__icontains=search_filter) |
+                Q(name_en__icontains=search_filter)
+            )
 
         if search_value:
             queryset = queryset.filter(
@@ -2044,6 +2205,18 @@ def asset_category_datatable_ajax(request):
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
+            # تحديد لون شارة المستوى
+            level_colors = {
+                0: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                1: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                2: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                3: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+            }
+            level_bg = level_colors.get(category.level, 'linear-gradient(135deg, #6c757d 0%, #495057 100%)')
+
+            # شارة الحالة
+            status_badge = '<span class="badge bg-success">نشط</span>' if category.is_active else '<span class="badge bg-secondary">غير نشط</span>'
+
             data.append([
                 f'<a href="{reverse("assets:category_detail", args=[category.pk])}">{category.code}</a>',
                 f'''<div>
@@ -2051,9 +2224,9 @@ def asset_category_datatable_ajax(request):
                     {f'<br><small class="text-muted">{category.name_en}</small>' if category.name_en else ''}
                 </div>''',
                 category.parent.name if category.parent else '<span class="text-muted">-</span>',
+                f'<span class="category-level-badge" style="background: {level_bg}; color: white; padding: 0.35rem 0.65rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-weight: 600; font-size: 0.875rem;">{category.level}</span>',
                 f'<span class="badge bg-primary">{category.asset_count}</span>',
-                f'<div class="text-end">{category.total_value:,.2f}</div>',
-                f'<span class="badge bg-secondary">المستوى {category.level}</span>',
+                status_badge,
                 actions_html
             ])
 
@@ -2113,10 +2286,146 @@ def category_tree_ajax(request):
             return items
 
         tree = build_tree()
-        return JsonResponse({'tree': tree})
+        return JsonResponse({'success': True, 'tree': tree})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assetcategory')
+@require_http_methods(["GET"])
+def category_stats_ajax(request):
+    """إحصائيات فئات الأصول - للبطاقات الإحصائية"""
+    try:
+        company = request.current_company
+
+        # إحصائيات الفئات
+        categories = AssetCategory.objects.filter(company=company)
+
+        stats = {
+            'total_categories': categories.count(),
+            'parent_categories': categories.filter(parent__isnull=True).count(),
+            'child_categories': categories.filter(parent__isnull=False).count(),
+            'total_assets': Asset.objects.filter(
+                company=company,
+                category__isnull=False,
+                status='active'
+            ).count()
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assetcategory')
+@require_http_methods(["GET"])
+def category_export(request):
+    """تصدير فئات الأصول إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    try:
+        company = request.current_company
+
+        # الحصول على معايير الفلترة
+        parent_id = request.GET.get('parent', '')
+        level = request.GET.get('level', '')
+        is_active = request.GET.get('is_active', '')
+        search = request.GET.get('search', '')
+
+        # بناء الاستعلام
+        queryset = AssetCategory.objects.filter(company=company).select_related('parent').annotate(
+            assets_count=Count('assets', filter=Q(assets__status='active'))
+        )
+
+        # تطبيق الفلاتر
+        if parent_id == 'null':
+            queryset = queryset.filter(parent__isnull=True)
+        elif parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
+
+        if level:
+            queryset = queryset.filter(level=int(level))
+
+        if is_active:
+            queryset = queryset.filter(is_active=bool(int(is_active)))
+
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(name_en__icontains=search)
+            )
+
+        queryset = queryset.order_by('code')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "فئات الأصول"
+
+        # تنسيق الرأس
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_alignment = Alignment(horizontal='center', vertical='center')
+
+        # عناوين الأعمدة
+        headers = [
+            'الرمز',
+            'الاسم بالعربية',
+            'الاسم بالإنجليزية',
+            'الفئة الأب',
+            'المستوى',
+            'عدد الأصول',
+            'الحالة',
+            'الوصف'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        # تعبئة البيانات
+        row_num = 2
+        for category in queryset:
+            ws.cell(row=row_num, column=1, value=category.code)
+            ws.cell(row=row_num, column=2, value=category.name)
+            ws.cell(row=row_num, column=3, value=category.name_en or '')
+            ws.cell(row=row_num, column=4, value=category.parent.name if category.parent else '-')
+            ws.cell(row=row_num, column=5, value=category.level)
+            ws.cell(row=row_num, column=6, value=category.assets_count)
+            ws.cell(row=row_num, column=7, value='نشط' if category.is_active else 'غير نشط')
+            ws.cell(row=row_num, column=8, value=category.description or '')
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for col in range(1, 9):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+
+        # حفظ الملف
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f'asset_categories_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        from django.contrib import messages
+        from django.shortcuts import redirect
+        messages.error(request, f'حدث خطأ أثناء التصدير: {str(e)}')
+        return redirect('assets:category_list')
 
 
 @login_required
@@ -2581,3 +2890,546 @@ def bulk_update_location(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ==================== Depreciation Method AJAX ====================
+
+@login_required
+@permission_required_with_message('assets.view_depreciationmethod')
+@require_http_methods(["GET"])
+def depreciation_method_datatable_ajax(request):
+    """Ajax endpoint لجدول طرق الإهلاك - Server-side"""
+
+    try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الحصول على معايير الفلترة الإضافية
+        method_type_filter = request.GET.get('method_type', '')
+        is_active_filter = request.GET.get('is_active', '')
+        search_filter = request.GET.get('search_filter', '')
+
+        # البحث والفلترة
+        queryset = DepreciationMethod.objects.all().annotate(
+            assets_count=Count('asset', filter=Q(asset__status='active'))
+        )
+
+        # فلتر نوع الطريقة
+        if method_type_filter:
+            queryset = queryset.filter(method_type=method_type_filter)
+
+        # فلتر الحالة
+        if is_active_filter:
+            queryset = queryset.filter(is_active=bool(int(is_active_filter)))
+
+        # البحث النصي
+        if search_filter:
+            queryset = queryset.filter(
+                Q(code__icontains=search_filter) |
+                Q(name__icontains=search_filter) |
+                Q(name_en__icontains=search_filter)
+            )
+
+        # البحث من DataTable
+        if search_value:
+            queryset = queryset.filter(
+                Q(code__icontains=search_value) |
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value)
+            )
+
+        # العدد الإجمالي
+        records_total = DepreciationMethod.objects.count()
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        if order_column_index:
+            order_columns = ['code', 'name', 'method_type', 'rate_percentage', 'assets_count', 'is_active']
+            order_column = order_columns[int(order_column_index)]
+
+            if order_direction == 'desc':
+                order_column = '-' + order_column
+
+            queryset = queryset.order_by(order_column)
+        else:
+            queryset = queryset.order_by('code')
+
+        # الـ Pagination
+        methods = queryset[start:start + length]
+
+        # بناء البيانات
+        data = []
+        for method in methods:
+            # نوع الطريقة مع badge
+            if method.method_type == 'straight_line':
+                method_type_html = '<span class="badge bg-primary"><i class="fas fa-minus"></i> {}</span>'.format(method.get_method_type_display())
+            elif method.method_type == 'declining_balance':
+                method_type_html = '<span class="badge bg-warning"><i class="fas fa-chart-line"></i> {}</span>'.format(method.get_method_type_display())
+            elif method.method_type == 'units_of_production':
+                method_type_html = '<span class="badge bg-info"><i class="fas fa-industry"></i> {}</span>'.format(method.get_method_type_display())
+            else:
+                method_type_html = '<span class="badge bg-secondary">{}</span>'.format(method.get_method_type_display())
+
+            # النسبة
+            rate_html = '{}%'.format(method.rate_percentage) if method.rate_percentage else '-'
+
+            # عدد الأصول
+            assets_count_html = '<span class="badge bg-primary">{}</span>'.format(method.assets_count)
+
+            # الحالة
+            if method.is_active:
+                status_html = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> نشط</span>'
+            else:
+                status_html = '<span class="badge bg-secondary"><i class="fas fa-times-circle"></i> غير نشط</span>'
+
+            # الإجراءات
+            actions_html = '''
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="/assets/depreciation-methods/{}/"
+                       class="btn btn-sm btn-outline-info"
+                       data-bs-toggle="tooltip"
+                       title="عرض">
+                        <i class="fas fa-eye"></i>
+                    </a>
+            '''.format(method.pk)
+
+            if request.user.has_perm('assets.change_depreciationmethod'):
+                actions_html += '''
+                    <a href="/assets/depreciation-methods/{}/update/"
+                       class="btn btn-sm btn-outline-primary"
+                       data-bs-toggle="tooltip"
+                       title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''.format(method.pk)
+
+            if request.user.has_perm('assets.delete_depreciationmethod'):
+                actions_html += '''
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            onclick="deleteMethod({}, '{}')"
+                            data-bs-toggle="tooltip"
+                            title="حذف">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                '''.format(method.pk, method.name)
+
+            actions_html += '</div>'
+
+            data.append([
+                '<strong>{}</strong>'.format(method.code),
+                method.name,
+                method_type_html,
+                rate_html,
+                assets_count_html,
+                status_html,
+                actions_html
+            ])
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_depreciationmethod')
+@require_http_methods(["GET"])
+def depreciation_method_stats_ajax(request):
+    """إحصائيات طرق الإهلاك - للبطاقات الإحصائية"""
+    try:
+        # إحصائيات الطرق
+        methods = DepreciationMethod.objects.all()
+
+        stats = {
+            'total_methods': methods.count(),
+            'active_methods': methods.filter(is_active=True).count(),
+            'straight_line_methods': methods.filter(method_type='straight_line').count(),
+            'total_assets': Asset.objects.filter(
+                depreciation_method__isnull=False,
+                status='active'
+            ).count()
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_depreciationmethod')
+@require_http_methods(["GET"])
+def depreciation_method_export(request):
+    """تصدير طرق الإهلاك إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    try:
+        # الحصول على معايير الفلترة
+        method_type = request.GET.get('method_type', '')
+        is_active = request.GET.get('is_active', '')
+        search = request.GET.get('search', '')
+
+        # بناء الاستعلام
+        queryset = DepreciationMethod.objects.all().annotate(
+            assets_count=Count('asset', filter=Q(asset__status='active'))
+        )
+
+        # تطبيق الفلاتر
+        if method_type:
+            queryset = queryset.filter(method_type=method_type)
+
+        if is_active:
+            queryset = queryset.filter(is_active=bool(int(is_active)))
+
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(name_en__icontains=search)
+            )
+
+        queryset = queryset.order_by('code')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "طرق الإهلاك"
+
+        # تنسيق الرأس
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_alignment = Alignment(horizontal='center', vertical='center')
+
+        # الرؤوس
+        headers = ['الرمز', 'الاسم', 'الاسم بالإنجليزية', 'نوع الطريقة', 'نسبة المعدل %', 'عدد الأصول', 'الحالة']
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        # البيانات
+        row_num = 2
+        for method in queryset:
+            ws.cell(row=row_num, column=1, value=method.code)
+            ws.cell(row=row_num, column=2, value=method.name)
+            ws.cell(row=row_num, column=3, value=method.name_en or '')
+            ws.cell(row=row_num, column=4, value=method.get_method_type_display())
+            ws.cell(row=row_num, column=5, value=method.rate_percentage or '')
+            ws.cell(row=row_num, column=6, value=method.assets_count)
+            ws.cell(row=row_num, column=7, value='نشط' if method.is_active else 'غير نشط')
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ الملف
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # الاستجابة
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="depreciation_methods_{}.xlsx"'.format(datetime.now().strftime("%Y%m%d"))
+
+        return response
+
+    except Exception as e:
+        messages.error(request, 'خطأ في التصدير: {}'.format(str(e)))
+        return redirect('assets:depreciation_method_list')
+
+
+# ==================== Asset Condition AJAX ====================
+
+@login_required
+@permission_required_with_message('assets.view_assetcondition')
+@require_http_methods(["GET"])
+def condition_datatable_ajax(request):
+    """Ajax endpoint لجدول حالات الأصول - Server-side"""
+
+    try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # الحصول على معايير الفلترة الإضافية
+        is_active_filter = request.GET.get('is_active', '')
+        search_filter = request.GET.get('search_filter', '')
+
+        # البحث والفلترة
+        queryset = AssetCondition.objects.all().annotate(
+            assets_count=Count('assets', filter=Q(assets__status='active'))
+        )
+
+        # فلتر الحالة
+        if is_active_filter:
+            queryset = queryset.filter(is_active=bool(int(is_active_filter)))
+
+        # البحث النصي
+        if search_filter:
+            queryset = queryset.filter(
+                Q(name__icontains=search_filter) |
+                Q(name_en__icontains=search_filter)
+            )
+
+        # البحث من DataTable
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(name_en__icontains=search_value)
+            )
+
+        # العدد الإجمالي
+        records_total = AssetCondition.objects.count()
+        records_filtered = queryset.count()
+
+        # الترتيب
+        order_column_index = request.GET.get('order[0][column]')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        if order_column_index:
+            order_columns = ['name', 'name_en', 'color_code', 'assets_count', 'is_active']
+            order_column = order_columns[int(order_column_index)]
+
+            if order_direction == 'desc':
+                order_column = '-' + order_column
+
+            queryset = queryset.order_by(order_column)
+        else:
+            queryset = queryset.order_by('name')
+
+        # الـ Pagination
+        conditions = queryset[start:start + length]
+
+        # بناء البيانات
+        data = []
+        for condition in conditions:
+            # اللون مع معاينة
+            color_html = '<span class="badge" style="background-color: {0}; color: white; padding: 0.5rem 1rem;">{0}</span>'.format(condition.color_code)
+
+            # عدد الأصول
+            assets_count_html = '<span class="badge bg-primary">{}</span>'.format(condition.assets_count)
+
+            # الحالة
+            if condition.is_active:
+                status_html = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> نشط</span>'
+            else:
+                status_html = '<span class="badge bg-secondary"><i class="fas fa-times-circle"></i> غير نشط</span>'
+
+            # الإجراءات
+            actions_html = '''
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="/assets/conditions/{}/view/"
+                       class="btn btn-sm btn-outline-info"
+                       data-bs-toggle="tooltip"
+                       title="عرض">
+                        <i class="fas fa-eye"></i>
+                    </a>
+            '''.format(condition.pk)
+
+            if request.user.has_perm('assets.change_assetcondition'):
+                actions_html += '''
+                    <a href="/assets/conditions/{}/update/"
+                       class="btn btn-sm btn-outline-primary"
+                       data-bs-toggle="tooltip"
+                       title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                '''.format(condition.pk)
+
+            if request.user.has_perm('assets.delete_assetcondition'):
+                actions_html += '''
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            onclick="deleteCondition({}, '{}')"
+                            data-bs-toggle="tooltip"
+                            title="حذف">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                '''.format(condition.pk, condition.name)
+
+            actions_html += '</div>'
+
+            data.append([
+                '<strong>{}</strong>'.format(condition.name),
+                condition.name_en or '-',
+                color_html,
+                assets_count_html,
+                status_html,
+                actions_html
+            ])
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': 0,
+            'recordsFiltered': 0,
+            'data': [],
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assetcondition')
+@require_http_methods(["GET"])
+def condition_stats_ajax(request):
+    """إحصائيات حالات الأصول - للبطاقات الإحصائية"""
+    try:
+        # إحصائيات الحالات
+        conditions = AssetCondition.objects.all()
+
+        # حساب متوسط قيمة الأصول
+        assets_with_condition = Asset.objects.filter(
+            condition__isnull=False,
+            status='active'
+        )
+        avg_value = assets_with_condition.aggregate(
+            avg=Avg('original_cost')
+        )['avg'] or 0
+
+        stats = {
+            'total_conditions': conditions.count(),
+            'active_conditions': conditions.filter(is_active=True).count(),
+            'total_assets': assets_with_condition.count(),
+            'avg_value': float(avg_value)
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assetcondition')
+@require_http_methods(["GET"])
+def condition_export(request):
+    """تصدير حالات الأصول إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    try:
+        # الحصول على معايير الفلترة
+        is_active = request.GET.get('is_active', '')
+        search = request.GET.get('search', '')
+
+        # بناء الاستعلام
+        queryset = AssetCondition.objects.all().annotate(
+            assets_count=Count('assets', filter=Q(assets__status='active'))
+        )
+
+        # تطبيق الفلاتر
+        if is_active:
+            queryset = queryset.filter(is_active=bool(int(is_active)))
+
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(name_en__icontains=search)
+            )
+
+        queryset = queryset.order_by('name')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "حالات الأصول"
+
+        # تنسيق الرأس
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_alignment = Alignment(horizontal='center', vertical='center')
+
+        # الرؤوس
+        headers = ['الاسم', 'الاسم بالإنجليزية', 'رمز اللون', 'عدد الأصول', 'الحالة']
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        # البيانات
+        row_num = 2
+        for condition in queryset:
+            ws.cell(row=row_num, column=1, value=condition.name)
+            ws.cell(row=row_num, column=2, value=condition.name_en or '')
+            ws.cell(row=row_num, column=3, value=condition.color_code)
+            ws.cell(row=row_num, column=4, value=condition.assets_count)
+            ws.cell(row=row_num, column=5, value='نشط' if condition.is_active else 'غير نشط')
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ الملف
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # الاستجابة
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="asset_conditions_{}.xlsx"'.format(datetime.now().strftime("%Y%m%d"))
+
+        return response
+
+    except Exception as e:
+        messages.error(request, 'خطأ في التصدير: {}'.format(str(e)))
+        return redirect('assets:condition_list')

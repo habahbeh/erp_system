@@ -140,11 +140,15 @@ class FiscalYearDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
         periods = self.object.periods.all().order_by('start_date')
 
         # إحصائيات
+        # حساب عدد الأيام بين التاريخين
+        date_diff = self.object.end_date - self.object.start_date
+        days_count = date_diff.days + 1
+
         stats = {
             'periods_count': periods.count(),
             'active_periods': periods.filter(is_closed=False).count(),
             'closed_periods': periods.filter(is_closed=True).count(),
-            'days_count': (self.object.end_date - self.object.start_date).days + 1
+            'days_count': days_count  # عدد صحيح بالأيام
         }
 
         context.update({
@@ -806,20 +810,19 @@ def close_period_ajax(request, period_id):
             period.is_closed = True
             period.save()
 
-            # تسجيل تاريخ الإقفال في ActivityLog
-            from apps.core.models import ActivityLog
-            ActivityLog.objects.create(
+            # تسجيل تاريخ الإقفال في AuditLog
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
                 user=request.user,
-                company=request.current_company,
-                action='period_closed',
-                object_type='accounting_period',
+                action='UPDATE',
+                model_name='AccountingPeriod',
                 object_id=period.id,
-                description=f'تم إقفال الفترة المحاسبية: {period.name}',
-                extra_data={
-                    'period_name': period.name,
-                    'fiscal_year': period.fiscal_year.name,
-                    'closing_notes': form.cleaned_data.get('closing_notes', '')
-                }
+                object_repr=f'إقفال الفترة المحاسبية: {period.name}',
+                old_values={'is_closed': False},
+                new_values={'is_closed': True, 'closing_notes': form.cleaned_data.get('closing_notes', '')},
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
             )
 
         return JsonResponse({
@@ -865,15 +868,19 @@ def reopen_period_ajax(request, period_id):
             period.is_closed = False
             period.save()
 
-            # تسجيل في ActivityLog
-            from apps.core.models import ActivityLog
-            ActivityLog.objects.create(
+            # تسجيل في AuditLog
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
                 user=request.user,
-                company=request.current_company,
-                action='period_reopened',
-                object_type='accounting_period',
+                action='UPDATE',
+                model_name='AccountingPeriod',
                 object_id=period.id,
-                description=f'تم إعادة فتح الفترة المحاسبية: {period.name}'
+                object_repr=f'إعادة فتح الفترة المحاسبية: {period.name}',
+                old_values={'is_closed': True},
+                new_values={'is_closed': False},
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
             )
 
         return JsonResponse({
@@ -1380,22 +1387,25 @@ class CostCenterDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
         # حفظ الاسم قبل الحذف
         cost_center_name = cost_center.name
 
-        # تسجيل في ActivityLog
+        # تسجيل في AuditLog
         try:
-            from apps.core.models import ActivityLog
-            ActivityLog.objects.create(
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
                 user=request.user,
-                company=request.current_company,
-                action='delete_cost_center',
-                object_type='cost_center',
+                action='DELETE',
+                model_name='CostCenter',
                 object_id=cost_center.pk,
-                description=f'حذف مركز التكلفة: {cost_center_name} ({cost_center.code})',
-                extra_data={
+                object_repr=f'حذف مركز التكلفة: {cost_center_name} ({cost_center.code})',
+                old_values={
                     'name': cost_center_name,
                     'code': cost_center.code,
                     'type': cost_center.cost_center_type,
                     'level': cost_center.level
-                }
+                },
+                new_values=None,
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
             )
         except Exception as e:
             print(f"Error logging activity: {e}")
@@ -1625,20 +1635,19 @@ def toggle_cost_center_status(request, pk):
         cost_center.is_active = new_status
         cost_center.save()
 
-        # تسجيل في ActivityLog
-        from apps.core.models import ActivityLog
-        ActivityLog.objects.create(
+        # تسجيل في AuditLog
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
             user=request.user,
-            company=request.current_company,
-            action='cost_center_status_changed',
-            object_type='cost_center',
+            action='UPDATE',
+            model_name='CostCenter',
             object_id=cost_center.id,
-            description=f'تم {"تفعيل" if new_status else "إلغاء تفعيل"} مركز التكلفة: {cost_center.name}',
-            extra_data={
-                'cost_center_code': cost_center.code,
-                'old_status': old_status,
-                'new_status': new_status
-            }
+            object_repr=f'تغيير حالة مركز التكلفة: {cost_center.name}',
+            old_values={'is_active': old_status},
+            new_values={'is_active': new_status},
+            company=request.current_company,
+            branch=request.current_branch if hasattr(request, 'current_branch') else None,
+            ip_address=request.META.get('REMOTE_ADDR')
         )
 
         status_text = "تفعيل" if new_status else "إلغاء تفعيل"

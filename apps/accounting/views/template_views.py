@@ -15,7 +15,8 @@ from django.db import transaction
 import json
 
 from apps.core.mixins import CompanyMixin, AuditLogMixin
-from ..models import JournalEntryTemplate, JournalEntryTemplateLine, Account
+from apps.core.models import Currency
+from ..models import JournalEntryTemplate, JournalEntryTemplateLine, Account, AccountType
 from ..models.account_models import CostCenter
 from ..forms.journal_forms import (
     JournalEntryTemplateForm, JournalEntryTemplateFilterForm,
@@ -179,6 +180,8 @@ class JournalEntryTemplateCreateView(LoginRequiredMixin, PermissionRequiredMixin
             'title': _('إنشاء قالب قيد جديد'),
             'accounts': accounts,
             'cost_centers': cost_centers,
+            'account_types': AccountType.objects.all(),
+            'currencies': Currency.objects.filter(is_active=True),
             'breadcrumbs': [
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('قوالب القيود'), 'url': reverse('accounting:template_list')},
@@ -326,6 +329,8 @@ class JournalEntryTemplateUpdateView(LoginRequiredMixin, PermissionRequiredMixin
         context.update({
             'title': f'تعديل القالب: {self.object.name}',
             'existing_lines': json.dumps(existing_lines, ensure_ascii=False),
+            'account_types': AccountType.objects.all(),
+            'currencies': Currency.objects.filter(is_active=True),
             'breadcrumbs': [
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('قوالب القيود'), 'url': reverse('accounting:template_list')},

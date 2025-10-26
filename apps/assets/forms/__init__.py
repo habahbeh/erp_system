@@ -29,6 +29,59 @@ from .maintenance_forms import (
     MaintenanceFilterForm,
 )
 
+from .depreciation_forms import (
+    AssetDepreciationForm,
+    BulkDepreciationCalculationForm,
+    SingleAssetDepreciationCalculationForm,
+    ReverseDepreciationForm,
+    DepreciationFilterForm,
+)
+
+from .insurance_forms import (
+    InsuranceCompanyForm,
+    AssetInsuranceForm,
+    InsuranceClaimForm,
+    ClaimApprovalForm,
+    ClaimRejectionForm,
+    ClaimPaymentForm,
+    InsuranceFilterForm,
+    ClaimFilterForm,
+)
+
+from .physical_count_forms import (
+    PhysicalCountCycleForm,
+    PhysicalCountForm,
+    PhysicalCountLineForm,
+    BarcodeCountForm,
+    PhysicalCountAdjustmentForm,
+    CountFilterForm,
+    AdjustmentFilterForm,
+    BulkCountLineUpdateForm,
+)
+
+from .lease_forms import (
+    AssetLeaseForm,
+    LeasePaymentForm,
+    LeaseTerminationForm,
+    LeaseRenewalForm,
+    PurchaseOptionForm,
+    BulkPaymentProcessingForm,
+    LeaseFilterForm,
+    PaymentFilterForm,
+)
+
+from .workflow_forms import (
+    ApprovalWorkflowForm,
+    ApprovalLevelForm,
+    ApprovalLevelFormSet,
+    ApprovalRequestForm,
+    ApprovalActionForm,
+    ApprovalRequestFilterForm,
+    QuickApprovalForm,
+    BulkApprovalForm,
+    DelegateApprovalForm,
+)
+
 __all__ = [
     # نماذج الأصول
     'AssetCategoryForm',
@@ -52,4 +105,52 @@ __all__ = [
     'MaintenanceScheduleForm',
     'AssetMaintenanceForm',
     'MaintenanceFilterForm',
+
+    # نماذج الإهلاك
+    'AssetDepreciationForm',
+    'BulkDepreciationCalculationForm',
+    'SingleAssetDepreciationCalculationForm',
+    'ReverseDepreciationForm',
+    'DepreciationFilterForm',
+
+    # نماذج التأمين
+    'InsuranceCompanyForm',
+    'AssetInsuranceForm',
+    'InsuranceClaimForm',
+    'ClaimApprovalForm',
+    'ClaimRejectionForm',
+    'ClaimPaymentForm',
+    'InsuranceFilterForm',
+    'ClaimFilterForm',
+
+    # نماذج الجرد الفعلي
+    'PhysicalCountCycleForm',
+    'PhysicalCountForm',
+    'PhysicalCountLineForm',
+    'BarcodeCountForm',
+    'PhysicalCountAdjustmentForm',
+    'CountFilterForm',
+    'AdjustmentFilterForm',
+    'BulkCountLineUpdateForm',
+
+    # نماذج الإيجار
+    'AssetLeaseForm',
+    'LeasePaymentForm',
+    'LeaseTerminationForm',
+    'LeaseRenewalForm',
+    'PurchaseOptionForm',
+    'BulkPaymentProcessingForm',
+    'LeaseFilterForm',
+    'PaymentFilterForm',
+
+    # نماذج سير العمل
+    'ApprovalWorkflowForm',
+    'ApprovalLevelForm',
+    'ApprovalLevelFormSet',
+    'ApprovalRequestForm',
+    'ApprovalActionForm',
+    'ApprovalRequestFilterForm',
+    'QuickApprovalForm',
+    'BulkApprovalForm',
+    'DelegateApprovalForm',
 ]

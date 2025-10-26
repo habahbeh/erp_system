@@ -2080,23 +2080,27 @@ def export_fiscal_years(request):
 
         wb.save(response)
 
-        # تسجيل في ActivityLog
+        # تسجيل في AuditLog
         try:
-            from apps.core.models import ActivityLog
-            ActivityLog.objects.create(
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
                 user=request.user,
-                company=request.current_company,
-                action='export_fiscal_years',
-                object_type='fiscal_year',
-                description=f'تصدير {total_count} سنة مالية إلى Excel',
-                extra_data={
+                action='VIEW',
+                model_name='FiscalYear',
+                object_id=None,
+                object_repr=f'تصدير {total_count} سنة مالية إلى Excel',
+                old_values=None,
+                new_values={
                     'total_exported': total_count,
                     'filters': {
                         'status': status,
                         'year': year,
                         'search': search
                     }
-                }
+                },
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
             )
         except Exception:
             pass
@@ -2109,6 +2113,314 @@ def export_fiscal_years(request):
         print(traceback.format_exc())
         messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
         return redirect('accounting:fiscal_year_list')
+
+
+@login_required
+@permission_required_with_message('accounting.view_fiscalyear')
+def export_fiscal_year_report(request, fiscal_year_id):
+    """تصدير تقرير تفصيلي لسنة مالية واحدة إلى Excel"""
+
+    try:
+        import openpyxl
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from django.utils import timezone
+        from urllib.parse import quote
+
+    except ImportError:
+        messages.error(request, 'مكتبة openpyxl غير مثبتة. يرجى تثبيتها: pip install openpyxl')
+        return redirect('accounting:fiscal_year_detail', pk=fiscal_year_id)
+
+    try:
+        # الحصول على السنة المالية
+        fiscal_year = get_object_or_404(
+            FiscalYear.objects.filter(company=request.current_company),
+            id=fiscal_year_id
+        )
+
+        # الحصول على الفترات المحاسبية
+        periods = AccountingPeriod.objects.filter(
+            fiscal_year=fiscal_year
+        ).order_by('start_date')
+
+        # إحصائيات السنة المالية
+        duration = (fiscal_year.end_date - fiscal_year.start_date).days + 1
+        periods_count = periods.count()
+
+        # إحصائيات القيود اليومية
+        journal_entries = JournalEntry.objects.filter(
+            company=request.current_company,
+            entry_date__gte=fiscal_year.start_date,
+            entry_date__lte=fiscal_year.end_date
+        )
+
+        total_entries = journal_entries.count()
+        posted_entries = journal_entries.filter(status='posted').count()
+        draft_entries = journal_entries.filter(status='draft').count()
+
+        # إحصائيات المبالغ
+        total_debit = journal_entries.filter(status='posted').aggregate(
+            total=Sum('total_debit')
+        )['total'] or Decimal('0')
+
+        total_credit = journal_entries.filter(status='posted').aggregate(
+            total=Sum('total_credit')
+        )['total'] or Decimal('0')
+
+        # إنشاء ملف Excel
+        wb = Workbook()
+
+        # ========== ورقة العمل الأولى: معلومات السنة المالية ==========
+        ws1 = wb.active
+        ws1.title = "معلومات السنة المالية"
+
+        # تنسيق الألوان
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(name='Arial', size=11, bold=True, color="FFFFFF")
+        title_font = Font(name='Arial', size=14, bold=True, color="366092")
+        section_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
+        section_font = Font(name='Arial', size=11, bold=True, color="366092")
+
+        thin_border = Border(
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+
+        # عنوان التقرير
+        ws1.merge_cells('A1:D1')
+        title_cell = ws1['A1']
+        title_cell.value = f"تقرير السنة المالية - {fiscal_year.name}"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # معلومات الشركة
+        ws1.merge_cells('A2:D2')
+        company_cell = ws1['A2']
+        company_cell.value = f"الشركة: {request.current_company.name}"
+        company_cell.font = Font(name='Arial', size=10, bold=True)
+        company_cell.alignment = Alignment(horizontal='center')
+
+        # تاريخ التصدير
+        ws1.merge_cells('A3:D3')
+        date_cell = ws1['A3']
+        date_cell.value = f"تاريخ التصدير: {timezone.now().strftime('%Y/%m/%d %H:%M')}"
+        date_cell.font = Font(name='Arial', size=9)
+        date_cell.alignment = Alignment(horizontal='center')
+
+        # معلومات السنة المالية
+        row = 5
+        ws1.merge_cells(f'A{row}:D{row}')
+        section_cell = ws1.cell(row=row, column=1)
+        section_cell.value = "معلومات السنة المالية"
+        section_cell.font = section_font
+        section_cell.fill = section_fill
+        section_cell.alignment = Alignment(horizontal='center', vertical='center')
+        section_cell.border = thin_border
+
+        # البيانات الأساسية
+        basic_data = [
+            ('الرمز:', fiscal_year.code),
+            ('الاسم:', fiscal_year.name),
+            ('تاريخ البداية:', fiscal_year.start_date.strftime('%Y/%m/%d')),
+            ('تاريخ النهاية:', fiscal_year.end_date.strftime('%Y/%m/%d')),
+            ('المدة (يوم):', duration),
+            ('عدد الفترات:', periods_count),
+            ('الحالة:', 'مقفلة' if fiscal_year.is_closed else 'نشطة'),
+            ('أنشأ بواسطة:', fiscal_year.created_by.get_full_name() or fiscal_year.created_by.username if fiscal_year.created_by else 'غير محدد'),
+            ('تاريخ الإنشاء:', fiscal_year.created_at.strftime('%Y/%m/%d %H:%M')),
+        ]
+
+        row += 1
+        for label, value in basic_data:
+            label_cell = ws1.cell(row=row, column=1)
+            label_cell.value = label
+            label_cell.font = Font(name='Arial', size=10, bold=True)
+            label_cell.alignment = Alignment(horizontal='right', vertical='center')
+            label_cell.border = thin_border
+
+            ws1.merge_cells(f'B{row}:D{row}')
+            value_cell = ws1.cell(row=row, column=2)
+            value_cell.value = value
+            value_cell.font = Font(name='Arial', size=10)
+            value_cell.alignment = Alignment(horizontal='right', vertical='center')
+            value_cell.border = thin_border
+
+            # تلوين الحالة
+            if label == 'الحالة:':
+                if fiscal_year.is_closed:
+                    value_cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+                    value_cell.font = Font(name='Arial', size=10, color="721C24", bold=True)
+                else:
+                    value_cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                    value_cell.font = Font(name='Arial', size=10, color="155724", bold=True)
+
+            row += 1
+
+        # إحصائيات القيود
+        row += 1
+        ws1.merge_cells(f'A{row}:D{row}')
+        section_cell = ws1.cell(row=row, column=1)
+        section_cell.value = "إحصائيات القيود اليومية"
+        section_cell.font = section_font
+        section_cell.fill = section_fill
+        section_cell.alignment = Alignment(horizontal='center', vertical='center')
+        section_cell.border = thin_border
+
+        stats_data = [
+            ('إجمالي القيود:', total_entries),
+            ('القيود المرحلة:', posted_entries),
+            ('القيود المسودة:', draft_entries),
+            ('إجمالي المدين:', f"{total_debit:,.2f}"),
+            ('إجمالي الدائن:', f"{total_credit:,.2f}"),
+        ]
+
+        row += 1
+        for label, value in stats_data:
+            label_cell = ws1.cell(row=row, column=1)
+            label_cell.value = label
+            label_cell.font = Font(name='Arial', size=10, bold=True)
+            label_cell.alignment = Alignment(horizontal='right', vertical='center')
+            label_cell.border = thin_border
+
+            ws1.merge_cells(f'B{row}:D{row}')
+            value_cell = ws1.cell(row=row, column=2)
+            value_cell.value = value
+            value_cell.font = Font(name='Arial', size=10)
+            value_cell.alignment = Alignment(horizontal='right', vertical='center')
+            value_cell.border = thin_border
+            row += 1
+
+        # ضبط عرض الأعمدة
+        ws1.column_dimensions['A'].width = 20
+        ws1.column_dimensions['B'].width = 20
+        ws1.column_dimensions['C'].width = 20
+        ws1.column_dimensions['D'].width = 20
+
+        # ========== ورقة العمل الثانية: الفترات المحاسبية ==========
+        ws2 = wb.create_sheet(title="الفترات المحاسبية")
+
+        # عنوان التقرير
+        ws2.merge_cells('A1:F1')
+        title_cell = ws2['A1']
+        title_cell.value = f"الفترات المحاسبية - {fiscal_year.name}"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # العناوين
+        headers = [
+            'اسم الفترة',
+            'تاريخ البداية',
+            'تاريخ النهاية',
+            'المدة (يوم)',
+            'الحالة',
+            'فترة تسويات'
+        ]
+
+        header_row = 3
+        for col_num, header in enumerate(headers, 1):
+            cell = ws2.cell(row=header_row, column=col_num)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = thin_border
+
+        # تجميد الصف العلوي
+        ws2.freeze_panes = ws2['A4']
+
+        # كتابة بيانات الفترات
+        row_num = header_row + 1
+        for period in periods:
+            period_duration = (period.end_date - period.start_date).days + 1
+            status_text = 'مقفلة' if period.is_closed else 'نشطة'
+            adjustment_text = 'نعم' if period.is_adjustment else 'لا'
+
+            row_data = [
+                period.name,
+                period.start_date.strftime('%Y/%m/%d'),
+                period.end_date.strftime('%Y/%m/%d'),
+                period_duration,
+                status_text,
+                adjustment_text
+            ]
+
+            for col_num, value in enumerate(row_data, 1):
+                cell = ws2.cell(row=row_num, column=col_num)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(name='Arial', size=10)
+
+                # تلوين حسب الحالة
+                if col_num == 5:  # عمود الحالة
+                    if period.is_closed:
+                        cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+                        cell.font = Font(name='Arial', size=10, color="721C24", bold=True)
+                    else:
+                        cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                        cell.font = Font(name='Arial', size=10, color="155724", bold=True)
+
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        column_widths = {
+            'A': 25,  # اسم الفترة
+            'B': 15,  # تاريخ البداية
+            'C': 15,  # تاريخ النهاية
+            'D': 12,  # المدة
+            'E': 10,  # الحالة
+            'F': 15   # فترة تسويات
+        }
+
+        for col, width in column_widths.items():
+            ws2.column_dimensions[col].width = width
+
+        # إعداد الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename_ar = f"تقرير_السنة_المالية_{fiscal_year.code}_{timestamp}.xlsx"
+        filename_encoded = quote(filename_ar)
+
+        response['Content-Disposition'] = f'attachment; filename="{timestamp}_fiscal_year_report.xlsx"; filename*=UTF-8\'\'{filename_encoded}'
+
+        wb.save(response)
+
+        # تسجيل في AuditLog
+        try:
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
+                user=request.user,
+                action='VIEW',
+                model_name='FiscalYear',
+                object_id=fiscal_year.id,
+                object_repr=f'تصدير تقرير السنة المالية: {fiscal_year.name}',
+                old_values=None,
+                new_values={
+                    'fiscal_year_code': fiscal_year.code,
+                    'periods_count': periods_count,
+                    'total_entries': total_entries
+                },
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+        except Exception:
+            pass
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(f"Error in export_fiscal_year_report: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في تصدير التقرير: {str(e)}')
+        return redirect('accounting:fiscal_year_detail', pk=fiscal_year_id)
 
 
 @login_required
@@ -2362,16 +2674,17 @@ def export_periods(request):
 
         wb.save(response)
 
-        # تسجيل في ActivityLog
+        # تسجيل في AuditLog
         try:
-            from apps.core.models import ActivityLog
-            ActivityLog.objects.create(
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
                 user=request.user,
-                company=request.current_company,
-                action='export_periods',
-                object_type='accounting_period',
-                description=f'تصدير {total_count} فترة محاسبية إلى Excel',
-                extra_data={
+                action='VIEW',
+                model_name='AccountingPeriod',
+                object_id=None,
+                object_repr=f'تصدير {total_count} فترة محاسبية إلى Excel',
+                old_values=None,
+                new_values={
                     'total_exported': total_count,
                     'filters': {
                         'fiscal_year': fiscal_year_id,
@@ -2379,7 +2692,10 @@ def export_periods(request):
                         'period_type': period_type,
                         'search': search
                     }
-                }
+                },
+                company=request.current_company,
+                branch=request.current_branch if hasattr(request, 'current_branch') else None,
+                ip_address=request.META.get('REMOTE_ADDR')
             )
         except Exception:
             pass

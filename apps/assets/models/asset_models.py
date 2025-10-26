@@ -727,7 +727,8 @@ class Asset(DocumentBaseModel):
     # Helper Methods - دوال مساعدة محاسبية
     # ============================================================
 
-    def get_current_book_value(self):
+    @property
+    def current_book_value(self):
         """
         حساب القيمة الدفترية الحالية
 
@@ -735,6 +736,10 @@ class Asset(DocumentBaseModel):
             Decimal: القيمة الدفترية = التكلفة الأصلية - مجمع الإهلاك
         """
         return self.original_cost - self.accumulated_depreciation
+
+    def get_current_book_value(self):
+        """Legacy method for backwards compatibility"""
+        return self.current_book_value
 
     def get_total_accumulated_depreciation(self):
         """
@@ -747,7 +752,7 @@ class Asset(DocumentBaseModel):
 
         total = AssetDepreciation.objects.filter(
             asset=self,
-            status='posted'  # فقط المرحّل
+            is_posted=True  # فقط المرحّل
         ).aggregate(
             total=Sum('depreciation_amount')
         )['total'] or Decimal('0')

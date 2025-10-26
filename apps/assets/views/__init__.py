@@ -28,6 +28,8 @@ __all__ = [
     'AssetCategoryDetailView',
     'asset_category_datatable_ajax',
     'category_tree_ajax',
+    'category_stats_ajax',
+    'category_export',
 
     # Assets
     'AssetListView',
@@ -37,6 +39,8 @@ __all__ = [
     'AssetDeleteView',
     'asset_datatable_ajax',
     'asset_autocomplete',
+    'asset_stats_ajax',
+    'asset_export',
     'generate_asset_number',
     'asset_barcode_pdf',
     'asset_qr_code',
@@ -50,23 +54,33 @@ __all__ = [
     # Depreciation Methods
     'DepreciationMethodListView',
     'DepreciationMethodCreateView',
+    'DepreciationMethodDetailView',
     'DepreciationMethodUpdateView',
     'DepreciationMethodDeleteView',
+    'depreciation_method_datatable_ajax',
+    'depreciation_method_stats_ajax',
+    'depreciation_method_export',
 
     # Asset Conditions
     'AssetConditionListView',
     'AssetConditionCreateView',
+    'AssetConditionDetailView',
     'AssetConditionUpdateView',
     'AssetConditionDeleteView',
+    'condition_datatable_ajax',
+    'condition_stats_ajax',
+    'condition_export',
 
     # Depreciation
     'AssetDepreciationListView',
     'AssetDepreciationDetailView',
     'CalculateDepreciationView',
     'BulkDepreciationCalculationView',
+    'bulk_depreciation_preview_ajax',
     'depreciation_datatable_ajax',
     'depreciation_schedule_ajax',
     'calculate_single_depreciation_ajax',
+    'reverse_depreciation_ajax',
 
     # Transactions
     'AssetTransactionListView',
@@ -75,6 +89,8 @@ __all__ = [
     'AssetTransactionUpdateView',
     'AssetTransactionDeleteView',
     'transaction_datatable_ajax',
+    'transaction_stats',
+    'transaction_export',
     'PostTransactionView',
     'ApproveTransactionView',
     'CancelTransactionView',
@@ -94,10 +110,13 @@ __all__ = [
     'reject_transfer',
     'complete_transfer',
     'transfer_datatable_ajax',
+    'transfer_stats_ajax',
+    'transfer_export',
 
     # Maintenance
     'MaintenanceTypeListView',
     'MaintenanceTypeCreateView',
+    'MaintenanceTypeDetailView',
     'MaintenanceTypeUpdateView',
     'MaintenanceTypeDeleteView',
     'MaintenanceScheduleListView',
@@ -141,6 +160,7 @@ __all__ = [
     # Insurance
     'InsuranceCompanyListView',
     'InsuranceCompanyCreateView',
+    'InsuranceCompanyDetailView',
     'InsuranceCompanyUpdateView',
     'InsuranceCompanyDeleteView',
     'AssetInsuranceListView',

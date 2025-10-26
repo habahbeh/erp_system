@@ -141,14 +141,15 @@ class AssetForm(forms.ModelForm):
     class Meta:
         model = Asset
         fields = [
-            'name', 'name_en', 'category', 'condition', 'status',
-            'purchase_date', 'purchase_invoice_number', 'supplier',
+            'name', 'name_en', 'category', 'condition', 'status', 'depreciation_status',
+            'purchase_date', 'purchase_invoice_number', 'supplier', 'currency',
             'original_cost', 'salvage_value',
             'depreciation_method', 'useful_life_months', 'depreciation_start_date',
             'total_expected_units', 'unit_name',
             'cost_center', 'responsible_employee', 'physical_location',
-            'serial_number', 'model', 'manufacturer',
+            'serial_number', 'model', 'manufacturer', 'barcode',
             'warranty_start_date', 'warranty_end_date', 'warranty_provider',
+            'insurance_status', 'is_leased',
             'description', 'notes'
         ]
         widgets = {
@@ -163,6 +164,7 @@ class AssetForm(forms.ModelForm):
             'category': forms.Select(attrs={'class': 'form-select'}),
             'condition': forms.Select(attrs={'class': 'form-select'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
+            'depreciation_status': forms.Select(attrs={'class': 'form-select'}),
             'purchase_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
@@ -172,6 +174,7 @@ class AssetForm(forms.ModelForm):
                 'placeholder': 'رقم الفاتورة'
             }),
             'supplier': forms.Select(attrs={'class': 'form-select'}),
+            'currency': forms.Select(attrs={'class': 'form-select'}),
             'original_cost': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.001',
@@ -217,6 +220,10 @@ class AssetForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'الشركة المصنعة'
             }),
+            'barcode': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'الباركود'
+            }),
             'warranty_start_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
@@ -229,6 +236,8 @@ class AssetForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'مزود الضمان'
             }),
+            'insurance_status': forms.Select(attrs={'class': 'form-select'}),
+            'is_leased': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3
@@ -255,6 +264,11 @@ class AssetForm(forms.ModelForm):
                 account_type__type_category='liabilities',
                 is_active=True
             )
+
+            # تصفية العملات
+            from apps.core.models import Currency
+            self.fields['currency'].queryset = Currency.objects.filter(is_active=True)
+
             self.fields['cost_center'].queryset = CostCenter.objects.filter(
                 company=self.company,
                 is_active=True
@@ -265,7 +279,7 @@ class AssetForm(forms.ModelForm):
 
         # إضافة علامة * للحقول المطلوبة
         required_fields = [
-            'name', 'category', 'purchase_date', 'original_cost',
+            'name', 'category', 'purchase_date', 'original_cost', 'currency',
             'depreciation_method', 'useful_life_months', 'depreciation_start_date'
         ]
         for field_name in required_fields:
@@ -448,8 +462,8 @@ class AssetDepreciationCalculationForm(forms.Form):
     calculation_date = forms.DateField(
         label=_('تاريخ الاحتساب'),
         widget=forms.DateInput(attrs={
-            'class': 'form-control',
-            'type': 'date'
+            'type': 'date',
+            'class': 'form-control'
         }),
         initial=datetime.date.today
     )

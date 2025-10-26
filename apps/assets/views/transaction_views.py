@@ -52,7 +52,7 @@ class AssetTransactionListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     """قائمة معاملات الأصول - محسّنة"""
 
     model = AssetTransaction
-    template_name = 'assets/transaction/transaction_list.html'
+    template_name = 'assets/transactions/transaction_list.html'
     context_object_name = 'transactions'
     permission_required = 'assets.view_assettransaction'
     paginate_by = 50
@@ -188,7 +188,7 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     """إنشاء معاملة أصل - محسّن"""
 
     model = AssetTransaction
-    template_name = 'assets/transaction/transaction_form.html'
+    template_name = 'assets/transactions/transaction_form.html'
     permission_required = 'assets.add_assettransaction'
     fields = [
         'transaction_date', 'transaction_type', 'asset',
@@ -272,7 +272,7 @@ class AssetTransactionDetailView(LoginRequiredMixin, PermissionRequiredMixin, Co
     """عرض تفاصيل معاملة الأصل - محسّن"""
 
     model = AssetTransaction
-    template_name = 'assets/transaction/transaction_detail.html'
+    template_name = 'assets/transactions/transaction_detail.html'
     context_object_name = 'transaction'
     permission_required = 'assets.view_assettransaction'
 
@@ -352,7 +352,7 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     """تعديل معاملة أصل - محسّن"""
 
     model = AssetTransaction
-    template_name = 'assets/transaction/transaction_form.html'
+    template_name = 'assets/transactions/transaction_form.html'
     permission_required = 'assets.change_assettransaction'
     fields = [
         'transaction_date', 'transaction_type', 'asset',
@@ -443,7 +443,7 @@ class AssetTransactionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
     """حذف معاملة أصل - محسّن"""
 
     model = AssetTransaction
-    template_name = 'assets/transaction/transaction_confirm_delete.html'
+    template_name = 'assets/transactions/transaction_confirm_delete.html'
     permission_required = 'assets.delete_assettransaction'
     success_url = reverse_lazy('assets:transaction_list')
 
@@ -471,7 +471,7 @@ class AssetTransactionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Co
 class ApproveTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """اعتماد المعاملة - جديد"""
 
-    template_name = 'assets/transaction/approve_transaction.html'
+    template_name = 'assets/transactions/approve_transaction.html'
     permission_required = 'assets.can_approve_transactions'
 
     def get_context_data(self, **kwargs):
@@ -535,7 +535,7 @@ class ApproveTransactionView(LoginRequiredMixin, PermissionRequiredMixin, Compan
 class CancelTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """إلغاء المعاملة - جديد"""
 
-    template_name = 'assets/transaction/cancel_transaction.html'
+    template_name = 'assets/transactions/cancel_transaction.html'
     permission_required = 'assets.change_assettransaction'
 
     @transaction.atomic
@@ -576,7 +576,7 @@ class CancelTransactionView(LoginRequiredMixin, PermissionRequiredMixin, Company
 class PostTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """ترحيل المعاملة (إنشاء القيد المحاسبي وإكمال العملية) - جديد"""
 
-    template_name = 'assets/transaction/post_transaction.html'
+    template_name = 'assets/transactions/post_transaction.html'
     permission_required = 'assets.can_approve_transactions'
 
     def get_context_data(self, **kwargs):
@@ -646,7 +646,7 @@ class PostTransactionView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMi
 class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """بيع أصل - محسّن"""
 
-    template_name = 'assets/transaction/sell_asset.html'
+    template_name = 'assets/transactions/sell_form.html'
     permission_required = 'assets.can_sell_asset'
 
     def get_context_data(self, **kwargs):
@@ -751,7 +751,7 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, T
 class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """استبعاد أصل - محسّن"""
 
-    template_name = 'assets/transaction/dispose_asset.html'
+    template_name = 'assets/transactions/dispose_form.html'
     permission_required = 'assets.can_dispose_asset'
 
     def get_context_data(self, **kwargs):
@@ -837,7 +837,7 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
 class RevalueAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """إعادة تقييم أصل - مكتمل"""
 
-    template_name = 'assets/transaction/revalue_asset.html'
+    template_name = 'assets/transactions/revalue_form.html'
     permission_required = 'assets.can_revalue_asset'
 
     def get_context_data(self, **kwargs):
@@ -921,7 +921,7 @@ class AssetTransferListView(LoginRequiredMixin, PermissionRequiredMixin, Company
     """قائمة تحويلات الأصول - محسّنة"""
 
     model = AssetTransfer
-    template_name = 'assets/transfer/transfer_list.html'
+    template_name = 'assets/transfers/transfer_list.html'
     context_object_name = 'transfers'
     permission_required = 'assets.view_assettransfer'
     paginate_by = 50
@@ -1040,7 +1040,7 @@ class AssetTransferCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """إنشاء تحويل أصل - محسّن"""
 
     model = AssetTransfer
-    template_name = 'assets/transfer/transfer_form.html'
+    template_name = 'assets/transfers/transfer_form.html'
     permission_required = 'assets.add_assettransfer'
     fields = [
         'transfer_date', 'asset',
@@ -1119,7 +1119,7 @@ class AssetTransferDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """عرض تفاصيل تحويل الأصل - محسّن"""
 
     model = AssetTransfer
-    template_name = 'assets/transfer/transfer_detail.html'
+    template_name = 'assets/transfers/transfer_detail.html'
     context_object_name = 'transfer'
     permission_required = 'assets.view_assettransfer'
 
@@ -1214,7 +1214,7 @@ class AssetTransferUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     """تعديل تحويل أصل - محسّن"""
 
     model = AssetTransfer
-    template_name = 'assets/transfer/transfer_form.html'
+    template_name = 'assets/transfers/transfer_form.html'
     permission_required = 'assets.change_assettransfer'
     fields = [
         'transfer_date', 'asset',
@@ -1502,8 +1502,13 @@ def transaction_datatable_ajax(request):
         # إعداد البيانات
         data = []
         can_view = request.user.has_perm('assets.view_assettransaction')
+        can_edit = request.user.has_perm('assets.change_assettransaction')
+        can_delete = request.user.has_perm('assets.delete_assettransaction')
 
         for trans in queryset:
+            # Checkbox
+            checkbox = f'<input type="checkbox" class="transaction-checkbox" value="{trans.pk}">'
+
             # الحالة
             status_map = {
                 'draft': '<span class="badge bg-secondary"><i class="fas fa-file"></i> مسودة</span>',
@@ -1514,38 +1519,62 @@ def transaction_datatable_ajax(request):
             status_badge = status_map.get(trans.status, trans.status)
 
             # النوع
-            type_icons = {
-                'purchase': '<i class="fas fa-shopping-cart text-success"></i>',
-                'sale': '<i class="fas fa-hand-holding-usd text-primary"></i>',
-                'disposal': '<i class="fas fa-trash text-danger"></i>',
-                'revaluation': '<i class="fas fa-balance-scale text-info"></i>',
+            type_map = {
+                'purchase': '<span class="badge bg-success">شراء</span>',
+                'sale': '<span class="badge bg-primary">بيع</span>',
+                'disposal': '<span class="badge bg-danger">استبعاد</span>',
+                'revaluation': '<span class="badge bg-warning text-dark">إعادة تقييم</span>',
+                'impairment': '<span class="badge bg-info">هبوط قيمة</span>',
             }
-            type_icon = type_icons.get(trans.transaction_type, '')
-            type_display = dict(AssetTransaction.TRANSACTION_TYPES).get(trans.transaction_type, trans.transaction_type)
+            type_badge = type_map.get(trans.transaction_type, trans.transaction_type)
+
+            # الأصل
+            asset_link = f'''
+                <a href="{reverse("assets:asset_detail", args=[trans.asset.pk])}">
+                    {trans.asset.name}
+                </a>
+            '''
 
             # أزرار الإجراءات
             actions = []
 
+            # رابط العرض
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:transaction_detail', args=[trans.pk])}" 
+                    <a href="{reverse('assets:transaction_detail', args=[trans.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
                 ''')
 
+            # رابط التعديل - فقط للمعاملات المسودة
+            if can_edit and trans.status == 'draft':
+                actions.append(f'''
+                    <a href="{reverse('assets:transaction_update', args=[trans.pk])}"
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            # رابط الحذف - فقط للمعاملات المسودة
+            if can_delete and trans.status == 'draft':
+                actions.append(f'''
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                            onclick="deleteTransaction({trans.pk}, '{trans.transaction_number}')"
+                            title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ''')
+
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                f'<a href="{reverse("assets:transaction_detail", args=[trans.pk])}">{trans.transaction_number}</a>',
+                checkbox,
+                trans.transaction_number,
                 trans.transaction_date.strftime('%Y-%m-%d'),
-                f'{type_icon} {type_display}',
-                f'<a href="{reverse("assets:asset_detail", args=[trans.asset.pk])}">{trans.asset.asset_number}</a>',
-                f'''<div>
-                    <strong>{trans.asset.name}</strong>
-                    <br><small class="text-muted">{trans.asset.category.name}</small>
-                </div>''',
-                f'<div class="text-end"><strong>{trans.amount:,.2f}</strong></div>',
+                asset_link,
+                type_badge,
+                f'<strong>{trans.amount:,.2f}</strong>' if trans.amount else '-',
                 status_badge,
                 actions_html
             ])
@@ -1573,16 +1602,7 @@ def transaction_datatable_ajax(request):
 @permission_required_with_message('assets.view_assettransfer')
 @require_http_methods(["GET"])
 def transfer_datatable_ajax(request):
-    """Ajax endpoint لجدول التحويلات - محسّن"""
-
-    if not hasattr(request, 'current_company') or not request.current_company:
-        return JsonResponse({
-            'draw': int(request.GET.get('draw', 1)),
-            'recordsTotal': 0,
-            'recordsFiltered': 0,
-            'data': [],
-            'error': 'لا توجد شركة محددة'
-        })
+    """Ajax endpoint لجدول التحويلات - Server-side"""
 
     try:
         draw = int(request.GET.get('draw', 1))
@@ -1592,62 +1612,90 @@ def transfer_datatable_ajax(request):
 
         # الفلاتر
         status = request.GET.get('status', '')
+        search_filter = request.GET.get('search_filter', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
 
         # Query
-        queryset = AssetTransfer.objects.filter(
-            company=request.current_company
-        ).select_related(
-            'asset', 'asset__category', 'from_branch', 'to_branch'
+        queryset = AssetTransfer.objects.all().select_related(
+            'asset', 'asset__category', 'from_branch', 'to_branch',
+            'from_cost_center', 'to_cost_center', 'from_employee', 'to_employee'
         )
 
         # تطبيق الفلاتر
         if status:
             queryset = queryset.filter(status=status)
 
-        # البحث
+        if search_filter:
+            queryset = queryset.filter(
+                Q(transfer_number__icontains=search_filter) |
+                Q(asset__code__icontains=search_filter) |
+                Q(asset__name__icontains=search_filter) |
+                Q(from_branch__name__icontains=search_filter) |
+                Q(to_branch__name__icontains=search_filter)
+            )
+
+        if date_from:
+            queryset = queryset.filter(transfer_date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(transfer_date__lte=date_to)
+
+        # البحث من DataTable
         if search_value:
             queryset = queryset.filter(
                 Q(transfer_number__icontains=search_value) |
-                Q(asset__asset_number__icontains=search_value) |
+                Q(asset__code__icontains=search_value) |
                 Q(asset__name__icontains=search_value)
             )
+
+        # العد
+        total_records = AssetTransfer.objects.count()
+        filtered_records = queryset.count()
 
         # الترتيب
         order_column_index = request.GET.get('order[0][column]')
         order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        order_columns = {
-            '0': 'transfer_number',
-            '1': 'transfer_date',
-            '2': 'asset__asset_number',
-            '3': 'from_branch__name',
-        }
+        order_columns = ['transfer_number', 'transfer_date', 'asset__code', 'from_branch__name', 'to_branch__name', 'status']
 
-        if order_column_index and order_column_index in order_columns:
-            order_field = order_columns[order_column_index]
+        if order_column_index:
+            order_column = order_columns[int(order_column_index)]
             if order_dir == 'desc':
-                order_field = f'-{order_field}'
-            queryset = queryset.order_by(order_field, '-transfer_number')
+                order_column = '-' + order_column
+            queryset = queryset.order_by(order_column)
         else:
             queryset = queryset.order_by('-transfer_date', '-transfer_number')
 
-        # العد
-        total_records = AssetTransfer.objects.filter(
-            company=request.current_company
-        ).count()
-        filtered_records = queryset.count()
-
         # Pagination
-        queryset = queryset[start:start + length]
+        transfers = queryset[start:start + length]
 
         # إعداد البيانات
         data = []
-        can_view = request.user.has_perm('assets.view_assettransfer')
+        for transfer in transfers:
+            # من
+            from_html = f'''<div class="small">
+                <i class="fas fa-building text-muted"></i> {transfer.from_branch.name}
+            '''
+            if transfer.from_cost_center:
+                from_html += f'<br><i class="fas fa-sitemap text-muted"></i> {transfer.from_cost_center.name}'
+            if transfer.from_employee:
+                from_html += f'<br><i class="fas fa-user text-muted"></i> {transfer.from_employee.get_full_name()}'
+            from_html += '</div>'
 
-        for transfer in queryset:
+            # إلى
+            to_html = f'''<div class="small">
+                <i class="fas fa-building text-muted"></i> {transfer.to_branch.name}
+            '''
+            if transfer.to_cost_center:
+                to_html += f'<br><i class="fas fa-sitemap text-muted"></i> {transfer.to_cost_center.name}'
+            if transfer.to_employee:
+                to_html += f'<br><i class="fas fa-user text-muted"></i> {transfer.to_employee.get_full_name()}'
+            to_html += '</div>'
+
             # الحالة
             status_map = {
-                'pending': '<span class="badge bg-warning"><i class="fas fa-clock"></i> معلق</span>',
+                'pending': '<span class="badge bg-warning"><i class="fas fa-clock"></i> قيد الانتظار</span>',
                 'approved': '<span class="badge bg-info"><i class="fas fa-check"></i> معتمد</span>',
                 'completed': '<span class="badge bg-success"><i class="fas fa-check-double"></i> مكتمل</span>',
                 'rejected': '<span class="badge bg-danger"><i class="fas fa-times"></i> مرفوض</span>',
@@ -1655,29 +1703,49 @@ def transfer_datatable_ajax(request):
             }
             status_badge = status_map.get(transfer.status, transfer.status)
 
-            # أزرار الإجراءات
-            actions = []
-
-            if can_view:
-                actions.append(f'''
-                    <a href="{reverse('assets:transfer_detail', args=[transfer.pk])}" 
-                       class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
+            # الإجراءات
+            actions_html = f'''
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="/assets/transfers/{transfer.pk}/view/"
+                       class="btn btn-sm btn-outline-info"
+                       data-bs-toggle="tooltip"
+                       title="عرض">
                         <i class="fas fa-eye"></i>
                     </a>
-                ''')
+            '''
 
-            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
+            if transfer.status == 'pending' and request.user.has_perm('assets.change_assettransfer'):
+                actions_html += f'''
+                    <a href="/assets/transfers/{transfer.pk}/update/"
+                       class="btn btn-sm btn-outline-primary"
+                       data-bs-toggle="tooltip"
+                       title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-success"
+                            onclick="approveTransfer({transfer.pk})"
+                            data-bs-toggle="tooltip"
+                            title="اعتماد">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            onclick="rejectTransfer({transfer.pk})"
+                            data-bs-toggle="tooltip"
+                            title="رفض">
+                        <i class="fas fa-times"></i>
+                    </button>
+                '''
+
+            actions_html += '</div>'
 
             data.append([
-                f'<a href="{reverse("assets:transfer_detail", args=[transfer.pk])}">{transfer.transfer_number}</a>',
+                f'<strong>{transfer.transfer_number}</strong>',
                 transfer.transfer_date.strftime('%Y-%m-%d'),
-                f'<a href="{reverse("assets:asset_detail", args=[transfer.asset.pk])}">{transfer.asset.asset_number}</a>',
-                f'''<div>
-                    <i class="fas fa-arrow-right text-muted mx-2"></i>
-                    <strong>{transfer.from_branch.name}</strong>
-                    <i class="fas fa-arrow-right text-primary mx-2"></i>
-                    <strong class="text-primary">{transfer.to_branch.name}</strong>
-                </div>''',
+                f'<a href="/assets/{transfer.asset.pk}/view/">{transfer.asset.code} - {transfer.asset.name}</a>',
+                from_html,
+                to_html,
                 status_badge,
                 actions_html
             ])
@@ -1690,15 +1758,151 @@ def transfer_datatable_ajax(request):
         })
 
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
         return JsonResponse({
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': 0,
             'recordsFiltered': 0,
             'data': [],
-            'error': f'خطأ في تحميل البيانات: {str(e)}'
+            'error': str(e)
         }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assettransfer')
+@require_http_methods(["GET"])
+def transfer_stats_ajax(request):
+    """إحصائيات التحويلات - للبطاقات الإحصائية"""
+    try:
+        transfers = AssetTransfer.objects.all()
+
+        stats = {
+            'total_transfers': transfers.count(),
+            'pending_transfers': transfers.filter(status='pending').count(),
+            'approved_transfers': transfers.filter(status__in=['approved', 'completed']).count(),
+            'rejected_transfers': transfers.filter(status='rejected').count(),
+        }
+
+        return JsonResponse({'success': True, 'stats': stats})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_assettransfer')
+@require_http_methods(["GET"])
+def transfer_export(request):
+    """تصدير التحويلات إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    try:
+        # الحصول على معايير الفلترة
+        status = request.GET.get('status', '')
+        search = request.GET.get('search', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+
+        # بناء الاستعلام
+        queryset = AssetTransfer.objects.all().select_related(
+            'asset', 'from_branch', 'to_branch',
+            'from_cost_center', 'to_cost_center',
+            'from_employee', 'to_employee'
+        )
+
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if search:
+            queryset = queryset.filter(
+                Q(transfer_number__icontains=search) |
+                Q(asset__code__icontains=search) |
+                Q(asset__name__icontains=search)
+            )
+
+        if date_from:
+            queryset = queryset.filter(transfer_date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(transfer_date__lte=date_to)
+
+        queryset = queryset.order_by('-transfer_date')
+
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "تحويلات الأصول"
+
+        # تنسيق الرأس
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_alignment = Alignment(horizontal='center', vertical='center')
+
+        # الرؤوس
+        headers = [
+            'رقم التحويل', 'التاريخ', 'رقم الأصل', 'اسم الأصل',
+            'من الفرع', 'من مركز التكلفة', 'من الموظف',
+            'إلى الفرع', 'إلى مركز التكلفة', 'إلى الموظف',
+            'الحالة'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        # البيانات
+        row_num = 2
+        status_names = dict(AssetTransfer.STATUS_CHOICES)
+
+        for transfer in queryset:
+            ws.cell(row=row_num, column=1, value=transfer.transfer_number)
+            ws.cell(row=row_num, column=2, value=transfer.transfer_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=3, value=transfer.asset.code)
+            ws.cell(row=row_num, column=4, value=transfer.asset.name)
+            ws.cell(row=row_num, column=5, value=transfer.from_branch.name)
+            ws.cell(row=row_num, column=6, value=transfer.from_cost_center.name if transfer.from_cost_center else '')
+            ws.cell(row=row_num, column=7, value=transfer.from_employee.get_full_name() if transfer.from_employee else '')
+            ws.cell(row=row_num, column=8, value=transfer.to_branch.name)
+            ws.cell(row=row_num, column=9, value=transfer.to_cost_center.name if transfer.to_cost_center else '')
+            ws.cell(row=row_num, column=10, value=transfer.to_employee.get_full_name() if transfer.to_employee else '')
+            ws.cell(row=row_num, column=11, value=status_names.get(transfer.status, transfer.status))
+            row_num += 1
+
+        # ضبط عرض الأعمدة
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # حفظ الملف
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # الاستجابة
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="asset_transfers_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+
+        return response
+
+    except Exception as e:
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:transfer_list')
 
 
 @login_required
@@ -1941,3 +2145,159 @@ def export_transfers_excel(request):
         print(traceback.format_exc())
         messages.error(request, f'خطأ في التصدير: {str(e)}')
         return redirect('assets:transfer_list')
+
+
+# ==================== Transaction AJAX Endpoints ====================
+
+@login_required
+@require_http_methods(["GET"])
+def transaction_stats(request):
+    """
+    AJAX endpoint for loading transaction statistics
+    """
+    try:
+        transactions = AssetTransaction.objects.filter(
+            company=request.current_company
+        )
+
+        # Count by transaction type
+        sell_count = transactions.filter(transaction_type='sale').count()
+        dispose_count = transactions.filter(transaction_type='disposal').count()
+        revalue_count = transactions.filter(transaction_type='revaluation').count()
+
+        # Count this month
+        today = date.today()
+        monthly_transactions = transactions.filter(
+            transaction_date__year=today.year,
+            transaction_date__month=today.month
+        ).count()
+
+        stats = {
+            'total_transactions': transactions.count(),
+            'monthly_transactions': monthly_transactions,
+            'sell_count': sell_count,
+            'dispose_count': dispose_count,
+            'revalue_count': revalue_count,
+        }
+
+        return JsonResponse(stats)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('assets.view_assettransaction')
+def transaction_export(request):
+    """
+    Export transactions to Excel
+    """
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Asset Transactions"
+
+        # Header formatting
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Headers
+        headers = [
+            'رقم المعاملة', 'التاريخ', 'رقم الأصل', 'اسم الأصل', 'النوع',
+            'المبلغ', 'سعر البيع', 'الربح/الخسارة', 'الحالة', 'المستخدم'
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # Get transactions with filters from request
+        transactions = AssetTransaction.objects.filter(
+            company=request.current_company
+        ).select_related('asset', 'created_by')
+
+        # Apply filters from GET parameters
+        transaction_type = request.GET.get('transaction_type')
+        status = request.GET.get('status')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+
+        if transaction_type:
+            transactions = transactions.filter(transaction_type=transaction_type)
+        if status:
+            transactions = transactions.filter(status=status)
+        if date_from:
+            transactions = transactions.filter(transaction_date__gte=date_from)
+        if date_to:
+            transactions = transactions.filter(transaction_date__lte=date_to)
+
+        transactions = transactions.order_by('-transaction_date')
+
+        # Transaction type mapping
+        type_map = {
+            'purchase': 'شراء',
+            'sale': 'بيع',
+            'disposal': 'استبعاد',
+            'revaluation': 'إعادة تقييم',
+            'impairment': 'هبوط قيمة'
+        }
+
+        # Status mapping
+        status_map = {
+            'draft': 'مسودة',
+            'approved': 'معتمد',
+            'completed': 'مكتمل',
+            'cancelled': 'ملغي'
+        }
+
+        # Data rows
+        row_num = 2
+        for transaction in transactions:
+            gain_loss = (transaction.sale_price or Decimal('0')) - (transaction.amount or Decimal('0'))
+
+            ws.cell(row=row_num, column=1, value=transaction.transaction_number)
+            ws.cell(row=row_num, column=2, value=transaction.transaction_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=3, value=transaction.asset.asset_number)
+            ws.cell(row=row_num, column=4, value=transaction.asset.name)
+            ws.cell(row=row_num, column=5, value=type_map.get(transaction.transaction_type, transaction.transaction_type))
+            ws.cell(row=row_num, column=6, value=float(transaction.amount or 0))
+            ws.cell(row=row_num, column=7, value=float(transaction.sale_price or 0))
+            ws.cell(row=row_num, column=8, value=float(gain_loss))
+            ws.cell(row=row_num, column=9, value=status_map.get(transaction.status, transaction.status))
+            ws.cell(row=row_num, column=10, value=transaction.created_by.get_full_name() if transaction.created_by else '')
+            row_num += 1
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column[0].column_letter].width = adjusted_width
+
+        # Save to response
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="asset_transactions.xlsx"'
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:transaction_list')

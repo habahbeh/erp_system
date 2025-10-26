@@ -19,17 +19,27 @@ urlpatterns = [
     path('categories/<int:pk>/delete/', AssetCategoryDeleteView.as_view(), name='category_delete'),
     path('ajax/categories/datatable/', asset_category_datatable_ajax, name='category_datatable_ajax'),
     path('ajax/categories/tree/', category_tree_ajax, name='category_tree_ajax'),
+    path('ajax/categories/stats/', category_stats_ajax, name='category_stats_ajax'),
+    path('categories/export/', category_export, name='category_export'),
 
 
     path('depreciation-methods/', DepreciationMethodListView.as_view(), name='depreciation_method_list'),
     path('depreciation-methods/create/', DepreciationMethodCreateView.as_view(), name='depreciation_method_create'),
+    path('depreciation-methods/<int:pk>/', DepreciationMethodDetailView.as_view(), name='depreciation_method_detail'),
     path('depreciation-methods/<int:pk>/update/', DepreciationMethodUpdateView.as_view(), name='depreciation_method_update'),
     path('depreciation-methods/<int:pk>/delete/', DepreciationMethodDeleteView.as_view(), name='depreciation_method_delete'),
+    path('ajax/depreciation-methods/datatable/', depreciation_method_datatable_ajax, name='depreciation_method_datatable_ajax'),
+    path('ajax/depreciation-methods/stats/', depreciation_method_stats_ajax, name='depreciation_method_stats_ajax'),
+    path('depreciation-methods/export/', depreciation_method_export, name='depreciation_method_export'),
 
     path('conditions/', AssetConditionListView.as_view(), name='condition_list'),
     path('conditions/create/', AssetConditionCreateView.as_view(), name='condition_create'),
+    path('conditions/<int:pk>/view/', AssetConditionDetailView.as_view(), name='condition_detail'),
     path('conditions/<int:pk>/update/', AssetConditionUpdateView.as_view(), name='condition_update'),
     path('conditions/<int:pk>/delete/', AssetConditionDeleteView.as_view(), name='condition_delete'),
+    path('ajax/conditions/datatable/', condition_datatable_ajax, name='condition_datatable_ajax'),
+    path('ajax/conditions/stats/', condition_stats_ajax, name='condition_stats_ajax'),
+    path('conditions/export/', condition_export, name='condition_export'),
 
     # ==================== Assets ====================
     path('assets/', AssetListView.as_view(), name='asset_list'),
@@ -39,6 +49,8 @@ urlpatterns = [
     path('assets/<int:pk>/delete/', AssetDeleteView.as_view(), name='asset_delete'),
     path('ajax/assets/datatable/', asset_datatable_ajax, name='asset_datatable_ajax'),
     path('ajax/assets/autocomplete/', asset_autocomplete, name='asset_autocomplete'),
+    path('ajax/assets/stats/', asset_stats_ajax, name='asset_stats_ajax'),
+    path('assets/export/', asset_export, name='asset_export'),
     path('ajax/assets/generate-number/', generate_asset_number, name='generate_asset_number'),
     path('assets/<int:pk>/barcode-pdf/', asset_barcode_pdf, name='asset_barcode_pdf'),
     path('assets/<int:pk>/qr-code/', asset_qr_code, name='asset_qr_code'),
@@ -58,10 +70,12 @@ urlpatterns = [
     path('depreciation/<int:pk>/', AssetDepreciationDetailView.as_view(), name='depreciation_detail'),
     path('depreciation/calculate/', CalculateDepreciationView.as_view(), name='calculate_depreciation'),
     path('depreciation/bulk-calculate/', BulkDepreciationCalculationView.as_view(), name='bulk_calculate_depreciation'),
+    path('ajax/depreciation/bulk-preview/', bulk_depreciation_preview_ajax, name='bulk_depreciation_preview'),
     path('ajax/depreciation/datatable/', depreciation_datatable_ajax, name='depreciation_datatable_ajax'),
     path('ajax/depreciation/schedule/', depreciation_schedule_ajax, name='depreciation_schedule_ajax'),
     path('ajax/depreciation/<int:pk>/calculate/', calculate_single_depreciation_ajax,
          name='calculate_single_depreciation_ajax'),
+    path('ajax/depreciation/<int:pk>/reverse/', reverse_depreciation_ajax, name='reverse_depreciation'),
 
     # ==================== Transactions ====================
     path('transactions/', AssetTransactionListView.as_view(), name='transaction_list'),
@@ -70,6 +84,8 @@ urlpatterns = [
     path('transactions/<int:pk>/update/', AssetTransactionUpdateView.as_view(), name='transaction_update'),
     path('transactions/<int:pk>/delete/', AssetTransactionDeleteView.as_view(), name='transaction_delete'),
     path('ajax/transactions/datatable/', transaction_datatable_ajax, name='transaction_datatable_ajax'),
+    path('ajax/transactions/stats/', transaction_stats, name='transaction_stats'),
+    path('transactions/export/', transaction_export, name='transaction_export'),
     path('transactions/<int:pk>/post/', PostTransactionView.as_view(), name='post_transaction'),
 
     # Specific Transactions
@@ -83,6 +99,8 @@ urlpatterns = [
     path('transfers/<int:pk>/', AssetTransferDetailView.as_view(), name='transfer_detail'),
     path('transfers/<int:pk>/update/', AssetTransferUpdateView.as_view(), name='transfer_update'),
     path('ajax/transfers/datatable/', transfer_datatable_ajax, name='transfer_datatable_ajax'),
+    path('ajax/transfers/stats/', transfer_stats_ajax, name='transfer_stats_ajax'),
+    path('transfers/export/', transfer_export, name='transfer_export'),
     path('ajax/transfers/<int:pk>/approve/', approve_transfer, name='approve_transfer'),
     path('ajax/transfers/<int:pk>/reject/', reject_transfer, name='reject_transfer'),
     path('ajax/transfers/<int:pk>/complete/', complete_transfer, name='complete_transfer'),
@@ -90,6 +108,7 @@ urlpatterns = [
     # ==================== Maintenance ====================
     path('maintenance/types/', MaintenanceTypeListView.as_view(), name='maintenance_type_list'),
     path('maintenance/types/create/', MaintenanceTypeCreateView.as_view(), name='maintenance_type_create'),
+    path('maintenance/types/<int:pk>/', MaintenanceTypeDetailView.as_view(), name='maintenance_type_detail'),
     path('maintenance/types/<int:pk>/update/', MaintenanceTypeUpdateView.as_view(), name='maintenance_type_update'),
     path('maintenance/types/<int:pk>/delete/', MaintenanceTypeDeleteView.as_view(), name='maintenance_type_delete'),
 
@@ -137,6 +156,7 @@ urlpatterns = [
     # ==================== Insurance ====================
     path('insurance/companies/', InsuranceCompanyListView.as_view(), name='insurance_company_list'),
     path('insurance/companies/create/', InsuranceCompanyCreateView.as_view(), name='insurance_company_create'),
+    path('insurance/companies/<int:pk>/', InsuranceCompanyDetailView.as_view(), name='insurance_company_detail'),
     path('insurance/companies/<int:pk>/update/', InsuranceCompanyUpdateView.as_view(), name='insurance_company_update'),
     path('insurance/companies/<int:pk>/delete/', InsuranceCompanyDeleteView.as_view(), name='insurance_company_delete'),
 
