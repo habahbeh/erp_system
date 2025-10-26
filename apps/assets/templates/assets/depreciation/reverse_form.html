@@ -1,0 +1,266 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Warning Header -->
+            <div class="alert alert-danger border-start border-danger border-4 mb-4">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle fa-3x me-3"></i>
+                    <div>
+                        <h4 class="alert-heading mb-2">{% trans "تحذير: عكس الإهلاك" %}</h4>
+                        <p class="mb-0">{% trans "عملية عكس الإهلاك ستقوم بإلغاء حركة الإهلاك والقيد المحاسبي المرتبط بها. هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Depreciation Info -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header card-header-basic">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الإهلاك المراد عكسه" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "رقم الإهلاك" %}</label>
+                            <p class="h6">#{{ depreciation.id }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "التاريخ" %}</label>
+                            <p class="h6">{{ depreciation.depreciation_date|date:"Y-m-d" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الأصل" %}</label>
+                            <p class="h6">
+                                <a href="{% url 'assets:asset_detail' depreciation.asset.pk %}">
+                                    {{ depreciation.asset.name }}
+                                </a>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الفترة" %}</label>
+                            <p class="h6">{{ depreciation.period_year }}/{{ depreciation.period_month }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <div class="text-muted small">{% trans "قيمة الإهلاك" %}</div>
+                                <div class="h4 text-danger">{{ depreciation.depreciation_amount|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <div class="text-muted small">{% trans "الإهلاك المجمع" %}</div>
+                                <div class="h4 text-warning">{{ depreciation.accumulated_depreciation|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <div class="text-muted small">{% trans "القيمة الدفترية" %}</div>
+                                <div class="h4 text-success">{{ depreciation.book_value|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if depreciation.notes %}
+                    <hr>
+                    <div>
+                        <label class="text-muted small">{% trans "الملاحظات الأصلية" %}</label>
+                        <p class="mb-0">{{ depreciation.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Journal Entry Info -->
+            {% if depreciation.journal_entry %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header card-header-depreciation">
+                    <h5 class="mb-0"><i class="fas fa-book"></i> {% trans "القيد المحاسبي المرتبط" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "سيتم عكس القيد المحاسبي التالي تلقائياً:" %}
+                    </div>
+
+                    <p><strong>{% trans "رقم القيد:" %}</strong>
+                        <a href="{% url 'accounting:journal_entry_detail' depreciation.journal_entry.pk %}">
+                            {{ depreciation.journal_entry.entry_number }}
+                        </a>
+                    </p>
+
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "الحساب" %}</th>
+                                <th class="text-end">{% trans "مدين" %}</th>
+                                <th class="text-end">{% trans "دائن" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detail in depreciation.journal_entry.details.all %}
+                            <tr>
+                                <td>{{ detail.account.name }}</td>
+                                <td class="text-end">{{ detail.debit|floatformat:3 }}</td>
+                                <td class="text-end">{{ detail.credit|floatformat:3 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Impact Summary -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header card-header-basic">
+                    <h5 class="mb-0"><i class="fas fa-chart-line"></i> {% trans "تأثير العكس على الأصل" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "البيان" %}</th>
+                                    <th class="text-center">{% trans "قبل العكس" %}</th>
+                                    <th class="text-center">{% trans "بعد العكس" %}</th>
+                                    <th class="text-center">{% trans "الفرق" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>{% trans "الإهلاك المجمع" %}</strong></td>
+                                    <td class="text-center">{{ current_accumulated|floatformat:3 }}</td>
+                                    <td class="text-center">{{ new_accumulated|floatformat:3 }}</td>
+                                    <td class="text-center text-success">-{{ depreciation.depreciation_amount|floatformat:3 }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "القيمة الدفترية" %}</strong></td>
+                                    <td class="text-center">{{ current_book_value|floatformat:3 }}</td>
+                                    <td class="text-center">{{ new_book_value|floatformat:3 }}</td>
+                                    <td class="text-center text-success">+{{ depreciation.depreciation_amount|floatformat:3 }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reverse Form -->
+            <form method="post" id="reverseForm">
+                {% csrf_token %}
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-depreciation">
+                        <h5 class="mb-0"><i class="fas fa-undo"></i> {% trans "تفاصيل العكس" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label required">{% trans "سبب العكس" %}</label>
+                                {{ form.reversal_reason|add_class:"form-control" }}
+                                {% if form.reversal_reason.errors %}
+                                    <div class="text-danger small mt-1">{{ form.reversal_reason.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">{% trans "يرجى توضيح سبب عكس هذا الإهلاك" %}</div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    {{ form.auto_reverse_journal|add_class:"form-check-input" }}
+                                    <label class="form-check-label">
+                                        {% trans "عكس القيد المحاسبي تلقائياً" %}
+                                    </label>
+                                    <div class="form-text">{% trans "إذا تم التحديد، سيتم إنشاء قيد معكوس للقيد المحاسبي الأصلي" %}</div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="confirmReverse" required>
+                                    <label class="form-check-label text-danger" for="confirmReverse">
+                                        <strong>{% trans "أقر بأنني أفهم تأثير هذا الإجراء وأرغب في المتابعة" %}</strong>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-danger btn-lg" id="submitBtn" disabled>
+                        <i class="fas fa-undo"></i> {% trans "تأكيد عكس الإهلاك" %}
+                    </button>
+                    <a href="{% url 'assets:depreciation_detail' depreciation.pk %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Enable/disable submit button based on confirmation checkbox
+    $('#confirmReverse').on('change', function() {
+        $('#submitBtn').prop('disabled', !this.checked);
+    });
+
+    // Confirmation before submit
+    $('#reverseForm').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        showConfirm(
+            '{% trans "تأكيد نهائي" %}',
+            '{% trans "هل أنت متأكد من رغبتك في عكس هذا الإهلاك؟ هذا الإجراء لا يمكن التراجع عنه." %}',
+            'warning',
+            '{% trans "نعم، اعكس الإهلاك" %}',
+            '{% trans "إلغاء" %}'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading
+                Swal.fire({
+                    title: '{% trans "جاري العكس..." %}',
+                    text: '{% trans "يرجى الانتظار" %}',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

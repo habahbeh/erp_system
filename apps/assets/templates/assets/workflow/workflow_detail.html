@@ -1,0 +1,105 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between mb-4">
+        <h2><i class="fas fa-project-diagram text-primary"></i> {{ workflow.name }}</h2>
+        <div>
+            <a href="{% url 'assets:workflow_update' workflow.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            <a href="{% url 'assets:workflow_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل سير العمل" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الاسم:" %}</strong> {{ workflow.name }}</p>
+                    <p><strong>{% trans "نوع الطلب:" %}</strong> {{ workflow.get_request_type_display }}</p>
+                    <p><strong>{% trans "الحالة:" %}</strong>
+                        {% if workflow.is_active %}
+                            <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary fs-6">{% trans "غير نشط" %}</span>
+                        {% endif %}
+                    </p>
+                    {% if workflow.description %}
+                    <hr>
+                    <p><strong>{% trans "الوصف:" %}</strong></p>
+                    <p>{{ workflow.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approval Levels -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-layer-group"></i> {% trans "مستويات الاعتماد" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if workflow.approval_levels.all %}
+                    <div class="list-group">
+                        {% for level in workflow.approval_levels.all %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <span class="badge bg-primary">{% trans "المستوى" %} {{ level.level }}</span>
+                                        {{ level.name }}
+                                    </h6>
+                                    <p class="mb-1">
+                                        <strong>{% trans "المعتمد:" %}</strong>
+                                        {% if level.approver %}
+                                            {{ level.approver.get_full_name|default:level.approver.username }}
+                                        {% elif level.approver_role %}
+                                            {{ level.get_approver_role_display }}
+                                        {% endif %}
+                                    </p>
+                                    {% if level.condition %}
+                                    <p class="mb-0 text-muted small">
+                                        <strong>{% trans "الشرط:" %}</strong> {{ level.condition }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    {% if level.is_required %}
+                                        <span class="badge bg-warning">{% trans "إلزامي" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% trans "اختياري" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "لا توجد مستويات اعتماد" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "الإحصائيات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "إجمالي الطلبات:" %}</strong> {{ workflow.requests.count }}</p>
+                    <p><strong>{% trans "قيد المراجعة:" %}</strong> {{ workflow.requests.filter|default:0 }}</p>
+                    <p><strong>{% trans "المعتمدة:" %}</strong> {{ workflow.approved_count|default:0 }}</p>
+                    <p class="mb-0"><strong>{% trans "المرفوضة:" %}</strong> {{ workflow.rejected_count|default:0 }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

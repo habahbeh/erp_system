@@ -1,0 +1,491 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL Styles */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card .card-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card .card-body::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s;
+}
+
+.stat-card:hover .card-body::before {
+    transform: scale(1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{% trans "معاملات الأصول" %}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة وتتبع جميع معاملات الأصول الثابتة" %}</p>
+        </div>
+        {% if perms.assets.add_assettransaction %}
+        <div class="btn-group">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-plus"></i> {% trans "معاملة جديدة" %}
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'assets:sell_asset' %}">
+                    <i class="fas fa-dollar-sign text-success"></i> {% trans "بيع أصل" %}
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'assets:dispose_asset' %}">
+                    <i class="fas fa-trash-alt text-danger"></i> {% trans "استبعاد أصل" %}
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'assets:revalue_asset' %}">
+                    <i class="fas fa-edit text-warning"></i> {% trans "إعادة تقييم" %}
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'assets:transaction_create' %}">
+                    <i class="fas fa-file text-primary"></i> {% trans "معاملة عامة" %}
+                </a></li>
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي المعاملات" %}</h6>
+                            <h2 class="mb-0" id="totalTransactions">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-exchange-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "معاملات هذا الشهر" %}</h6>
+                            <h2 class="mb-0" id="monthlyTransactions">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-calendar-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "عمليات البيع" %}</h6>
+                            <h2 class="mb-0" id="sellCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-dollar-sign fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "عمليات الاستبعاد" %}</h6>
+                            <h2 class="mb-0" id="disposeCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-trash-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "نوع المعاملة" %}</label>
+                        <select class="form-select" id="transactionTypeFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="sale">{% trans "بيع" %}</option>
+                            <option value="disposal">{% trans "استبعاد" %}</option>
+                            <option value="revaluation">{% trans "إعادة تقييم" %}</option>
+                            <option value="impairment">{% trans "هبوط قيمة" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="draft">{% trans "مسودة" %}</option>
+                            <option value="approved">{% trans "معتمد" %}</option>
+                            <option value="completed">{% trans "مكتمل" %}</option>
+                            <option value="cancelled">{% trans "ملغي" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateToFilter">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'رقم المعاملة أو الأصل' %}">
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters" title="{% trans 'مسح الفلاتر' %}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-success" onclick="exportData()" title="{% trans 'تصدير Excel' %}">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="transactionsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-center"><input type="checkbox" id="selectAll"></th>
+                            <th>{% trans "رقم المعاملة" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th class="text-center">{% trans "المبلغ" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">{% trans "جاري التحميل..." %}</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 {% trans "سطر" %}</option>
+                        <option value="25" selected>25 {% trans "سطر" %}</option>
+                        <option value="50">50 {% trans "سطر" %}</option>
+                        <option value="100">100 {% trans "سطر" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#transactionTypeFilter, #statusFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; }
+        }
+    });
+
+    // ==============================
+    // Initialize DataTable
+    // ==============================
+    var table = $('#transactionsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'assets:transaction_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.transaction_type = $('#transactionTypeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.date_from = $('#dateFromFilter').val();
+                d.date_to = $('#dateToFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "select", "orderable": false, "searchable": false, "className": "text-center"},
+            {"data": 1, "name": "transaction_number"},
+            {"data": 2, "name": "transaction_date", "className": "text-center"},
+            {"data": 3, "name": "asset"},
+            {"data": 4, "name": "transaction_type", "className": "text-center"},
+            {"data": 5, "name": "amount", "className": "text-center"},
+            {"data": 6, "name": "status", "className": "text-center"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false, "className": "text-center"}
+        ],
+        "order": [[2, "desc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [0, 2, 4, 5, 6, 7] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = table.page.info();
+            updateTableInfo(info);
+        },
+        "initComplete": function(settings, json) {
+            loadStats();
+        }
+    });
+
+    // ==============================
+    // Filter Events
+    // ==============================
+    $('#transactionTypeFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    $('#dateFromFilter, #dateToFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#transactionTypeFilter').val('').trigger('change');
+        $('#statusFilter').val('').trigger('change');
+        $('#dateFromFilter').val('');
+        $('#dateToFilter').val('');
+        $('#searchFilter').val('');
+        table.ajax.reload();
+    });
+
+    // ==============================
+    // Select All Checkbox
+    // ==============================
+    $('#selectAll').on('click', function() {
+        $('.transaction-checkbox').prop('checked', this.checked);
+    });
+
+    // ==============================
+    // Collapse Icon Toggle
+    // ==============================
+    $('#filtersCard [data-bs-toggle="collapse"]').on('click', function() {
+        const icon = $(this).find('i');
+        icon.toggleClass('fa-chevron-down fa-chevron-up');
+    });
+
+    // ==============================
+    // Helper Functions
+    // ==============================
+    function updateTableInfo(info) {
+        var infoText = '{% trans "عرض" %} ' + (info.start + 1) + ' {% trans "إلى" %} ' + info.end + ' {% trans "من" %} ' + info.recordsTotal + ' {% trans "معاملة" %}';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' ({% trans "مفلتر من" %} ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
+
+    // ==============================
+    // Load Stats
+    // ==============================
+    function loadStats() {
+        $.get('{% url "assets:transaction_stats" %}', function(data) {
+            $('#totalTransactions').text(data.total_transactions || 0);
+            $('#monthlyTransactions').text(data.monthly_transactions || 0);
+            $('#sellCount').text(data.sell_count || 0);
+            $('#disposeCount').text(data.dispose_count || 0);
+        }).fail(function() {
+            $('#totalTransactions').text('0');
+            $('#monthlyTransactions').text('0');
+            $('#sellCount').text('0');
+            $('#disposeCount').text('0');
+        });
+    }
+});
+
+// ==============================
+// Global Action Functions
+// ==============================
+function deleteTransaction(id, number) {
+    Swal.fire({
+        title: '{% trans "هل أنت متأكد؟" %}',
+        text: `{% trans "سيتم حذف المعاملة" %} "${number}" {% trans "نهائياً" %}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '{% trans "نعم، احذف" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "assets:transaction_delete" 0 %}'.replace('0', id);
+        }
+    });
+}
+
+// ==============================
+// Export to Excel
+// ==============================
+window.exportData = function() {
+    var params = new URLSearchParams({
+        transaction_type: $('#transactionTypeFilter').val(),
+        status: $('#statusFilter').val(),
+        date_from: $('#dateFromFilter').val(),
+        date_to: $('#dateToFilter').val(),
+        search: $('#searchFilter').val()
+    });
+
+    window.location.href = '{% url "assets:transaction_export" %}?' + params.toString();
+};
+</script>
+{% endblock %}

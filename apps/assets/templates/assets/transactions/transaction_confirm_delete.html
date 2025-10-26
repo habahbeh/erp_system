@@ -1,0 +1,166 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Page Header -->
+            <div class="page-header mb-4" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                <h2 class="mb-1">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "تأكيد حذف المعاملة" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "عملية الحذف لا يمكن التراجع عنها" %}</p>
+            </div>
+
+            <div class="detail-card">
+                <div class="card-body">
+                    <!-- Warning Alert -->
+                    <div class="alert alert-danger border-start border-danger border-4 mb-4">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-exclamation-circle"></i> {% trans "تحذير!" %}
+                        </h6>
+                        <p class="mb-0">{% trans "أنت على وشك حذف معاملة أصل. هذا الإجراء سيحذف جميع السجلات المرتبطة بهذه المعاملة." %}</p>
+                    </div>
+
+                    <!-- Transaction Details -->
+                    <div class="detail-card mb-4">
+                        <div class="card-header card-header-basic">
+                            <h6 class="mb-0">{% trans "تفاصيل المعاملة المراد حذفها:" %}</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "رقم المعاملة" %}</div>
+                                        <div class="info-value">{{ object.transaction_number }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "التاريخ" %}</div>
+                                        <div class="info-value">{{ object.transaction_date|date:"Y-m-d" }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الأصل" %}</div>
+                                        <div class="info-value">{{ object.asset.name }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "النوع" %}</div>
+                                        <div class="info-value">{{ object.get_transaction_type_display }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "المبلغ" %}</div>
+                                        <div class="info-value">{{ object.amount|floatformat:3 }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الحالة" %}</div>
+                                        <div class="info-value">
+                                            {% if object.is_posted %}
+                                                <span class="status-badge bg-success text-white">{% trans "مُرحّل" %}</span>
+                                            {% elif object.is_cancelled %}
+                                                <span class="status-badge bg-danger text-white">{% trans "ملغي" %}</span>
+                                            {% else %}
+                                                <span class="status-badge bg-warning text-dark">{% trans "مسودة" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if object.description %}
+                            <hr>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الوصف" %}</div>
+                                <div class="info-value">{{ object.description }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Impact Warning -->
+                    {% if object.is_posted %}
+                    <div class="alert alert-warning mb-4">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "تحذير: معاملة مرحّلة" %}
+                        </h6>
+                        <p>{% trans "هذه المعاملة مرحّلة ولها قيد محاسبي. حذف المعاملة سيؤثر على:" %}</p>
+                        <ul class="mb-0">
+                            <li>{% trans "القيود المحاسبية المرتبطة" %}</li>
+                            <li>{% trans "القيمة الدفترية للأصل" %}</li>
+                            <li>{% trans "التقارير والإحصائيات" %}</li>
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if object.journal_entry %}
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-book"></i>
+                        {% trans "القيد المحاسبي رقم" %} <strong>{{ object.journal_entry.entry_number }}</strong> {% trans "مرتبط بهذه المعاملة وسيتم حذفه أيضاً" %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Confirmation Form -->
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-4 p-3 bg-light rounded-xl">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label fw-bold text-danger" for="confirmDelete">
+                                {% trans "أقر بأنني أفهم تأثير هذا الإجراء وأرغب في حذف المعاملة" %}
+                            </label>
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="{% url 'assets:transaction_detail' object.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i> {% trans "نعم، احذف المعاملة" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+$(document).ready(function() {
+    // Enable delete button when checkbox is checked
+    $('#confirmDelete').on('change', function() {
+        $('#deleteBtn').prop('disabled', !this.checked);
+    });
+
+    // Confirm before submission
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        showConfirm(
+            '{% trans "تأكيد الحذف النهائي" %}',
+            '{% trans "هل أنت متأكد تماماً من حذف هذه المعاملة؟<br><small class=\"text-danger\">هذا الإجراء لا يمكن التراجع عنه!</small>" %}',
+            '{% trans "نعم، احذف نهائياً" %}',
+            '{% trans "إلغاء" %}',
+            '#dc3545'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                showLoading('{% trans "جاري الحذف..." %}');
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

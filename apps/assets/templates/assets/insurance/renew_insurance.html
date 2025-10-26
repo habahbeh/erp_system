@@ -1,0 +1,225 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "تجديد بوليصة التأمين" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-sync-alt"></i> {% trans "تجديد بوليصة التأمين" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if insurance %}
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات البوليصة الحالية" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm mb-0">
+                                        <tr>
+                                            <th width="40%">{% trans "رقم البوليصة" %}</th>
+                                            <td>{{ insurance.policy_number }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "الأصل" %}</th>
+                                            <td>{{ insurance.asset.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "شركة التأمين" %}</th>
+                                            <td>{{ insurance.insurance_company.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "تاريخ البدء" %}</th>
+                                            <td>{{ insurance.start_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                                            <td class="text-danger fw-bold">{{ insurance.end_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "قيمة التغطية" %}</th>
+                                            <td>{{ insurance.coverage_amount|floatformat:3 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "القسط السنوي" %}</th>
+                                            <td>{{ insurance.premium_amount|floatformat:3 }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card bg-success text-white">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-clipboard-check"></i> {% trans "معلومات التجديد" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <form method="post">
+                                        {% csrf_token %}
+
+                                        {% if form.non_field_errors %}
+                                        <div class="alert alert-danger">
+                                            {{ form.non_field_errors }}
+                                        </div>
+                                        {% endif %}
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.new_policy_number.id_for_label }}" class="form-label text-white">
+                                                {{ form.new_policy_number.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.new_policy_number class="form-control" %}
+                                            {% if form.new_policy_number.errors %}
+                                            <div class="text-warning">{{ form.new_policy_number.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.start_date.id_for_label }}" class="form-label text-white">
+                                                {{ form.start_date.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.start_date class="form-control" type="date" %}
+                                            {% if form.start_date.errors %}
+                                            <div class="text-warning">{{ form.start_date.errors }}</div>
+                                            {% endif %}
+                                            <small class="text-white-50">
+                                                {% trans "يفضل أن يكون بعد تاريخ انتهاء البوليصة الحالية" %}
+                                            </small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.end_date.id_for_label }}" class="form-label text-white">
+                                                {{ form.end_date.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.end_date class="form-control" type="date" %}
+                                            {% if form.end_date.errors %}
+                                            <div class="text-warning">{{ form.end_date.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.coverage_amount.id_for_label }}" class="form-label text-white">
+                                                {{ form.coverage_amount.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.coverage_amount class="form-control" step="0.001" %}
+                                            {% if form.coverage_amount.errors %}
+                                            <div class="text-warning">{{ form.coverage_amount.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.premium_amount.id_for_label }}" class="form-label text-white">
+                                                {{ form.premium_amount.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.premium_amount class="form-control" step="0.001" %}
+                                            {% if form.premium_amount.errors %}
+                                            <div class="text-warning">{{ form.premium_amount.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                {% render_field form.same_company class="form-check-input" checked="" %}
+                                                <label for="{{ form.same_company.id_for_label }}" class="form-check-label text-white">
+                                                    {{ form.same_company.label }}
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3" id="companyField" style="display: none;">
+                                            <label for="{{ form.insurance_company.id_for_label }}" class="form-label text-white">
+                                                {{ form.insurance_company.label }}
+                                            </label>
+                                            {% render_field form.insurance_company class="form-select" %}
+                                            {% if form.insurance_company.errors %}
+                                            <div class="text-warning">{{ form.insurance_company.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.notes.id_for_label }}" class="form-label text-white">
+                                                {{ form.notes.label }}
+                                            </label>
+                                            {% render_field form.notes class="form-control" rows="2" %}
+                                            {% if form.notes.errors %}
+                                            <div class="text-warning">{{ form.notes.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <a href="{% url 'assets:insurance_detail' insurance.pk %}" class="btn btn-light">
+                                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                            </a>
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="fas fa-sync-alt"></i> {% trans "تجديد البوليصة" %}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>{% trans "ملاحظات التجديد" %}:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>{% trans "سيتم إغلاق البوليصة الحالية تلقائياً" %}</li>
+                            <li>{% trans "سيتم إنشاء بوليصة جديدة بالبيانات المدخلة" %}</li>
+                            <li>{% trans "سيتم ربط البوليصة الجديدة بنفس الأصل" %}</li>
+                            <li>{% trans "يمكنك تغيير شركة التأمين عند التجديد" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Toggle company field based on checkbox
+    $('#id_same_company').change(function() {
+        if ($(this).is(':checked')) {
+            $('#companyField').hide();
+        } else {
+            $('#companyField').show();
+        }
+    });
+
+    // Calculate duration when dates change
+    $('#id_start_date, #id_end_date').change(function() {
+        var startDate = new Date($('#id_start_date').val());
+        var endDate = new Date($('#id_end_date').val());
+
+        if (startDate && endDate && endDate > startDate) {
+            var diffTime = Math.abs(endDate - startDate);
+            var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            var diffMonths = Math.round(diffDays / 30);
+
+            if (!$('#duration-display').length) {
+                $('#id_end_date').parent().append('<div id="duration-display" class="mt-2"></div>');
+            }
+
+            $('#duration-display').html(
+                '<small class="text-white"><i class="fas fa-calendar"></i> {% trans "مدة التأمين" %}: ' +
+                diffDays + ' {% trans "يوم" %} (' + diffMonths + ' {% trans "شهر تقريباً" %})</small>'
+            );
+        }
+    });
+
+    // Set default new policy number
+    {% if insurance %}
+    var oldPolicyNumber = '{{ insurance.policy_number }}';
+    var newPolicyNumber = oldPolicyNumber + '-R';
+    $('#id_new_policy_number').attr('placeholder', newPolicyNumber);
+    {% endif %}
+});
+</script>
+{% endblock %}

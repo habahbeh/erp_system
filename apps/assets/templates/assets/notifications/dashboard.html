@@ -1,0 +1,242 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between mb-4">
+        <h2><i class="fas fa-bell text-warning"></i> {% trans "لوحة الإشعارات" %}</h2>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-danger border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "صيانة متأخرة" %}</h6>
+                            <h3 class="mb-0 text-danger">{{ overdue_maintenance }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-tools fa-2x text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "تأمين منتهي" %}</h6>
+                            <h3 class="mb-0 text-warning">{{ expired_insurance }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-shield-alt fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-info border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "عقود منتهية" %}</h6>
+                            <h3 class="mb-0 text-info">{{ expired_leases }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-file-contract fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "طلبات معلقة" %}</h6>
+                            <h3 class="mb-0 text-primary">{{ pending_requests }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-tasks fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <!-- Maintenance Alerts -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-tools"></i> {% trans "تنبيهات الصيانة" %}</h5>
+                        <a href="{% url 'assets:notifications_dashboard' %}" class="btn btn-sm btn-light">
+                            {% trans "عرض الكل" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if maintenance_alerts %}
+                    <div class="list-group list-group-flush">
+                        {% for alert in maintenance_alerts|slice:":5" %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'assets:asset_detail' alert.asset.pk %}">
+                                            {{ alert.asset.name }}
+                                        </a>
+                                    </h6>
+                                    <p class="mb-0 text-muted small">
+                                        {% if alert.days_overdue > 0 %}
+                                            <span class="badge bg-danger">{% trans "متأخر" %} {{ alert.days_overdue }} {% trans "يوم" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">{% trans "مستحق خلال" %} {{ alert.days_until|abs }} {% trans "يوم" %}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <small class="text-muted">{{ alert.scheduled_date|date:"Y-m-d" }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد تنبيهات" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Workflow Requests -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-tasks"></i> {% trans "طلبات الموافقة" %}</h5>
+                        <a href="{% url 'assets:dashboard' %}" class="btn btn-sm btn-light">
+                            {% trans "عرض الكل" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if workflow_requests %}
+                    <div class="list-group list-group-flush">
+                        {% for request in workflow_requests|slice:":5" %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'assets:request_detail' request.pk %}">
+                                            {{ request.request_number }}
+                                        </a>
+                                    </h6>
+                                    <p class="mb-0 text-muted small">
+                                        {{ request.workflow.name }} - {{ request.requester.get_full_name }}
+                                    </p>
+                                </div>
+                                <small class="text-muted">{{ request.created_at|timesince }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد طلبات" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <!-- Insurance Alerts -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-shield-alt"></i> {% trans "تنبيهات التأمين" %}</h5>
+                        <a href="{% url 'assets:notifications_dashboard' %}" class="btn btn-sm btn-dark">
+                            {% trans "عرض الكل" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if insurance_alerts %}
+                    <div class="list-group list-group-flush">
+                        {% for alert in insurance_alerts|slice:":5" %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'assets:insurance_detail' alert.pk %}">
+                                            {{ alert.policy_number }}
+                                        </a>
+                                    </h6>
+                                    <p class="mb-0 text-muted small">
+                                        {{ alert.asset.name }}
+                                        {% if alert.is_expired %}
+                                            <span class="badge bg-danger">{% trans "منتهي" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">{% trans "ينتهي قريباً" %}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <small class="text-muted">{{ alert.end_date|date:"Y-m-d" }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد تنبيهات" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Lease Expiry -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "عقود الإيجار" %}</h5>
+                        <a href="{% url 'assets:lease_list' %}" class="btn btn-sm btn-light">
+                            {% trans "عرض الكل" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if lease_alerts %}
+                    <div class="list-group list-group-flush">
+                        {% for lease in lease_alerts|slice:":5" %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'assets:lease_detail' lease.pk %}">
+                                            {{ lease.lease_number }}
+                                        </a>
+                                    </h6>
+                                    <p class="mb-0 text-muted small">
+                                        {{ lease.asset.name }}
+                                        {% if lease.is_expired %}
+                                            <span class="badge bg-danger">{% trans "منتهي" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">{% trans "ينتهي قريباً" %}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <small class="text-muted">{{ lease.end_date|date:"Y-m-d" }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد تنبيهات" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

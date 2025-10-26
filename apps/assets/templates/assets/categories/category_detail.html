@@ -1,0 +1,619 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ category.name }} - {% trans "تفاصيل الفئة" %}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+
+<style>
+.detail-card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.detail-card .card-header {
+    padding: 1.25rem;
+    border-bottom: 2px solid;
+    font-weight: 600;
+}
+
+.section-info .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.section-accounting .card-header {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-bottom-color: #4caf50;
+    color: #2e7d32;
+}
+
+.section-depreciation .card-header {
+    background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+    border-bottom-color: #9c27b0;
+    color: #6a1b9a;
+}
+
+.section-assets .card-header {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-bottom-color: #ff9800;
+    color: #e65100;
+}
+
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.info-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    color: #212529;
+}
+
+.category-level-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.level-0 { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; }
+.level-1 { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }
+.level-2 { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
+.level-3 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; }
+
+.action-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-folder text-primary"></i>
+                {{ category.name }}
+            </h1>
+            <p class="text-muted mb-0">
+                <span class="badge bg-secondary">{{ category.code }}</span>
+                <span class="category-level-badge level-{{ category.level }} ms-2">{{ category.level }}</span>
+            </p>
+        </div>
+        <div class="btn-group">
+            {% if perms.assets.change_assetcategory %}
+            <a href="{% url 'assets:category_update' category.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'assets:category_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Basic Information -->
+            <div class="card detail-card section-info">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "المعلومات الأساسية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "رمز الفئة" %}</div>
+                                <div class="info-value">
+                                    <span class="badge bg-dark fs-6">{{ category.code }}</span>
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الاسم بالعربية" %}</div>
+                                <div class="info-value">{{ category.name }}</div>
+                            </div>
+                            {% if category.name_en %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الاسم بالإنجليزية" %}</div>
+                                <div class="info-value">{{ category.name_en }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الفئة الأب" %}</div>
+                                <div class="info-value">
+                                    {% if category.parent %}
+                                        <a href="{% url 'assets:category_detail' category.parent.pk %}">
+                                            <i class="fas fa-folder text-primary"></i>
+                                            {{ category.parent.name }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">{% trans "فئة رئيسية" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "المستوى في الشجرة" %}</div>
+                                <div class="info-value">
+                                    <span class="category-level-badge level-{{ category.level }}">{{ category.level }}</span>
+                                    <span class="ms-2">{% trans "المستوى" %} {{ category.level }}</span>
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الحالة" %}</div>
+                                <div class="info-value">
+                                    {% if category.is_active %}
+                                        <span class="badge bg-success fs-6">
+                                            <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fs-6">
+                                            <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if category.description %}
+                    <div class="info-row mt-3">
+                        <div class="info-label">{% trans "الوصف" %}</div>
+                        <div class="info-value">{{ category.description }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Accounting Accounts -->
+            <div class="card detail-card section-accounting">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calculator me-2"></i>
+                        {% trans "الحسابات المحاسبية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-book text-success"></i>
+                                    {% trans "حساب الأصول" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.asset_account %}
+                                        {{ category.asset_account.code }} - {{ category.asset_account.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-book text-success"></i>
+                                    {% trans "حساب مجمع الإهلاك" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.accumulated_depreciation_account %}
+                                        {{ category.accumulated_depreciation_account.code }} - {{ category.accumulated_depreciation_account.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-book text-success"></i>
+                                    {% trans "حساب مصروف الإهلاك" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.depreciation_expense_account %}
+                                        {{ category.depreciation_expense_account.code }} - {{ category.depreciation_expense_account.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-book text-success"></i>
+                                    {% trans "حساب الصيانة" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.maintenance_expense_account %}
+                                        {{ category.maintenance_expense_account.code }} - {{ category.maintenance_expense_account.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Depreciation Settings -->
+            <div class="card detail-card section-depreciation">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        {% trans "إعدادات الإهلاك الافتراضية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-cog text-purple"></i>
+                                    {% trans "طريقة الإهلاك" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.default_depreciation_method %}
+                                        {{ category.default_depreciation_method.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-calendar text-purple"></i>
+                                    {% trans "العمر الافتراضي" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.default_useful_life_months %}
+                                        {{ category.default_useful_life_months }} {% trans "شهر" %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-percent text-purple"></i>
+                                    {% trans "نسبة القيمة المتبقية" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if category.default_salvage_value_rate %}
+                                        {{ category.default_salvage_value_rate }}%
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Child Categories -->
+            {% if category.children.exists %}
+            <div class="card detail-card section-info">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group me-2"></i>
+                        {% trans "الفئات الفرعية" %}
+                        <span class="badge bg-primary ms-2">{{ category.children.count }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for child in category.children.all %}
+                        <a href="{% url 'assets:category_detail' child.pk %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="category-level-badge level-{{ child.level }} me-2">{{ child.level }}</span>
+                                    <strong>{{ child.name }}</strong>
+                                    <span class="badge bg-secondary ms-2">{{ child.code }}</span>
+                                </div>
+                                <div>
+                                    <span class="badge bg-primary">{{ child.assets.count }} {% trans "أصل" %}</span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Assets in Category -->
+            <div class="card detail-card section-assets">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-boxes me-2"></i>
+                        {% trans "الأصول في هذه الفئة" %}
+                        <span class="badge bg-warning ms-2">{{ category.assets.count }}</span>
+                    </h5>
+                    {% if perms.assets.add_asset %}
+                    <a href="{% url 'assets:asset_create' %}?category={{ category.pk }}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-plus"></i> {% trans "إضافة أصل" %}
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if category.assets.exists %}
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="assetsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "رقم الأصل" %}</th>
+                                    <th>{% trans "الاسم" %}</th>
+                                    <th>{% trans "القيمة الدفترية" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in category.assets.all|slice:":10" %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' asset.pk %}">
+                                            {{ asset.asset_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ asset.name }}</td>
+                                    <td>{{ asset.book_value|floatformat:2 }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if asset.status == 'active' %}success{% else %}secondary{% endif %}">
+                                            {{ asset.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="{% url 'assets:asset_detail' asset.pk %}" class="btn btn-sm btn-outline-info" title="عرض">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if category.assets.count > 10 %}
+                    <div class="text-center mt-3">
+                        <a href="{% url 'assets:asset_list' %}?category={{ category.pk }}" class="btn btn-outline-warning">
+                            {% trans "عرض جميع الأصول" %} ({{ category.assets.count }})
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">{% trans "لا توجد أصول في هذه الفئة" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Statistics Card -->
+            <div class="card detail-card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        {% trans "إحصائيات الفئة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-primary bg-opacity-10 text-primary">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "عدد الأصول" %}</div>
+                            <h4 class="mb-0">{{ category.assets.count }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-success bg-opacity-10 text-success">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "الفئات الفرعية" %}</div>
+                            <h4 class="mb-0">{{ category.children.count }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-info bg-opacity-10 text-info">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "إجمالي القيمة" %}</div>
+                            <h4 class="mb-0">{{ total_value|floatformat:2|default:"0.00" }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center">
+                        <div class="stat-badge bg-warning bg-opacity-10 text-warning">
+                            <i class="fas fa-sitemap"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "المستوى" %}</div>
+                            <h4 class="mb-0">{{ category.level }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card detail-card mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-grid gap-2">
+                        {% if perms.assets.add_asset %}
+                        <a href="{% url 'assets:asset_create' %}?category={{ category.pk }}" class="btn btn-outline-primary text-start">
+                            <i class="fas fa-plus me-2"></i> {% trans "إضافة أصل جديد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if perms.assets.change_assetcategory %}
+                        <a href="{% url 'assets:category_update' category.pk %}" class="btn btn-outline-warning text-start">
+                            <i class="fas fa-edit me-2"></i> {% trans "تعديل الفئة" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'assets:asset_list' %}?category={{ category.pk }}" class="btn btn-outline-info text-start">
+                            <i class="fas fa-list me-2"></i> {% trans "عرض جميع الأصول" %}
+                        </a>
+
+                        {% if perms.assets.add_assetcategory %}
+                        <a href="{% url 'assets:category_create' %}?parent={{ category.pk }}" class="btn btn-outline-success text-start">
+                            <i class="fas fa-folder-plus me-2"></i> {% trans "إضافة فئة فرعية" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hierarchy Card -->
+            <div class="card detail-card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-project-diagram me-2"></i>
+                        {% trans "الهيكل التنظيمي" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if category.parent %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block mb-1">{% trans "الفئة الأب" %}</small>
+                        <a href="{% url 'assets:category_detail' category.parent.pk %}" class="btn btn-sm btn-outline-primary w-100">
+                            <i class="fas fa-level-up-alt me-1"></i>
+                            {{ category.parent.name }}
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <small class="text-muted d-block mb-1">{% trans "الفئة الحالية" %}</small>
+                        <div class="btn btn-sm btn-primary w-100" disabled>
+                            <i class="fas fa-folder me-1"></i>
+                            {{ category.name }}
+                        </div>
+                    </div>
+
+                    {% if category.children.exists %}
+                    <div>
+                        <small class="text-muted d-block mb-1">{% trans "الفئات الفرعية" %}</small>
+                        {% for child in category.children.all|slice:":5" %}
+                        <a href="{% url 'assets:category_detail' child.pk %}" class="btn btn-sm btn-outline-secondary w-100 mb-1">
+                            <i class="fas fa-level-down-alt me-1"></i>
+                            {{ child.name }}
+                        </a>
+                        {% endfor %}
+                        {% if category.children.count > 5 %}
+                        <small class="text-muted">{% trans "و" %} {{ category.children.count|add:"-5" }} {% trans "فئات أخرى" %}</small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable if table exists
+    if ($('#assetsTable').length) {
+        $('#assetsTable').DataTable({
+            "language": {
+                "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+            },
+            "pageLength": 10,
+            "order": [[0, 'asc']],
+            "columnDefs": [
+                { "orderable": false, "targets": 4 }
+            ]
+        });
+    }
+});
+</script>
+{% endblock %}

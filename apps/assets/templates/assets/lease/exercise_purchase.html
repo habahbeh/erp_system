@@ -1,0 +1,255 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "ممارسة خيار الشراء" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-shopping-cart"></i> {% trans "ممارسة خيار الشراء" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if lease %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات عقد التأجير" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "رقم العقد" %}</th>
+                                        <td>{{ lease.contract_number }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصل" %}</th>
+                                        <td>{{ lease.asset.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "المؤجر" %}</th>
+                                        <td>{{ lease.lessor_name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "نوع العقد" %}</th>
+                                        <td>
+                                            <span class="badge bg-info">{{ lease.get_lease_type_display }}</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "قيمة الشراء" %}</th>
+                                        <td class="fw-bold text-success">{{ lease.purchase_option_price|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "إجمالي الأقساط المدفوعة" %}</th>
+                                        <td>{{ lease.total_paid|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "تاريخ الانتهاء" %}</th>
+                                        <td>{{ lease.end_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الحالة" %}</th>
+                                        <td>
+                                            <span class="badge bg-{{ lease.get_status_color }}">
+                                                {{ lease.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if not lease.has_purchase_option %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "هذا العقد لا يحتوي على خيار شراء" %}
+                    </div>
+                    {% elif lease.purchase_option_exercised %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم ممارسة خيار الشراء بالفعل في تاريخ" %}: {{ lease.purchase_date|date:"Y-m-d" }}
+                    </div>
+                    {% elif lease.status == 'terminated' %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i>
+                        {% trans "لا يمكن ممارسة خيار الشراء لأن العقد منتهي" %}
+                    </div>
+                    {% else %}
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.purchase_date.id_for_label }}" class="form-label">
+                                    {{ form.purchase_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.purchase_date class="form-control" type="date" %}
+                                {% if form.purchase_date.errors %}
+                                <div class="text-danger">{{ form.purchase_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.purchase_price.id_for_label }}" class="form-label">
+                                    {{ form.purchase_price.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.purchase_price class="form-control" step="0.001" %}
+                                {% if form.purchase_price.errors %}
+                                <div class="text-danger">{{ form.purchase_price.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "القيمة المحددة في العقد" %}: {{ lease.purchase_option_price|floatformat:3 }}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.payment_method.id_for_label }}" class="form-label">
+                                    {{ form.payment_method.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.payment_method class="form-select" %}
+                                {% if form.payment_method.errors %}
+                                <div class="text-danger">{{ form.payment_method.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.reference_number.id_for_label }}" class="form-label">
+                                    {{ form.reference_number.label }}
+                                </label>
+                                {% render_field form.reference_number class="form-control" %}
+                                {% if form.reference_number.errors %}
+                                <div class="text-danger">{{ form.reference_number.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.purchase_invoice.id_for_label }}" class="form-label">
+                                {{ form.purchase_invoice.label }}
+                            </label>
+                            {% render_field form.purchase_invoice class="form-control" %}
+                            {% if form.purchase_invoice.errors %}
+                            <div class="text-danger">{{ form.purchase_invoice.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رفع نسخة من فاتورة الشراء (PDF, JPG, PNG)" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {% render_field form.notes class="form-control" rows="3" %}
+                            {% if form.notes.errors %}
+                            <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.transfer_ownership class="form-check-input" checked="" %}
+                                <label for="{{ form.transfer_ownership.id_for_label }}" class="form-check-label">
+                                    {{ form.transfer_ownership.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "سيتم نقل ملكية الأصل إلى الشركة" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.auto_post class="form-check-input" %}
+                                <label for="{{ form.auto_post.id_for_label }}" class="form-check-label">
+                                    {{ form.auto_post.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "سيتم إنشاء القيود المحاسبية تلقائياً" %}
+                            </small>
+                        </div>
+
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6><i class="fas fa-calculator"></i> {% trans "ملخص العملية" %}</h6>
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th>{% trans "قيمة الشراء" %}</th>
+                                        <td class="text-end" id="purchasePriceDisplay">{{ lease.purchase_option_price|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "إجمالي المدفوع كأقساط" %}</th>
+                                        <td class="text-end text-success">{{ lease.total_paid|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr class="table-active">
+                                        <th>{% trans "إجمالي التكلفة" %}</th>
+                                        <td class="text-end fw-bold" id="totalCostDisplay">
+                                            {{ lease.total_cost|floatformat:3 }}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>{% trans "نتيجة ممارسة الخيار" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم إنهاء عقد التأجير تلقائياً" %}</li>
+                                <li>{% trans "سيتم نقل ملكية الأصل إلى الشركة" %}</li>
+                                <li>{% trans "سيتم تسجيل الأصل في دفاتر الشركة" %}</li>
+                                <li>{% trans "سيتم إنشاء قيد محاسبي بتكلفة الأصل الإجمالية" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:lease_detail' lease.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-shopping-cart"></i> {% trans "تأكيد الشراء" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Update displays when purchase price changes
+    $('#id_purchase_price').on('input', function() {
+        var purchasePrice = parseFloat($(this).val()) || 0;
+        var totalPaid = {{ lease.total_paid|default:0 }};
+        var totalCost = purchasePrice + totalPaid;
+
+        $('#purchasePriceDisplay').text(purchasePrice.toFixed(3));
+        $('#totalCostDisplay').text(totalCost.toFixed(3));
+    });
+
+    // Set default values
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_purchase_date').val(today);
+    $('#id_purchase_price').val({{ lease.purchase_option_price|default:0 }});
+});
+</script>
+{% endblock %}

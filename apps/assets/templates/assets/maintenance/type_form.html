@@ -1,0 +1,246 @@
+{# apps/assets/templates/assets/maintenance/type_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        {% trans "تعديل نوع صيانة" %}
+    {% else %}
+        {% trans "إضافة نوع صيانة" %}
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-bottom: none;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.color-picker-preview {
+    display: inline-block;
+    width: 40px;
+    height: 38px;
+    border-radius: 5px;
+    border: 2px solid #dee2e6;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:dashboard' %}">{% trans "لوحة التحكم" %}</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:maintenance_type_list' %}">{% trans "أنواع الصيانة" %}</a>
+            </li>
+            <li class="breadcrumb-item active">
+                {% if form.instance.pk %}
+                    {% trans "تعديل" %}
+                {% else %}
+                    {% trans "إضافة جديد" %}
+                {% endif %}
+            </li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Main Form Card -->
+            <div class="card shadow-sm">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tools"></i>
+                        {% if form.instance.pk %}
+                            {% trans "تعديل نوع صيانة" %}
+                        {% else %}
+                            {% trans "إضافة نوع صيانة جديد" %}
+                        {% endif %}
+                    </h5>
+                </div>
+
+                <div class="card-body">
+                    {% if form.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{% trans "خطأ!" %}</strong> {% trans "يرجى تصحيح الأخطاء التالية:" %}
+                        <ul class="mb-0 mt-2">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                <li>{{ field }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="post" id="maintenanceTypeForm">
+                        {% csrf_token %}
+
+                        <div class="row g-3">
+                            <!-- Code -->
+                            <div class="col-md-4">
+                                <label class="form-label required-field">{% trans "الرمز" %}</label>
+                                {% render_field form.code class="form-control" placeholder="MT-001" %}
+                                {% if form.code.help_text %}
+                                <small class="form-text text-muted">{{ form.code.help_text }}</small>
+                                {% endif %}
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-md-8">
+                                <label class="form-label required-field">{% trans "الاسم" %}</label>
+                                {% render_field form.name class="form-control" placeholder="صيانة دورية" %}
+                            </div>
+
+                            <!-- English Name -->
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الاسم بالإنجليزية" %}</label>
+                                {% render_field form.name_en class="form-control" placeholder="Periodic Maintenance" %}
+                            </div>
+
+                            <!-- Type -->
+                            <div class="col-md-6">
+                                <label class="form-label required-field">{% trans "نوع الصيانة" %}</label>
+                                {% render_field form.type class="form-select" %}
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    {% trans "وقائية: صيانة منتظمة، إصلاحية: عند العطل، تنبؤية: بناءً على التحليل" %}
+                                </small>
+                            </div>
+
+                            <!-- Color Code -->
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "كود اللون" %}</label>
+                                <div class="input-group">
+                                    {% render_field form.color_code class="form-control" type="color" id="colorPicker" %}
+                                    <input type="text" class="form-control" id="colorText" placeholder="#FF5733" maxlength="7">
+                                </div>
+                                <small class="form-text text-muted">{% trans "اختر اللون المميز لهذا النوع" %}</small>
+                            </div>
+
+                            <!-- Is Active -->
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الحالة" %}</label>
+                                <div class="form-check form-switch mt-2">
+                                    {% render_field form.is_active class="form-check-input" role="switch" %}
+                                    <label class="form-check-label">{% trans "نشط" %}</label>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الوصف" %}</label>
+                                {% render_field form.description class="form-control" rows="4" placeholder="وصف تفصيلي لنوع الصيانة..." %}
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> {% trans "حفظ" %}
+                                    </button>
+                                    <a href="{% url 'assets:maintenance_type_list' %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                    </a>
+                                </div>
+                                {% if form.instance.pk and perms.assets.delete_maintenancetype %}
+                                <div>
+                                    <a href="{% url 'assets:maintenance_type_delete' form.instance.pk %}"
+                                       class="btn btn-outline-danger">
+                                        <i class="fas fa-trash"></i> {% trans "حذف" %}
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Card -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "نصائح" %}
+                    </h6>
+                    <ul class="mb-0 small text-muted">
+                        <li>{% trans "الصيانة الوقائية: تتم بشكل دوري لمنع الأعطال" %}</li>
+                        <li>{% trans "الصيانة الإصلاحية: تتم عند حدوث عطل" %}</li>
+                        <li>{% trans "الصيانة التنبؤية: تتم بناءً على تحليل البيانات والتوقعات" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Color picker sync
+    const colorPicker = $('#colorPicker');
+    const colorText = $('#colorText');
+
+    {% if form.instance.color_code %}
+    colorText.val('{{ form.instance.color_code }}');
+    {% endif %}
+
+    colorPicker.on('input', function() {
+        colorText.val(this.value.toUpperCase());
+    });
+
+    colorText.on('input', function() {
+        const value = this.value;
+        if (/^#[0-9A-F]{6}$/i.test(value)) {
+            colorPicker.val(value);
+        }
+    });
+
+    // Form validation
+    $('#maintenanceTypeForm').on('submit', function(e) {
+        const colorValue = colorText.val();
+        if (colorValue && !/^#[0-9A-F]{6}$/i.test(colorValue)) {
+            e.preventDefault();
+            alert('{% trans "كود اللون يجب أن يكون بصيغة #RRGGBB" %}');
+            colorText.focus();
+            return false;
+        }
+        // Update hidden field
+        if (colorValue) {
+            colorPicker.val(colorValue);
+        }
+    });
+});
+</script>
+{% endblock %}

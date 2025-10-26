@@ -1,0 +1,175 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}
+{% if object %}{% trans "تعديل التقييم" %}{% else %}{% trans "إضافة تقييم" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-dollar-sign text-success"></i>
+                        {% if object %}{% trans "تعديل التقييم" %}{% else %}{% trans "إضافة تقييم جديد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.asset.id_for_label }}" class="form-label">
+                                {{ form.asset.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.asset class="form-select" %}
+                            {% if form.asset.errors %}
+                            <div class="text-danger">{{ form.asset.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.valuation_date.id_for_label }}" class="form-label">
+                                {{ form.valuation_date.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.valuation_date class="form-control" type="date" %}
+                            {% if form.valuation_date.errors %}
+                            <div class="text-danger">{{ form.valuation_date.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.old_value.id_for_label }}" class="form-label">
+                                    {{ form.old_value.label }}
+                                </label>
+                                {% render_field form.old_value class="form-control" readonly="" %}
+                                {% if form.old_value.errors %}
+                                <div class="text-danger">{{ form.old_value.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "سيتم ملؤها تلقائياً من القيمة الحالية للأصل" %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.new_value.id_for_label }}" class="form-label">
+                                    {{ form.new_value.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.new_value class="form-control" step="0.001" %}
+                                {% if form.new_value.errors %}
+                                <div class="text-danger">{{ form.new_value.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.reason.id_for_label }}" class="form-label">
+                                {{ form.reason.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.reason class="form-control" rows="3" %}
+                            {% if form.reason.errors %}
+                            <div class="text-danger">{{ form.reason.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.valuator_name.id_for_label }}" class="form-label">
+                                {{ form.valuator_name.label }}
+                            </label>
+                            {% render_field form.valuator_name class="form-control" %}
+                            {% if form.valuator_name.errors %}
+                            <div class="text-danger">{{ form.valuator_name.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "اسم المقيم أو الجهة المقيمة" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.valuation_report.id_for_label }}" class="form-label">
+                                {{ form.valuation_report.label }}
+                            </label>
+                            {% render_field form.valuation_report class="form-control" %}
+                            {% if form.valuation_report.errors %}
+                            <div class="text-danger">{{ form.valuation_report.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رفع تقرير التقييم (PDF, DOC, DOCX)" %}
+                            </small>
+                        </div>
+
+                        {% if not object %}
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.is_approved class="form-check-input" %}
+                                <label for="{{ form.is_approved.id_for_label }}" class="form-check-label">
+                                    {{ form.is_approved.label }}
+                                </label>
+                            </div>
+                            {% if form.is_approved.errors %}
+                            <div class="text-danger">{{ form.is_approved.errors }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {% trans "حفظ" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Auto-fill old_value when asset is selected
+    $('#id_asset').change(function() {
+        var assetId = $(this).val();
+        if (assetId) {
+            $.ajax({
+                url: '/assets/api/asset/' + assetId + '/current-value/',
+                success: function(data) {
+                    $('#id_old_value').val(data.current_value);
+                }
+            });
+        }
+    });
+
+    // Calculate and display difference
+    $('#id_new_value').on('input', function() {
+        var oldValue = parseFloat($('#id_old_value').val()) || 0;
+        var newValue = parseFloat($(this).val()) || 0;
+        var difference = newValue - oldValue;
+
+        if (difference !== 0) {
+            var diffText = difference > 0 ? '+' + difference.toFixed(3) : difference.toFixed(3);
+            var diffClass = difference > 0 ? 'text-success' : 'text-danger';
+
+            if (!$('#difference-display').length) {
+                $(this).parent().append('<div id="difference-display" class="mt-2"></div>');
+            }
+
+            $('#difference-display').html(
+                '<small class="' + diffClass + '"><strong>{% trans "الفرق" %}: ' + diffText + '</strong></small>'
+            );
+        }
+    });
+});
+</script>
+{% endblock %}

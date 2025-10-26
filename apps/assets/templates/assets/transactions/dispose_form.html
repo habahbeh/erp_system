@@ -1,0 +1,337 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="mb-1">
+                    <i class="fas fa-trash-alt me-2"></i>
+                    {% trans "استبعاد أصل" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "سيتم إزالة الأصل من السجلات التشغيلية" %}</p>
+            </div>
+            <a href="{% url 'assets:transaction_list' %}" class="btn btn-light btn-back">
+                <i class="fas fa-arrow-left me-2"></i>
+                {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+
+            <form method="post" id="disposeForm">
+                {% csrf_token %}
+
+                <!-- Asset Selection -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-basic">
+                        <h5 class="mb-0"><i class="fas fa-cube"></i> {% trans "اختيار الأصل" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label required">{% trans "الأصل المراد استبعاده" %}</label>
+                                {{ form.asset|add_class:"form-select select2" }}
+                                {% if form.asset.errors %}
+                                    <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Asset Info Display -->
+                        <div id="assetInfo" class="mt-3 p-3 bg-light rounded" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>{% trans "التكلفة:" %}</strong> <span id="assetCost">-</span></p>
+                                    <p class="mb-0"><strong>{% trans "الإهلاك المجمع:" %}</strong> <span id="assetDepreciation">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>{% trans "القيمة الدفترية:" %}</strong> <span id="assetBookValue" class="text-danger fw-bold">-</span></p>
+                                    <p class="mb-0"><strong>{% trans "العمر:" %}</strong> <span id="assetAge">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>{% trans "الموقع:" %}</strong> <span id="assetLocation">-</span></p>
+                                    <p class="mb-0"><strong>{% trans "القسم:" %}</strong> <span id="assetDepartment">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>{% trans "الحالة:" %}</strong> <span id="assetCondition">-</span></p>
+                                    <p class="mb-0"><strong>{% trans "الحالة:" %}</strong> <span id="assetStatus">-</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Disposal Details -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-financial">
+                        <h5 class="mb-0"><i class="fas fa-trash-alt"></i> {% trans "تفاصيل الاستبعاد" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "تاريخ الاستبعاد" %}</label>
+                                {{ form.disposal_date|add_class:"form-control" }}
+                                {% if form.disposal_date.errors %}
+                                    <div class="text-danger small mt-1">{{ form.disposal_date.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "طريقة الاستبعاد" %}</label>
+                                {{ form.disposal_method|add_class:"form-select" }}
+                                {% if form.disposal_method.errors %}
+                                    <div class="text-danger small mt-1">{{ form.disposal_method.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label required">{% trans "سبب الاستبعاد" %}</label>
+                                {{ form.disposal_reason|add_class:"form-control" }}
+                                {% if form.disposal_reason.errors %}
+                                    <div class="text-danger small mt-1">{{ form.disposal_reason.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">{% trans "مثال: تالف، قديم، غير صالح للاستخدام، إلخ" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financial Impact -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-depreciation">
+                        <h5 class="mb-0"><i class="fas fa-dollar-sign"></i> {% trans "الأثر المالي" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "قيمة الخردة/البيع" %}</label>
+                                {{ form.salvage_amount|add_class:"form-control" }}
+                                <div class="form-text">{% trans "إن وجدت - المبلغ المستلم من بيع الخردة" %}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "مصاريف الاستبعاد" %}</label>
+                                {{ form.disposal_expenses|add_class:"form-control" }}
+                                <div class="form-text">{% trans "تكلفة النقل، التخلص، إلخ" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loss Calculation -->
+                <div class="card shadow-sm mb-4" id="lossCard" style="display: none;">
+                    <div class="card-header card-header-accounting">
+                        <h5 class="mb-0"><i class="fas fa-calculator"></i> {% trans "حساب الخسارة من الاستبعاد" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <tbody>
+                                    <tr>
+                                        <td class="bg-light"><strong>{% trans "القيمة الدفترية" %}</strong></td>
+                                        <td class="text-end text-danger fw-bold" id="bookValueCalc">0.000</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="bg-light"><strong>{% trans "قيمة الخردة المستلمة" %}</strong></td>
+                                        <td class="text-end text-success" id="salvageCalc">0.000</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="bg-light"><strong>{% trans "مصاريف الاستبعاد" %}</strong></td>
+                                        <td class="text-end text-danger" id="expensesCalc">0.000</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>{% trans "صافي الخسارة" %}</strong></td>
+                                        <td class="text-end fw-bold fs-5 text-danger" id="netLoss">0.000</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="alert alert-danger mb-0">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span id="lossMessage">{% trans "سيتم تسجيل خسارة الاستبعاد في القيود المحاسبية" %}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Approval Information -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-accounting">
+                        <h5 class="mb-0"><i class="fas fa-user-check"></i> {% trans "معلومات الموافقة" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "اسم المعتمد" %}</label>
+                                {{ form.approved_by_name|add_class:"form-control" }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "تاريخ الموافقة" %}</label>
+                                {{ form.approval_date|add_class:"form-control" }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">{% trans "رقم قرار الاستبعاد" %}</label>
+                                {{ form.approval_number|add_class:"form-control" }}
+                                <div class="form-text">{% trans "رقم المذكرة أو القرار الإداري بالموافقة على الاستبعاد" %}</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">{% trans "ملاحظات إضافية" %}</label>
+                                {{ form.notes|add_class:"form-control" }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accounting Options -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header card-header-accounting">
+                        <h5 class="mb-0"><i class="fas fa-book"></i> {% trans "خيارات المحاسبة" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            {{ form.auto_post|add_class:"form-check-input" }}
+                            <label class="form-check-label">
+                                {% trans "إنشاء وترحيل القيد المحاسبي تلقائياً" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.remove_from_register|add_class:"form-check-input" }}
+                            <label class="form-check-label">
+                                {% trans "إزالة الأصل من سجل الأصول النشطة" %}
+                            </label>
+                            <div class="form-text">{% trans "الأصل سيبقى في السجلات التاريخية فقط" %}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <a href="{% url 'assets:transaction_list' %}" class="btn btn-secondary btn-cancel">
+                        <i class="fas fa-times me-2"></i>
+                        {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-danger btn-lg">
+                        <i class="fas fa-check me-2"></i>
+                        {% trans "تأكيد الاستبعاد" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Select2
+    initSelect2();
+
+    let currentBookValue = 0;
+
+    // Load asset info
+    $('#id_asset').on('change', function() {
+        const assetId = $(this).val();
+        if (assetId) {
+            $.ajax({
+                url: '/assets/api/assets/' + assetId + '/',
+                method: 'GET',
+
+                success: function(response) {
+                    $('#assetCost').text(response.asset.acquisition_cost.toFixed(3));
+                    $('#assetDepreciation').text(response.asset.accumulated_depreciation.toFixed(3));
+                    $('#assetBookValue').text(response.asset.book_value.toFixed(3));
+                    $('#assetAge').text(response.age_months + ' شهر');
+                    $('#assetLocation').text(response.location || '-');
+                    $('#assetDepartment').text(response.department || '-');
+                    $('#assetCondition').text(response.condition || '-');
+                    $('#assetStatus').text(response.status);
+                    $('#assetInfo').slideDown();
+
+                    currentBookValue = response.asset.book_value;
+                }
+            });
+        } else {
+            $('#assetInfo').slideUp();
+        }
+    });
+
+    // Calculate loss
+    $('#id_salvage_amount, #id_disposal_expenses').on('input', calculateLoss);
+
+    function calculateLoss() {
+        const salvage = parseFloat($('#id_salvage_amount').val()) || 0;
+        const expenses = parseFloat($('#id_disposal_expenses').val()) || 0;
+
+        if (currentBookValue === 0) {
+            showError('{% trans "يرجى اختيار الأصل أولاً" %}', '{% trans "يجب اختيار الأصل المراد استبعاده" %}');
+            return;
+        }
+
+        const netLoss = currentBookValue - salvage + expenses;
+
+        $('#bookValueCalc').text(currentBookValue.toFixed(3));
+        $('#salvageCalc').text(salvage.toFixed(3));
+        $('#expensesCalc').text(expenses.toFixed(3));
+        $('#netLoss').text(netLoss.toFixed(3));
+
+        $('#lossMessage').html('{% trans "سيتم تسجيل خسارة قدرها" %} <strong>' + netLoss.toFixed(3) + '</strong> {% trans "في القيد المحاسبي" %}');
+
+        $('#lossCard').slideDown();
+    }
+
+    // Form validation and confirmation
+    $('#disposeForm').on('submit', function(e) {
+        const assetId = $('#id_asset').val();
+        const reason = $('#id_disposal_reason').val();
+
+        if (!assetId) {
+            e.preventDefault();
+            showError('{% trans "خطأ" %}', '{% trans "يرجى اختيار الأصل المراد استبعاده" %}');
+            return false;
+        }
+
+        if (!reason) {
+            e.preventDefault();
+            showError('{% trans "خطأ" %}', '{% trans "يرجى إدخال سبب الاستبعاد" %}');
+            return false;
+        }
+
+        // Confirmation
+        e.preventDefault();
+        showConfirm(
+            '{% trans "تأكيد الاستبعاد" %}',
+            '<p>{% trans "هل أنت متأكد من استبعاد هذا الأصل؟" %}</p><p class="text-danger"><strong>{% trans "هذا الإجراء لا يمكن التراجع عنه" %}</strong></p>',
+            '{% trans "نعم، استبعد الأصل" %}',
+            '{% trans "إلغاء" %}',
+            '#dc3545'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between">
+            <h5 class="mb-0"><i class="fas fa-file-invoice-dollar text-warning"></i> {% trans "مطالبات التأمين" %}</h5>
+            {% if perms.assets.add_insuranceclaim %}
+            <a href="{% url 'assets:claim_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "مطالبة جديدة" %}
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الرقم" %}</th>
+                            <th>{% trans "الوثيقة" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "نوع الحادث" %}</th>
+                            <th class="text-end">{% trans "المبلغ المطالب" %}</th>
+                            <th class="text-end">{% trans "المبلغ المعتمد" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for claim in object_list %}
+                        <tr>
+                            <td>{{ claim.claim_number }}</td>
+                            <td>
+                                <a href="{% url 'assets:insurance_detail' claim.insurance.pk %}">
+                                    {{ claim.insurance.policy_number }}
+                                </a>
+                            </td>
+                            <td>{{ claim.claim_date|date:"Y-m-d" }}</td>
+                            <td>{{ claim.get_incident_type_display }}</td>
+                            <td class="text-end">{{ claim.claim_amount|floatformat:3 }}</td>
+                            <td class="text-end">{{ claim.approved_amount|floatformat:3|default:"-" }}</td>
+                            <td>
+                                {% if claim.status == 'pending' %}
+                                    <span class="badge bg-warning">{% trans "قيد المراجعة" %}</span>
+                                {% elif claim.status == 'approved' %}
+                                    <span class="badge bg-success">{% trans "موافق" %}</span>
+                                {% elif claim.status == 'rejected' %}
+                                    <span class="badge bg-danger">{% trans "مرفوض" %}</span>
+                                {% elif claim.status == 'settled' %}
+                                    <span class="badge bg-info">{% trans "مسدد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'assets:claim_detail' claim.pk %}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'assets:claim_update' claim.pk %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد مطالبات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

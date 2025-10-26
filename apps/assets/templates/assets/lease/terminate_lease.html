@@ -1,0 +1,216 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "إنهاء عقد التأجير" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-times-circle"></i> {% trans "إنهاء عقد التأجير" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if lease %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات العقد" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="40%">{% trans "رقم العقد" %}</th>
+                                        <td>{{ lease.contract_number }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصل" %}</th>
+                                        <td>{{ lease.asset.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "المؤجر" %}</th>
+                                        <td>{{ lease.lessor_name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "تاريخ البدء" %}</th>
+                                        <td>{{ lease.start_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="40%">{% trans "تاريخ الانتهاء" %}</th>
+                                        <td>{{ lease.end_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "القسط الشهري" %}</th>
+                                        <td>{{ lease.monthly_payment|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "إجمالي المدفوع" %}</th>
+                                        <td class="text-success">{{ lease.total_paid|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الحالة" %}</th>
+                                        <td>
+                                            <span class="badge bg-{{ lease.get_status_color }}">
+                                                {{ lease.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if lease.status == 'terminated' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "هذا العقد منتهي بالفعل" %}
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.termination_date.id_for_label }}" class="form-label">
+                                    {{ form.termination_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.termination_date class="form-control" type="date" %}
+                                {% if form.termination_date.errors %}
+                                <div class="text-danger">{{ form.termination_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.termination_reason.id_for_label }}" class="form-label">
+                                    {{ form.termination_reason.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.termination_reason class="form-select" %}
+                                {% if form.termination_reason.errors %}
+                                <div class="text-danger">{{ form.termination_reason.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.termination_notes.id_for_label }}" class="form-label">
+                                {{ form.termination_notes.label }}
+                            </label>
+                            {% render_field form.termination_notes class="form-control" rows="3" %}
+                            {% if form.termination_notes.errors %}
+                            <div class="text-danger">{{ form.termination_notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.early_termination_penalty.id_for_label }}" class="form-label">
+                                    {{ form.early_termination_penalty.label }}
+                                </label>
+                                {% render_field form.early_termination_penalty class="form-control" step="0.001" %}
+                                {% if form.early_termination_penalty.errors %}
+                                <div class="text-danger">{{ form.early_termination_penalty.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "غرامة الإنهاء المبكر إن وجدت" %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.final_settlement_amount.id_for_label }}" class="form-label">
+                                    {{ form.final_settlement_amount.label }}
+                                </label>
+                                {% render_field form.final_settlement_amount class="form-control" step="0.001" %}
+                                {% if form.final_settlement_amount.errors %}
+                                <div class="text-danger">{{ form.final_settlement_amount.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "مبلغ التسوية النهائية" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.return_asset class="form-check-input" checked="" %}
+                                <label for="{{ form.return_asset.id_for_label }}" class="form-check-label">
+                                    {{ form.return_asset.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "سيتم تغيير حالة الأصل إلى 'متاح' عند الإرجاع" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.termination_document.id_for_label }}" class="form-label">
+                                {{ form.termination_document.label }}
+                            </label>
+                            {% render_field form.termination_document class="form-control" %}
+                            {% if form.termination_document.errors %}
+                            <div class="text-danger">{{ form.termination_document.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رفع وثيقة الإنهاء (PDF, DOC, DOCX)" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "إنهاء العقد إجراء نهائي ولا يمكن التراجع عنه" %}</li>
+                                <li>{% trans "سيتم إيقاف جميع الدفعات المستقبلية" %}</li>
+                                <li>{% trans "تأكد من إدخال جميع البيانات المالية بدقة" %}</li>
+                                {% if lease.has_purchase_option %}
+                                <li class="text-danger">{% trans "هذا العقد يحتوي على خيار شراء - لن تتمكن من ممارسة هذا الخيار بعد الإنهاء" %}</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:lease_detail' lease.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-times-circle"></i> {% trans "إنهاء العقد" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Calculate days until end date
+    var endDate = new Date('{{ lease.end_date|date:"Y-m-d" }}');
+    var today = new Date();
+    var diffTime = endDate - today;
+    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+        $('.alert-info').append(
+            '<div class="mt-2"><small class="text-muted"><i class="fas fa-calendar-alt"></i> ' +
+            '{% trans "المدة المتبقية" %}: ' + diffDays + ' {% trans "يوم" %}</small></div>'
+        );
+    }
+
+    // Set default termination date to today
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_termination_date').val(today);
+});
+</script>
+{% endblock %}

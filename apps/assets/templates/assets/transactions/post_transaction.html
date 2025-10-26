@@ -1,0 +1,188 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block title %}{% trans "ترحيل المعاملة" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <!-- Page Header -->
+            <div class="page-header mb-4">
+                <h2 class="mb-1">
+                    <i class="fas fa-paper-plane me-2"></i>
+                    {% trans "ترحيل معاملة الأصل" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "إنشاء القيد المحاسبي وترحيل المعاملة" %}</p>
+            </div>
+
+            <div class="detail-card">
+                <div class="card-body">
+                    {% if transaction %}
+                    <!-- Transaction Info -->
+                    <div class="detail-card mb-3">
+                        <div class="card-header card-header-basic">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle"></i> {% trans "معلومات المعاملة" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "رقم المعاملة" %}</div>
+                                        <div class="info-value">{{ transaction.transaction_number }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "نوع المعاملة" %}</div>
+                                        <div class="info-value">{{ transaction.get_transaction_type_display }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الأصل" %}</div>
+                                        <div class="info-value">{{ transaction.asset.name }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "التاريخ" %}</div>
+                                        <div class="info-value">{{ transaction.transaction_date|date:"Y-m-d" }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "المبلغ" %}</div>
+                                        <div class="info-value fw-bold">{{ transaction.amount|floatformat:3 }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "معتمد" %}</div>
+                                        <div class="info-value">
+                                            {% if transaction.is_approved %}
+                                            <span class="status-badge bg-success text-white">{% trans "نعم" %}</span>
+                                            {% else %}
+                                            <span class="status-badge bg-danger text-white">{% trans "لا" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if transaction.is_posted %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم ترحيل هذه المعاملة بالفعل في تاريخ" %}: {{ transaction.posted_at|date:"Y-m-d H:i" }}
+                        <br>
+                        <small>{% trans "رقم القيد" %}: <a href="{% url 'accounting:journal_entry_detail' transaction.journal_entry.pk %}">{{ transaction.journal_entry.entry_number }}</a></small>
+                    </div>
+                    {% elif not transaction.is_approved %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "يجب اعتماد المعاملة قبل الترحيل" %}
+                    </div>
+                    {% else %}
+                    <!-- Proposed Journal Entry -->
+                    <div class="detail-card mb-3">
+                        <div class="card-header card-header-accounting">
+                            <h6 class="mb-0">
+                                <i class="fas fa-calculator"></i> {% trans "القيد المحاسبي المقترح" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>{% trans "الحساب" %}</th>
+                                            <th class="text-end">{% trans "مدين" %}</th>
+                                            <th class="text-end">{% trans "دائن" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for line in proposed_journal_lines %}
+                                        <tr>
+                                            <td>{{ line.account_name }}</td>
+                                            <td class="text-end">{{ line.debit|floatformat:3|default:"-" }}</td>
+                                            <td class="text-end">{{ line.credit|floatformat:3|default:"-" }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot class="table-light fw-bold">
+                                        <tr>
+                                            <td>{% trans "الإجمالي" %}</td>
+                                            <td class="text-end">{{ total_debit|floatformat:3 }}</td>
+                                            <td class="text-end">{{ total_credit|floatformat:3 }}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="posting_notes" class="form-label">
+                                {% trans "ملاحظات الترحيل" %}
+                            </label>
+                            <textarea name="posting_notes" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>{% trans "نتيجة الترحيل" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم إنشاء قيد محاسبي تلقائياً" %}</li>
+                                <li>{% trans "سيتم تحديث دفاتر الحسابات العامة" %}</li>
+                                <li>{% trans "سيتم تطبيق التغييرات على الأصل نهائياً" %}</li>
+                                <li>{% trans "لا يمكن التراجع عن الترحيل بدون عكس القيد" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="{% url 'assets:transaction_detail' transaction.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i> {% trans "ترحيل المعاملة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+$(document).ready(function() {
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        showConfirm(
+            '{% trans "تأكيد الترحيل" %}',
+            '{% trans "هل أنت متأكد من ترحيل هذه المعاملة؟<br><small>سيتم إنشاء قيد محاسبي تلقائياً</small>" %}',
+            '{% trans "نعم، رحّل" %}',
+            '{% trans "إلغاء" %}',
+            '#007bff'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                showLoading('{% trans "جاري الترحيل..." %}');
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

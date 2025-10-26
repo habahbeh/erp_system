@@ -1,0 +1,139 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        {% if form.instance.pk %}{% trans "تعديل سير عمل" %}{% else %}{% trans "سير عمل جديد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "الاسم" %}</label>
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "نوع الطلب" %}</label>
+                                {{ form.request_type|add_class:"form-select" }}
+                                {% if form.request_type.errors %}
+                                    <div class="text-danger small mt-1">{{ form.request_type.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الوصف" %}</label>
+                                {{ form.description|add_class:"form-control" }}
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    {{ form.is_active|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        {% trans "نشط" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Approval Levels -->
+                        <h6 class="mb-3"><i class="fas fa-layer-group"></i> {% trans "مستويات الاعتماد" %}</h6>
+                        <div id="approval-levels">
+                            {{ formset.management_form }}
+                            {% for form in formset %}
+                            <div class="card mb-3 approval-level-form">
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-2">
+                                            <label class="form-label">{% trans "المستوى" %}</label>
+                                            {{ form.level|add_class:"form-control" }}
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">{% trans "الاسم" %}</label>
+                                            {{ form.name|add_class:"form-control" }}
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">{% trans "المعتمد" %}</label>
+                                            {{ form.approver|add_class:"form-select select2" }}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">{% trans "الدور" %}</label>
+                                            {{ form.approver_role|add_class:"form-select" }}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">{% trans "الشرط" %}</label>
+                                            {{ form.condition|add_class:"form-control" }}
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="form-check">
+                                                {{ form.is_required|add_class:"form-check-input" }}
+                                                <label class="form-check-label">
+                                                    {% trans "إلزامي" %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        {{ form.id }}
+                                        {{ form.DELETE }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-4" id="add-level">
+                            <i class="fas fa-plus"></i> {% trans "إضافة مستوى" %}
+                        </button>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "حفظ" %}
+                            </button>
+                            <a href="{% url 'assets:workflow_list' %}" class="btn btn-secondary">
+                                {% trans "إلغاء" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl'
+    });
+
+    // Add new approval level
+    $('#add-level').click(function() {
+        var totalForms = $('#id_form-TOTAL_FORMS');
+        var currentFormCount = parseInt(totalForms.val());
+        var newForm = $('.approval-level-form:first').clone();
+
+        // Update form index
+        newForm.find('input, select, textarea').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                $(this).attr('name', name.replace(/form-\d+-/, 'form-' + currentFormCount + '-'));
+                $(this).attr('id', 'id_' + name.replace(/form-\d+-/, 'form-' + currentFormCount + '-'));
+            }
+            $(this).val('');
+        });
+
+        $('#approval-levels').append(newForm);
+        totalForms.val(currentFormCount + 1);
+    });
+});
+</script>
+{% endblock %}

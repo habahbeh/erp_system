@@ -1,0 +1,803 @@
+{# apps/assets/templates/assets/transactions/transaction_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.success-card {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+}
+
+.section-card {
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.section-card .card-header {
+    padding: 1.25rem;
+    border-bottom: 2px solid;
+}
+
+.section-basic .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.section-asset .card-header {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-bottom-color: #4caf50;
+    color: #2e7d32;
+}
+
+.section-financial .card-header {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-bottom-color: #ff9800;
+    color: #e65100;
+}
+
+.section-accounting .card-header {
+    background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+    border-bottom-color: #9c27b0;
+    color: #6a1b9a;
+}
+
+.asset-info-display {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.asset-info-item {
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.asset-info-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.asset-info-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.calculation-preview {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات المعاملة" %}
+                {% else %}
+                    {% trans "إضافة معاملة جديدة للأصول" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:transaction_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <form method="post" id="transactionForm" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Form Section -->
+            <div class="col-lg-9">
+                <!-- Basic Information -->
+                <div class="card section-card section-basic">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "المعلومات الأساسية" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Asset -->
+                            <div class="col-md-6">
+                                <label for="{{ form.asset.id_for_label }}" class="form-label required-field">
+                                    {{ form.asset.label }}
+                                </label>
+                                {{ form.asset|add_class:"form-select" }}
+                                <div class="help-text">
+                                    <i class="fas fa-cube text-info"></i>
+                                    اختر الأصل المراد إجراء المعاملة عليه
+                                </div>
+                                {% if form.asset.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.asset.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Transaction Date -->
+                            <div class="col-md-6">
+                                <label for="{{ form.transaction_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.transaction_date.label }}
+                                </label>
+                                {{ form.transaction_date|add_class:"form-control" }}
+                                <div class="help-text">
+                                    <i class="fas fa-calendar text-info"></i>
+                                    تاريخ إجراء المعاملة
+                                </div>
+                                {% if form.transaction_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.transaction_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Transaction Type -->
+                            <div class="col-md-6">
+                                <label for="{{ form.transaction_type.id_for_label }}" class="form-label required-field">
+                                    {{ form.transaction_type.label }}
+                                </label>
+                                {{ form.transaction_type|add_class:"form-select" }}
+                                <div class="help-text">
+                                    <i class="fas fa-exchange-alt text-info"></i>
+                                    نوع المعاملة (بيع، استبعاد، إعادة تقييم)
+                                </div>
+                                {% if form.transaction_type.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.transaction_type.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Amount -->
+                            <div class="col-md-6">
+                                <label for="{{ form.amount.id_for_label }}" class="form-label required-field">
+                                    {{ form.amount.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.amount|add_class:"form-control" }}
+                                    <span class="input-group-text">{% trans "د.ك" %}</span>
+                                </div>
+                                <div class="help-text">
+                                    <i class="fas fa-dollar-sign text-info"></i>
+                                    قيمة المعاملة
+                                </div>
+                                {% if form.amount.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.amount.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label for="{{ form.description.id_for_label }}" class="form-label">
+                                    {{ form.description.label }}
+                                </label>
+                                {{ form.description|add_class:"form-control" }}
+                                <div class="help-text">
+                                    <i class="fas fa-comment text-info"></i>
+                                    وصف مختصر للمعاملة (اختياري)
+                                </div>
+                                {% if form.description.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.description.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Asset Information Display -->
+                <div class="card section-card section-asset" id="assetInfoCard" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cube me-2"></i>
+                            {% trans "معلومات الأصل المحدد" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="asset-info-display">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <div class="asset-info-item">
+                                        <div class="asset-info-label">{% trans "التكلفة" %}</div>
+                                        <div class="asset-info-value text-primary" id="assetCost">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="asset-info-item">
+                                        <div class="asset-info-label">{% trans "الإهلاك المجمع" %}</div>
+                                        <div class="asset-info-value text-warning" id="assetDepreciation">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="asset-info-item">
+                                        <div class="asset-info-label">{% trans "القيمة الدفترية" %}</div>
+                                        <div class="asset-info-value text-success" id="assetBookValue">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="asset-info-item">
+                                        <div class="asset-info-label">{% trans "الحالة" %}</div>
+                                        <div class="asset-info-value text-info" id="assetStatus">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financial Details -->
+                <div class="card section-card section-financial">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-money-bill-wave me-2"></i>
+                            {% trans "التفاصيل المالية" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Expenses -->
+                            <div class="col-md-6">
+                                <label for="{{ form.expenses.id_for_label }}" class="form-label">
+                                    {{ form.expenses.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.expenses|add_class:"form-control" }}
+                                    <span class="input-group-text">{% trans "د.ك" %}</span>
+                                </div>
+                                <div class="help-text">
+                                    <i class="fas fa-receipt text-warning"></i>
+                                    المصاريف الإضافية المرتبطة بالمعاملة
+                                </div>
+                            </div>
+
+                            <!-- Revenue -->
+                            <div class="col-md-6">
+                                <label for="{{ form.revenue.id_for_label }}" class="form-label">
+                                    {{ form.revenue.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.revenue|add_class:"form-control" }}
+                                    <span class="input-group-text">{% trans "د.ك" %}</span>
+                                </div>
+                                <div class="help-text">
+                                    <i class="fas fa-chart-line text-warning"></i>
+                                    الإيرادات المرتبطة بالمعاملة
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-12">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes|add_class:"form-control" }}
+                                <div class="help-text">
+                                    <i class="fas fa-sticky-note text-warning"></i>
+                                    ملاحظات إضافية (اختياري)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accounting Settings -->
+                <div class="card section-card section-accounting">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calculator me-2"></i>
+                            {% trans "الإعدادات المحاسبية" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info mb-3">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>ملاحظة:</strong> سيتم إنشاء قيد محاسبي تلقائي بناءً على الحسابات المحددة
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Debit Account -->
+                            <div class="col-md-6">
+                                <label for="{{ form.debit_account.id_for_label }}" class="form-label">
+                                    {{ form.debit_account.label }}
+                                </label>
+                                {{ form.debit_account|add_class:"form-select" }}
+                                <div class="help-text">
+                                    <i class="fas fa-book text-purple"></i>
+                                    الحساب المدين في القيد
+                                </div>
+                            </div>
+
+                            <!-- Credit Account -->
+                            <div class="col-md-6">
+                                <label for="{{ form.credit_account.id_for_label }}" class="form-label">
+                                    {{ form.credit_account.label }}
+                                </label>
+                                {{ form.credit_account|add_class:"form-select" }}
+                                <div class="help-text">
+                                    <i class="fas fa-book text-purple"></i>
+                                    الحساب الدائن في القيد
+                                </div>
+                            </div>
+
+                            <!-- Auto Post -->
+                            <div class="col-12">
+                                <div class="form-check form-switch mt-2">
+                                    {{ form.auto_post }}
+                                    <label class="form-check-label" for="{{ form.auto_post.id_for_label }}">
+                                        {% trans "ترحيل تلقائي للقيد المحاسبي" %}
+                                    </label>
+                                </div>
+                                <div class="help-text">
+                                    <i class="fas fa-sync text-purple"></i>
+                                    ترحيل القيد المحاسبي تلقائياً عند حفظ المعاملة
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calculation Preview -->
+                <div class="card section-card" id="calculationPreview" style="display: none;">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            {% trans "معاينة الحسابات" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="calculation-preview">
+                            <div class="row text-center g-3">
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-white rounded shadow-sm">
+                                        <div class="text-muted small mb-1">{% trans "صافي المبلغ" %}</div>
+                                        <div class="h4 text-primary mb-0" id="netAmount">0.000</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-white rounded shadow-sm">
+                                        <div class="text-muted small mb-1">{% trans "الربح/الخسارة المتوقع" %}</div>
+                                        <div class="h4 text-success mb-0" id="expectedGainLoss">0.000</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-white rounded shadow-sm">
+                                        <div class="text-muted small mb-1">{% trans "القيمة الدفترية الجديدة" %}</div>
+                                        <div class="h4 text-info mb-0" id="newBookValue">0.000</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Non-field Errors -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                    <ul class="mb-0">
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'assets:transaction_list' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> إلغاء
+                    </a>
+                    <div>
+                        <button type="button" class="btn btn-outline-info btn-lg me-2" id="previewBtn">
+                            <i class="fas fa-eye me-1"></i> معاينة
+                        </button>
+                        {% if object %}
+                        <a href="{% url 'assets:transaction_detail' object.pk %}" class="btn btn-outline-secondary btn-lg me-2">
+                            <i class="fas fa-eye me-1"></i> عرض التفاصيل
+                        </a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-save me-1"></i>
+                            {% if object %}تحديث المعاملة{% else %}حفظ المعاملة{% endif %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <!-- Help Card -->
+                <div class="card info-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>معلومات مهمة
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                الأصل والمبلغ والتاريخ مطلوبة
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                سيتم إنشاء قيد محاسبي تلقائي
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                يمكن معاينة الحسابات قبل الحفظ
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-info-circle text-primary me-1"></i>
+                                تأكد من صحة البيانات المالية
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-keyboard me-2"></i>اختصارات لوحة المفاتيح
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <kbd>Ctrl</kbd> + <kbd>S</kbd> : حفظ
+                            </li>
+                            <li class="mb-0">
+                                <kbd>Esc</kbd> : إلغاء
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Transaction Types Info -->
+                <div class="card success-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-info-circle me-2"></i>أنواع المعاملات
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <strong>بيع:</strong> بيع الأصل لطرف خارجي
+                            </li>
+                            <li class="mb-2">
+                                <strong>استبعاد:</strong> التخلص من الأصل
+                            </li>
+                            <li class="mb-0">
+                                <strong>إعادة تقييم:</strong> تعديل قيمة الأصل
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Transaction Status (Only for Edit) -->
+                {% if object %}
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>حالة المعاملة
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="mb-0 small">
+                            <dt class="text-muted">الحالة</dt>
+                            <dd class="mb-2">
+                                {% if object.status == 'draft' %}
+                                    <span class="badge bg-secondary">مسودة</span>
+                                {% elif object.status == 'approved' %}
+                                    <span class="badge bg-info">معتمد</span>
+                                {% elif object.status == 'completed' %}
+                                    <span class="badge bg-success">مكتمل</span>
+                                {% elif object.status == 'cancelled' %}
+                                    <span class="badge bg-danger">ملغي</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="text-muted">تاريخ الإنشاء</dt>
+                            <dd class="mb-0">{{ object.created_at|date:"Y-m-d H:i" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Warning Card -->
+                {% if object and object.status != 'draft' %}
+                <div class="card warning-card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>تنبيه
+                        </h6>
+                        <p class="mb-0 small">
+                            <strong>لا يمكن تعديل هذه المعاملة!</strong><br>
+                            المعاملة في حالة {{ object.get_status_display }}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#id_asset, #id_debit_account, #id_credit_account').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: function() {
+            return $(this).data('placeholder') || 'اختر...';
+        },
+        allowClear: true,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Load Asset Information
+    // ==============================
+    $('#id_asset').on('change', function() {
+        const assetId = $(this).val();
+        if (assetId) {
+            $.ajax({
+                url: '/assets/api/assets/' + assetId + '/',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.asset) {
+                        $('#assetCost').text(response.asset.acquisition_cost.toFixed(3));
+                        $('#assetDepreciation').text(response.asset.accumulated_depreciation.toFixed(3));
+                        $('#assetBookValue').text(response.asset.book_value.toFixed(3));
+                        $('#assetStatus').text(response.asset.status_display);
+                        $('#assetInfoCard').slideDown();
+                    }
+                },
+                error: function() {
+                    console.error('فشل تحميل معلومات الأصل');
+                }
+            });
+        } else {
+            $('#assetInfoCard').slideUp();
+        }
+    });
+
+    // Trigger on load if editing
+    {% if object and object.asset %}
+    $('#id_asset').trigger('change');
+    {% endif %}
+
+    // ==============================
+    // Preview Calculation
+    // ==============================
+    $('#previewBtn').on('click', function() {
+        const assetId = $('#id_asset').val();
+        const amount = parseFloat($('#id_amount').val()) || 0;
+        const expenses = parseFloat($('#id_expenses').val()) || 0;
+        const revenue = parseFloat($('#id_revenue').val()) || 0;
+
+        if (!assetId) {
+            alert('يرجى اختيار الأصل أولاً');
+            return;
+        }
+
+        // Calculate net amount
+        const netAmount = amount - expenses + revenue;
+        $('#netAmount').text(netAmount.toFixed(3));
+
+        // Get book value and calculate gain/loss
+        const bookValue = parseFloat($('#assetBookValue').text().replace(/,/g, '')) || 0;
+        const gainLoss = netAmount - bookValue;
+        $('#expectedGainLoss').text(gainLoss.toFixed(3));
+        $('#expectedGainLoss').removeClass('text-success text-danger').addClass(gainLoss >= 0 ? 'text-success' : 'text-danger');
+
+        // Calculate new book value
+        const newBookValue = bookValue - netAmount;
+        $('#newBookValue').text(newBookValue.toFixed(3));
+
+        $('#calculationPreview').slideDown();
+    });
+
+    // ==============================
+    // Form Submission
+    // ==============================
+    $('#transactionForm').on('submit', function(e) {
+        const amount = parseFloat($('#id_amount').val()) || 0;
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('يجب أن يكون المبلغ أكبر من صفر');
+            return false;
+        }
+
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+
+    // ==============================
+    // Keyboard Shortcuts
+    // ==============================
+    $(document).on('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#transactionForm').submit();
+        }
+        if (e.key === 'Escape') {
+            window.location.href = '{% url "assets:transaction_list" %}';
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged && !$('#submitBtn').prop('disabled')) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "دفع قسط تأمين" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-money-bill-wave"></i> {% trans "دفع قسط تأمين" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if insurance %}
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "معلومات البوليصة" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm mb-0">
+                                        <tr>
+                                            <th width="40%">{% trans "رقم البوليصة" %}</th>
+                                            <td>{{ insurance.policy_number }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "الأصل" %}</th>
+                                            <td>{{ insurance.asset.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "شركة التأمين" %}</th>
+                                            <td>{{ insurance.insurance_company.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "القسط السنوي" %}</th>
+                                            <td class="fw-bold">{{ insurance.premium_amount|floatformat:3 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "المدفوع" %}</th>
+                                            <td class="text-success">{{ insurance.total_paid|floatformat:3 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "المتبقي" %}</th>
+                                            <td class="text-danger fw-bold">{{ insurance.remaining_amount|floatformat:3 }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card bg-info text-white">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-history"></i> {% trans "آخر الدفعات" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if recent_payments %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm text-white">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "التاريخ" %}</th>
+                                                    <th>{% trans "المبلغ" %}</th>
+                                                    <th>{% trans "الطريقة" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for payment in recent_payments %}
+                                                <tr>
+                                                    <td>{{ payment.payment_date|date:"Y-m-d" }}</td>
+                                                    <td>{{ payment.amount|floatformat:3 }}</td>
+                                                    <td>{{ payment.get_payment_method_display }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <p class="text-center mb-0">{% trans "لا توجد دفعات سابقة" %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.payment_date.id_for_label }}" class="form-label">
+                                    {{ form.payment_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.payment_date class="form-control" type="date" %}
+                                {% if form.payment_date.errors %}
+                                <div class="text-danger">{{ form.payment_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.amount.id_for_label }}" class="form-label">
+                                    {{ form.amount.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.amount class="form-control" step="0.001" %}
+                                {% if form.amount.errors %}
+                                <div class="text-danger">{{ form.amount.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "المتبقي" %}: {{ insurance.remaining_amount|floatformat:3 }}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.payment_method.id_for_label }}" class="form-label">
+                                    {{ form.payment_method.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.payment_method class="form-select" %}
+                                {% if form.payment_method.errors %}
+                                <div class="text-danger">{{ form.payment_method.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.reference_number.id_for_label }}" class="form-label">
+                                    {{ form.reference_number.label }}
+                                </label>
+                                {% render_field form.reference_number class="form-control" %}
+                                {% if form.reference_number.errors %}
+                                <div class="text-danger">{{ form.reference_number.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "رقم الشيك، الحوالة، أو الإيصال" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.payment_receipt.id_for_label }}" class="form-label">
+                                {{ form.payment_receipt.label }}
+                            </label>
+                            {% render_field form.payment_receipt class="form-control" %}
+                            {% if form.payment_receipt.errors %}
+                            <div class="text-danger">{{ form.payment_receipt.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رفع نسخة من إيصال الدفع (PDF, JPG, PNG)" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {% render_field form.notes class="form-control" rows="2" %}
+                            {% if form.notes.errors %}
+                            <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.auto_post class="form-check-input" %}
+                                <label for="{{ form.auto_post.id_for_label }}" class="form-check-label">
+                                    {{ form.auto_post.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "سيتم إنشاء قيد محاسبي تلقائياً للدفعة" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>{% trans "ملاحظة" %}:</strong>
+                            {% trans "سيتم تسجيل الدفعة وتحديث المبلغ المدفوع للبوليصة. إذا كانت الدفعة تغطي كامل المبلغ المتبقي، سيتم تحديث حالة الدفع إلى 'مدفوع بالكامل'." %}
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:insurance_detail' insurance.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="button" id="payFullBtn" class="btn btn-success">
+                                <i class="fas fa-check-double"></i> {% trans "دفع المبلغ المتبقي" %}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "تسجيل الدفعة" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Pay full remaining amount button
+    $('#payFullBtn').click(function() {
+        var remainingAmount = {{ insurance.remaining_amount|default:0 }};
+        $('#id_amount').val(remainingAmount.toFixed(3));
+    });
+
+    // Calculate and display remaining after this payment
+    $('#id_amount').on('input', function() {
+        var currentAmount = parseFloat($(this).val()) || 0;
+        var remainingAmount = {{ insurance.remaining_amount|default:0 }};
+        var newRemaining = remainingAmount - currentAmount;
+
+        if (!$('#remaining-after-payment').length) {
+            $(this).parent().append('<div id="remaining-after-payment" class="mt-2"></div>');
+        }
+
+        var message = '';
+        var className = '';
+
+        if (newRemaining < 0) {
+            message = '{% trans "المبلغ أكبر من المتبقي" %}';
+            className = 'text-danger';
+        } else if (newRemaining === 0) {
+            message = '{% trans "سيتم دفع المبلغ المتبقي بالكامل" %}';
+            className = 'text-success';
+        } else {
+            message = '{% trans "المتبقي بعد هذه الدفعة" %}: ' + newRemaining.toFixed(3);
+            className = 'text-info';
+        }
+
+        $('#remaining-after-payment').html('<small class="' + className + '"><strong>' + message + '</strong></small>');
+    });
+
+    // Set default payment date to today
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_payment_date').val(today);
+});
+</script>
+{% endblock %}

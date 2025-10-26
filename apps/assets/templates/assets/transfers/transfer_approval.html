@@ -1,0 +1,302 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks static %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="mb-4">
+                <h2><i class="fas fa-check-circle text-success"></i> {% trans "اعتماد نقل أصل" %}</h2>
+                <p class="text-muted">{% trans "مراجعة واعتماد طلب نقل الأصل" %}</p>
+            </div>
+
+            <!-- Transfer Summary -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "ملخص طلب النقل" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "رقم الطلب" %}</label>
+                            <p class="h6">{{ transfer.transfer_number }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "تاريخ الطلب" %}</label>
+                            <p class="h6">{{ transfer.transfer_date|date:"Y-m-d" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "مقدم الطلب" %}</label>
+                            <p class="h6">{{ transfer.created_by|default:"النظام" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الحالة الحالية" %}</label>
+                            <p>
+                                <span class="badge bg-warning fs-6">{% trans "قيد الانتظار" %}</span>
+                                {% if transfer.urgent %}
+                                    <span class="badge bg-danger fs-6">{% trans "عاجل" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Asset Info -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="mb-3"><i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p><strong>{% trans "الأصل:" %}</strong> {{ transfer.asset.name }}</p>
+                                    <p class="mb-0"><strong>{% trans "الرمز:" %}</strong> {{ transfer.asset.code }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong>{% trans "الفئة:" %}</strong> {{ transfer.asset.category.name }}</p>
+                                    <p class="mb-0"><strong>{% trans "التكلفة:" %}</strong> {{ transfer.asset.purchase_cost|floatformat:3 }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong>{% trans "الحالة:" %}</strong> {{ transfer.asset.condition.name|default:"-" }}</p>
+                                    <p class="mb-0"><strong>{% trans "القيمة الدفترية:" %}</strong> {{ transfer.asset.book_value|floatformat:3 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transfer Path -->
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning bg-opacity-10">
+                                    <h6 class="mb-0 text-warning">
+                                        <i class="fas fa-arrow-left"></i> {% trans "من" %}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>{% trans "الموقع:" %}</strong> {{ transfer.from_location.name }}</p>
+                                    <p><strong>{% trans "القسم:" %}</strong> {{ transfer.from_department.name|default:"-" }}</p>
+                                    <p class="mb-0"><strong>{% trans "المسؤول:" %}</strong> {{ transfer.from_custodian|default:"-" }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-2 d-flex align-items-center justify-content-center">
+                            <i class="fas fa-arrow-right fa-3x text-primary"></i>
+                        </div>
+
+                        <div class="col-md-5">
+                            <div class="card border-success">
+                                <div class="card-header bg-success bg-opacity-10">
+                                    <h6 class="mb-0 text-success">
+                                        <i class="fas fa-arrow-right"></i> {% trans "إلى" %}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>{% trans "الموقع:" %}</strong> {{ transfer.to_location.name }}</p>
+                                    <p><strong>{% trans "القسم:" %}</strong> {{ transfer.to_department.name|default:"-" }}</p>
+                                    <p class="mb-0"><strong>{% trans "المسؤول:" %}</strong> {{ transfer.to_custodian|default:"-" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if transfer.reason %}
+                    <hr>
+                    <div>
+                        <label class="text-muted small">{% trans "سبب النقل" %}</label>
+                        <p>{{ transfer.reason }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if transfer.notes %}
+                    <div>
+                        <label class="text-muted small">{% trans "ملاحظات" %}</label>
+                        <p class="mb-0">{{ transfer.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approval Form -->
+            <form method="post" id="approvalForm">
+                {% csrf_token %}
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-user-check"></i> {% trans "قرار الموافقة" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "القرار" %}</label>
+                                <select name="action" id="approvalAction" class="form-select" required>
+                                    <option value="">{% trans "اختر القرار" %}</option>
+                                    <option value="approve">{% trans "موافقة" %}</option>
+                                    <option value="reject">{% trans "رفض" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "تاريخ التنفيذ المتوقع" %}</label>
+                                <input type="date" name="expected_completion_date" class="form-control" id="completionDate">
+                                <div class="form-text">{% trans "متى سيتم تنفيذ النقل فعلياً؟" %}</div>
+                            </div>
+                        </div>
+
+                        <!-- Rejection Reason (shown only if rejected) -->
+                        <div id="rejectionReasonDiv" class="mt-3" style="display: none;">
+                            <label class="form-label required">{% trans "سبب الرفض" %}</label>
+                            <textarea name="rejection_reason" id="rejectionReason" class="form-control" rows="3"></textarea>
+                        </div>
+
+                        <!-- Approval Notes -->
+                        <div class="mt-3">
+                            <label class="form-label">{% trans "ملاحظات الموافقة" %}</label>
+                            <textarea name="approval_notes" class="form-control" rows="3"></textarea>
+                            <div class="form-text">{% trans "أي ملاحظات أو تعليمات إضافية" %}</div>
+                        </div>
+
+                        <!-- Options -->
+                        <div class="mt-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="auto_execute" id="autoExecute" class="form-check-input">
+                                <label class="form-check-label" for="autoExecute">
+                                    {% trans "تنفيذ النقل مباشرة بعد الموافقة" %}
+                                </label>
+                                <div class="form-text">{% trans "سيتم تحديث موقع الأصل تلقائياً" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Impact Warning -->
+                <div class="card shadow-sm mb-4" id="approvalImpact" style="display: none;">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تأثير الموافقة" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><i class="fas fa-check-circle text-success"></i> {% trans "سيتم تحديث الموقع الحالي للأصل" %}</p>
+                        <p><i class="fas fa-check-circle text-success"></i> {% trans "سيتم تحديث القسم والمسؤول الحالي" %}</p>
+                        <p><i class="fas fa-check-circle text-success"></i> {% trans "سيتم تسجيل الحركة في سجل نقل الأصول" %}</p>
+                        <p class="mb-0"><i class="fas fa-check-circle text-success"></i> {% trans "سيتم إشعار المعنيين بالنقل" %}</p>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4" id="rejectionImpact" style="display: none;">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> {% trans "تأثير الرفض" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><i class="fas fa-times-circle text-danger"></i> {% trans "سيتم إلغاء طلب النقل" %}</p>
+                        <p><i class="fas fa-times-circle text-danger"></i> {% trans "سيبقى الأصل في موقعه الحالي" %}</p>
+                        <p class="mb-0"><i class="fas fa-times-circle text-danger"></i> {% trans "سيتم إشعار مقدم الطلب بالرفض" %}</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex gap-2 mb-4">
+                    <button type="submit" class="btn btn-success btn-lg" id="submitBtn" disabled>
+                        <i class="fas fa-check"></i> {% trans "تأكيد القرار" %}
+                    </button>
+                    <a href="{% url 'assets:transfer_detail' transfer.pk %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show/hide rejection reason and impact based on action
+    $('#approvalAction').on('change', function() {
+        const action = $(this).val();
+
+        if (action === 'reject') {
+            $('#rejectionReasonDiv').slideDown();
+            $('#rejectionReason').prop('required', true);
+            $('#completionDate').prop('required', false);
+            $('#autoExecute').prop('disabled', true).prop('checked', false);
+            $('#approvalImpact').slideUp();
+            $('#rejectionImpact').slideDown();
+        } else if (action === 'approve') {
+            $('#rejectionReasonDiv').slideUp();
+            $('#rejectionReason').prop('required', false);
+            $('#completionDate').prop('required', false);
+            $('#autoExecute').prop('disabled', false);
+            $('#approvalImpact').slideDown();
+            $('#rejectionImpact').slideUp();
+        } else {
+            $('#rejectionReasonDiv').slideUp();
+            $('#approvalImpact').slideUp();
+            $('#rejectionImpact').slideUp();
+        }
+
+        // Enable submit button if action is selected
+        $('#submitBtn').prop('disabled', !action);
+    });
+
+    // Form validation and confirmation
+    $('#approvalForm').on('submit', function(e) {
+        e.preventDefault();
+
+        const action = $('#approvalAction').val();
+        const rejectionReason = $('#rejectionReason').val();
+
+        if (!action) {
+            Swal.fire({
+                icon: 'error',
+                title: '{% trans "خطأ" %}',
+                text: '{% trans "يرجى تحديد القرار" %}'
+            });
+            return false;
+        }
+
+        if (action === 'reject' && !rejectionReason) {
+            Swal.fire({
+                icon: 'error',
+                title: '{% trans "خطأ" %}',
+                text: '{% trans "يرجى إدخال سبب الرفض" %}'
+            });
+            return false;
+        }
+
+        // Confirmation dialog
+        const confirmTitle = action === 'approve' ? '{% trans "تأكيد الموافقة" %}' : '{% trans "تأكيد الرفض" %}';
+        const confirmText = action === 'approve' ?
+            '{% trans "هل أنت متأكد من الموافقة على هذا النقل؟" %}' :
+            '{% trans "هل أنت متأكد من رفض هذا النقل؟" %}';
+        const confirmButtonText = action === 'approve' ? '{% trans "نعم، وافق" %}' : '{% trans "نعم، ارفض" %}';
+        const confirmButtonColor = action === 'approve' ? '#28a745' : '#dc3545';
+
+        Swal.fire({
+            title: confirmTitle,
+            text: confirmText,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: confirmButtonColor,
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: confirmButtonText,
+            cancelButtonText: '{% trans "إلغاء" %}'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

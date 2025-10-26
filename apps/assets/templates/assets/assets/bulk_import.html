@@ -1,0 +1,514 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="mb-1">
+                    <i class="fas fa-upload me-2"></i>
+                    {% trans "استيراد الأصول بالجملة" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "استيراد الأصول من ملف Excel بكميات كبيرة" %}</p>
+            </div>
+            <a href="{% url 'assets:asset_list' %}" class="btn btn-light btn-back">
+                <i class="fas fa-arrow-left me-2"></i>
+                {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Instructions Card -->
+            <div class="card content-card shadow-sm mb-4">
+                <div class="card-header" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-bottom: 3px solid #2196f3;">
+                    <h5 class="mb-0" style="color: #1565c0;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "التعليمات" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info border-info">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        <strong>{% trans "اتبع الخطوات التالية لاستيراد الأصول بنجاح" %}</strong>
+                    </div>
+
+                    <div class="import-steps">
+                        <div class="step-item">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h6>{% trans "تحميل القالب" %}</h6>
+                                <p class="text-muted mb-0">{% trans "قم بتحميل قالب Excel أدناه" %}</p>
+                            </div>
+                        </div>
+
+                        <div class="step-item">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h6>{% trans "ملء البيانات" %}</h6>
+                                <p class="text-muted mb-0">{% trans "قم بملء البيانات في الملف حسب التعليمات الموجودة" %}</p>
+                            </div>
+                        </div>
+
+                        <div class="step-item">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h6>{% trans "رفع الملف" %}</h6>
+                                <p class="text-muted mb-0">{% trans "احفظ الملف وارفعه من خلال النموذج أدناه" %}</p>
+                            </div>
+                        </div>
+
+                        <div class="step-item">
+                            <div class="step-number">4</div>
+                            <div class="step-content">
+                                <h6>{% trans "التحقق من البيانات" %}</h6>
+                                <p class="text-muted mb-0">{% trans "سيتم التحقق من البيانات وعرض أي أخطاء قبل الاستيراد" %}</p>
+                            </div>
+                        </div>
+
+                        <div class="step-item">
+                            <div class="step-number">5</div>
+                            <div class="step-content">
+                                <h6>{% trans "تأكيد الاستيراد" %}</h6>
+                                <p class="text-muted mb-0">{% trans "راجع البيانات وأكد الاستيراد" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download Template -->
+            <div class="card content-card shadow-sm mb-4">
+                <div class="card-header card-header-purchase">
+                    <h5 class="mb-0">
+                        <i class="fas fa-download me-2"></i>
+                        {% trans "تحميل القالب" %}
+                    </h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-file-excel fa-4x text-success mb-3"></i>
+                    <p class="text-muted mb-4">
+                        {% trans "قم بتحميل قالب Excel الجاهز مع الأعمدة المطلوبة والبيانات النموذجية" %}
+                    </p>
+                    <a href="{% url 'assets:download_import_template' %}" class="btn btn-success btn-lg">
+                        <i class="fas fa-file-excel me-2"></i>
+                        {% trans "تحميل قالب Excel" %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Upload Form -->
+            <div class="card content-card shadow-sm mb-4">
+                <div class="card-header card-header-financial">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>
+                        {% trans "رفع الملف" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-file me-2"></i>
+                                {% trans "اختر ملف Excel" %}
+                            </label>
+                            <input type="file" name="file" class="form-control form-control-lg" accept=".xlsx,.xls" required>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                {% trans "الملفات المدعومة: .xlsx, .xls" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="update_existing" id="updateExisting">
+                                <label class="form-check-label fw-bold" for="updateExisting">
+                                    {% trans "تحديث الأصول الموجودة إذا كان رقم الأصل مطابق" %}
+                                </label>
+                                <small class="form-text text-muted d-block mt-1">
+                                    {% trans "إذا كان رقم الأصل موجود مسبقاً، سيتم تحديث بياناته بدلاً من إنشاء أصل جديد" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="skip_errors" id="skipErrors">
+                                <label class="form-check-label fw-bold" for="skipErrors">
+                                    {% trans "تخطي الصفوف التي تحتوي على أخطاء" %}
+                                </label>
+                                <small class="form-text text-muted d-block mt-1">
+                                    {% trans "سيتم استيراد الصفوف الصحيحة فقط وتجاهل الصفوف التي تحتوي على أخطاء" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-cancel">
+                                <i class="fas fa-times me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check me-2"></i>
+                                {% trans "التحقق من البيانات" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Validation Results (Hidden until validation) -->
+            <div class="card content-card shadow-sm mb-4 d-none" id="validationResults">
+                <div class="card-header" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border-bottom: 3px solid #ff9800;">
+                    <h5 class="mb-0" style="color: #e65100;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "نتائج التحقق" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="validationContent"></div>
+                </div>
+            </div>
+
+            <!-- Preview Data (Hidden until validation succeeds) -->
+            <div class="card content-card shadow-sm d-none" id="previewCard">
+                <div class="card-header card-header-depreciation">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>
+                        {% trans "معاينة البيانات" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success border-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong id="totalRecords"></strong> {% trans "سجل جاهز للاستيراد" %}
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="previewTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="5%">#</th>
+                                    <th width="15%">{% trans "رقم الأصل" %}</th>
+                                    <th width="20%">{% trans "الاسم" %}</th>
+                                    <th width="15%">{% trans "الفئة" %}</th>
+                                    <th width="15%">{% trans "التكلفة" %}</th>
+                                    <th width="12%">{% trans "تاريخ الشراء" %}</th>
+                                    <th width="10%">{% trans "الفرع" %}</th>
+                                    <th width="8%">{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <form method="post" id="confirmImportForm" class="mt-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="confirm" value="1">
+                        <input type="hidden" name="validated_data" id="validatedData">
+
+                        <div class="action-buttons">
+                            <button type="button" class="btn btn-secondary" onclick="location.reload()">
+                                <i class="fas fa-redo me-2"></i>
+                                {% trans "إعادة المحاولة" %}
+                            </button>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check-circle me-2"></i>
+                                {% trans "تأكيد الاستيراد" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Help Card -->
+            <div class="card content-card shadow-sm sticky-sidebar">
+                <div class="card-header card-header-accounting">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>
+                        {% trans "مساعدة" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">{% trans "الأعمدة المطلوبة" %}</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>{% trans "رقم الأصل" %}</strong> <span class="text-danger">*</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>{% trans "اسم الأصل" %}</strong> <span class="text-danger">*</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>{% trans "الفئة" %}</strong> <span class="text-danger">*</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>{% trans "التكلفة الأصلية" %}</strong> <span class="text-danger">*</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>{% trans "تاريخ الشراء" %}</strong> <span class="text-danger">*</span>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-circle text-muted me-2"></i>
+                            <strong>{% trans "المورد" %}</strong>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-circle text-muted me-2"></i>
+                            <strong>{% trans "الفرع" %}</strong>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-circle text-muted me-2"></i>
+                            <strong>{% trans "الموقع" %}</strong>
+                        </li>
+                    </ul>
+
+                    <div class="alert alert-warning border-warning mt-4">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            {% trans "الحقول المميزة بـ" %} <span class="text-danger">*</span> {% trans "مطلوبة" %}
+                        </small>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">{% trans "ملاحظات هامة" %}</h6>
+                    <ul class="small text-muted">
+                        <li class="mb-2">{% trans "يجب أن تكون رموز الفئات موجودة مسبقاً في النظام" %}</li>
+                        <li class="mb-2">{% trans "تاريخ الشراء بصيغة: YYYY-MM-DD" %}</li>
+                        <li class="mb-2">{% trans "الحد الأقصى: 1000 صف في المرة الواحدة" %}</li>
+                        <li class="mb-2">{% trans "سيتم التحقق من جميع البيانات قبل الاستيراد" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+$(document).ready(function() {
+    // Handle Import Form Submission
+    $('#importForm').on('submit', function(e) {
+        e.preventDefault();
+
+        var formData = new FormData(this);
+
+        showLoading('{% trans "جاري التحقق من البيانات..." %}');
+
+        $.ajax({
+            url: '{% url "assets:bulk_import_assets" %}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                closeLoading();
+
+                if (response.status === 'success') {
+                    // Show preview
+                    displayPreview(response.data);
+                    $('#validationResults').addClass('d-none');
+                    $('#previewCard').removeClass('d-none');
+
+                    // Smooth scroll to preview
+                    $('html, body').animate({
+                        scrollTop: $('#previewCard').offset().top - 100
+                    }, 500);
+
+                    showSuccess('{% trans "تم التحقق من البيانات بنجاح" %}');
+                } else if (response.status === 'validation_error') {
+                    // Show validation errors
+                    displayValidationErrors(response.errors);
+                    $('#validationResults').removeClass('d-none');
+                    $('#previewCard').addClass('d-none');
+
+                    // Scroll to errors
+                    $('html, body').animate({
+                        scrollTop: $('#validationResults').offset().top - 100
+                    }, 500);
+
+                    showWarning('{% trans "توجد أخطاء في البيانات" %}');
+                }
+            },
+            error: function(xhr) {
+                closeLoading();
+                const message = xhr.responseJSON?.error || '{% trans "حدث خطأ أثناء معالجة الملف" %}';
+                showError(message);
+            }
+        });
+    });
+
+    // Handle Confirm Import
+    $('#confirmImportForm').on('submit', function(e) {
+        e.preventDefault();
+
+        showConfirm(
+            '{% trans "هل أنت متأكد من استيراد هذه الأصول؟" %}',
+            function() {
+                showLoading('{% trans "جاري الاستيراد..." %}');
+
+                $.ajax({
+                    url: '{% url "assets:bulk_import_assets" %}',
+                    type: 'POST',
+                    data: $('#confirmImportForm').serialize(),
+                    success: function(response) {
+                        closeLoading();
+
+                        if (response.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '{% trans "تم الاستيراد بنجاح!" %}',
+                                html: '<strong>' + response.imported_count + '</strong> {% trans "أصل تم استيراده بنجاح" %}',
+                                confirmButtonText: '{% trans "حسناً" %}',
+                                confirmButtonColor: '#4caf50'
+                            }).then((result) => {
+                                window.location.href = '{% url "assets:asset_list" %}';
+                            });
+                        } else {
+                            showError(response.message || '{% trans "فشل الاستيراد" %}');
+                        }
+                    },
+                    error: function(xhr) {
+                        closeLoading();
+                        const message = xhr.responseJSON?.error || '{% trans "حدث خطأ أثناء الاستيراد" %}';
+                        showError(message);
+                    }
+                });
+            },
+            '{% trans "تأكيد الاستيراد" %}'
+        );
+    });
+
+    // Display Preview Function
+    function displayPreview(data) {
+        $('#totalRecords').text(data.length);
+        $('#validatedData').val(JSON.stringify(data));
+
+        var tbody = $('#previewBody');
+        tbody.empty();
+
+        $.each(data, function(index, item) {
+            var row = '<tr>' +
+                '<td>' + (index + 1) + '</td>' +
+                '<td><strong class="text-primary">' + item.asset_number + '</strong></td>' +
+                '<td>' + item.name + '</td>' +
+                '<td>' + item.category + '</td>' +
+                '<td class="text-end">' + parseFloat(item.original_cost).toFixed(3) + ' {% trans "د.ك" %}</td>' +
+                '<td>' + item.purchase_date + '</td>' +
+                '<td>' + item.branch + '</td>' +
+                '<td><span class="badge bg-' + getStatusColor(item.status) + '">' + item.status + '</span></td>' +
+                '</tr>';
+            tbody.append(row);
+        });
+    }
+
+    // Display Validation Errors Function
+    function displayValidationErrors(errors) {
+        var content = '<div class="alert alert-danger border-danger" role="alert">' +
+            '<h6 class="alert-heading">' +
+            '<i class="fas fa-exclamation-triangle me-2"></i>' +
+            '{% trans "تم العثور على" %} <strong>' + errors.length + '</strong> {% trans "أخطاء في الملف:" %}' +
+            '</h6></div>' +
+            '<div class="list-group">';
+
+        $.each(errors, function(index, error) {
+            content += '<div class="list-group-item list-group-item-danger">' +
+                '<div class="d-flex w-100 justify-content-between">' +
+                '<h6 class="mb-1"><i class="fas fa-times-circle me-2"></i>{% trans "الصف" %} ' + error.row + '</h6>' +
+                '</div>' +
+                '<p class="mb-0">' + error.message + '</p>' +
+                '</div>';
+        });
+
+        content += '</div>';
+        $('#validationContent').html(content);
+    }
+
+    // Helper: Get Status Color
+    function getStatusColor(status) {
+        const colors = {
+            'active': 'success',
+            'inactive': 'secondary',
+            'disposed': 'danger',
+            'sold': 'info',
+            'under_maintenance': 'warning'
+        };
+        return colors[status] || 'secondary';
+    }
+});
+</script>
+
+<style>
+.import-steps {
+    margin-top: 1.5rem;
+}
+
+.step-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.step-item:hover {
+    background: #e9ecef;
+    transform: translateX(-5px);
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-left: 1rem;
+}
+
+.step-content {
+    flex-grow: 1;
+}
+
+.step-content h6 {
+    margin-bottom: 0.25rem;
+    color: #1976d2;
+}
+
+#previewTable {
+    font-size: 0.9rem;
+}
+
+#validationResults .list-group-item {
+    margin-bottom: 0.75rem;
+    border-radius: 0.5rem;
+}
+</style>
+{% endblock %}

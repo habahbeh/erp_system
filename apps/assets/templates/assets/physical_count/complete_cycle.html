@@ -1,0 +1,209 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "إنهاء دورة الجرد" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle"></i> {% trans "إنهاء دورة الجرد الفعلي" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if cycle %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات دورة الجرد" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="40%">{% trans "رقم الدورة" %}</th>
+                                        <td>{{ cycle.cycle_number }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "تاريخ البدء" %}</th>
+                                        <td>{{ cycle.start_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "رئيس الفريق" %}</th>
+                                        <td>{{ cycle.team_leader.get_full_name }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="40%">{% trans "إجمالي الأصول" %}</th>
+                                        <td>{{ cycle.total_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "المجردة" %}</th>
+                                        <td class="text-success">{{ cycle.counted_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "المتبقية" %}</th>
+                                        <td class="text-danger">{{ cycle.remaining_assets }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if cycle.status == 'completed' %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "دورة الجرد مكتملة بالفعل في تاريخ" %}: {{ cycle.end_date|date:"Y-m-d" }}
+                    </div>
+                    {% elif cycle.status != 'in_progress' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "يجب أن تكون الدورة قيد التنفيذ لإتمامها" %}
+                    </div>
+                    {% elif cycle.remaining_assets > 0 %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{% trans "تنبيه" %}:</strong>
+                        {% trans "لا يزال هناك" %} {{ cycle.remaining_assets }} {% trans "أصل لم يتم جرده بعد." %}
+                        {% trans "هل تريد المتابعة على أي حال؟" %}
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.completion_date.id_for_label }}" class="form-label">
+                                {{ form.completion_date.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.completion_date class="form-control" type="date" %}
+                            {% if form.completion_date.errors %}
+                            <div class="text-danger">{{ form.completion_date.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.summary_notes.id_for_label }}" class="form-label">
+                                {{ form.summary_notes.label }}
+                            </label>
+                            {% render_field form.summary_notes class="form-control" rows="4" %}
+                            {% if form.summary_notes.errors %}
+                            <div class="text-danger">{{ form.summary_notes.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "ملخص نتائج الجرد والملاحظات" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.force_complete class="form-check-input" %}
+                                <label for="{{ form.force_complete.id_for_label }}" class="form-check-label">
+                                    {{ form.force_complete.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted text-danger">
+                                {% trans "إنهاء رغم وجود أصول لم يتم جردها" %}
+                            </small>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:cycle_detail' cycle.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check-circle"></i> {% trans "إنهاء الدورة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.completion_date.id_for_label }}" class="form-label">
+                                {{ form.completion_date.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.completion_date class="form-control" type="date" %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.summary_notes.id_for_label }}" class="form-label">
+                                {{ form.summary_notes.label }}
+                            </label>
+                            {% render_field form.summary_notes class="form-control" rows="4" %}
+                        </div>
+
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6><i class="fas fa-chart-pie"></i> {% trans "ملخص الجرد" %}</h6>
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th>{% trans "إجمالي الأصول" %}</th>
+                                        <td class="text-end">{{ cycle.total_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصول المجردة" %}</th>
+                                        <td class="text-end text-success">{{ cycle.counted_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصول الموجودة" %}</th>
+                                        <td class="text-end text-success">{{ cycle.found_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصول المفقودة" %}</th>
+                                        <td class="text-end text-danger">{{ cycle.missing_assets }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الفروقات" %}</th>
+                                        <td class="text-end text-warning">{{ cycle.variance_count }}</td>
+                                    </tr>
+                                    <tr class="table-active">
+                                        <th>{% trans "نسبة الإنجاز" %}</th>
+                                        <td class="text-end fw-bold">{{ cycle.completion_percentage }}%</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>{% trans "نتيجة إنهاء الدورة" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم تغيير حالة الدورة إلى 'مكتملة'" %}</li>
+                                <li>{% trans "سيتم تسجيل تاريخ الإنهاء" %}</li>
+                                <li>{% trans "لن يمكن تعديل بطاقات الجرد بعد ذلك" %}</li>
+                                <li>{% trans "سيتم إرسال تقرير الجرد للمسؤولين" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:cycle_detail' cycle.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check-circle"></i> {% trans "إنهاء الدورة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_completion_date').val(today);
+});
+</script>
+{% endblock %}

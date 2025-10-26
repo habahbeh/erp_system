@@ -1,0 +1,199 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between mb-4">
+        <h2><i class="fas fa-tools text-danger"></i> {% trans "تنبيهات الصيانة" %}</h2>
+        <a href="{% url 'assets:notifications_dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+        </a>
+    </div>
+
+    <!-- Filter Tabs -->
+    <ul class="nav nav-tabs mb-4" id="maintenanceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overdue-tab" data-bs-toggle="tab" data-bs-target="#overdue" type="button">
+                <i class="fas fa-exclamation-circle"></i> {% trans "متأخر" %}
+                <span class="badge bg-danger">{{ overdue_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="upcoming-tab" data-bs-toggle="tab" data-bs-target="#upcoming" type="button">
+                <i class="fas fa-clock"></i> {% trans "قادم" %}
+                <span class="badge bg-warning">{{ upcoming_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button">
+                <i class="fas fa-check-circle"></i> {% trans "مكتمل" %}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="maintenanceTabsContent">
+        <!-- Overdue Maintenance -->
+        <div class="tab-pane fade show active" id="overdue" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> {% trans "صيانة متأخرة" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if overdue_maintenance %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <th>{% trans "نوع الصيانة" %}</th>
+                                    <th>{% trans "التاريخ المقرر" %}</th>
+                                    <th>{% trans "متأخر بـ" %}</th>
+                                    <th>{% trans "التكرار" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for schedule in overdue_maintenance %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' schedule.asset.pk %}">
+                                            {{ schedule.asset.name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ schedule.maintenance_type.name }}</td>
+                                    <td>{{ schedule.next_maintenance_date|date:"Y-m-d" }}</td>
+                                    <td>
+                                        <span class="badge bg-danger">
+                                            {{ schedule.days_overdue }} {% trans "يوم" %}
+                                        </span>
+                                    </td>
+                                    <td>{{ schedule.get_frequency_display }}</td>
+                                    <td class="text-center">
+                                        <a href="{% url 'assets:schedule_detail' schedule.pk %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'assets:maintenance_create' %}?schedule={{ schedule.pk }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-wrench"></i> {% trans "تنفيذ" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد صيانة متأخرة" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Upcoming Maintenance -->
+        <div class="tab-pane fade" id="upcoming" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> {% trans "صيانة قادمة (30 يوم)" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_maintenance %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <th>{% trans "نوع الصيانة" %}</th>
+                                    <th>{% trans "التاريخ المقرر" %}</th>
+                                    <th>{% trans "متبقي" %}</th>
+                                    <th>{% trans "التكرار" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for schedule in upcoming_maintenance %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' schedule.asset.pk %}">
+                                            {{ schedule.asset.name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ schedule.maintenance_type.name }}</td>
+                                    <td>{{ schedule.next_maintenance_date|date:"Y-m-d" }}</td>
+                                    <td>
+                                        <span class="badge bg-warning">
+                                            {{ schedule.days_until }} {% trans "يوم" %}
+                                        </span>
+                                    </td>
+                                    <td>{{ schedule.get_frequency_display }}</td>
+                                    <td class="text-center">
+                                        <a href="{% url 'assets:schedule_detail' schedule.pk %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'assets:maintenance_create' %}?schedule={{ schedule.pk }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-wrench"></i> {% trans "تنفيذ" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد صيانة قادمة" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Completed Maintenance -->
+        <div class="tab-pane fade" id="completed" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle"></i> {% trans "صيانة مكتملة (آخر 30 يوم)" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if completed_maintenance %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <th>{% trans "نوع الصيانة" %}</th>
+                                    <th>{% trans "تاريخ التنفيذ" %}</th>
+                                    <th class="text-end">{% trans "التكلفة" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for maintenance in completed_maintenance %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' maintenance.asset.pk %}">
+                                            {{ maintenance.asset.name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ maintenance.maintenance_type.name }}</td>
+                                    <td>{{ maintenance.maintenance_date|date:"Y-m-d" }}</td>
+                                    <td class="text-end">{{ maintenance.cost|floatformat:3 }}</td>
+                                    <td>
+                                        <span class="badge bg-success">{{ maintenance.get_status_display }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="{% url 'assets:maintenance_detail' maintenance.pk %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد صيانة مكتملة" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

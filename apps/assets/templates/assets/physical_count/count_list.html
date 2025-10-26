@@ -1,0 +1,84 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-clipboard-check text-primary"></i> {% trans "سجلات الجرد" %}</h5>
+            <div>
+                {% if perms.assets.add_physicalcount %}
+                <a href="{% url 'assets:count_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "عد جديد" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "الدورة" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "الموقع المتوقع" %}</th>
+                            <th>{% trans "الموقع الفعلي" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for count in object_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' count.asset.pk %}">
+                                    {{ count.asset.name }}
+                                </a>
+                            </td>
+                            <td>{{ count.cycle.name|default:"-" }}</td>
+                            <td>{{ count.count_date|date:"Y-m-d" }}</td>
+                            <td>{{ count.expected_location.name|default:"-" }}</td>
+                            <td>
+                                {% if count.actual_location %}
+                                    {% if count.actual_location == count.expected_location %}
+                                        <span class="text-success">{{ count.actual_location.name }}</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ count.actual_location.name }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if count.status == 'pending' %}
+                                    <span class="badge bg-warning">{% trans "قيد العد" %}</span>
+                                {% elif count.status == 'found' %}
+                                    <span class="badge bg-success">{% trans "موجود" %}</span>
+                                {% elif count.status == 'not_found' %}
+                                    <span class="badge bg-danger">{% trans "غير موجود" %}</span>
+                                {% elif count.status == 'verified' %}
+                                    <span class="badge bg-info">{% trans "تم التحقق" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'assets:count_detail' count.pk %}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'assets:count_update' count.pk %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">{% trans "لا توجد سجلات جرد" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

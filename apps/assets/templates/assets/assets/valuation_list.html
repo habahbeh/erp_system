@@ -1,0 +1,98 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "تقييمات الأصول" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-dollar-sign text-success"></i> {% trans "تقييمات الأصول" %}</h2>
+        {% if perms.assets.add_assetvaluation %}
+        <a href="{% url 'assets:asset_create' %}" class="btn btn-success">
+            <i class="fas fa-plus"></i> {% trans "إضافة تقييم" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="valuationsTable">
+                    <thead>
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "تاريخ التقييم" %}</th>
+                            <th>{% trans "القيمة القديمة" %}</th>
+                            <th>{% trans "القيمة الجديدة" %}</th>
+                            <th>{% trans "الفرق" %}</th>
+                            <th>{% trans "المقيّم" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th>{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for valuation in valuations %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' valuation.asset.pk %}">
+                                    {{ valuation.asset.name }}
+                                </a>
+                            </td>
+                            <td>{{ valuation.valuation_date|date:"Y-m-d" }}</td>
+                            <td>{{ valuation.old_value|floatformat:3 }}</td>
+                            <td>{{ valuation.new_value|floatformat:3 }}</td>
+                            <td>
+                                {% if valuation.difference > 0 %}
+                                <span class="text-success">
+                                    +{{ valuation.difference|floatformat:3 }}
+                                </span>
+                                {% elif valuation.difference < 0 %}
+                                <span class="text-danger">
+                                    {{ valuation.difference|floatformat:3 }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">0.000</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ valuation.valuator_name|default:"-" }}</td>
+                            <td>
+                                {% if valuation.is_approved %}
+                                <span class="badge bg-success">{% trans "معتمد" %}</span>
+                                {% else %}
+                                <span class="badge bg-warning">{% trans "قيد المراجعة" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' valuation.pk %}" class="btn btn-sm btn-info" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if perms.assets.change_assetvaluation and not valuation.is_approved %}
+                                <a href="{% url 'assets:asset_update' valuation.pk %}" class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center">{% trans "لا توجد تقييمات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#valuationsTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
+        order: [[1, 'desc']]
+    });
+});
+</script>
+{% endblock %}

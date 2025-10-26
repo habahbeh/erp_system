@@ -1,0 +1,581 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ transaction.transaction_number }} - {% trans "تفاصيل المعاملة" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.detail-card .card-header {
+    padding: 1.25rem;
+    border-bottom: 2px solid;
+    font-weight: 600;
+}
+
+.section-info .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.section-asset .card-header {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-bottom-color: #4caf50;
+    color: #2e7d32;
+}
+
+.section-financial .card-header {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-bottom-color: #ff9800;
+    color: #e65100;
+}
+
+.section-journal .card-header {
+    background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+    border-bottom-color: #9c27b0;
+    color: #6a1b9a;
+}
+
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.info-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    color: #212529;
+}
+
+.transaction-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-exchange-alt text-primary"></i>
+                {{ transaction.transaction_number }}
+            </h1>
+            <p class="text-muted mb-0">
+                {% if transaction.transaction_type == 'sale' %}
+                    <span class="transaction-type-badge bg-primary text-white">
+                        <i class="fas fa-dollar-sign me-2"></i>{% trans "عملية بيع" %}
+                    </span>
+                {% elif transaction.transaction_type == 'disposal' %}
+                    <span class="transaction-type-badge bg-danger text-white">
+                        <i class="fas fa-trash-alt me-2"></i>{% trans "عملية استبعاد" %}
+                    </span>
+                {% elif transaction.transaction_type == 'revaluation' %}
+                    <span class="transaction-type-badge bg-warning text-dark">
+                        <i class="fas fa-edit me-2"></i>{% trans "إعادة تقييم" %}
+                    </span>
+                {% elif transaction.transaction_type == 'impairment' %}
+                    <span class="transaction-type-badge bg-info text-white">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{% trans "هبوط قيمة" %}
+                    </span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="btn-group">
+            {% if transaction.status == 'draft' and perms.assets.change_assettransaction %}
+            <a href="{% url 'assets:transaction_update' transaction.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'assets:transaction_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Basic Information -->
+            <div class="card detail-card section-info">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "المعلومات الأساسية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "رقم المعاملة" %}</div>
+                                <div class="info-value">
+                                    <span class="badge bg-dark fs-6">{{ transaction.transaction_number }}</span>
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "تاريخ المعاملة" %}</div>
+                                <div class="info-value">{{ transaction.transaction_date|date:"Y-m-d" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "نوع المعاملة" %}</div>
+                                <div class="info-value">{{ transaction.get_transaction_type_display }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الحالة" %}</div>
+                                <div class="info-value">
+                                    {% if transaction.status == 'draft' %}
+                                        <span class="badge bg-secondary fs-6">
+                                            <i class="fas fa-file"></i> {% trans "مسودة" %}
+                                        </span>
+                                    {% elif transaction.status == 'approved' %}
+                                        <span class="badge bg-info fs-6">
+                                            <i class="fas fa-check"></i> {% trans "معتمد" %}
+                                        </span>
+                                    {% elif transaction.status == 'completed' %}
+                                        <span class="badge bg-success fs-6">
+                                            <i class="fas fa-check-double"></i> {% trans "مكتمل" %}
+                                        </span>
+                                    {% elif transaction.status == 'cancelled' %}
+                                        <span class="badge bg-danger fs-6">
+                                            <i class="fas fa-ban"></i> {% trans "ملغي" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if transaction.reference_number %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الرقم المرجعي" %}</div>
+                                <div class="info-value">{{ transaction.reference_number }}</div>
+                            </div>
+                            {% endif %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "المستخدم" %}</div>
+                                <div class="info-value">{{ transaction.created_by.get_full_name|default:transaction.created_by.username }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if transaction.description %}
+                    <div class="info-row mt-3">
+                        <div class="info-label">{% trans "الوصف" %}</div>
+                        <div class="info-value">{{ transaction.description }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if transaction.notes %}
+                    <div class="info-row">
+                        <div class="info-label">{% trans "ملاحظات" %}</div>
+                        <div class="info-value">{{ transaction.notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Asset Information -->
+            <div class="card detail-card section-asset">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cube me-2"></i>
+                        {% trans "معلومات الأصل" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-box text-success"></i>
+                                    {% trans "الأصل" %}
+                                </div>
+                                <div class="info-value">
+                                    <a href="{% url 'assets:asset_detail' transaction.asset.pk %}">
+                                        {{ transaction.asset.name }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-barcode text-success"></i>
+                                    {% trans "رقم الأصل" %}
+                                </div>
+                                <div class="info-value">
+                                    <a href="{% url 'assets:asset_detail' transaction.asset.pk %}">
+                                        {{ transaction.asset.asset_number }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-folder text-success"></i>
+                                    {% trans "التصنيف" %}
+                                </div>
+                                <div class="info-value">
+                                    {{ transaction.asset.category.name }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-dollar-sign text-success"></i>
+                                    {% trans "القيمة الدفترية" %}
+                                </div>
+                                <div class="info-value">
+                                    {{ transaction.asset.book_value|floatformat:2 }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Information -->
+            <div class="card detail-card section-financial">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-money-bill-wave me-2"></i>
+                        {% trans "المعلومات المالية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% if transaction.amount %}
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-coins text-warning"></i>
+                                    {% trans "المبلغ" %}
+                                </div>
+                                <div class="info-value">
+                                    <strong>{{ transaction.amount|floatformat:2 }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if transaction.sale_price %}
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-tag text-warning"></i>
+                                    {% trans "سعر البيع" %}
+                                </div>
+                                <div class="info-value">
+                                    <strong>{{ transaction.sale_price|floatformat:2 }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if transaction.accumulated_depreciation %}
+                        <div class="col-md-4">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-chart-line text-warning"></i>
+                                    {% trans "الإهلاك المتراكم" %}
+                                </div>
+                                <div class="info-value">
+                                    {{ transaction.accumulated_depreciation|floatformat:2 }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if transaction.gain_loss %}
+                        <div class="col-md-12">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-balance-scale text-warning"></i>
+                                    {% trans "الربح/الخسارة" %}
+                                </div>
+                                <div class="info-value">
+                                    {% if transaction.gain_loss > 0 %}
+                                        <span class="text-success fw-bold fs-4">
+                                            +{{ transaction.gain_loss|floatformat:2 }}
+                                            <small>{% trans "ربح" %}</small>
+                                        </span>
+                                    {% elif transaction.gain_loss < 0 %}
+                                        <span class="text-danger fw-bold fs-4">
+                                            {{ transaction.gain_loss|floatformat:2 }}
+                                            <small>{% trans "خسارة" %}</small>
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">0.00</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if transaction.payment_method %}
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-credit-card text-warning"></i>
+                                    {% trans "طريقة الدفع" %}
+                                </div>
+                                <div class="info-value">
+                                    {{ transaction.get_payment_method_display }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if transaction.business_partner %}
+                        <div class="col-md-6">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="fas fa-handshake text-warning"></i>
+                                    {% trans "الطرف المقابل" %}
+                                </div>
+                                <div class="info-value">
+                                    {{ transaction.business_partner.name }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Journal Entry -->
+            {% if transaction.journal_entry %}
+            <div class="card detail-card section-journal">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-book me-2"></i>
+                        {% trans "القيد المحاسبي" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-row">
+                        <div class="info-label">{% trans "رقم القيد" %}</div>
+                        <div class="info-value">
+                            <span class="badge bg-primary">{{ transaction.journal_entry.journal_number }}</span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">{% trans "تاريخ القيد" %}</div>
+                        <div class="info-value">{{ transaction.journal_entry.entry_date|date:"Y-m-d" }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Statistics Card -->
+            <div class="card detail-card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        {% trans "ملخص المعاملة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-primary bg-opacity-10 text-primary">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "تاريخ المعاملة" %}</div>
+                            <h5 class="mb-0">{{ transaction.transaction_date|date:"d/m/Y" }}</h5>
+                        </div>
+                    </div>
+
+                    {% if transaction.amount %}
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-success bg-opacity-10 text-success">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "المبلغ" %}</div>
+                            <h5 class="mb-0">{{ transaction.amount|floatformat:2 }}</h5>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="stat-badge bg-info bg-opacity-10 text-info">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "المستخدم" %}</div>
+                            <h6 class="mb-0">{{ transaction.created_by.get_full_name|default:transaction.created_by.username }}</h6>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center">
+                        <div class="stat-badge bg-warning bg-opacity-10 text-warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="ms-3">
+                            <div class="text-muted small">{% trans "تاريخ الإنشاء" %}</div>
+                            <h6 class="mb-0">{{ transaction.created_at|date:"d/m/Y H:i" }}</h6>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card detail-card mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'assets:asset_detail' transaction.asset.pk %}" class="btn btn-outline-primary text-start">
+                            <i class="fas fa-cube me-2"></i> {% trans "عرض الأصل" %}
+                        </a>
+
+                        {% if transaction.status == 'draft' and perms.assets.change_assettransaction %}
+                        <a href="{% url 'assets:transaction_update' transaction.pk %}" class="btn btn-outline-warning text-start">
+                            <i class="fas fa-edit me-2"></i> {% trans "تعديل المعاملة" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'assets:transaction_list' %}" class="btn btn-outline-info text-start">
+                            <i class="fas fa-list me-2"></i> {% trans "جميع المعاملات" %}
+                        </a>
+
+                        {% if transaction.status == 'draft' and perms.assets.delete_assettransaction %}
+                        <button onclick="deleteTransaction()" class="btn btn-outline-danger text-start">
+                            <i class="fas fa-trash me-2"></i> {% trans "حذف المعاملة" %}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Timeline -->
+            <div class="card detail-card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        {% trans "السجل الزمني" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block mb-1">{% trans "الحالة الحالية" %}</small>
+                        <div class="btn btn-sm
+                            {% if transaction.status == 'draft' %}btn-secondary
+                            {% elif transaction.status == 'approved' %}btn-info
+                            {% elif transaction.status == 'completed' %}btn-success
+                            {% elif transaction.status == 'cancelled' %}btn-danger
+                            {% endif %} w-100" disabled>
+                            <i class="fas
+                                {% if transaction.status == 'draft' %}fa-file
+                                {% elif transaction.status == 'approved' %}fa-check
+                                {% elif transaction.status == 'completed' %}fa-check-double
+                                {% elif transaction.status == 'cancelled' %}fa-ban
+                                {% endif %}"></i>
+                            {{ transaction.get_status_display }}
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <small class="text-muted d-block mb-1">{% trans "تاريخ الإنشاء" %}</small>
+                        <div class="text-sm">
+                            <i class="fas fa-clock text-muted"></i>
+                            {{ transaction.created_at|date:"Y-m-d H:i" }}
+                        </div>
+                    </div>
+
+                    {% if transaction.updated_at != transaction.created_at %}
+                    <div>
+                        <small class="text-muted d-block mb-1">{% trans "آخر تحديث" %}</small>
+                        <div class="text-sm">
+                            <i class="fas fa-sync text-muted"></i>
+                            {{ transaction.updated_at|date:"Y-m-d H:i" }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteTransaction() {
+    Swal.fire({
+        title: '{% trans "هل أنت متأكد؟" %}',
+        text: '{% trans "سيتم حذف المعاملة نهائياً" %}',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '{% trans "نعم، احذف" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "assets:transaction_delete" transaction.pk %}';
+        }
+    });
+}
+</script>
+{% endblock %}

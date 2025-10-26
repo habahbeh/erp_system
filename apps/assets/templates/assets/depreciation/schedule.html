@@ -1,0 +1,333 @@
+{# apps/assets/templates/assets/depreciation/schedule.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "جدول الإهلاك" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Card Headers */
+.card-header-basic {
+    background: linear-gradient(135deg, #4E73DF 0%, #224ABE 100%);
+    color: white;
+}
+
+.card-header-depreciation {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+    color: white;
+}
+
+.card-header-financial {
+    background: linear-gradient(135deg, #1CC88A 0%, #13855C 100%);
+    color: white;
+}
+
+/* Stat Cards */
+.stat-card {
+    transition: transform 0.2s;
+    border-radius: 10px;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Print Styles */
+@media print {
+    .btn, nav, .breadcrumb, .no-print {
+        display: none !important;
+    }
+
+    .card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+    }
+
+    .card-header {
+        background: #f8f9fa !important;
+        color: #000 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{% trans "جدول الإهلاك" %}</h1>
+            <p class="text-muted mb-0">{% trans "عرض جدول الإهلاك التفصيلي للأصل" %}</p>
+        </div>
+        <div class="btn-group no-print" role="group">
+            <button class="btn btn-success" onclick="window.print()">
+                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            </button>
+            <a href="{% url 'assets:asset_detail' asset.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "رجوع للأصل" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Asset Info Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header card-header-basic">
+            <h5 class="mb-0"><i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>{% trans "رمز الأصل:" %}</strong> {{ asset.code }}</p>
+                    <p class="mb-1"><strong>{% trans "اسم الأصل:" %}</strong> {{ asset.name }}</p>
+                    <p class="mb-0"><strong>{% trans "الفئة:" %}</strong> {{ asset.category.name }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>{% trans "التكلفة الأصلية:" %}</strong> {{ asset.purchase_cost|floatformat:3 }}</p>
+                    <p class="mb-1"><strong>{% trans "القيمة المتبقية:" %}</strong> {{ asset.salvage_value|floatformat:3 }}</p>
+                    <p class="mb-0"><strong>{% trans "القيمة القابلة للإهلاك:" %}</strong> {{ depreciable_amount|floatformat:3 }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>{% trans "طريقة الإهلاك:" %}</strong> {{ asset.depreciation_method.name }}</p>
+                    <p class="mb-1"><strong>{% trans "العمر الافتراضي:" %}</strong> {{ asset.useful_life_months }} {% trans "شهر" %}</p>
+                    <p class="mb-0"><strong>{% trans "تاريخ الشراء:" %}</strong> {{ asset.purchase_date|date:"Y-m-d" }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>{% trans "الإهلاك المجمع:" %}</strong> {{ total_accumulated|floatformat:3 }}</p>
+                    <p class="mb-1"><strong>{% trans "القيمة الدفترية:" %}</strong> {{ current_book_value|floatformat:3 }}</p>
+                    <p class="mb-0"><strong>{% trans "نسبة الإهلاك:" %}</strong> {{ depreciation_percentage|floatformat:1 }}%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Depreciation Chart -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header card-header-depreciation">
+            <h5 class="mb-0"><i class="fas fa-chart-line"></i> {% trans "منحنى الإهلاك" %}</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="depreciationChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Depreciation Schedule Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header card-header-financial">
+            <h5 class="mb-0"><i class="fas fa-table"></i> {% trans "جدول الإهلاك التفصيلي" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center">{% trans "السنة" %}</th>
+                            <th class="text-center">{% trans "الشهر" %}</th>
+                            <th class="text-center">{% trans "التاريخ" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}<br><small class="text-muted">(بداية الفترة)</small></th>
+                            <th class="text-end">{% trans "قيمة الإهلاك" %}</th>
+                            <th class="text-end">{% trans "الإهلاك المجمع" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}<br><small class="text-muted">(نهاية الفترة)</small></th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in schedule %}
+                        <tr {% if entry.is_current %}class="table-warning"{% endif %}>
+                            <td class="text-center">{{ entry.year }}</td>
+                            <td class="text-center">{{ entry.month }}</td>
+                            <td class="text-center">{{ entry.date|date:"Y-m-d" }}</td>
+                            <td class="text-end">{{ entry.opening_book_value|floatformat:3 }}</td>
+                            <td class="text-end">
+                                {% if entry.depreciation_amount %}
+                                    {{ entry.depreciation_amount|floatformat:3 }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ entry.accumulated_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ entry.closing_book_value|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% if entry.is_calculated %}
+                                    <span class="badge bg-success">{% trans "مُحسوب" %}</span>
+                                {% elif entry.is_current %}
+                                    <span class="badge bg-warning">{% trans "الفترة الحالية" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "مستقبلي" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="4" class="text-end">{% trans "الإجمالي:" %}</td>
+                            <td class="text-end">{{ total_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ total_accumulated|floatformat:3 }}</td>
+                            <td class="text-end">{{ final_book_value|floatformat:3 }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row no-print">
+        <div class="col-md-3">
+            <div class="card stat-card shadow-sm border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "عدد الفترات الكلي" %}</h6>
+                    <h3 class="text-primary">{{ total_periods }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card shadow-sm border-start border-success border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "الفترات المحسوبة" %}</h6>
+                    <h3 class="text-success">{{ calculated_periods }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card shadow-sm border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "الفترات المتبقية" %}</h6>
+                    <h3 class="text-warning">{{ remaining_periods }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card shadow-sm border-start border-info border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "نسبة الإنجاز" %}</h6>
+                    <h3 class="text-info">{{ completion_percentage|floatformat:1 }}%</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Prepare chart data
+    const chartData = {{ chart_data|safe }};
+
+    const ctx = document.getElementById('depreciationChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: '{% trans "القيمة الدفترية" %}',
+                    data: chartData.book_values,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1,
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: '{% trans "الإهلاك المجمع" %}',
+                    data: chartData.accumulated_depreciation,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.1,
+                    fill: true,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    rtl: true,
+                    labels: {
+                        font: {
+                            family: 'Cairo, sans-serif',
+                            size: 12
+                        }
+                    }
+                },
+                title: {
+                    display: true,
+                    text: '{% trans "تطور قيمة الأصل عبر الزمن" %}',
+                    font: {
+                        family: 'Cairo, sans-serif',
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                tooltip: {
+                    rtl: true,
+                    textDirection: 'rtl',
+                    titleFont: {
+                        family: 'Cairo, sans-serif'
+                    },
+                    bodyFont: {
+                        family: 'Cairo, sans-serif'
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(3);
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(3);
+                        },
+                        font: {
+                            family: 'Cairo, sans-serif'
+                        }
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: {
+                            family: 'Cairo, sans-serif'
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

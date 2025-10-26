@@ -1,0 +1,180 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ object.name }} - {% trans "شركات التأمين" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-building text-info"></i> {{ object.name }}</h2>
+        <div>
+            <a href="{% url 'assets:insurance_company_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+            </a>
+            {% if perms.assets.change_insurancecompany %}
+            <a href="{% url 'assets:insurance_company_update' object.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if perms.assets.delete_insurancecompany %}
+            <a href="{% url 'assets:insurance_company_delete' object.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الشركة" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="35%">{% trans "اسم الشركة" %}</th>
+                            <td>{{ object.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الكود" %}</th>
+                            <td>{{ object.code }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "رقم السجل التجاري" %}</th>
+                            <td>{{ object.registration_number|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الرقم الضريبي" %}</th>
+                            <td>{{ object.tax_number|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "نشطة" %}</th>
+                            <td>
+                                {% if object.is_active %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i> {% trans "نعم" %}</span>
+                                {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-times"></i> {% trans "لا" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-address-card"></i> {% trans "معلومات الاتصال" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="35%"><i class="fas fa-phone"></i> {% trans "الهاتف" %}</th>
+                            <td>{{ object.phone|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-envelope"></i> {% trans "البريد الإلكتروني" %}</th>
+                            <td>{{ object.email|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-globe"></i> {% trans "الموقع الإلكتروني" %}</th>
+                            <td>
+                                {% if object.website %}
+                                <a href="{{ object.website }}" target="_blank">{{ object.website }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-map-marker-alt"></i> {% trans "العنوان" %}</th>
+                            <td>{{ object.address|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-user"></i> {% trans "جهة الاتصال" %}</th>
+                            <td>{{ object.contact_person|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "بوالص التأمين النشطة" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if active_policies %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "رقم البوليصة" %}</th>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <th>{% trans "تاريخ الانتهاء" %}</th>
+                                    <th>{% trans "القيمة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for policy in active_policies %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'assets:insurance_detail' policy.pk %}">
+                                            {{ policy.policy_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ policy.asset.name }}</td>
+                                    <td>{{ policy.end_date|date:"Y-m-d" }}</td>
+                                    <td class="text-end">{{ policy.coverage_amount|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">{% trans "لا توجد بوالص نشطة" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "الإحصائيات" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "عدد البوالص النشطة" %}</th>
+                            <td class="text-end">{{ stats.active_policies_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "إجمالي قيمة التأمين" %}</th>
+                            <td class="text-end fw-bold">{{ stats.total_coverage|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "إجمالي الأقساط السنوية" %}</th>
+                            <td class="text-end">{{ stats.total_annual_premium|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "البوالص المنتهية" %}</th>
+                            <td class="text-end">{{ stats.expired_policies_count }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if object.notes %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-sticky-note"></i> {% trans "ملاحظات" %}</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-0">{{ object.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

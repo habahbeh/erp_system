@@ -1,0 +1,228 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "تفاصيل دفعة التأجير" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-money-bill-wave text-success"></i> {% trans "تفاصيل دفعة التأجير" %}</h2>
+        <div>
+            <a href="{% url 'assets:lease_detail' object.lease.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "العودة للعقد" %}
+            </a>
+            {% if perms.assets.change_leasepayment and not object.is_posted %}
+            <a href="{% url 'assets:payment_list' object.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if perms.assets.delete_leasepayment and not object.is_posted %}
+            <a href="{% url 'assets:payment_list' object.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الدفعة" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="30%">{% trans "رقم الدفعة" %}</th>
+                            <td>{{ object.payment_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "عقد التأجير" %}</th>
+                            <td>
+                                <a href="{% url 'assets:lease_detail' object.lease.pk %}">
+                                    {{ object.lease.contract_number }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ الدفع" %}</th>
+                            <td>{{ object.payment_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ الاستحقاق" %}</th>
+                            <td>
+                                {{ object.due_date|date:"Y-m-d" }}
+                                {% if object.is_late %}
+                                <span class="badge bg-danger ms-2">
+                                    <i class="fas fa-exclamation-triangle"></i> {% trans "متأخر" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "المبلغ" %}</th>
+                            <td class="fs-5 fw-bold text-success">{{ object.amount|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "طريقة الدفع" %}</th>
+                            <td>{{ object.get_payment_method_display }}</td>
+                        </tr>
+                        {% if object.reference_number %}
+                        <tr>
+                            <th>{% trans "رقم المرجع" %}</th>
+                            <td>{{ object.reference_number }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "الحالة" %}</th>
+                            <td>
+                                {% if object.is_posted %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle"></i> {% trans "مرحّل" %}
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-clock"></i> {% trans "غير مرحّل" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if object.journal_entry %}
+                        <tr>
+                            <th>{% trans "القيد المحاسبي" %}</th>
+                            <td>
+                                <a href="{% url 'accounting:journal_entry_detail' object.journal_entry.pk %}">
+                                    {{ object.journal_entry.entry_number }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if object.late_fee > 0 %}
+                        <tr>
+                            <th>{% trans "غرامة التأخير" %}</th>
+                            <td class="text-danger">{{ object.late_fee|floatformat:3 }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if object.notes %}
+                        <tr>
+                            <th>{% trans "ملاحظات" %}</th>
+                            <td>{{ object.notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            {% if object.payment_receipt %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-receipt"></i> {% trans "إيصال الدفع" %}</h5>
+                </div>
+                <div class="card-body text-center">
+                    <a href="{{ object.payment_receipt.url }}" target="_blank" class="btn btn-info">
+                        <i class="fas fa-file-download"></i> {% trans "عرض الإيصال" %}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "معلومات العقد" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' object.lease.asset.pk %}">
+                                    {{ object.lease.asset.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "المؤجر" %}</th>
+                            <td>{{ object.lease.lessor_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القسط الشهري" %}</th>
+                            <td class="text-end">{{ object.lease.monthly_payment|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "إجمالي المدفوع" %}</th>
+                            <td class="text-end text-success">{{ object.lease.total_paid|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "المبلغ المتبقي" %}</th>
+                            <td class="text-end text-danger">{{ object.lease.remaining_amount|floatformat:3 }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-clock"></i> {% trans "التواريخ" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "تاريخ الإنشاء" %}</th>
+                            <td>{{ object.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "آخر تحديث" %}</th>
+                            <td>{{ object.updated_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "أنشئ بواسطة" %}</th>
+                            <td>{{ object.created_by.get_full_name }}</td>
+                        </tr>
+                        {% if object.is_posted %}
+                        <tr>
+                            <th>{% trans "رُحِّل بواسطة" %}</th>
+                            <td>{{ object.posted_by.get_full_name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ الترحيل" %}</th>
+                            <td>{{ object.posted_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            {% if not object.is_posted and perms.assets.post_payment %}
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check"></i> {% trans "الترحيل" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p>{% trans "هل تريد ترحيل هذه الدفعة؟" %}</p>
+                    <form method="post" action="{% url 'assets:post_transaction' object.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-check-circle"></i> {% trans "ترحيل الدفعة" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if object.is_late %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>{% trans "تنبيه" %}:</strong>
+        {% trans "هذه الدفعة متأخرة عن تاريخ الاستحقاق بـ" %}
+        {{ object.days_late }} {% trans "يوم" %}.
+        {% if object.late_fee > 0 %}
+        {% trans "تم تطبيق غرامة تأخير بقيمة" %} {{ object.late_fee|floatformat:3 }}.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

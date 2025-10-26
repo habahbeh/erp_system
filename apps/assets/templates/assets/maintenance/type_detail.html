@@ -1,0 +1,352 @@
+{# apps/assets/templates/assets/maintenance/type_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ object.name }} - {% trans "أنواع الصيانة" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.detail-card .card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-bottom: none;
+    color: white;
+    font-weight: 600;
+}
+
+.info-table {
+    margin-bottom: 0;
+}
+
+.info-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    width: 40%;
+}
+
+.stat-box {
+    text-align: center;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    transition: transform 0.2s;
+}
+
+.stat-box:hover {
+    transform: translateY(-5px);
+}
+
+.stat-box h3 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.stat-box p {
+    margin: 0;
+    color: rgba(255,255,255,0.9);
+    font-size: 0.875rem;
+}
+
+.color-preview-large {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    border: 3px solid #dee2e6;
+    vertical-align: middle;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:dashboard' %}">{% trans "لوحة التحكم" %}</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:maintenance_type_list' %}">{% trans "أنواع الصيانة" %}</a>
+            </li>
+            <li class="breadcrumb-item active">{{ object.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-tools text-primary"></i> {{ object.name }}
+            </h1>
+            <p class="text-muted mb-0">
+                <code>{{ object.code }}</code>
+                {% if object.name_en %}
+                    | {{ object.name_en }}
+                {% endif %}
+            </p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'assets:maintenance_type_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+            </a>
+            {% if perms.assets.change_maintenancetype %}
+            <a href="{% url 'assets:maintenance_type_update' object.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if perms.assets.delete_maintenancetype %}
+            <a href="{% url 'assets:maintenance_type_delete' object.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-box text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>{{ stats.total_maintenance_count|default:0 }}</h3>
+                <p>{% trans "إجمالي الصيانة" %}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{{ stats.completed_count|default:0 }}</h3>
+                <p>{% trans "صيانة مكتملة" %}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box text-white" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <h3>{{ stats.in_progress_count|default:0 }}</h3>
+                <p>{% trans "صيانة جارية" %}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box text-white" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <h3>{{ stats.total_cost|default:0|floatformat:0 }}</h3>
+                <p>{% trans "التكلفة الإجمالية" %}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Information -->
+        <div class="col-md-6">
+            <div class="detail-card card">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات أساسية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table info-table">
+                        <tr>
+                            <th>{% trans "الرمز" %}</th>
+                            <td><code class="fs-6">{{ object.code }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الاسم" %}</th>
+                            <td><strong>{{ object.name }}</strong></td>
+                        </tr>
+                        {% if object.name_en %}
+                        <tr>
+                            <th>{% trans "الاسم بالإنجليزية" %}</th>
+                            <td>{{ object.name_en }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "نوع الصيانة" %}</th>
+                            <td>
+                                {% if object.type == 'preventive' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-shield-alt"></i> {% trans "وقائية" %}
+                                    </span>
+                                {% elif object.type == 'corrective' %}
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-wrench"></i> {% trans "إصلاحية" %}
+                                    </span>
+                                {% elif object.type == 'predictive' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-chart-line"></i> {% trans "تنبؤية" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if object.color_code %}
+                        <tr>
+                            <th>{% trans "اللون" %}</th>
+                            <td>
+                                <span class="color-preview-large" style="background-color: {{ object.color_code }};"></span>
+                                <code class="ms-2">{{ object.color_code }}</code>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "الحالة" %}</th>
+                            <td>
+                                {% if object.is_active %}
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">
+                                        <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if object.description %}
+                        <tr>
+                            <th>{% trans "الوصف" %}</th>
+                            <td>{{ object.description }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics & Costs -->
+        <div class="col-md-6">
+            <div class="detail-card card">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "التفاصيل والإحصائيات" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table info-table">
+                        <tr>
+                            <th>{% trans "عدد الصيانات الكلي" %}</th>
+                            <td><span class="badge bg-primary fs-6">{{ stats.total_maintenance_count|default:0 }}</span></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الصيانات المكتملة" %}</th>
+                            <td><span class="badge bg-success fs-6">{{ stats.completed_count|default:0 }}</span></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الصيانات الجارية" %}</th>
+                            <td><span class="badge bg-warning text-dark fs-6">{{ stats.in_progress_count|default:0 }}</span></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الصيانات المجدولة" %}</th>
+                            <td><span class="badge bg-info fs-6">{{ stats.scheduled_count|default:0 }}</span></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "إجمالي التكلفة" %}</th>
+                            <td><strong class="text-primary fs-5">{{ stats.total_cost|default:0|floatformat:2 }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "متوسط التكلفة" %}</th>
+                            <td><strong>{{ stats.average_cost|default:0|floatformat:2 }}</strong></td>
+                        </tr>
+                        {% if object.estimated_cost %}
+                        <tr>
+                            <th>{% trans "التكلفة التقديرية" %}</th>
+                            <td>{{ object.estimated_cost|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if object.estimated_duration %}
+                        <tr>
+                            <th>{% trans "المدة التقديرية" %}</th>
+                            <td>{{ object.estimated_duration }} {% trans "يوم" %}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            <div class="detail-card card">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock"></i> {% trans "معلومات النظام" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table info-table mb-0">
+                        <tr>
+                            <th>{% trans "تاريخ الإنشاء" %}</th>
+                            <td>{{ object.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "آخر تحديث" %}</th>
+                            <td>{{ object.updated_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Maintenance -->
+    {% if recent_maintenance %}
+    <div class="detail-card card">
+        <div class="card-header text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list"></i> {% trans "آخر الصيانات" %}
+                <span class="badge bg-white text-primary">{{ recent_maintenance|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم الصيانة" %}</th>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "تاريخ البدء" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th class="text-end">{% trans "التكلفة" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for maintenance in recent_maintenance %}
+                        <tr>
+                            <td><code>{{ maintenance.maintenance_number }}</code></td>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' maintenance.asset.pk %}" class="text-decoration-none">
+                                    <i class="fas fa-box text-muted"></i> {{ maintenance.asset.name }}
+                                </a>
+                            </td>
+                            <td>{{ maintenance.start_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if maintenance.end_date %}
+                                    {{ maintenance.end_date|date:"Y-m-d" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end"><strong>{{ maintenance.cost|default:0|floatformat:2 }}</strong></td>
+                            <td>
+                                <span class="badge bg-{{ maintenance.get_status_color|default:'secondary' }}">
+                                    {{ maintenance.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'assets:maintenance_detail' maintenance.pk %}"
+                                   class="btn btn-sm btn-outline-info"
+                                   title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "إلغاء الصيانة" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-times-circle"></i> {% trans "إلغاء الصيانة" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if maintenance %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات الصيانة" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "رقم الصيانة" %}</th>
+                                        <td>{{ maintenance.maintenance_number }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصل" %}</th>
+                                        <td>{{ maintenance.asset.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "نوع الصيانة" %}</th>
+                                        <td>{{ maintenance.maintenance_type.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "التاريخ المجدول" %}</th>
+                                        <td>{{ maintenance.scheduled_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "الحالة" %}</th>
+                                        <td>
+                                            <span class="badge bg-{{ maintenance.get_status_color }}">
+                                                {{ maintenance.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% if maintenance.start_date %}
+                                    <tr>
+                                        <th>{% trans "تاريخ البدء" %}</th>
+                                        <td>{{ maintenance.start_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if maintenance.assigned_to %}
+                                    <tr>
+                                        <th>{% trans "مسؤول التنفيذ" %}</th>
+                                        <td>{{ maintenance.assigned_to.get_full_name }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <th>{% trans "التكلفة حتى الآن" %}</th>
+                                        <td>{{ maintenance.actual_cost|floatformat:3|default:"0.000" }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if maintenance.status == 'cancelled' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "هذه الصيانة ملغاة بالفعل" %}
+                    </div>
+                    {% elif maintenance.status == 'completed' %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i>
+                        {% trans "لا يمكن إلغاء صيانة مكتملة" %}
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.cancellation_date.id_for_label }}" class="form-label">
+                                    {{ form.cancellation_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.cancellation_date class="form-control" type="date" %}
+                                {% if form.cancellation_date.errors %}
+                                <div class="text-danger">{{ form.cancellation_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.cancellation_reason.id_for_label }}" class="form-label">
+                                    {{ form.cancellation_reason.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.cancellation_reason class="form-select" %}
+                                {% if form.cancellation_reason.errors %}
+                                <div class="text-danger">{{ form.cancellation_reason.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.cancellation_notes.id_for_label }}" class="form-label">
+                                {{ form.cancellation_notes.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.cancellation_notes class="form-control" rows="3" %}
+                            {% if form.cancellation_notes.errors %}
+                            <div class="text-danger">{{ form.cancellation_notes.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "اشرح بالتفصيل سبب الإلغاء" %}
+                            </small>
+                        </div>
+
+                        {% if maintenance.status == 'in_progress' %}
+                        <div class="mb-3">
+                            <label for="{{ form.incurred_cost.id_for_label }}" class="form-label">
+                                {{ form.incurred_cost.label }}
+                            </label>
+                            {% render_field form.incurred_cost class="form-control" step="0.001" %}
+                            {% if form.incurred_cost.errors %}
+                            <div class="text-danger">{{ form.incurred_cost.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "التكاليف المتكبدة حتى الآن قبل الإلغاء" %}
+                            </small>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.reactivate_asset class="form-check-input" checked="" %}
+                                <label for="{{ form.reactivate_asset.id_for_label }}" class="form-check-label">
+                                    {{ form.reactivate_asset.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "إعادة تفعيل الأصل إذا كان معطلاً للصيانة" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.reschedule class="form-check-input" %}
+                                <label for="{{ form.reschedule.id_for_label }}" class="form-check-label">
+                                    {{ form.reschedule.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "إعادة جدولة الصيانة لتاريخ لاحق" %}
+                            </small>
+                        </div>
+
+                        <div id="rescheduleField" style="display: none;" class="mb-3">
+                            <label for="{{ form.reschedule_date.id_for_label }}" class="form-label">
+                                {{ form.reschedule_date.label }}
+                            </label>
+                            {% render_field form.reschedule_date class="form-control" type="date" %}
+                            {% if form.reschedule_date.errors %}
+                            <div class="text-danger">{{ form.reschedule_date.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم تغيير حالة الصيانة إلى 'ملغاة'" %}</li>
+                                {% if maintenance.status == 'in_progress' %}
+                                <li>{% trans "سيتم تسجيل أي تكاليف متكبدة حتى الآن" %}</li>
+                                {% endif %}
+                                <li>{% trans "سيتم إرسال إشعار بالإلغاء للأشخاص المعنيين" %}</li>
+                                <li>{% trans "يمكنك إعادة جدولة الصيانة لتاريخ لاحق إذا لزم الأمر" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:maintenance_detail' maintenance.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "رجوع" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-times-circle"></i> {% trans "تأكيد الإلغاء" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Set default cancellation date to today
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_cancellation_date').val(today);
+
+    // Toggle reschedule date field
+    $('#id_reschedule').change(function() {
+        if ($(this).is(':checked')) {
+            $('#rescheduleField').slideDown();
+        } else {
+            $('#rescheduleField').slideUp();
+        }
+    });
+
+    // Set default incurred cost if maintenance is in progress
+    {% if maintenance.status == 'in_progress' and maintenance.actual_cost %}
+    $('#id_incurred_cost').val({{ maintenance.actual_cost|default:0 }});
+    {% endif %}
+});
+</script>
+{% endblock %}

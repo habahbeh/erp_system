@@ -1,0 +1,438 @@
+{# apps/assets/templates/assets/categories/depreciation_method_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL Styles */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card .card-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card .card-body::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s;
+}
+
+.stat-card:hover .card-body::before {
+    transform: scale(1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة طرق احتساب إهلاك الأصول الثابتة" %}</p>
+        </div>
+        {% if can_add %}
+        <a href="{% url 'assets:depreciation_method_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "إضافة طريقة" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي الطرق" %}</h6>
+                            <h2 class="mb-0" id="totalMethods">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-calculator fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "طرق نشطة" %}</h6>
+                            <h2 class="mb-0" id="activeMethods">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "القسط الثابت" %}</h6>
+                            <h2 class="mb-0" id="straightLineMethods">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-minus fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "أصول مصنفة" %}</h6>
+                            <h2 class="mb-0" id="totalAssets">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-boxes fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع الطريقة" %}</label>
+                        <select class="form-select" id="methodTypeFilter">
+                            <option value="">{% trans "جميع الأنواع" %}</option>
+                            <option value="straight_line">{% trans "القسط الثابت" %}</option>
+                            <option value="declining_balance">{% trans "القسط المتناقص" %}</option>
+                            <option value="units_of_production">{% trans "وحدات الإنتاج" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1" selected>{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'رمز أو اسم الطريقة' %}">
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters" title="مسح الفلاتر">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-success" onclick="exportData()" title="تصدير Excel">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="methodsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الرمز" %}</th>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th class="text-center">{% trans "النسبة %" %}</th>
+                            <th class="text-center">{% trans "عدد الأصول" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- DataTable will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#methodTypeFilter, #statusFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Initialize DataTable
+    // ==============================
+    var table = $('#methodsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'assets:depreciation_method_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.method_type = $('#methodTypeFilter').val();
+                d.is_active = $('#statusFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "code"},
+            {"data": 1, "name": "name"},
+            {"data": 2, "name": "method_type"},
+            {"data": 3, "name": "rate_percentage", "className": "text-center"},
+            {"data": 4, "name": "assets_count", "className": "text-center"},
+            {"data": 5, "name": "is_active", "className": "text-center"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = table.page.info();
+            updateTableInfo(info);
+        },
+        "initComplete": function(settings, json) {
+            loadStats();
+        }
+    });
+
+    // ==============================
+    // Filter Events
+    // ==============================
+    $('#methodTypeFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#methodTypeFilter').val('').trigger('change');
+        $('#statusFilter').val('1').trigger('change');
+        $('#searchFilter').val('');
+        table.ajax.reload();
+    });
+
+    // ==============================
+    // Helper Functions
+    // ==============================
+    function updateTableInfo(info) {
+        var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' طريقة';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
+
+    // ==============================
+    // Load Stats
+    // ==============================
+    function loadStats() {
+        $.get('{% url "assets:depreciation_method_stats_ajax" %}', function(data) {
+            if (data.success) {
+                $('#totalMethods').text(data.stats.total_methods || 0);
+                $('#activeMethods').text(data.stats.active_methods || 0);
+                $('#straightLineMethods').text(data.stats.straight_line_methods || 0);
+                $('#totalAssets').text(data.stats.total_assets || 0);
+            }
+        }).fail(function() {
+            // محاكاة في حالة عدم وجود endpoint
+            $('#totalMethods').text('0');
+            $('#activeMethods').text('0');
+            $('#straightLineMethods').text('0');
+            $('#totalAssets').text('0');
+        });
+    }
+});
+
+// ==============================
+// Global Action Functions
+// ==============================
+function deleteMethod(id, name) {
+    Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: `سيتم حذف طريقة الإهلاك "${name}" نهائياً`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "assets:depreciation_method_delete" 0 %}'.replace('0', id);
+        }
+    });
+}
+
+// ==============================
+// Export to Excel
+// ==============================
+window.exportData = function() {
+    var params = new URLSearchParams({
+        method_type: $('#methodTypeFilter').val(),
+        is_active: $('#statusFilter').val(),
+        search: $('#searchFilter').val()
+    });
+
+    window.location.href = '{% url "assets:depreciation_method_export" %}?' + params.toString();
+};
+</script>
+{% endblock %}

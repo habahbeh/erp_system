@@ -1,0 +1,151 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between mb-4">
+        <h2><i class="fas fa-tasks text-info"></i> {% trans "طلب رقم" %} {{ request.request_number }}</h2>
+        <div>
+            {% if request.status == 'pending' and request.can_approve %}
+            <a href="{% url 'assets:approve_request' request.pk %}" class="btn btn-success">
+                <i class="fas fa-check"></i> {% trans "اعتماد" %}
+            </a>
+            <a href="{% url 'assets:reject_request' request.pk %}" class="btn btn-danger">
+                <i class="fas fa-times"></i> {% trans "رفض" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'assets:request_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الطلب" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم الطلب:" %}</strong> {{ request.request_number }}</p>
+                            <p><strong>{% trans "النوع:" %}</strong> {{ request.workflow.name }}</p>
+                            <p><strong>{% trans "مقدم الطلب:" %}</strong> {{ request.requester.get_full_name|default:request.requester.username }}</p>
+                            <p><strong>{% trans "تاريخ الطلب:" %}</strong> {{ request.created_at|date:"Y-m-d H:i" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            {% if request.asset %}
+                            <p><strong>{% trans "الأصل:" %}</strong>
+                                <a href="{% url 'assets:asset_detail' request.asset.pk %}">
+                                    {{ request.asset.name }}
+                                </a>
+                            </p>
+                            {% endif %}
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                {% if request.status == 'pending' %}
+                                    <span class="badge bg-warning fs-6">{% trans "قيد المراجعة" %}</span>
+                                {% elif request.status == 'approved' %}
+                                    <span class="badge bg-success fs-6">{% trans "معتمد" %}</span>
+                                {% elif request.status == 'rejected' %}
+                                    <span class="badge bg-danger fs-6">{% trans "مرفوض" %}</span>
+                                {% elif request.status == 'cancelled' %}
+                                    <span class="badge bg-secondary fs-6">{% trans "ملغي" %}</span>
+                                {% endif %}
+                            </p>
+                            {% if request.current_level %}
+                            <p><strong>{% trans "المستوى الحالي:" %}</strong> {{ request.current_level }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if request.request_data %}
+                    <hr>
+                    <p><strong>{% trans "بيانات الطلب:" %}</strong></p>
+                    <pre class="bg-light p-3 rounded">{{ request.request_data }}</pre>
+                    {% endif %}
+                    {% if request.notes %}
+                    <p class="mb-0"><strong>{% trans "ملاحظات:" %}</strong> {{ request.notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approval History -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> {% trans "سجل الاعتماد" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if request.approvals.all %}
+                    <div class="timeline">
+                        {% for approval in request.approvals.all %}
+                        <div class="timeline-item mb-3">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    {% if approval.is_approved %}
+                                        <i class="fas fa-check-circle text-success fa-2x"></i>
+                                    {% elif approval.is_approved == False %}
+                                        <i class="fas fa-times-circle text-danger fa-2x"></i>
+                                    {% else %}
+                                        <i class="fas fa-clock text-warning fa-2x"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="mb-1">
+                                            {% trans "المستوى" %} {{ approval.level }} - {{ approval.level_name }}
+                                        </h6>
+                                        <small class="text-muted">{{ approval.created_at|date:"Y-m-d H:i" }}</small>
+                                    </div>
+                                    <p class="mb-1">
+                                        <strong>{% trans "المعتمد:" %}</strong>
+                                        {% if approval.approver %}
+                                            {{ approval.approver.get_full_name|default:approval.approver.username }}
+                                        {% else %}
+                                            {% trans "قيد الانتظار" %}
+                                        {% endif %}
+                                    </p>
+                                    {% if approval.is_approved != None %}
+                                    <p class="mb-1">
+                                        <strong>{% trans "تاريخ الرد:" %}</strong> {{ approval.approved_at|date:"Y-m-d H:i" }}
+                                    </p>
+                                    {% endif %}
+                                    {% if approval.comments %}
+                                    <p class="mb-0 text-muted">
+                                        <i class="fas fa-comment"></i> {{ approval.comments }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "لا يوجد سجل اعتماد" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-project-diagram"></i> {% trans "سير العمل" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الاسم:" %}</strong> {{ request.workflow.name }}</p>
+                    <p><strong>{% trans "النوع:" %}</strong> {{ request.workflow.get_request_type_display }}</p>
+                    <p class="mb-0"><strong>{% trans "عدد المستويات:" %}</strong> {{ request.workflow.approval_levels.count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline-item:not(:last-child) {
+    border-left: 2px solid #dee2e6;
+    padding-bottom: 2rem;
+    margin-left: 1rem;
+}
+</style>
+{% endblock %}

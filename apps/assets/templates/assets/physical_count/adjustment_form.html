@@ -1,0 +1,143 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}
+{% if object %}{% trans "تعديل قيد التسوية" %}{% else %}{% trans "إنشاء قيد تسوية" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-balance-scale"></i>
+                        {% if object %}{% trans "تعديل قيد التسوية" %}{% else %}{% trans "إنشاء قيد تسوية جديد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.cycle.id_for_label }}" class="form-label">
+                                {{ form.cycle.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.cycle class="form-select" %}
+                            {% if form.cycle.errors %}
+                            <div class="text-danger">{{ form.cycle.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.adjustment_date.id_for_label }}" class="form-label">
+                                    {{ form.adjustment_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.adjustment_date class="form-control" type="date" %}
+                                {% if form.adjustment_date.errors %}
+                                <div class="text-danger">{{ form.adjustment_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.adjustment_type.id_for_label }}" class="form-label">
+                                    {{ form.adjustment_type.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.adjustment_type class="form-select" %}
+                                {% if form.adjustment_type.errors %}
+                                <div class="text-danger">{{ form.adjustment_type.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "الأصول المتأثرة" %}</label>
+                            <div id="affectedAssets" class="border rounded p-3 bg-light">
+                                <p class="text-muted">{% trans "اختر دورة الجرد لعرض الفروقات" %}</p>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.reason.id_for_label }}" class="form-label">
+                                {{ form.reason.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.reason class="form-control" rows="3" %}
+                            {% if form.reason.errors %}
+                            <div class="text-danger">{{ form.reason.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {% render_field form.notes class="form-control" rows="2" %}
+                            {% if form.notes.errors %}
+                            <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:adjustment_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "حفظ" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#id_cycle').change(function() {
+        var cycleId = $(this).val();
+        if (cycleId) {
+            $.ajax({
+                url: '/assets/api/cycle/' + cycleId + '/variances/',
+                success: function(data) {
+                    var html = '<table class="table table-sm">';
+                    html += '<thead><tr>';
+                    html += '<th>{% trans "الأصل" %}</th>';
+                    html += '<th>{% trans "الحالة" %}</th>';
+                    html += '<th>{% trans "الموقع" %}</th>';
+                    html += '</tr></thead><tbody>';
+
+                    if (data.variances && data.variances.length > 0) {
+                        data.variances.forEach(function(item) {
+                            html += '<tr>';
+                            html += '<td>' + item.asset_name + '</td>';
+                            html += '<td><span class="badge bg-' + (item.found ? 'success' : 'danger') + '">';
+                            html += item.found ? '{% trans "موجود" %}' : '{% trans "مفقود" %}';
+                            html += '</span></td>';
+                            html += '<td>' + (item.location_variance ? '<span class="text-warning">فرق</span>' : '-') + '</td>';
+                            html += '</tr>';
+                        });
+                    } else {
+                        html += '<tr><td colspan="3" class="text-center">{% trans "لا توجد فروقات" %}</td></tr>';
+                    }
+
+                    html += '</tbody></table>';
+                    $('#affectedAssets').html(html);
+                }
+            });
+        }
+    });
+
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_adjustment_date').val(today);
+});
+</script>
+{% endblock %}

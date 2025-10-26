@@ -1,0 +1,255 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "تجديد عقد التأجير" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-sync-alt"></i> {% trans "تجديد عقد التأجير" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if lease %}
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات العقد الحالي" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm mb-0">
+                                        <tr>
+                                            <th width="40%">{% trans "رقم العقد" %}</th>
+                                            <td>{{ lease.contract_number }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "الأصل" %}</th>
+                                            <td>{{ lease.asset.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "المؤجر" %}</th>
+                                            <td>{{ lease.lessor_name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "نوع العقد" %}</th>
+                                            <td>{{ lease.get_lease_type_display }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "تاريخ البدء" %}</th>
+                                            <td>{{ lease.start_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                                            <td class="text-danger fw-bold">{{ lease.end_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "القسط الشهري" %}</th>
+                                            <td>{{ lease.monthly_payment|floatformat:3 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "المدة" %}</th>
+                                            <td>{{ lease.lease_term }} {% trans "شهر" %}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card bg-success text-white">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "بيانات العقد الجديد" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <form method="post" enctype="multipart/form-data" id="renewForm">
+                                        {% csrf_token %}
+
+                                        {% if form.non_field_errors %}
+                                        <div class="alert alert-danger">
+                                            {{ form.non_field_errors }}
+                                        </div>
+                                        {% endif %}
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.new_contract_number.id_for_label }}" class="form-label text-white">
+                                                {{ form.new_contract_number.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.new_contract_number class="form-control" %}
+                                            {% if form.new_contract_number.errors %}
+                                            <div class="text-warning">{{ form.new_contract_number.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.start_date.id_for_label }}" class="form-label text-white">
+                                                {{ form.start_date.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.start_date class="form-control" type="date" %}
+                                            {% if form.start_date.errors %}
+                                            <div class="text-warning">{{ form.start_date.errors }}</div>
+                                            {% endif %}
+                                            <small class="text-white-50">
+                                                {% trans "يفضل أن يكون بعد تاريخ انتهاء العقد الحالي" %}
+                                            </small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.lease_term.id_for_label }}" class="form-label text-white">
+                                                {{ form.lease_term.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.lease_term class="form-control" type="number" min="1" %}
+                                            {% if form.lease_term.errors %}
+                                            <div class="text-warning">{{ form.lease_term.errors }}</div>
+                                            {% endif %}
+                                            <small class="text-white-50">
+                                                {% trans "المدة بالأشهر" %}
+                                            </small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.monthly_payment.id_for_label }}" class="form-label text-white">
+                                                {{ form.monthly_payment.label }} <span class="text-warning">*</span>
+                                            </label>
+                                            {% render_field form.monthly_payment class="form-control" step="0.001" %}
+                                            {% if form.monthly_payment.errors %}
+                                            <div class="text-warning">{{ form.monthly_payment.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                {% render_field form.same_terms class="form-check-input" %}
+                                                <label for="{{ form.same_terms.id_for_label }}" class="form-check-label text-white">
+                                                    {{ form.same_terms.label }}
+                                                </label>
+                                            </div>
+                                            <small class="text-white-50">
+                                                {% trans "استخدام نفس الشروط والأحكام" %}
+                                            </small>
+                                        </div>
+
+                                        <div class="mb-3" id="termsField">
+                                            <label for="{{ form.terms.id_for_label }}" class="form-label text-white">
+                                                {{ form.terms.label }}
+                                            </label>
+                                            {% render_field form.terms class="form-control" rows="3" %}
+                                            {% if form.terms.errors %}
+                                            <div class="text-warning">{{ form.terms.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="{{ form.contract_document.id_for_label }}" class="form-label text-white">
+                                                {{ form.contract_document.label }}
+                                            </label>
+                                            {% render_field form.contract_document class="form-control" %}
+                                            {% if form.contract_document.errors %}
+                                            <div class="text-warning">{{ form.contract_document.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div id="contractSummary" class="alert alert-light mb-3" style="display:none;">
+                                            <h6>{% trans "ملخص العقد الجديد" %}</h6>
+                                            <table class="table table-sm mb-0">
+                                                <tr>
+                                                    <th>{% trans "تاريخ الانتهاء" %}</th>
+                                                    <td id="endDateDisplay">-</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>{% trans "إجمالي المبلغ" %}</th>
+                                                    <td id="totalAmountDisplay">-</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <a href="{% url 'assets:lease_detail' lease.pk %}" class="btn btn-light">
+                                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                            </a>
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="fas fa-sync-alt"></i> {% trans "تجديد العقد" %}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>{% trans "ملاحظات التجديد" %}:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>{% trans "سيتم إغلاق العقد الحالي تلقائياً" %}</li>
+                            <li>{% trans "سيتم إنشاء عقد جديد بالبيانات المدخلة" %}</li>
+                            <li>{% trans "سيتم ربط العقد الجديد بنفس الأصل" %}</li>
+                            <li>{% trans "يمكنك تعديل الشروط والقسط الشهري" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Toggle terms field based on checkbox
+    $('#id_same_terms').change(function() {
+        if ($(this).is(':checked')) {
+            $('#termsField').hide();
+        } else {
+            $('#termsField').show();
+        }
+    }).trigger('change');
+
+    // Set default contract number
+    {% if lease %}
+    var oldContractNumber = '{{ lease.contract_number }}';
+    var newContractNumber = oldContractNumber + '-R';
+    $('#id_new_contract_number').attr('placeholder', newContractNumber);
+    {% endif %}
+
+    // Calculate end date and total amount
+    function updateSummary() {
+        var startDate = $('#id_start_date').val();
+        var term = parseInt($('#id_lease_term').val()) || 0;
+        var monthlyPayment = parseFloat($('#id_monthly_payment').val()) || 0;
+
+        if (startDate && term > 0) {
+            var start = new Date(startDate);
+            var end = new Date(start);
+            end.setMonth(end.getMonth() + term);
+
+            var endDateStr = end.toISOString().split('T')[0];
+            $('#endDateDisplay').text(endDateStr);
+
+            if (monthlyPayment > 0) {
+                var totalAmount = monthlyPayment * term;
+                $('#totalAmountDisplay').text(totalAmount.toFixed(3));
+                $('#contractSummary').show();
+            }
+        }
+    }
+
+    $('#id_start_date, #id_lease_term, #id_monthly_payment').on('change input', updateSummary);
+
+    // Set default start date to day after current lease ends
+    {% if lease.end_date %}
+    var endDate = new Date('{{ lease.end_date|date:"Y-m-d" }}');
+    endDate.setDate(endDate.getDate() + 1);
+    var defaultStartDate = endDate.toISOString().split('T')[0];
+    $('#id_start_date').val(defaultStartDate);
+    {% endif %}
+
+    // Set default values
+    $('#id_lease_term').val({{ lease.lease_term }});
+    $('#id_monthly_payment').val({{ lease.monthly_payment }});
+    updateSummary();
+});
+</script>
+{% endblock %}

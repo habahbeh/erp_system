@@ -1,0 +1,851 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .asset-header {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .asset-header h1 {
+        font-size: 2rem;
+        font-weight: 300;
+        margin-bottom: 0.5rem;
+    }
+    .asset-number-badge {
+        background: rgba(255,255,255,0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        display: inline-block;
+        margin-top: 0.5rem;
+    }
+    .info-card {
+        transition: all 0.3s ease;
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    .info-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+    .info-card-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1rem 1.5rem;
+        border-bottom: 2px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .info-card-header h5 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #212529;
+    }
+    .info-card-header i {
+        font-size: 1.5rem;
+        color: #6366f1;
+    }
+    .info-card-body {
+        padding: 1.5rem;
+    }
+    .stat-box {
+        text-align: center;
+        padding: 1.5rem;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        border-right: 4px solid;
+    }
+    .stat-box:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .stat-box.primary {
+        background: linear-gradient(135deg, #e7f1ff 0%, #ffffff 100%);
+        border-right-color: #0d6efd;
+    }
+    .stat-box.success {
+        background: linear-gradient(135deg, #d1f4e0 0%, #ffffff 100%);
+        border-right-color: #198754;
+    }
+    .stat-box.warning {
+        background: linear-gradient(135deg, #fff4d9 0%, #ffffff 100%);
+        border-right-color: #ffc107;
+    }
+    .stat-box.info {
+        background: linear-gradient(135deg, #d1e7f6 0%, #ffffff 100%);
+        border-right-color: #0dcaf0;
+    }
+    .stat-box .label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stat-box .value {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.25rem;
+    }
+    .stat-box .currency {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .depreciation-progress {
+        height: 30px;
+        border-radius: 8px;
+        background: #e9ecef;
+        overflow: hidden;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .depreciation-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: width 1s ease;
+    }
+    .info-row {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f3f5;
+    }
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    .info-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    .info-value {
+        font-size: 1rem;
+        color: #212529;
+        font-weight: 500;
+    }
+    .barcode-container {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        border: 2px dashed #dee2e6;
+    }
+    .barcode-container img {
+        max-width: 100%;
+        height: auto;
+    }
+    .timeline-item {
+        padding: 1rem;
+        border-right: 3px solid #e9ecef;
+        position: relative;
+        margin-bottom: 1rem;
+    }
+    .timeline-item:before {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #6366f1;
+        right: -7.5px;
+        top: 1.25rem;
+        box-shadow: 0 0 0 4px white, 0 0 0 6px #6366f1;
+    }
+    .timeline-item:hover {
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    .nav-tabs .nav-link {
+        border: none;
+        border-bottom: 3px solid transparent;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 1rem 1.5rem;
+    }
+    .nav-tabs .nav-link:hover {
+        color: #6366f1;
+        border-bottom-color: #e9ecef;
+    }
+    .nav-tabs .nav-link.active {
+        color: #6366f1;
+        border-bottom-color: #6366f1;
+        background: transparent;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .action-buttons .btn {
+        border-radius: 8px;
+        padding: 0.5rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    @media print {
+        .no-print, .action-buttons, .nav-tabs {
+            display: none !important;
+        }
+        .asset-header {
+            background: white !important;
+            color: #212529 !important;
+            border: 1px solid #dee2e6;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Asset Header -->
+    <div class="asset-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>
+                    <i class="fas fa-cube"></i> {{ asset.name }}
+                </h1>
+                <div class="asset-number-badge">
+                    <i class="fas fa-barcode"></i> {{ asset.asset_number }}
+                </div>
+                <div class="mt-3">
+                    {% if asset.status == 'active' %}
+                        <span class="badge bg-success bg-opacity-75">
+                            <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                        </span>
+                    {% elif asset.status == 'under_maintenance' %}
+                        <span class="badge bg-warning bg-opacity-75">
+                            <i class="fas fa-tools"></i> {% trans "تحت الصيانة" %}
+                        </span>
+                    {% elif asset.status == 'disposed' %}
+                        <span class="badge bg-danger bg-opacity-75">
+                            <i class="fas fa-trash"></i> {% trans "محذوف" %}
+                        </span>
+                    {% elif asset.status == 'sold' %}
+                        <span class="badge bg-info bg-opacity-75">
+                            <i class="fas fa-hand-holding-usd"></i> {% trans "مباع" %}
+                        </span>
+                    {% elif asset.status == 'retired' %}
+                        <span class="badge bg-secondary bg-opacity-75">
+                            <i class="fas fa-power-off"></i> {% trans "متقاعد" %}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="action-buttons no-print">
+                {% if perms.assets.change_asset %}
+                <a href="{% url 'assets:asset_update' asset.pk %}" class="btn btn-light">
+                    <i class="fas fa-edit"></i> {% trans "تعديل" %}
+                </a>
+                {% endif %}
+                <button onclick="window.print()" class="btn btn-light">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+                <a href="{% url 'assets:asset_qr_code' asset.pk %}" class="btn btn-light" target="_blank">
+                    <i class="fas fa-qrcode"></i> {% trans "QR Code" %}
+                </a>
+                {% if perms.assets.delete_asset %}
+                <button onclick="confirmDelete('{{ asset.name }}', '{% url 'assets:asset_delete' asset.pk %}')"
+                        class="btn btn-danger">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="stat-box primary">
+                <div class="label">{% trans "التكلفة الأصلية" %}</div>
+                <div class="value">{{ asset.purchase_cost|floatformat:3 }}</div>
+                <div class="currency">{% trans "دينار أردني" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box success">
+                <div class="label">{% trans "القيمة الدفترية" %}</div>
+                <div class="value">{{ asset.current_book_value|floatformat:3 }}</div>
+                <div class="currency">{% trans "دينار أردني" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box warning">
+                <div class="label">{% trans "الإهلاك المتراكم" %}</div>
+                <div class="value">{{ asset.accumulated_depreciation|floatformat:3 }}</div>
+                <div class="currency">{% trans "دينار أردني" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-box info">
+                <div class="label">{% trans "القيمة المتبقية" %}</div>
+                <div class="value">{{ asset.salvage_value|floatformat:3 }}</div>
+                <div class="currency">{% trans "دينار أردني" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-3 no-print" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview"
+                    type="button" role="tab">
+                <i class="fas fa-info-circle"></i> {% trans "نظرة عامة" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="depreciation-tab" data-bs-toggle="tab" data-bs-target="#depreciation"
+                    type="button" role="tab">
+                <i class="fas fa-chart-line"></i> {% trans "الإهلاك" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="maintenance-tab" data-bs-toggle="tab" data-bs-target="#maintenance"
+                    type="button" role="tab">
+                <i class="fas fa-wrench"></i> {% trans "الصيانة" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions"
+                    type="button" role="tab">
+                <i class="fas fa-exchange-alt"></i> {% trans "العمليات" %}
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- General Information -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-info-circle"></i>
+                            <h5>{% trans "المعلومات العامة" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الفئة" %}</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-folder text-primary"></i> {{ asset.category.name }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الحالة" %}</div>
+                                        <div class="info-value">
+                                            {% if asset.condition %}
+                                            <span class="badge" style="background-color: {{ asset.condition.color_code }};">
+                                                {{ asset.condition.name }}
+                                            </span>
+                                            {% else %}
+                                            --
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ الشراء" %}</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-calendar text-primary"></i> {{ asset.purchase_date }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الفرع" %}</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-building text-primary"></i> {{ asset.branch.name }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% if asset.cost_center %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "مركز التكلفة" %}</div>
+                                        <div class="info-value">{{ asset.cost_center.name }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.responsible_employee %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الموظف المسؤول" %}</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-user text-primary"></i> {{ asset.responsible_employee.get_full_name }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.current_location %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الموقع الحالي" %}</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-map-marker-alt text-danger"></i> {{ asset.current_location }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Purchase Information -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-shopping-cart"></i>
+                            <h5>{% trans "معلومات الشراء" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="row">
+                                {% if asset.supplier %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "المورد" %}</div>
+                                        <div class="info-value">{{ asset.supplier.name }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.purchase_invoice_number %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "رقم الفاتورة" %}</div>
+                                        <div class="info-value">{{ asset.purchase_invoice_number }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.serial_number %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الرقم التسلسلي" %}</div>
+                                        <div class="info-value">{{ asset.serial_number }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.model %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الموديل" %}</div>
+                                        <div class="info-value">{{ asset.model }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if asset.manufacturer %}
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الشركة المصنعة" %}</div>
+                                        <div class="info-value">{{ asset.manufacturer }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warranty -->
+                    {% if asset.warranty_end_date %}
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-shield-alt"></i>
+                            <h5>{% trans "الضمان" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    {% if asset.is_warranty_valid %}
+                                    <div class="alert alert-success mb-0">
+                                        <i class="fas fa-check-circle"></i> {% trans "الضمان ساري المفعول" %}
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-danger mb-0">
+                                        <i class="fas fa-times-circle"></i> {% trans "الضمان منتهي" %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ البداية" %}</div>
+                                        <div class="info-value">{{ asset.warranty_start_date }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ الانتهاء" %}</div>
+                                        <div class="info-value">{{ asset.warranty_end_date }}</div>
+                                    </div>
+                                </div>
+                                {% if asset.warranty_provider %}
+                                <div class="col-md-12">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "مزود الضمان" %}</div>
+                                        <div class="info-value">{{ asset.warranty_provider }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-lg-4">
+                    <!-- Barcode -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-barcode"></i>
+                            <h5>{% trans "الباركود" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="barcode-container">
+                                {% if asset.barcode %}
+                                <img src="https://barcode.tec-it.com/barcode.ashx?data={{ asset.barcode }}&code=Code128&translate-esc=on"
+                                     alt="Barcode" style="max-width: 250px;">
+                                <p class="text-muted small mt-2 mb-0">{{ asset.barcode }}</p>
+                                {% else %}
+                                <p class="text-muted">{% trans "لا يوجد باركود" %}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accounting Integration -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-link"></i>
+                            <h5>{% trans "الربط المحاسبي" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            {% if asset.asset_account %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "حساب الأصل" %}</div>
+                                <div class="info-value">{{ asset.asset_account.name }}</div>
+                            </div>
+                            {% endif %}
+                            {% if asset.depreciation_expense_account %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "حساب مصروف الإهلاك" %}</div>
+                                <div class="info-value">{{ asset.depreciation_expense_account.name }}</div>
+                            </div>
+                            {% endif %}
+                            {% if asset.accumulated_depreciation_account %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "حساب الإهلاك المتراكم" %}</div>
+                                <div class="info-value">{{ asset.accumulated_depreciation_account.name }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Metadata -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-clock"></i>
+                            <h5>{% trans "معلومات النظام" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "أنشئ بواسطة" %}</div>
+                                <div class="info-value">{{ asset.created_by.get_full_name }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "تاريخ الإنشاء" %}</div>
+                                <div class="info-value">{{ asset.created_at|date:"Y-m-d H:i" }}</div>
+                            </div>
+                            {% if asset.updated_by %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "آخر تحديث بواسطة" %}</div>
+                                <div class="info-value">{{ asset.updated_by.get_full_name }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "تاريخ آخر تحديث" %}</div>
+                                <div class="info-value">{{ asset.updated_at|date:"Y-m-d H:i" }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Depreciation Tab -->
+        <div class="tab-pane fade" id="depreciation" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-12">
+                    <!-- Depreciation Info -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-chart-line"></i>
+                            <h5>{% trans "معلومات الإهلاك" %}</h5>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "طريقة الإهلاك" %}</div>
+                                        <div class="info-value">{{ asset.depreciation_method.name }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "العمر الافتراضي" %}</div>
+                                        <div class="info-value">{{ asset.useful_life_months }} {% trans "شهر" %}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ بدء الإهلاك" %}</div>
+                                        <div class="info-value">{{ asset.depreciation_start_date }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="info-label d-block mb-2">{% trans "نسبة الإهلاك" %}</label>
+                                {% widthratio asset.accumulated_depreciation asset.purchase_cost 100 as depreciation_percentage %}
+                                <div class="depreciation-progress">
+                                    <div class="depreciation-progress-bar" style="width: {{ depreciation_percentage }}%">
+                                        {{ depreciation_percentage }}%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Depreciation History -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <i class="fas fa-history"></i>
+                            <h5>{% trans "سجل الإهلاك" %}</h5>
+                        </div>
+                        <div class="info-card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>{% trans "التاريخ" %}</th>
+                                            <th>{% trans "الفترة" %}</th>
+                                            <th class="text-end">{% trans "مبلغ الإهلاك" %}</th>
+                                            <th class="text-end">{% trans "الإهلاك المتراكم" %}</th>
+                                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                                            <th class="text-center">{% trans "الحالة" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% if recent_depreciations %}
+                                            {% for dep in recent_depreciations %}
+                                            <tr>
+                                                <td>{{ dep.depreciation_date }}</td>
+                                                <td>{{ dep.period }}</td>
+                                                <td class="text-end">{{ dep.depreciation_amount|floatformat:3 }}</td>
+                                                <td class="text-end">{{ dep.accumulated_depreciation_after|floatformat:3 }}</td>
+                                                <td class="text-end">{{ dep.book_value_after|floatformat:3 }}</td>
+                                                <td class="text-center">
+                                                    {% if dep.is_posted %}
+                                                    <span class="badge bg-success">{% trans "مرحّل" %}</span>
+                                                    {% else %}
+                                                    <span class="badge bg-warning">{% trans "غير مرحّل" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted py-4">
+                                                    {% trans "لا توجد سجلات إهلاك" %}
+                                                </td>
+                                            </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Tab -->
+        <div class="tab-pane fade" id="maintenance" role="tabpanel">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <i class="fas fa-wrench"></i>
+                    <h5>{% trans "سجل الصيانة" %}</h5>
+                </div>
+                <div class="info-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "التاريخ" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "الوصف" %}</th>
+                                    <th class="text-end">{% trans "التكلفة" %}</th>
+                                    <th class="text-center">{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if recent_maintenances %}
+                                    {% for maint in recent_maintenances %}
+                                    <tr>
+                                        <td>{{ maint.scheduled_date }}</td>
+                                        <td>{{ maint.maintenance_type.name }}</td>
+                                        <td>{{ maint.description|truncatewords:10 }}</td>
+                                        <td class="text-end">{{ maint.actual_cost|floatformat:3 }}</td>
+                                        <td class="text-center">
+                                            {% if maint.status == 'completed' %}
+                                            <span class="badge bg-success">{% trans "مكتملة" %}</span>
+                                            {% elif maint.status == 'in_progress' %}
+                                            <span class="badge bg-warning">{% trans "جارية" %}</span>
+                                            {% else %}
+                                            <span class="badge bg-primary">{% trans "مجدولة" %}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">
+                                            {% trans "لا توجد سجلات صيانة" %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% if total_maintenance_cost %}
+                <div class="card-footer bg-light">
+                    <strong>{% trans "إجمالي تكلفة الصيانة:" %}</strong>
+                    {{ total_maintenance_cost|floatformat:3 }} {% trans "دينار أردني" %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Transactions Tab -->
+        <div class="tab-pane fade" id="transactions" role="tabpanel">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <i class="fas fa-exchange-alt"></i>
+                    <h5>{% trans "سجل العمليات" %}</h5>
+                </div>
+                <div class="info-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "التاريخ" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "الوصف" %}</th>
+                                    <th class="text-end">{% trans "المبلغ" %}</th>
+                                    <th class="text-center">{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if recent_transactions %}
+                                    {% for trans in recent_transactions %}
+                                    <tr>
+                                        <td>{{ trans.transaction_date }}</td>
+                                        <td>
+                                            <span class="badge bg-info">{{ trans.get_transaction_type_display }}</span>
+                                        </td>
+                                        <td>{{ trans.description|truncatewords:10 }}</td>
+                                        <td class="text-end">{{ trans.amount|floatformat:3 }}</td>
+                                        <td class="text-center">
+                                            {% if trans.is_posted %}
+                                            <span class="badge bg-success">{% trans "مرحّل" %}</span>
+                                            {% else %}
+                                            <span class="badge bg-warning">{% trans "غير مرحّل" %}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">
+                                            {% trans "لا توجد عمليات" %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function confirmDelete(itemName, deleteUrl) {
+    Swal.fire({
+        title: '{% trans "تأكيد الحذف" %}',
+        text: `{% trans "هل أنت متأكد من حذف" %} ${itemName}؟`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '{% trans "نعم، احذف" %}',
+        cancelButtonText: '{% trans "إلغاء" %}',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = deleteUrl;
+        }
+    });
+}
+
+// Animate depreciation progress bar on load
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBar = document.querySelector('.depreciation-progress-bar');
+    if (progressBar) {
+        const width = progressBar.style.width;
+        progressBar.style.width = '0%';
+        setTimeout(() => {
+            progressBar.style.width = width;
+        }, 100);
+    }
+});
+</script>
+{% endblock %}

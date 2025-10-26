@@ -1,0 +1,192 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "بدء الصيانة" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-play-circle"></i> {% trans "بدء الصيانة" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if maintenance %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات الصيانة" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "رقم الصيانة" %}</th>
+                                        <td>{{ maintenance.maintenance_number }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الأصل" %}</th>
+                                        <td>{{ maintenance.asset.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "نوع الصيانة" %}</th>
+                                        <td>{{ maintenance.maintenance_type.name }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th width="45%">{% trans "التاريخ المجدول" %}</th>
+                                        <td>{{ maintenance.scheduled_date|date:"Y-m-d" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "التكلفة المقدرة" %}</th>
+                                        <td>{{ maintenance.estimated_cost|floatformat:3 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>{% trans "الحالة الحالية" %}</th>
+                                        <td>
+                                            <span class="badge bg-{{ maintenance.get_status_color }}">
+                                                {{ maintenance.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if maintenance.status != 'scheduled' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% if maintenance.status == 'in_progress' %}
+                        {% trans "هذه الصيانة قيد التنفيذ بالفعل" %}
+                        {% elif maintenance.status == 'completed' %}
+                        {% trans "هذه الصيانة مكتملة بالفعل" %}
+                        {% elif maintenance.status == 'cancelled' %}
+                        {% trans "هذه الصيانة ملغاة" %}
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.actual_start_date.id_for_label }}" class="form-label">
+                                    {{ form.actual_start_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.actual_start_date class="form-control" type="date" %}
+                                {% if form.actual_start_date.errors %}
+                                <div class="text-danger">{{ form.actual_start_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.assigned_to.id_for_label }}" class="form-label">
+                                    {{ form.assigned_to.label }}
+                                </label>
+                                {% render_field form.assigned_to class="form-select" %}
+                                {% if form.assigned_to.errors %}
+                                <div class="text-danger">{{ form.assigned_to.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "الشخص أو الفريق المسؤول عن تنفيذ الصيانة" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.vendor.id_for_label }}" class="form-label">
+                                {{ form.vendor.label }}
+                            </label>
+                            {% render_field form.vendor class="form-select" %}
+                            {% if form.vendor.errors %}
+                            <div class="text-danger">{{ form.vendor.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "المورد أو مقدم الخدمة إذا كانت الصيانة خارجية" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.work_order_number.id_for_label }}" class="form-label">
+                                {{ form.work_order_number.label }}
+                            </label>
+                            {% render_field form.work_order_number class="form-control" %}
+                            {% if form.work_order_number.errors %}
+                            <div class="text-danger">{{ form.work_order_number.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رقم أمر العمل أو طلب الصيانة" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {% render_field form.notes class="form-control" rows="3" %}
+                            {% if form.notes.errors %}
+                            <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "ملاحظات حول بدء الصيانة" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.stop_asset class="form-check-input" checked="" %}
+                                <label for="{{ form.stop_asset.id_for_label }}" class="form-check-label">
+                                    {{ form.stop_asset.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "تعطيل الأصل عن العمل أثناء الصيانة" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>{% trans "نتيجة بدء الصيانة" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم تغيير حالة الصيانة إلى 'قيد التنفيذ'" %}</li>
+                                <li>{% trans "سيتم تسجيل تاريخ البدء الفعلي" %}</li>
+                                {% if form.stop_asset.value %}
+                                <li>{% trans "سيتم تعطيل الأصل عن العمل" %}</li>
+                                {% endif %}
+                                <li>{% trans "سيتم إرسال إشعار للأشخاص المعنيين" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:maintenance_detail' maintenance.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-play-circle"></i> {% trans "بدء الصيانة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Set default start date to today
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_actual_start_date').val(today);
+});
+</script>
+{% endblock %}

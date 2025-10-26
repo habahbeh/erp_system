@@ -1,0 +1,178 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks static %}
+
+{% block title %}{% trans "إيقاف الإهلاك مؤقتاً" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Header -->
+            <div class="page-header">
+                <div class="page-header-icon">
+                    <i class="fas fa-pause-circle"></i>
+                </div>
+                <div class="page-header-content">
+                    <h2 class="page-header-title">{% trans "إيقاف الإهلاك مؤقتاً" %}</h2>
+                    <p class="page-header-subtitle">{% trans "إيقاف حساب الإهلاك للأصل المحدد مؤقتاً" %}</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header card-header-depreciation">
+                    <h5 class="mb-0"><i class="fas fa-pause-circle"></i> {% trans "إيقاف الإهلاك مؤقتاً" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if asset %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات الأصل" %}</h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <th width="30%">{% trans "الأصل" %}</th>
+                                <td>{{ asset.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "رقم الأصل" %}</th>
+                                <td>{{ asset.asset_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "القيمة الدفترية" %}</th>
+                                <td>{{ asset.book_value|floatformat:3 }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "حالة الإهلاك" %}</th>
+                                <td>
+                                    {% if asset.depreciation_paused %}
+                                    <span class="badge bg-warning">{% trans "متوقف مؤقتاً" %}</span>
+                                    {% else %}
+                                    <span class="badge bg-success">{% trans "نشط" %}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    {% if asset.depreciation_paused %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "الإهلاك متوقف مؤقتاً لهذا الأصل بالفعل" %}
+                    </div>
+                    {% else %}
+                    <form method="post" id="pauseForm">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        {% if not asset %}
+                        <div class="mb-3">
+                            <label for="{{ form.asset.id_for_label }}" class="form-label required">
+                                {{ form.asset.label }}
+                            </label>
+                            {% render_field form.asset class="form-select select2" %}
+                            {% if form.asset.errors %}
+                            <div class="text-danger">{{ form.asset.errors }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.pause_date.id_for_label }}" class="form-label required">
+                                {{ form.pause_date.label }}
+                            </label>
+                            {% render_field form.pause_date class="form-control" type="date" %}
+                            {% if form.pause_date.errors %}
+                            <div class="text-danger">{{ form.pause_date.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "تاريخ بدء إيقاف الإهلاك" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.reason.id_for_label }}" class="form-label required">
+                                {{ form.reason.label }}
+                            </label>
+                            {% render_field form.reason class="form-control" rows="3" %}
+                            {% if form.reason.errors %}
+                            <div class="text-danger">{{ form.reason.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "سبب إيقاف الإهلاك (مثل: صيانة طويلة الأجل، إعادة تقييم، إلخ)" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.expected_resume_date.id_for_label }}" class="form-label">
+                                {{ form.expected_resume_date.label }}
+                            </label>
+                            {% render_field form.expected_resume_date class="form-control" type="date" %}
+                            {% if form.expected_resume_date.errors %}
+                            <div class="text-danger">{{ form.expected_resume_date.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "التاريخ المتوقع لاستئناف الإهلاك (اختياري)" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "لن يتم حساب الإهلاك لهذا الأصل بعد التاريخ المحدد" %}</li>
+                                <li>{% trans "سيتم استبعاد الأصل من عمليات الإهلاك الجماعي" %}</li>
+                                <li>{% trans "يمكنك استئناف الإهلاك في أي وقت" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-pause-circle"></i> {% trans "إيقاف الإهلاك" %}
+                            </button>
+                            <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initSelect2('.select2');
+
+    // Confirm before submit
+    $('#pauseForm').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        showConfirm(
+            '{% trans "تأكيد الإيقاف" %}',
+            '{% trans "هل أنت متأكد من إيقاف الإهلاك لهذا الأصل؟" %}',
+            'warning',
+            '{% trans "نعم، أوقف الإهلاك" %}',
+            '{% trans "إلغاء" %}'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

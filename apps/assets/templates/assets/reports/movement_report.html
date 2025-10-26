@@ -1,0 +1,289 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between mb-4 no-print">
+        <h2><i class="fas fa-exchange-alt text-info"></i> {% trans "تقرير حركة الأصول" %}</h2>
+        <div>
+            <button onclick="window.print()" class="btn btn-primary">
+                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            </button>
+            <a href="{% url 'assets:reports' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-filter"></i> {% trans "الفلاتر" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع الحركة" %}</label>
+                        <select name="transaction_type" class="form-select">
+                            <option value="">{% trans "كل الأنواع" %}</option>
+                            <option value="purchase">{% trans "شراء" %}</option>
+                            <option value="sale">{% trans "بيع" %}</option>
+                            <option value="transfer">{% trans "نقل" %}</option>
+                            <option value="disposal">{% trans "استبعاد" %}</option>
+                            <option value="revaluation">{% trans "إعادة تقييم" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الفرع" %}</label>
+                        <select name="branch" class="form-select">
+                            <option value="">{% trans "كل الفروع" %}</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch.id }}">{{ branch.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> {% trans "تطبيق" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-success border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "المشتريات" %}</h6>
+                    <h3 class="mb-0 text-success">{{ summary.purchases_count }}</h3>
+                    <small class="text-muted">{{ summary.purchases_value|floatformat:3 }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-danger border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "المبيعات" %}</h6>
+                    <h3 class="mb-0 text-danger">{{ summary.sales_count }}</h3>
+                    <small class="text-muted">{{ summary.sales_value|floatformat:3 }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-info border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "النقل" %}</h6>
+                    <h3 class="mb-0 text-info">{{ summary.transfers_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-warning border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "الاستبعاد" %}</h6>
+                    <h3 class="mb-0 text-warning">{{ summary.disposals_count }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movement by Type -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "الحركة حسب النوع" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "نوع الحركة" %}</th>
+                            <th class="text-center">{% trans "العدد" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                            <th class="text-end">{% trans "قيمة المعاملة" %}</th>
+                            <th class="text-end">{% trans "الربح/الخسارة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_type %}
+                        <tr>
+                            <td><strong>{{ item.type_display }}</strong></td>
+                            <td class="text-center">{{ item.count }}</td>
+                            <td class="text-end">{{ item.book_value|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.transaction_value|floatformat:3 }}</td>
+                            <td class="text-end">
+                                {% if item.gain_loss > 0 %}
+                                    <span class="text-success">+{{ item.gain_loss|floatformat:3 }}</span>
+                                {% elif item.gain_loss < 0 %}
+                                    <span class="text-danger">{{ item.gain_loss|floatformat:3 }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movement by Branch -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-building"></i> {% trans "الحركة حسب الفرع" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الفرع" %}</th>
+                            <th class="text-center">{% trans "المشتريات" %}</th>
+                            <th class="text-center">{% trans "المبيعات" %}</th>
+                            <th class="text-center">{% trans "الوارد" %}</th>
+                            <th class="text-center">{% trans "الصادر" %}</th>
+                            <th class="text-center">{% trans "الرصيد" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_branch %}
+                        <tr>
+                            <td><strong>{{ item.branch }}</strong></td>
+                            <td class="text-center">{{ item.purchases }}</td>
+                            <td class="text-center">{{ item.sales }}</td>
+                            <td class="text-center">{{ item.transfers_in }}</td>
+                            <td class="text-center">{{ item.transfers_out }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-info">{{ item.balance }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Transaction Records -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "سجل الحركات التفصيلي" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "من" %}</th>
+                            <th>{% trans "إلى" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                            <th class="text-end">{% trans "قيمة المعاملة" %}</th>
+                            <th>{% trans "المستخدم" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.transaction_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if transaction.transaction_type == 'purchase' %}
+                                    <span class="badge bg-success">{% trans "شراء" %}</span>
+                                {% elif transaction.transaction_type == 'sale' %}
+                                    <span class="badge bg-danger">{% trans "بيع" %}</span>
+                                {% elif transaction.transaction_type == 'transfer' %}
+                                    <span class="badge bg-info">{% trans "نقل" %}</span>
+                                {% elif transaction.transaction_type == 'disposal' %}
+                                    <span class="badge bg-warning">{% trans "استبعاد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' transaction.asset.pk %}">
+                                    {{ transaction.asset.name }}
+                                </a>
+                            </td>
+                            <td>{{ transaction.from_location|default:"-" }}</td>
+                            <td>{{ transaction.to_location|default:"-" }}</td>
+                            <td class="text-end">{{ transaction.book_value|floatformat:3 }}</td>
+                            <td class="text-end">{{ transaction.amount|floatformat:3|default:"-" }}</td>
+                            <td>{{ transaction.created_by.username }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد حركات للفترة المحددة" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card shadow-sm mt-4 no-print">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "رسم بياني للحركة" %}</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="movementChart" height="80"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    var ctx = document.getElementById('movementChart').getContext('2d');
+    var movementChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ month_labels|safe }},
+            datasets: [{
+                label: '{% trans "مشتريات" %}',
+                data: {{ purchases_data|safe }},
+                backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }, {
+                label: '{% trans "مبيعات" %}',
+                data: {{ sales_data|safe }},
+                backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                borderColor: 'rgba(220, 53, 69, 1)',
+                borderWidth: 1
+            }, {
+                label: '{% trans "نقل" %}',
+                data: {{ transfers_data|safe }},
+                backgroundColor: 'rgba(23, 162, 184, 0.5)',
+                borderColor: 'rgba(23, 162, 184, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

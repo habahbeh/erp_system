@@ -1,0 +1,149 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "تأكيد الحذف" %}{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="mb-1">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "تأكيد حذف الأصل" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "تأكيد عملية الحذف النهائي" %}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <!-- Asset Info Card -->
+            <div class="card content-card shadow-sm mb-4">
+                <div class="card-header card-header-basic">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "معلومات الأصل المراد حذفه" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger border-danger mb-4">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <h6 class="alert-heading mb-2">{% trans "تحذير هام" %}</h6>
+                                <p class="mb-0">{% trans "هل أنت متأكد من حذف الأصل" %}: <strong>{{ object.name }}</strong>؟</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-section mb-4">
+                        <div class="info-row">
+                            <span class="info-label">{% trans "رقم الأصل" %}</span>
+                            <span class="info-value"><strong>{{ object.asset_number }}</strong></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">{% trans "اسم الأصل" %}</span>
+                            <span class="info-value">{{ object.name }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">{% trans "الفئة" %}</span>
+                            <span class="info-value">{{ object.category.name }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">{% trans "القيمة الأصلية" %}</span>
+                            <span class="info-value">{{ object.original_cost|floatformat:3 }} {% trans "د.ك" %}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">{% trans "القيمة الدفترية" %}</span>
+                            <span class="info-value">{{ object.book_value|floatformat:3 }} {% trans "د.ك" %}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">{% trans "الحالة" %}</span>
+                            <span class="info-value">
+                                <span class="badge bg-{{ object.status|default:'secondary' }}">
+                                    {{ object.get_status_display }}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning border-warning">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>{% trans "تحذير: سيتم حذف جميع البيانات المرتبطة بهذا الأصل بما في ذلك:" %}</strong>
+                        <ul class="mt-2 mb-0">
+                            <li>{% trans "سجلات الإهلاك" %}</li>
+                            <li>{% trans "سجلات الصيانة" %}</li>
+                            <li>{% trans "سجلات المعاملات" %}</li>
+                            <li>{% trans "المرفقات والمستندات" %}</li>
+                            <li>{% trans "سجلات التقييمات" %}</li>
+                            <li>{% trans "سجلات التأمين" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Confirmation Form -->
+            <div class="card content-card shadow-sm">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger fw-bold" for="confirmDelete">
+                                {% trans "أنا متأكد من حذف هذا الأصل نهائياً" %}
+                            </label>
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="{% url 'assets:asset_detail' object.pk %}" class="btn btn-secondary btn-cancel">
+                                <i class="fas fa-times me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائياً" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+$(document).ready(function() {
+    // Enable delete button only when checkbox is checked
+    $('#confirmDelete').on('change', function() {
+        $('#deleteBtn').prop('disabled', !this.checked);
+    });
+
+    // Confirm deletion
+    $('#deleteForm').on('submit', function(e) {
+        e.preventDefault();
+
+        showConfirm(
+            '{% trans "هل أنت متأكد تماماً من حذف هذا الأصل؟ لا يمكن التراجع عن هذا الإجراء!" %}',
+            function() {
+                showLoading('{% trans "جاري الحذف..." %}');
+                $('#deleteForm')[0].submit();
+            },
+            '{% trans "تأكيد الحذف النهائي" %}'
+        );
+    });
+});
+</script>
+{% endblock %}

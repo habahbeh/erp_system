@@ -1,0 +1,488 @@
+{# apps/assets/templates/assets/categories/condition_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.section-card {
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.section-card .card-header {
+    padding: 1.25rem;
+    border-bottom: 2px solid;
+}
+
+.section-basic .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.section-settings .card-header {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-bottom-color: #ff9800;
+    color: #e65100;
+}
+
+.color-preview {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 10px;
+}
+
+.color-info-box {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    text-align: center;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات حالة الأصل" %}
+                {% else %}
+                    {% trans "إضافة حالة أصل جديدة للنظام" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:condition_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <form method="post" id="conditionForm" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Form Section -->
+            <div class="col-lg-9">
+                <!-- Basic Information -->
+                <div class="card section-card section-basic">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "المعلومات الأساسية" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-id-card me-2"></i>البيانات التعريفية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Name -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                        {{ form.name.label }}
+                                    </label>
+                                    {{ form.name|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-language text-info"></i>
+                                        اسم الحالة بالعربية (مثل: ممتاز، جيد، متوسط)
+                                    </div>
+                                    {% if form.name.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Name EN -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                        {{ form.name_en.label }}
+                                    </label>
+                                    {{ form.name_en|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-language text-info"></i>
+                                        الاسم بالإنجليزية (اختياري)
+                                    </div>
+                                    {% if form.name_en.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name_en.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-2">
+                                <!-- Color Code -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.color_code.id_for_label }}" class="form-label">
+                                        {{ form.color_code.label }}
+                                    </label>
+                                    {{ form.color_code|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-palette text-info"></i>
+                                        اختر لوناً مميزاً لهذه الحالة
+                                    </div>
+                                    {% if form.color_code.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.color_code.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                    <!-- Color Preview -->
+                                    <div class="color-info-box" id="colorPreview">
+                                        <span class="color-preview" id="colorBox"></span>
+                                        <div class="d-inline-block">
+                                            <strong id="colorValue">#6c757d</strong>
+                                            <br>
+                                            <small class="text-muted">معاينة اللون المحدد</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Description -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        {{ form.description.label }}
+                                    </label>
+                                    {{ form.description|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-comment text-info"></i>
+                                        وصف مختصر للحالة (اختياري)
+                                    </div>
+                                    {% if form.description.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="card section-card section-settings">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cog me-2"></i>
+                            {% trans "الإعدادات" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Active Status -->
+                            <div class="col-md-12">
+                                <label class="form-label">{% trans "الحالة" %}</label>
+                                <div class="form-check form-switch mt-2">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        حالة نشطة
+                                    </label>
+                                </div>
+                                <div class="help-text">
+                                    <i class="fas fa-toggle-on text-warning"></i>
+                                    إلغاء التفعيل يمنع استخدام هذه الحالة للأصول الجديدة
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Non-field Errors -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                    <ul class="mb-0">
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'assets:condition_list' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> إلغاء
+                    </a>
+                    <div>
+                        {% if object %}
+                        <a href="{% url 'assets:condition_detail' object.pk %}" class="btn btn-outline-info btn-lg me-2">
+                            <i class="fas fa-eye me-1"></i> عرض التفاصيل
+                        </a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-save me-1"></i>
+                            {% if object %}تحديث الحالة{% else %}حفظ الحالة{% endif %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <!-- Help Card -->
+                <div class="card info-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>معلومات مهمة
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اسم الحالة مطلوب وفريد
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                اختر لوناً مميزاً لسهولة التمييز
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                الحالات تُستخدم لتصنيف حالة الأصول
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-info-circle text-primary me-1"></i>
+                                يمكن إلغاء تفعيل الحالات غير المستخدمة
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Color Examples -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-palette me-2"></i>أمثلة للألوان
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2 small">
+                            <button type="button" class="btn btn-sm btn-outline-success text-end" onclick="setColor('#28a745')">
+                                <span class="color-preview" style="background-color: #28a745; width: 20px; height: 20px;"></span>
+                                أخضر - ممتاز
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary text-end" onclick="setColor('#007bff')">
+                                <span class="color-preview" style="background-color: #007bff; width: 20px; height: 20px;"></span>
+                                أزرق - جيد جداً
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning text-end" onclick="setColor('#ffc107')">
+                                <span class="color-preview" style="background-color: #ffc107; width: 20px; height: 20px;"></span>
+                                أصفر - جيد
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger text-end" onclick="setColor('#dc3545')">
+                                <span class="color-preview" style="background-color: #dc3545; width: 20px; height: 20px;"></span>
+                                أحمر - ضعيف
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-keyboard me-2"></i>اختصارات لوحة المفاتيح
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <kbd>Ctrl</kbd> + <kbd>S</kbd> : حفظ
+                            </li>
+                            <li class="mb-0">
+                                <kbd>Esc</kbd> : إلغاء
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Warning Card (Only for Edit) -->
+                {% if object and object.pk %}
+                <div class="card warning-card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>تنبيه
+                        </h6>
+                        <p class="mb-0 small">
+                            {% if object.asset_set.exists %}
+                                <strong>هذه الحالة مستخدمة في {{ object.asset_set.count }} أصل!</strong><br>
+                                التعديلات قد تؤثر على الأصول المرتبطة.
+                            {% else %}
+                                تأكد من صحة البيانات قبل الحفظ.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Color Preview
+    // ==============================
+    function updateColorPreview() {
+        var color = $('#id_color_code').val() || '#6c757d';
+        $('#colorBox').css('background-color', color);
+        $('#colorValue').text(color);
+    }
+
+    $('#id_color_code').on('input change', function() {
+        updateColorPreview();
+    });
+
+    // Initialize on load
+    updateColorPreview();
+
+    // ==============================
+    // Form Submission
+    // ==============================
+    $('#conditionForm').on('submit', function(e) {
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+
+    // ==============================
+    // Keyboard Shortcuts
+    // ==============================
+    $(document).on('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#conditionForm').submit();
+        }
+        if (e.key === 'Escape') {
+            window.location.href = '{% url "assets:condition_list" %}';
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged && !$('#submitBtn').prop('disabled')) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+});
+
+// ==============================
+// Global Function: Set Color
+// ==============================
+function setColor(color) {
+    $('#id_color_code').val(color).trigger('change');
+}
+</script>
+{% endblock %}

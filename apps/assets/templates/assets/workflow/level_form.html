@@ -1,0 +1,182 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}
+{% if object %}{% trans "تعديل مستوى الاعتماد" %}{% else %}{% trans "إضافة مستوى اعتماد" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group"></i>
+                        {% if object %}{% trans "تعديل مستوى الاعتماد" %}{% else %}{% trans "إضافة مستوى اعتماد جديد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if workflow %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات سير العمل" %}</h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <th width="30%">{% trans "سير العمل" %}</th>
+                                <td>{{ workflow.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "النوع" %}</th>
+                                <td>{{ workflow.get_workflow_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "عدد المستويات الحالية" %}</th>
+                                <td>{{ workflow.levels_count }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        {% if not workflow %}
+                        <div class="mb-3">
+                            <label for="{{ form.workflow.id_for_label }}" class="form-label">
+                                {{ form.workflow.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.workflow class="form-select" %}
+                            {% if form.workflow.errors %}
+                            <div class="text-danger">{{ form.workflow.errors }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.level.id_for_label }}" class="form-label">
+                                    {{ form.level.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.level class="form-control" type="number" min="1" %}
+                                {% if form.level.errors %}
+                                <div class="text-danger">{{ form.level.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "رقم المستوى في التسلسل (1 = المستوى الأول)" %}
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.sequence.id_for_label }}" class="form-label">
+                                    {{ form.sequence.label }} <span class="text-danger">*</span>
+                                </label>
+                                {% render_field form.sequence class="form-control" type="number" min="1" %}
+                                {% if form.sequence.errors %}
+                                <div class="text-danger">{{ form.sequence.errors }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    {% trans "ترتيب العرض" %}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.approver.id_for_label }}" class="form-label">
+                                {{ form.approver.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.approver class="form-select" %}
+                            {% if form.approver.errors %}
+                            <div class="text-danger">{{ form.approver.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "المستخدم المسؤول عن الاعتماد في هذا المستوى" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.role.id_for_label }}" class="form-label">
+                                {{ form.role.label }}
+                            </label>
+                            {% render_field form.role class="form-select" %}
+                            {% if form.role.errors %}
+                            <div class="text-danger">{{ form.role.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "أو حدد دور بدلاً من مستخدم معين" %}
+                            </small>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.min_amount.id_for_label }}" class="form-label">
+                                    {{ form.min_amount.label }}
+                                </label>
+                                {% render_field form.min_amount class="form-control" step="0.001" %}
+                                {% if form.min_amount.errors %}
+                                <div class="text-danger">{{ form.min_amount.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.max_amount.id_for_label }}" class="form-label">
+                                    {{ form.max_amount.label }}
+                                </label>
+                                {% render_field form.max_amount class="form-control" step="0.001" %}
+                                {% if form.max_amount.errors %}
+                                <div class="text-danger">{{ form.max_amount.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {{ form.description.label }}
+                            </label>
+                            {% render_field form.description class="form-control" rows="2" %}
+                            {% if form.description.errors %}
+                            <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.is_required class="form-check-input" checked="" %}
+                                <label for="{{ form.is_required.id_for_label }}" class="form-check-label">
+                                    {{ form.is_required.label }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.can_skip class="form-check-input" %}
+                                <label for="{{ form.can_skip.id_for_label }}" class="form-check-label">
+                                    {{ form.can_skip.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "السماح بتخطي هذا المستوى في حالات معينة" %}
+                            </small>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% if workflow %}{% url 'assets:workflow_detail' workflow.pk %}{% else %}{% url 'assets:workflow_list' %}{% endif %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "حفظ" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

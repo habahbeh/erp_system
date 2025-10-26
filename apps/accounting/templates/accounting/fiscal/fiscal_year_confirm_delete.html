@@ -1,0 +1,410 @@
+{# apps/accounting/templates/accounting/fiscal/fiscal_year_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}حذف السنة المالية - {{ object.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:dashboard' %}">المحاسبة</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:fiscal_year_list' %}">السنوات المالية</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'accounting:fiscal_year_detail' object.pk %}">{{ object.name }}</a>
+            </li>
+            <li class="breadcrumb-item active">حذف</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> تأكيد حذف السنة المالية
+            </h1>
+            <p class="text-muted mb-0">
+                {% trans "تحذير: هذا الإجراء لا يمكن التراجع عنه" %}
+            </p>
+        </div>
+        <a href="{% url 'accounting:fiscal_year_detail' object.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Warning Alert -->
+            <div class="alert alert-danger border-danger shadow-sm mb-4">
+                <div class="d-flex align-items-start">
+                    <div class="me-3">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading mb-2">
+                            <i class="fas fa-exclamation-circle me-2"></i>تحذير هام!
+                        </h5>
+                        <p class="mb-0">
+                            أنت على وشك حذف السنة المالية <strong>"{{ object.name }}"</strong> نهائياً من النظام.
+                            هذا الإجراء <strong class="text-decoration-underline">لا يمكن التراجع عنه</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fiscal Year Info -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>معلومات السنة المالية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "اسم السنة المالية" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ object.name }}</strong></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الرمز" %}</h6>
+                            <p class="mb-0"><code class="fs-5">{{ object.code }}</code></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ البداية" %}</h6>
+                            <p class="mb-0">{{ object.start_date|date:"d/m/Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ النهاية" %}</h6>
+                            <p class="mb-0">{{ object.end_date|date:"d/m/Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "عدد الفترات" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ object.periods.count }} فترة</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            <p class="mb-0">
+                                {% if object.is_closed %}
+                                    <span class="badge bg-danger fs-6">مقفلة</span>
+                                {% else %}
+                                    <span class="badge bg-success fs-6">نشطة</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "أنشأ بواسطة" %}</h6>
+                            <p class="mb-0">
+                                {% if object.created_by %}
+                                    {{ object.created_by.get_full_name|default:object.created_by.username }}
+                                {% else %}
+                                    <span class="text-muted">-- غير محدد --</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الإنشاء" %}</h6>
+                            <p class="mb-0">{{ object.created_at|date:"d/m/Y H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Check if Closed -->
+            {% if object.is_closed %}
+                <div class="alert alert-danger border-danger shadow-sm mb-4">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-ban me-2"></i>خطأ: السنة المالية مقفلة
+                    </h6>
+                    <p class="mb-0">
+                        <strong>لا يمكن حذف السنة المالية لأنها مقفلة.</strong>
+                        يجب إعادة فتح السنة المالية أولاً (في حالة الضرورة القصوى).
+                    </p>
+                </div>
+            {% endif %}
+
+            <!-- Check if has periods -->
+            {% if object.periods.exists %}
+                <div class="alert alert-warning border-warning shadow-sm mb-4">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>تحذير: فترات محاسبية موجودة
+                    </h6>
+                    <p class="mb-2">
+                        تحتوي هذه السنة المالية على <strong>{{ object.periods.count }}</strong> فترة محاسبية:
+                    </p>
+                    <ul class="mb-2">
+                        {% for period in object.periods.all|slice:":5" %}
+                            <li>
+                                <strong>{{ period.name }}</strong>
+                                <span class="text-muted ms-1">({{ period.start_date|date:"d/m/Y" }} - {{ period.end_date|date:"d/m/Y" }})</span>
+                                {% if period.is_closed %}
+                                    <span class="badge bg-danger ms-1">مقفلة</span>
+                                {% else %}
+                                    <span class="badge bg-success ms-1">نشطة</span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                        {% if object.periods.count > 5 %}
+                            <li class="text-muted">... و {{ object.periods.count|add:"-5" }} فترات أخرى</li>
+                        {% endif %}
+                    </ul>
+                    <div class="alert alert-danger mb-0 mt-3">
+                        <strong>
+                            <i class="fas fa-ban me-2"></i>
+                            لا يمكن حذف السنة المالية لوجود فترات محاسبية. يجب حذف الفترات أولاً.
+                        </strong>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Delete Form -->
+            {% if not object.is_closed and not object.periods.exists %}
+            <div class="card shadow-sm border-danger mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-trash me-2"></i>تأكيد الحذف النهائي
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <h6><i class="fas fa-info-circle me-2"></i>معلومات الحذف</h6>
+                        <ul class="mb-0">
+                            <li>سيتم حذف السنة المالية نهائياً من النظام</li>
+                            <li>لن تظهر في التقارير المستقبلية</li>
+                            <li>لا يمكن استرداد البيانات بعد الحذف</li>
+                            <li>سيتم فقدان ارتباطها بأي بيانات تاريخية</li>
+                        </ul>
+                    </div>
+
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <div class="form-check p-3 border border-danger rounded mb-3">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger fw-bold" for="confirmDelete">
+                                <i class="fas fa-check-square me-2"></i>
+                                أؤكد أنني أريد حذف السنة المالية <strong>"{{ object.name }}"</strong> نهائياً
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'accounting:fiscal_year_detail' object.pk %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="deleteButton" disabled>
+                                <i class="fas fa-trash me-1"></i> حذف نهائياً
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <!-- Cannot Delete -->
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-ban fa-3x text-danger mb-3"></i>
+                    <h5 class="text-danger mb-3">لا يمكن حذف السنة المالية</h5>
+                    <p class="text-muted mb-4">
+                        يرجى حل المشاكل المذكورة أعلاه أولاً
+                    </p>
+                    <a href="{% url 'accounting:fiscal_year_detail' object.pk %}" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-1"></i> العودة للتفاصيل
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Alternatives Card -->
+            <div class="card shadow-sm mb-3" style="border-left: 4px solid #ffc107;">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>بدائل الحذف
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <i class="fas fa-lock text-danger me-2"></i>
+                            <strong>الإقفال:</strong><br>
+                            <small class="text-muted">بدلاً من الحذف، يمكن إقفال السنة المالية</small>
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-archive text-warning me-2"></i>
+                            <strong>الأرشفة:</strong><br>
+                            <small class="text-muted">الاحتفاظ بالسنة المالية للمراجعة المستقبلية</small>
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-file-export text-info me-2"></i>
+                            <strong>النسخ الاحتياطي:</strong><br>
+                            <small class="text-muted">تصدير البيانات قبل الحذف</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Impact Card -->
+            <div class="card shadow-sm mb-3" style="border-left: 4px solid #0dcaf0;">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-line text-info me-2"></i>تأثير الحذف
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-times-circle text-danger me-2"></i>
+                            <small>إزالة نهائية من النظام</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-file-alt text-warning me-2"></i>
+                            <small>عدم ظهور في التقارير الجديدة</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-calendar-times text-danger me-2"></i>
+                            <small>حذف جميع الفترات المحاسبية المرتبطة</small>
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-history text-secondary me-2"></i>
+                            <small>لا يمكن استرجاع البيانات</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Required Steps (if has periods or closed) -->
+            {% if object.periods.exists or object.is_closed %}
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-tasks me-2"></i>خطوات مطلوبة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        {% if object.is_closed %}
+                            <li class="mb-2">إعادة فتح السنة المالية (في حالة الضرورة القصوى)</li>
+                        {% endif %}
+                        {% if object.periods.exists %}
+                            <li class="mb-2">حذف جميع الفترات المحاسبية ({{ object.periods.count }} فترة)</li>
+                        {% endif %}
+                        <li class="mb-2">التأكد من عدم وجود قيود مرتبطة</li>
+                        <li class="mb-0">المحاولة مرة أخرى</li>
+                    </ol>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Statistics -->
+            {% if object.periods.exists %}
+            <div class="card shadow-sm border-warning mt-3">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <h2 class="text-primary mb-2">{{ object.periods.count }}</h2>
+                        <p class="text-muted mb-0">فترة محاسبية</p>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block text-center">
+                        <i class="fas fa-info-circle me-1"></i>
+                        يجب حذف جميع الفترات أولاً قبل حذف السنة المالية
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Enable/Disable Delete Button
+    // ==============================
+    $('#confirmDelete').on('change', function() {
+        $('#deleteButton').prop('disabled', !this.checked);
+    });
+
+    // ==============================
+    // Form Submission with Confirmation
+    // ==============================
+    $('#deleteForm').on('submit', function(e) {
+        e.preventDefault();
+
+        if (!$('#confirmDelete').prop('checked')) {
+            Swal.fire({
+                icon: 'error',
+                title: 'تأكيد مطلوب',
+                text: 'يجب تأكيد الحذف أولاً',
+                confirmButtonColor: '#dc3545'
+            });
+            return false;
+        }
+
+        // Final Confirmation
+        Swal.fire({
+            title: 'تأكيد نهائي',
+            html: `
+                <div class="text-start">
+                    <p class="mb-3">هل أنت متأكد من حذف السنة المالية التالية؟</p>
+                    <div class="alert alert-danger">
+                        <strong>{{ object.name }}</strong><br>
+                        <code>{{ object.code }}</code>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>هذا الإجراء لا يمكن التراجع عنه!</strong>
+                    </p>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="fas fa-trash me-2"></i>نعم، احذف نهائياً',
+            cancelButtonText: 'إلغاء',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show Loading
+                Swal.fire({
+                    title: 'جاري الحذف...',
+                    text: 'يرجى الانتظار',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // Submit Form
+                this.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

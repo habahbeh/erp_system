@@ -1,0 +1,140 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+{% endblock %}
+
+{% block title %}{% trans "اعتماد المعاملة" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Page Header -->
+            <div class="page-header mb-4">
+                <h2 class="mb-1">
+                    <i class="fas fa-check-circle me-2"></i>
+                    {% trans "اعتماد معاملة الأصل" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "مراجعة واعتماد المعاملة" %}</p>
+            </div>
+
+            <div class="detail-card">
+                <div class="card-body">
+                    {% if transaction %}
+                    <!-- Transaction Info -->
+                    <div class="detail-card mb-3">
+                        <div class="card-header card-header-basic">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle"></i> {% trans "معلومات المعاملة" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <div class="info-label">{% trans "رقم المعاملة" %}</div>
+                                <div class="info-value">{{ transaction.transaction_number }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "نوع المعاملة" %}</div>
+                                <div class="info-value">
+                                    <span class="status-badge bg-primary text-white">
+                                        {{ transaction.get_transaction_type_display }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الأصل" %}</div>
+                                <div class="info-value">{{ transaction.asset.name }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "التاريخ" %}</div>
+                                <div class="info-value">{{ transaction.transaction_date|date:"Y-m-d" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">{% trans "المبلغ" %}</div>
+                                <div class="info-value fw-bold">{{ transaction.amount|floatformat:3 }}</div>
+                            </div>
+                            {% if transaction.notes %}
+                            <div class="info-row">
+                                <div class="info-label">{% trans "الملاحظات" %}</div>
+                                <div class="info-value">{{ transaction.notes }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if transaction.is_approved %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم اعتماد هذه المعاملة بالفعل في تاريخ" %}: {{ transaction.approved_at|date:"Y-m-d H:i" }}
+                        <br>
+                        <small>{% trans "بواسطة" %}: {{ transaction.approved_by.get_full_name }}</small>
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم اعتماد المعاملة" %}</li>
+                                <li>{% trans "سيتم تطبيق التغييرات على الأصل" %}</li>
+                                {% if transaction.transaction_type in 'sell,dispose' %}
+                                <li class="text-danger">{% trans "سيتم تعطيل الأصل نهائياً" %}</li>
+                                {% endif %}
+                                <li>{% trans "سيتم السماح بترحيل المعاملة" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="approval_notes" class="form-label">
+                                {% trans "ملاحظات الاعتماد" %}
+                            </label>
+                            <textarea name="approval_notes" class="form-control" rows="3"></textarea>
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="{% url 'assets:transaction_detail' transaction.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-circle me-2"></i> {% trans "اعتماد المعاملة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'assets/js/assets_common.js' %}"></script>
+<script>
+$(document).ready(function() {
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        showConfirm(
+            '{% trans "تأكيد الاعتماد" %}',
+            '{% trans "هل أنت متأكد من اعتماد هذه المعاملة؟" %}',
+            '{% trans "نعم، اعتمد" %}',
+            '{% trans "إلغاء" %}',
+            '#28a745'
+        ).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

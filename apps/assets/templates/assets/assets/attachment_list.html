@@ -1,0 +1,114 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "مرفقات الأصول" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-paperclip text-primary"></i> {% trans "مرفقات الأصول" %}</h2>
+        {% if perms.assets.add_assetattachment %}
+        <a href="{% url 'assets:upload_attachment' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "إضافة مرفق" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="attachmentsTable">
+                    <thead>
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "نوع الملف" %}</th>
+                            <th>{% trans "الوصف" %}</th>
+                            <th>{% trans "تاريخ الرفع" %}</th>
+                            <th>{% trans "رفع بواسطة" %}</th>
+                            <th>{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attachment in attachments %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' attachment.asset.pk %}">
+                                    {{ attachment.asset.name }}
+                                </a>
+                            </td>
+                            <td>
+                                <i class="fas fa-file"></i> {{ attachment.file_type|upper }}
+                            </td>
+                            <td>{{ attachment.description|truncatewords:10 }}</td>
+                            <td>{{ attachment.uploaded_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ attachment.uploaded_by.get_full_name }}</td>
+                            <td>
+                                <a href="{{ attachment.file.url }}" target="_blank" class="btn btn-sm btn-info" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ attachment.file.url }}" download class="btn btn-sm btn-success" title="{% trans 'تحميل' %}">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% if perms.assets.change_assetattachment %}
+                                <a href="{% url 'assets:upload_attachment' attachment.pk %}" class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if perms.assets.delete_assetattachment %}
+                                <a href="{% url 'assets:delete_attachment' attachment.pk %}" class="btn btn-sm btn-danger" title="{% trans 'حذف' %}">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center">{% trans "لا توجد مرفقات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if is_paginated %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">{% trans "الأولى" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">{% trans "السابق" %}</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">{% trans "التالي" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">{% trans "الأخيرة" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#attachmentsTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
+        order: [[3, 'desc']]
+    });
+});
+</script>
+{% endblock %}

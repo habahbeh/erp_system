@@ -1,0 +1,119 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-times-circle"></i> {% trans "إنهاء عقد الإيجار" %}</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Warning Alert -->
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{% trans "تحذير!" %}</strong>
+                        {% trans "سيتم إنهاء هذا العقد ولن يمكن التراجع عن هذا الإجراء." %}
+                    </div>
+
+                    <!-- Lease Summary -->
+                    <div class="card mb-4 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">{% trans "ملخص العقد" %}</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "رقم العقد:" %}</strong> {{ lease.lease_number }}</p>
+                                    <p><strong>{% trans "الأصل:" %}</strong> {{ lease.asset.name }}</p>
+                                    <p><strong>{% trans "المؤجر:" %}</strong> {{ lease.lessor }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "بداية العقد:" %}</strong> {{ lease.start_date|date:"Y-m-d" }}</p>
+                                    <p><strong>{% trans "نهاية العقد:" %}</strong> {{ lease.end_date|date:"Y-m-d" }}</p>
+                                    <p><strong>{% trans "القيمة الشهرية:" %}</strong> {{ lease.monthly_payment|floatformat:3 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "تاريخ الإنهاء" %}</label>
+                                {{ form.termination_date|add_class:"form-control" }}
+                                {% if form.termination_date.errors %}
+                                    <div class="text-danger small mt-1">{{ form.termination_date.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">{% trans "سبب الإنهاء" %}</label>
+                                {{ form.termination_reason|add_class:"form-select" }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">{% trans "الملاحظات" %}</label>
+                                {{ form.termination_notes|add_class:"form-control" }}
+                                <small class="text-muted">{% trans "أدخل أي تفاصيل إضافية حول إنهاء العقد" %}</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "رسوم الإنهاء المبكر" %}</label>
+                                {{ form.early_termination_fee|add_class:"form-control" }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "مبلغ التأمين المسترد" %}</label>
+                                {{ form.refund_amount|add_class:"form-control" }}
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    {{ form.confirm|add_class:"form-check-input" }}
+                                    <label class="form-check-label text-danger" for="{{ form.confirm.id_for_label }}">
+                                        <strong>{% trans "أؤكد رغبتي في إنهاء هذا العقد" %}</strong>
+                                    </label>
+                                    {% if form.confirm.errors %}
+                                        <div class="text-danger small mt-1">{{ form.confirm.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-times-circle"></i> {% trans "إنهاء العقد" %}
+                            </button>
+                            <a href="{% url 'assets:lease_detail' lease.pk %}" class="btn btn-secondary">
+                                {% trans "إلغاء" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Date validation
+    var leaseStart = new Date('{{ lease.start_date|date:"Y-m-d" }}');
+    var leaseEnd = new Date('{{ lease.end_date|date:"Y-m-d" }}');
+
+    $('input[name="termination_date"]').on('change', function() {
+        var terminationDate = new Date($(this).val());
+
+        if (terminationDate < leaseStart) {
+            alert('{% trans "تاريخ الإنهاء لا يمكن أن يكون قبل بداية العقد" %}');
+            $(this).val('');
+        }
+    });
+
+    // Confirm checkbox validation
+    $('form').on('submit', function(e) {
+        if (!$('#{{ form.confirm.id_for_label }}').is(':checked')) {
+            e.preventDefault();
+            alert('{% trans "يجب تأكيد رغبتك في إنهاء العقد" %}');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

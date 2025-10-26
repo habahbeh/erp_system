@@ -1,0 +1,161 @@
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks %}
+
+{% block title %}{% trans "بدء دورة الجرد" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-play-circle"></i> {% trans "بدء دورة الجرد الفعلي" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if cycle %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات دورة الجرد" %}</h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <th width="30%">{% trans "رقم الدورة" %}</th>
+                                <td>{{ cycle.cycle_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الوصف" %}</th>
+                                <td>{{ cycle.description }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "التاريخ المجدول" %}</th>
+                                <td>{{ cycle.scheduled_date|date:"Y-m-d" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "عدد الأصول" %}</th>
+                                <td>{{ cycle.total_assets }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الحالة الحالية" %}</th>
+                                <td>
+                                    <span class="badge bg-{{ cycle.get_status_color }}">
+                                        {{ cycle.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    {% if cycle.status != 'planned' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% if cycle.status == 'in_progress' %}
+                        {% trans "دورة الجرد قيد التنفيذ بالفعل" %}
+                        {% elif cycle.status == 'completed' %}
+                        {% trans "دورة الجرد مكتملة بالفعل" %}
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.actual_start_date.id_for_label }}" class="form-label">
+                                {{ form.actual_start_date.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.actual_start_date class="form-control" type="date" %}
+                            {% if form.actual_start_date.errors %}
+                            <div class="text-danger">{{ form.actual_start_date.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.team_leader.id_for_label }}" class="form-label">
+                                {{ form.team_leader.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.team_leader class="form-select" %}
+                            {% if form.team_leader.errors %}
+                            <div class="text-danger">{{ form.team_leader.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "رئيس فريق الجرد" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.team_members.id_for_label }}" class="form-label">
+                                {{ form.team_members.label }}
+                            </label>
+                            {% render_field form.team_members class="form-select" multiple="" size="5" %}
+                            {% if form.team_members.errors %}
+                            <div class="text-danger">{{ form.team_members.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "اختر عدة أعضاء (Ctrl+Click)" %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {% render_field form.notes class="form-control" rows="3" %}
+                            {% if form.notes.errors %}
+                            <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {% render_field form.auto_create_counts class="form-check-input" checked="" %}
+                                <label for="{{ form.auto_create_counts.id_for_label }}" class="form-check-label">
+                                    {{ form.auto_create_counts.label }}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "إنشاء بطاقات جرد تلقائياً لجميع الأصول في النطاق" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>{% trans "نتيجة بدء الدورة" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم تغيير حالة الدورة إلى 'قيد التنفيذ'" %}</li>
+                                <li>{% trans "سيتم تسجيل تاريخ البدء الفعلي" %}</li>
+                                <li>{% trans "سيتم تعيين فريق الجرد" %}</li>
+                                {% if form.auto_create_counts.value %}
+                                <li>{% trans "سيتم إنشاء بطاقات جرد لـ" %} {{ cycle.total_assets }} {% trans "أصل" %}</li>
+                                {% endif %}
+                                <li>{% trans "سيتم إرسال إشعارات لفريق الجرد" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:cycle_detail' cycle.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-play-circle"></i> {% trans "بدء الدورة" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Set default start date to today
+    var today = new Date().toISOString().split('T')[0];
+    $('#id_actual_start_date').val(today);
+});
+</script>
+{% endblock %}

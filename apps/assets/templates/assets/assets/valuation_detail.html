@@ -1,0 +1,204 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ object.asset.name }} - {% trans "تفاصيل التقييم" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-dollar-sign text-success"></i> {% trans "تفاصيل التقييم" %}</h2>
+        <div>
+            <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+            </a>
+            {% if perms.assets.change_assetvaluation and not object.is_approved %}
+            <a href="{% url 'assets:asset_update' object.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات التقييم" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="30%">{% trans "الأصل" %}</th>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' object.asset.pk %}">
+                                    {{ object.asset.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ التقييم" %}</th>
+                            <td>{{ object.valuation_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة القديمة" %}</th>
+                            <td class="text-end">{{ object.old_value|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الجديدة" %}</th>
+                            <td class="text-end">{{ object.new_value|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الفرق" %}</th>
+                            <td class="text-end">
+                                {% if object.difference > 0 %}
+                                <span class="text-success fw-bold">
+                                    <i class="fas fa-arrow-up"></i> +{{ object.difference|floatformat:3 }}
+                                </span>
+                                <small class="text-muted">({% trans "زيادة" %})</small>
+                                {% elif object.difference < 0 %}
+                                <span class="text-danger fw-bold">
+                                    <i class="fas fa-arrow-down"></i> {{ object.difference|floatformat:3 }}
+                                </span>
+                                <small class="text-muted">({% trans "نقص" %})</small>
+                                {% else %}
+                                <span class="text-muted">0.000</span>
+                                <small class="text-muted">({% trans "لا يوجد تغيير" %})</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "نسبة التغيير" %}</th>
+                            <td class="text-end">
+                                {% if object.old_value > 0 %}
+                                    {% widthratio object.difference object.old_value 100 %}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "السبب" %}</th>
+                            <td>{{ object.reason }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "المقيّم" %}</th>
+                            <td>{{ object.valuator_name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الحالة" %}</th>
+                            <td>
+                                {% if object.is_approved %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle"></i> {% trans "معتمد" %}
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-clock"></i> {% trans "قيد المراجعة" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if object.approved_by %}
+                        <tr>
+                            <th>{% trans "اعتمد بواسطة" %}</th>
+                            <td>{{ object.approved_by.get_full_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ الاعتماد" %}</th>
+                            <td>{{ object.approved_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "تقرير التقييم" %}</th>
+                            <td>
+                                {% if object.valuation_report %}
+                                <a href="{{ object.valuation_report.url }}" target="_blank" class="btn btn-sm btn-info">
+                                    <i class="fas fa-file-pdf"></i> {% trans "عرض التقرير" %}
+                                </a>
+                                {% else %}
+                                <span class="text-muted">{% trans "لا يوجد" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-desktop"></i> {% trans "معلومات الأصل" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "رقم الأصل" %}</th>
+                            <td>{{ object.asset.asset_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الفئة" %}</th>
+                            <td>{{ object.asset.category.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الأصلية" %}</th>
+                            <td class="text-end">{{ object.asset.original_cost|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الدفترية الحالية" %}</th>
+                            <td class="text-end">{{ object.asset.book_value|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الحالة" %}</th>
+                            <td>
+                                <span class="badge" style="background-color: {{ object.asset.condition.color }}">
+                                    {{ object.asset.condition.name }}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-clock"></i> {% trans "التواريخ" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "تاريخ الإنشاء" %}</th>
+                            <td>{{ object.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "آخر تحديث" %}</th>
+                            <td>{{ object.updated_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "أنشئ بواسطة" %}</th>
+                            <td>{{ object.created_by.get_full_name }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not object.is_approved and perms.assets.approve_valuation %}
+    <div class="card border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-check"></i> {% trans "اعتماد التقييم" %}</h5>
+        </div>
+        <div class="card-body">
+            <p>{% trans "هل تريد اعتماد هذا التقييم؟ سيتم تحديث القيمة الدفترية للأصل بعد الاعتماد." %}</p>
+            <form method="post" action="{% url 'assets:asset_detail' object.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check-circle"></i> {% trans "اعتماد التقييم" %}
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,349 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between mb-4 no-print">
+        <h2><i class="fas fa-dollar-sign text-success"></i> {% trans "تقرير التقييم" %}</h2>
+        <div>
+            <button onclick="window.print()" class="btn btn-primary">
+                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            </button>
+            <a href="{% url 'assets:reports' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-filter"></i> {% trans "الفلاتر" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "تاريخ التقييم" %}</label>
+                        <input type="date" name="valuation_date" class="form-control" value="{{ valuation_date }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الفئة" %}</label>
+                        <select name="category" class="form-select">
+                            <option value="">{% trans "كل الفئات" %}</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الفرع" %}</label>
+                        <select name="branch" class="form-select">
+                            <option value="">{% trans "كل الفروع" %}</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch.id }}">{{ branch.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> {% trans "تطبيق" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-primary border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "عدد الأصول" %}</h6>
+                    <h3 class="mb-0 text-primary">{{ summary.total_assets }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-success border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "التكلفة الأصلية" %}</h6>
+                    <h3 class="mb-0 text-success">{{ summary.original_cost|floatformat:3 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-warning border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "الإهلاك المتراكم" %}</h6>
+                    <h3 class="mb-0 text-warning">{{ summary.accumulated_depreciation|floatformat:3 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-start border-info border-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "القيمة الدفترية" %}</h6>
+                    <h3 class="mb-0 text-info">{{ summary.book_value|floatformat:3 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Valuation by Category -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "التقييم حسب الفئة" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الفئة" %}</th>
+                            <th class="text-center">{% trans "العدد" %}</th>
+                            <th class="text-end">{% trans "التكلفة الأصلية" %}</th>
+                            <th class="text-end">{% trans "الإهلاك المتراكم" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                            <th class="text-end">{% trans "القيمة السوقية" %}</th>
+                            <th class="text-end">{% trans "الفرق" %}</th>
+                            <th class="text-center">{% trans "النسبة %" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_category %}
+                        <tr>
+                            <td><strong>{{ item.category }}</strong></td>
+                            <td class="text-center">{{ item.count }}</td>
+                            <td class="text-end">{{ item.original_cost|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.accumulated_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.book_value|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.market_value|floatformat:3|default:"-" }}</td>
+                            <td class="text-end">
+                                {% if item.difference %}
+                                    {% if item.difference > 0 %}
+                                        <span class="text-success">+{{ item.difference|floatformat:3 }}</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ item.difference|floatformat:3 }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: {{ item.percentage }}%;"
+                                         aria-valuenow="{{ item.percentage }}"
+                                         aria-valuemin="0" aria-valuemax="100">
+                                        {{ item.percentage|floatformat:1 }}%
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-secondary">
+                        <tr>
+                            <th>{% trans "الإجمالي" %}</th>
+                            <th class="text-center">{{ summary.total_assets }}</th>
+                            <th class="text-end">{{ summary.original_cost|floatformat:3 }}</th>
+                            <th class="text-end">{{ summary.accumulated_depreciation|floatformat:3 }}</th>
+                            <th class="text-end">{{ summary.book_value|floatformat:3 }}</th>
+                            <th class="text-end">{{ summary.market_value|floatformat:3 }}</th>
+                            <th class="text-end">
+                                {% if summary.total_difference > 0 %}
+                                    <span class="text-success">+{{ summary.total_difference|floatformat:3 }}</span>
+                                {% elif summary.total_difference < 0 %}
+                                    <span class="text-danger">{{ summary.total_difference|floatformat:3 }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </th>
+                            <th class="text-center">100%</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Valuation by Branch -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-building"></i> {% trans "التقييم حسب الفرع" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الفرع" %}</th>
+                            <th class="text-center">{% trans "العدد" %}</th>
+                            <th class="text-end">{% trans "التكلفة الأصلية" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                            <th class="text-center">{% trans "النسبة %" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_branch %}
+                        <tr>
+                            <td><strong>{{ item.branch }}</strong></td>
+                            <td class="text-center">{{ item.count }}</td>
+                            <td class="text-end">{{ item.original_cost|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.book_value|floatformat:3 }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-info">{{ item.percentage|floatformat:1 }}%</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Asset Valuation -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "تقييم الأصول التفصيلي" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم الأصل" %}</th>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "الفئة" %}</th>
+                            <th>{% trans "تاريخ الشراء" %}</th>
+                            <th class="text-end">{% trans "التكلفة" %}</th>
+                            <th class="text-end">{% trans "الإهلاك" %}</th>
+                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
+                            <th>{% trans "العمر" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in assets %}
+                        <tr>
+                            <td><strong>{{ asset.asset_number }}</strong></td>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' asset.pk %}">
+                                    {{ asset.name }}
+                                </a>
+                            </td>
+                            <td>{{ asset.category.name }}</td>
+                            <td>{{ asset.purchase_date|date:"Y-m-d" }}</td>
+                            <td class="text-end">{{ asset.original_cost|floatformat:3 }}</td>
+                            <td class="text-end">{{ asset.accumulated_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ asset.book_value|floatformat:3 }}</td>
+                            <td>{{ asset.age_years }} {% trans "سنة" %}</td>
+                            <td>
+                                {% if asset.status == 'active' %}
+                                    <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% elif asset.status == 'inactive' %}
+                                    <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                {% elif asset.status == 'disposed' %}
+                                    <span class="badge bg-danger">{% trans "مستبعد" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">{% trans "لا توجد أصول" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row mt-4 no-print">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "توزيع القيمة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="valuationPieChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "المقارنة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="comparisonChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    // Pie Chart
+    var pieCtx = document.getElementById('valuationPieChart').getContext('2d');
+    var valuationPieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: {{ category_labels|safe }},
+            datasets: [{
+                data: {{ category_values|safe }},
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Comparison Chart
+    var compCtx = document.getElementById('comparisonChart').getContext('2d');
+    var comparisonChart = new Chart(compCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ category_labels|safe }},
+            datasets: [{
+                label: '{% trans "التكلفة الأصلية" %}',
+                data: {{ original_cost_data|safe }},
+                backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }, {
+                label: '{% trans "القيمة الدفترية" %}',
+                data: {{ book_value_data|safe }},
+                backgroundColor: 'rgba(23, 162, 184, 0.5)',
+                borderColor: 'rgba(23, 162, 184, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

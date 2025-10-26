@@ -1,0 +1,129 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "اعتماد قيد التسوية" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle"></i> {% trans "اعتماد قيد التسوية" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if adjustment %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات قيد التسوية" %}</h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <th width="35%">{% trans "رقم القيد" %}</th>
+                                <td>{{ adjustment.adjustment_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "دورة الجرد" %}</th>
+                                <td>{{ adjustment.cycle.cycle_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "نوع التسوية" %}</th>
+                                <td>{{ adjustment.get_adjustment_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "تاريخ التسوية" %}</th>
+                                <td>{{ adjustment.adjustment_date|date:"Y-m-d" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "السبب" %}</th>
+                                <td>{{ adjustment.reason }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "عدد الأصول المتأثرة" %}</th>
+                                <td>{{ adjustment.affected_assets_count }}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    {% if adjustment.is_approved %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم اعتماد هذا القيد بالفعل في تاريخ" %}: {{ adjustment.approved_at|date:"Y-m-d H:i" }}
+                        <br>
+                        <small>{% trans "بواسطة" %}: {{ adjustment.approved_by.get_full_name }}</small>
+                    </div>
+                    {% else %}
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6>{% trans "الأصول المتأثرة" %}:</h6>
+                            {% if affected_assets %}
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "الأصل" %}</th>
+                                            <th>{% trans "رقم الأصل" %}</th>
+                                            <th>{% trans "الحالة" %}</th>
+                                            <th>{% trans "التأثير" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for asset in affected_assets %}
+                                        <tr>
+                                            <td>{{ asset.name }}</td>
+                                            <td>{{ asset.asset_number }}</td>
+                                            <td>
+                                                {% if asset.found %}
+                                                <span class="badge bg-success">{% trans "موجود" %}</span>
+                                                {% else %}
+                                                <span class="badge bg-danger">{% trans "مفقود" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ asset.adjustment_impact }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted">{% trans "لا توجد تفاصيل متاحة" %}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "سيتم اعتماد قيد التسوية وتطبيق التغييرات" %}</li>
+                                <li>{% trans "سيتم تحديث حالة الأصول المتأثرة" %}</li>
+                                <li>{% trans "سيتم إنشاء قيود محاسبية للتسويات" %}</li>
+                                <li>{% trans "لا يمكن التراجع عن الاعتماد بعد ذلك" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="approval_notes" class="form-label">
+                                {% trans "ملاحظات الاعتماد" %}
+                            </label>
+                            <textarea name="approval_notes" class="form-control" rows="3"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'assets:adjustment_detail' adjustment.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-circle"></i> {% trans "اعتماد القيد" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
