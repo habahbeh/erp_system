@@ -1,70 +1,379 @@
 {% extends 'base/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+        border: none;
+        border-radius: 10px;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .filter-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .dataTables_wrapper .dataTables_length select,
+    .dataTables_wrapper .dataTables_filter input {
+        border-radius: 5px;
+    }
+    .table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .badge {
+        padding: 0.35em 0.65em;
+        font-weight: 500;
+    }
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0"><i class="fas fa-shield-alt text-primary"></i> {% trans "وثائق التأمين" %}</h5>
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">
+                <i class="fas fa-shield-alt text-primary"></i>
+                {% trans "وثائق التأمين" %}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
+                    <li class="breadcrumb-item active">{% trans "وثائق التأمين" %}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
             {% if perms.assets.add_assetinsurance %}
             <a href="{% url 'assets:insurance_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> {% trans "وثيقة جديدة" %}
+                <i class="fas fa-plus me-2"></i>{% trans "وثيقة جديدة" %}
             </a>
             {% endif %}
         </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statsCards">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي الوثائق" %}</h6>
+                            <h2 class="mb-0" id="totalCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-file-contract fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "نشط" %}</h6>
+                            <h2 class="mb-0" id="activeCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "قرب الانتهاء" %}</h6>
+                            <h2 class="mb-0" id="expiringCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-exclamation-triangle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-danger shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "منتهي" %}</h6>
+                            <h2 class="mb-0" id="expiredCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-times-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card filter-card mb-4">
+        <div class="card-header bg-white">
+            <button class="btn btn-link text-decoration-none p-0 w-100 text-start" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-filter text-primary me-2"></i>{% trans "خيارات البحث والتصفية" %}
+                    </h5>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الأصل" %}</label>
+                        <select class="form-select select2" id="assetFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "شركة التأمين" %}</label>
+                        <select class="form-select select2" id="insuranceCompanyFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "نوع التغطية" %}</label>
+                        <select class="form-select" id="coverageTypeFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="comprehensive">{% trans "شامل" %}</option>
+                            <option value="fire">{% trans "حريق" %}</option>
+                            <option value="theft">{% trans "سرقة" %}</option>
+                            <option value="liability">{% trans "مسؤولية" %}</option>
+                            <option value="other">{% trans "أخرى" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="active">{% trans "نشط" %}</option>
+                            <option value="expired">{% trans "منتهي" %}</option>
+                            <option value="cancelled">{% trans "ملغي" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters">
+                            <i class="fas fa-redo me-1"></i>{% trans "إعادة تعيين" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list text-primary me-2"></i>{% trans "قائمة وثائق التأمين" %}
+            </h5>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+                <table class="table table-hover table-bordered" id="insurancesTable" style="width:100%">
+                    <thead>
                         <tr>
-                            <th>{% trans "الوثيقة" %}</th>
+                            <th>{% trans "رقم الوثيقة" %}</th>
                             <th>{% trans "الأصل" %}</th>
-                            <th>{% trans "الشركة" %}</th>
-                            <th>{% trans "بداية التغطية" %}</th>
-                            <th>{% trans "نهاية التغطية" %}</th>
-                            <th class="text-end">{% trans "القيمة المؤمنة" %}</th>
+                            <th>{% trans "شركة التأمين" %}</th>
+                            <th>{% trans "نوع التغطية" %}</th>
+                            <th>{% trans "تاريخ البداية" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th>{% trans "القيمة المؤمنة" %}</th>
                             <th>{% trans "الحالة" %}</th>
                             <th class="text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for insurance in object_list %}
-                        <tr>
-                            <td>{{ insurance.policy_number }}</td>
-                            <td>
-                                <a href="{% url 'assets:asset_detail' insurance.asset.pk %}">
-                                    {{ insurance.asset.name }}
-                                </a>
-                            </td>
-                            <td>{{ insurance.insurance_company.name }}</td>
-                            <td>{{ insurance.start_date|date:"Y-m-d" }}</td>
-                            <td>{{ insurance.end_date|date:"Y-m-d" }}</td>
-                            <td class="text-end">{{ insurance.insured_value|floatformat:3 }}</td>
-                            <td>
-                                {% if insurance.is_active %}
-                                    <span class="badge bg-success">{% trans "نشط" %}</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{% trans "منتهي" %}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <a href="{% url 'assets:insurance_detail' insurance.pk %}" class="btn btn-sm btn-info">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{% url 'assets:insurance_update' insurance.pk %}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد وثائق تأمين" %}</td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar',
+        placeholder: '{% trans "اختر..." %}',
+        allowClear: true,
+        ajax: {
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term,
+                    page: params.page || 1
+                };
+            }
+        }
+    });
+
+    // Load Assets for filter
+    $('#assetFilter').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar',
+        placeholder: '{% trans "اختر الأصل..." %}',
+        allowClear: true,
+        ajax: {
+            url: '{% url "assets:asset_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results.map(item => ({
+                        id: item.id,
+                        text: item.text
+                    }))
+                };
+            }
+        }
+    });
+
+    // Load Insurance Companies for filter
+    $.ajax({
+        url: '{% url "assets:insurance_datatable_ajax" %}?get_companies=true',
+        method: 'GET',
+        success: function(response) {
+            if (response.companies) {
+                response.companies.forEach(function(company) {
+                    $('#insuranceCompanyFilter').append(
+                        $('<option></option>').val(company.id).text(company.name)
+                    );
+                });
+            }
+        }
+    });
+
+    // Load Statistics
+    function loadStats() {
+        $.ajax({
+            url: '{% url "assets:insurance_datatable_ajax" %}?stats_only=true',
+            method: 'GET',
+            success: function(response) {
+                if (response.stats) {
+                    $('#totalCount').text(response.stats.total);
+                    $('#activeCount').text(response.stats.active);
+                    $('#expiringCount').text(response.stats.expiring_soon);
+                    $('#expiredCount').text(response.stats.expired);
+                }
+            },
+            error: function() {
+                $('#totalCount, #activeCount, #expiringCount, #expiredCount').text('0');
+            }
+        });
+    }
+
+    loadStats();
+
+    // Initialize DataTable
+    var table = $('#insurancesTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{% url "assets:insurance_datatable_ajax" %}',
+            type: 'GET',
+            data: function(d) {
+                d.asset = $('#assetFilter').val();
+                d.insurance_company = $('#insuranceCompanyFilter').val();
+                d.coverage_type = $('#coverageTypeFilter').val();
+                d.status = $('#statusFilter').val();
+            }
+        },
+        columns: [
+            { data: 0 }, // policy_number
+            { data: 1 }, // asset
+            { data: 2 }, // insurance_company
+            { data: 3 }, // coverage_type
+            { data: 4 }, // start_date
+            { data: 5 }, // end_date
+            { data: 6, className: 'text-end' }, // insured_value
+            { data: 7, className: 'text-center' }, // status
+            { data: 8, className: 'text-center', orderable: false } // actions
+        ],
+        language: {
+            "sProcessing": "جارٍ التحميل...",
+            "sLengthMenu": "أظهر _MENU_ مدخلات",
+            "sZeroRecords": "لم يعثر على أية سجلات",
+            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
+            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
+            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
+            "sSearch": "ابحث:",
+            "oPaginate": {
+                "sFirst": "الأول",
+                "sPrevious": "السابق",
+                "sNext": "التالي",
+                "sLast": "الأخير"
+            }
+        },
+        order: [[5, 'asc']], // Order by end_date
+        pageLength: 25,
+        responsive: true,
+        drawCallback: function() {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
+    });
+
+    // Filter change events
+    $('#assetFilter, #insuranceCompanyFilter, #coverageTypeFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+        loadStats();
+    });
+
+    // Reset filters
+    $('#resetFilters').on('click', function() {
+        $('#assetFilter').val('').trigger('change');
+        $('#insuranceCompanyFilter').val('').trigger('change');
+        $('#coverageTypeFilter').val('').trigger('change');
+        $('#statusFilter').val('').trigger('change');
+        table.ajax.reload();
+        loadStats();
+    });
+
+    // Auto-refresh stats every 30 seconds
+    setInterval(loadStats, 30000);
+});
+</script>
 {% endblock %}

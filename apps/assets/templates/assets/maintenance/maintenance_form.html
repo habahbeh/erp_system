@@ -1,181 +1,627 @@
+{# apps/assets/templates/assets/maintenance/maintenance_form.html #}
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* General Styles */
+.section-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.section-card .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 2px solid;
+    font-weight: 600;
+}
+
+.section-basic .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.section-details .card-header {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-bottom-color: #4caf50;
+    color: #2e7d32;
+}
+
+.section-costs .card-header {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-bottom-color: #ff9800;
+    color: #e65100;
+}
+
+.section-execution .card-header {
+    background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%);
+    border-bottom-color: #03a9f4;
+    color: #01579b;
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.5rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 30px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-success {
+    background-color: #4caf50;
+    border-color: #4caf50;
+}
+
+.btn-success:hover {
+    background-color: #388e3c;
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background-color: #2196f3;
+    border-color: #2196f3;
+}
+
+.btn-primary:hover {
+    background-color: #1976d2;
+    transform: translateY(-1px);
+}
+
+/* Info Cards */
+.info-card {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-right: 4px solid #2196f3;
+    border-radius: 10px;
+}
+
+.warning-card {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-right: 4px solid #ff9800;
+    border-radius: 10px;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    background-color: transparent;
+    padding: 0;
+    margin-bottom: 1rem;
+}
+
+.breadcrumb-item a {
+    color: #2196f3;
+    text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+    color: #1976d2;
+    text-decoration: underline;
+}
+
+/* Error Messages */
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #c62828;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #ffebee;
+    border: 1px solid #ef9a9a;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.form-label.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
-            <div class="mb-4">
-                <h2>
-                    <i class="fas fa-wrench text-primary"></i>
-                    {% if form.instance.pk %}{% trans "تعديل صيانة" %}{% else %}{% trans "إضافة صيانة جديدة" %}{% endif %}
-                </h2>
-            </div>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
 
-            <form method="post" id="maintenanceForm">
-                {% csrf_token %}
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-wrench me-2 text-primary"></i>{{ title }}
+            </h1>
+            <p class="text-muted mb-0">
+                {% if form.instance.pk %}
+                    {% trans "تحديث بيانات الصيانة" %}
+                {% else %}
+                    {% trans "إضافة صيانة جديدة للأصل" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:maintenance_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
 
-                <!-- Asset Info -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}</h5>
+    <form method="post" id="maintenanceForm" novalidate>
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Form Section -->
+            <div class="col-lg-9">
+                <!-- Basic Information -->
+                <div class="card section-card section-basic">
+                    <div class="card-header">
+                        <i class="fas fa-info-circle me-2"></i>معلومات الصيانة الأساسية
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label required">{% trans "الأصل" %}</label>
-                                {{ form.asset|add_class:"form-select select2" }}
+                                <label for="{{ form.asset.id_for_label }}" class="form-label required-field">
+                                    {{ form.asset.label }}
+                                </label>
+                                {{ form.asset|add_class:"form-select" }}
                                 {% if form.asset.errors %}
-                                    <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
+                                    <ul class="error-list">
+                                        {% for error in form.asset.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
                                 {% endif %}
                             </div>
+
                             <div class="col-md-6">
-                                <label class="form-label required">{% trans "التاريخ المجدول" %}</label>
+                                <label for="{{ form.scheduled_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.scheduled_date.label }}
+                                </label>
                                 {{ form.scheduled_date|add_class:"form-control" }}
                                 {% if form.scheduled_date.errors %}
-                                    <div class="text-danger small mt-1">{{ form.scheduled_date.errors.0 }}</div>
+                                    <ul class="error-list">
+                                        {% for error in form.scheduled_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ form.maintenance_type.id_for_label }}" class="form-label required-field">
+                                    {{ form.maintenance_type.label }}
+                                </label>
+                                {{ form.maintenance_type|add_class:"form-select" }}
+                                {% if form.maintenance_type.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.maintenance_type.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ form.category.id_for_label }}" class="form-label required-field">
+                                    {{ form.category.label }}
+                                </label>
+                                {{ form.category|add_class:"form-select" }}
+                                {% if form.category.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.category.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Maintenance Details -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="fas fa-tools"></i> {% trans "تفاصيل الصيانة" %}</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
+                        <div class="row g-3 mt-2">
                             <div class="col-md-6">
-                                <label class="form-label required">{% trans "نوع الصيانة" %}</label>
-                                {{ form.maintenance_type|add_class:"form-select" }}
-                                {% if form.maintenance_type.errors %}
-                                    <div class="text-danger small mt-1">{{ form.maintenance_type.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "التصنيف" %}</label>
-                                {{ form.category|add_class:"form-select" }}
-                                {% if form.category.errors %}
-                                    <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الحالة" %}</label>
+                                <label for="{{ form.status.id_for_label }}" class="form-label required-field">
+                                    {{ form.status.label }}
+                                </label>
                                 {{ form.status|add_class:"form-select" }}
                             </div>
+
                             <div class="col-md-6">
-                                <label class="form-label">{% trans "الأولوية" %}</label>
+                                <label for="{{ form.priority.id_for_label }}" class="form-label">
+                                    {{ form.priority.label }}
+                                </label>
                                 {{ form.priority|add_class:"form-select" }}
                             </div>
+                        </div>
+
+                        <div class="row g-3 mt-2">
                             <div class="col-12">
-                                <label class="form-label">{% trans "الوصف" %}</label>
+                                <label for="{{ form.description.id_for_label }}" class="form-label">
+                                    {{ form.description.label }}
+                                </label>
                                 {{ form.description|add_class:"form-control" }}
+                                <small class="text-muted">وصف موجز للصيانة المطلوبة</small>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Cost Estimates -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-warning">
-                        <h5 class="mb-0"><i class="fas fa-dollar-sign"></i> {% trans "التكاليف" %}</h5>
+                <div class="card section-card section-costs">
+                    <div class="card-header">
+                        <i class="fas fa-dollar-sign me-2"></i>التكاليف المقدرة والفعلية
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-3">
-                                <label class="form-label">{% trans "التكلفة المقدرة" %}</label>
+                                <label for="{{ form.estimated_cost.id_for_label }}" class="form-label">
+                                    {{ form.estimated_cost.label }}
+                                </label>
                                 {{ form.estimated_cost|add_class:"form-control" }}
+                                <small class="text-muted">التكلفة المتوقعة</small>
                             </div>
+
                             <div class="col-md-3">
-                                <label class="form-label">{% trans "التكلفة الفعلية" %}</label>
+                                <label for="{{ form.actual_cost.id_for_label }}" class="form-label">
+                                    {{ form.actual_cost.label }}
+                                </label>
                                 {{ form.actual_cost|add_class:"form-control" }}
+                                <small class="text-muted">التكلفة الفعلية</small>
                             </div>
+
                             <div class="col-md-3">
-                                <label class="form-label">{% trans "تكلفة قطع الغيار" %}</label>
+                                <label for="{{ form.parts_cost.id_for_label }}" class="form-label">
+                                    {{ form.parts_cost.label }}
+                                </label>
                                 {{ form.parts_cost|add_class:"form-control" }}
+                                <small class="text-muted">قطع الغيار</small>
                             </div>
+
                             <div class="col-md-3">
-                                <label class="form-label">{% trans "تكلفة العمالة" %}</label>
+                                <label for="{{ form.labor_cost.id_for_label }}" class="form-label">
+                                    {{ form.labor_cost.label }}
+                                </label>
                                 {{ form.labor_cost|add_class:"form-control" }}
+                                <small class="text-muted">تكلفة العمالة</small>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Execution Details -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-users"></i> {% trans "تفاصيل التنفيذ" %}</h5>
+                <div class="card section-card section-execution">
+                    <div class="card-header">
+                        <i class="fas fa-users me-2"></i>تفاصيل التنفيذ
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">{% trans "الفني المسؤول" %}</label>
-                                {{ form.technician|add_class:"form-select select2" }}
+                                <label for="{{ form.technician.id_for_label }}" class="form-label">
+                                    {{ form.technician.label }}
+                                </label>
+                                {{ form.technician|add_class:"form-select" }}
+                                <small class="text-muted">الفني المسؤول عن التنفيذ</small>
                             </div>
+
                             <div class="col-md-6">
-                                <label class="form-label">{% trans "المورد" %}</label>
-                                {{ form.vendor|add_class:"form-select select2" }}
+                                <label for="{{ form.vendor.id_for_label }}" class="form-label">
+                                    {{ form.vendor.label }}
+                                </label>
+                                {{ form.vendor|add_class:"form-select" }}
+                                <small class="text-muted">المورد المنفذ (إن وجد)</small>
                             </div>
+
                             <div class="col-md-6">
-                                <label class="form-label">{% trans "تاريخ البدء الفعلي" %}</label>
+                                <label for="{{ form.actual_start_date.id_for_label }}" class="form-label">
+                                    {{ form.actual_start_date.label }}
+                                </label>
                                 {{ form.actual_start_date|add_class:"form-control" }}
                             </div>
+
                             <div class="col-md-6">
-                                <label class="form-label">{% trans "تاريخ الانتهاء الفعلي" %}</label>
+                                <label for="{{ form.actual_completion_date.id_for_label }}" class="form-label">
+                                    {{ form.actual_completion_date.label }}
+                                </label>
                                 {{ form.actual_completion_date|add_class:"form-control" }}
                             </div>
+
                             <div class="col-12">
-                                <label class="form-label">{% trans "العمل المنجز" %}</label>
+                                <label for="{{ form.work_done.id_for_label }}" class="form-label">
+                                    {{ form.work_done.label }}
+                                </label>
                                 {{ form.work_done|add_class:"form-control" }}
+                                <small class="text-muted">وصف تفصيلي للأعمال المنجزة</small>
                             </div>
+
+                            {% if form.notes %}
                             <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
                                 {{ form.notes|add_class:"form-control" }}
+                                <small class="text-muted">أي ملاحظات إضافية</small>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="d-flex gap-2 mb-4">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="fas fa-save"></i> {% trans "حفظ" %}
-                    </button>
-                    <a href="{% url 'assets:maintenance_list' %}" class="btn btn-outline-secondary btn-lg">
-                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <a href="{% url 'assets:maintenance_list' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> إلغاء
                     </a>
+                    <div>
+                        {% if form.instance.pk %}
+                        <a href="{% url 'assets:maintenance_detail' form.instance.pk %}" class="btn btn-outline-info btn-lg me-2">
+                            <i class="fas fa-eye me-1"></i> عرض التفاصيل
+                        </a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-save me-1"></i>
+                            {% if form.instance.pk %}تحديث الصيانة{% else %}حفظ الصيانة{% endif %}
+                        </button>
+                    </div>
                 </div>
-            </form>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <!-- Help Card -->
+                <div class="card info-card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>معلومات مهمة
+                        </h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                يجب اختيار الأصل ونوع الصيانة والتاريخ
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                التكاليف المقدرة اختيارية ولكن يفضل إدخالها
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                سجل التكاليف الفعلية بعد اكتمال الصيانة
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-info-circle text-primary me-1"></i>
+                                يمكنك تحديث الصيانة حتى يتم إكمالها
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="card section-card section-basic mb-3">
+                    <div class="card-header">
+                        <i class="fas fa-keyboard me-2"></i>اختصارات لوحة المفاتيح
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small mb-0">
+                            <li class="mb-2">
+                                <kbd>Ctrl</kbd> + <kbd>S</kbd> : حفظ الصيانة
+                            </li>
+                            <li class="mb-2">
+                                <kbd>Tab</kbd> : الانتقال للحقل التالي
+                            </li>
+                            <li class="mb-0">
+                                <kbd>Esc</kbd> : إلغاء
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Warning Card -->
+                {% if form.instance.pk %}
+                <div class="card warning-card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>تنبيه
+                        </h6>
+                        <p class="mb-0 small">
+                            {% if form.instance.status == 'completed' %}
+                                <strong>هذه الصيانة مكتملة!</strong><br>
+                                لا يمكن تعديل الصيانة المكتملة.
+                            {% elif form.instance.status == 'cancelled' %}
+                                <strong>هذه الصيانة ملغاة!</strong><br>
+                                لا يمكن تعديل الصيانة الملغاة.
+                            {% else %}
+                                تأكد من صحة البيانات قبل الحفظ.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
-    </div>
+    </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Select2
-    $('.select2').select2({
+$(document).ready(function() {
+    // Initialize Asset Select2
+    $('#id_asset').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر الأصل...',
+        allowClear: true,
+        minimumInputLength: 1,
+        language: {
+            inputTooShort: function() { return "اكتب حرف واحد على الأقل"; },
+            noResults: function() { return "لا توجد أصول"; },
+            searching: function() { return "جاري البحث..."; }
+        },
+        ajax: {
+            url: '{% url "assets:asset_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Initialize Maintenance Type Select2
+    $('#id_maintenance_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر نوع الصيانة...',
         allowClear: true
     });
 
-    // Form validation
+    // Initialize Category Select2
+    $('#id_category').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // Initialize Status Select2
+    $('#id_status').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // Initialize Priority Select2
+    $('#id_priority').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // Initialize Technician Select2
+    $('#id_technician').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر الفني...',
+        allowClear: true
+    });
+
+    // Initialize Vendor Select2
+    $('#id_vendor').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر المورد...',
+        allowClear: true
+    });
+
+    // Form Submission
     $('#maintenanceForm').on('submit', function(e) {
         const asset = $('#id_asset').val();
         const scheduledDate = $('#id_scheduled_date').val();
-        const type = $('#id_maintenance_type').val();
+        const maintenanceType = $('#id_maintenance_type').val();
+        const category = $('#id_category').val();
 
-        if (!asset || !scheduledDate || !type) {
+        if (!asset || !scheduledDate || !maintenanceType || !category) {
             e.preventDefault();
             Swal.fire({
                 icon: 'error',
-                title: '{% trans "بيانات ناقصة" %}',
-                text: '{% trans "يرجى ملء جميع الحقول المطلوبة" %}'
+                title: 'بيانات ناقصة',
+                text: 'يرجى ملء جميع الحقول المطلوبة (الأصل، التاريخ، النوع، التصنيف)',
+                confirmButtonText: 'حسناً'
             });
             return false;
+        }
+
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+
+    // Keyboard Shortcuts
+    $(document).on('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#maintenanceForm').submit();
+        }
+        if (e.key === 'Escape') {
+            window.location.href = '{% url "assets:maintenance_list" %}';
+        }
+    });
+
+    // Auto-calculate actual cost
+    $('#id_parts_cost, #id_labor_cost').on('input', function() {
+        const partsCost = parseFloat($('#id_parts_cost').val()) || 0;
+        const laborCost = parseFloat($('#id_labor_cost').val()) || 0;
+        const totalCost = partsCost + laborCost;
+
+        if (totalCost > 0) {
+            $('#id_actual_cost').val(totalCost.toFixed(3));
         }
     });
 });

@@ -1,173 +1,230 @@
+{# apps/assets/templates/assets/depreciation/pause_depreciation.html #}
 {% extends 'base/base.html' %}
 {% load i18n widget_tweaks static %}
 
 {% block title %}{% trans "إيقاف الإهلاك مؤقتاً" %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+<style>
+.section-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.section-card .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 2px solid;
+    font-weight: 600;
+}
+
+.section-basic .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.warning-card {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-right: 4px solid #ff9800;
+    border-radius: 10px;
+}
+
+.info-table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.info-table th {
+    width: 30%;
+    font-weight: 600;
+    color: #495057;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.info-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <!-- Header -->
-            <div class="page-header">
-                <div class="page-header-icon">
-                    <i class="fas fa-pause-circle"></i>
-                </div>
-                <div class="page-header-content">
-                    <h2 class="page-header-title">{% trans "إيقاف الإهلاك مؤقتاً" %}</h2>
-                    <p class="page-header-subtitle">{% trans "إيقاف حساب الإهلاك للأصل المحدد مؤقتاً" %}</p>
-                </div>
-            </div>
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
 
-            <div class="card shadow-sm">
-                <div class="card-header card-header-depreciation">
-                    <h5 class="mb-0"><i class="fas fa-pause-circle"></i> {% trans "إيقاف الإهلاك مؤقتاً" %}</h5>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-pause-circle text-warning me-2"></i>{% trans "إيقاف الإهلاك مؤقتاً" %}
+            </h1>
+            <p class="text-muted mb-0">{% trans "إيقاف حساب الإهلاك للأصل المحدد مؤقتاً" %}</p>
+        </div>
+        <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            {% if asset %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الأصل" %}</h6>
                 </div>
                 <div class="card-body">
-                    {% if asset %}
-                    <div class="alert alert-info">
-                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات الأصل" %}</h6>
-                        <table class="table table-sm mb-0">
-                            <tr>
-                                <th width="30%">{% trans "الأصل" %}</th>
-                                <td>{{ asset.name }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "رقم الأصل" %}</th>
-                                <td>{{ asset.asset_number }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "القيمة الدفترية" %}</th>
-                                <td>{{ asset.book_value|floatformat:3 }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "حالة الإهلاك" %}</th>
-                                <td>
-                                    {% if asset.depreciation_paused %}
-                                    <span class="badge bg-warning">{% trans "متوقف مؤقتاً" %}</span>
-                                    {% else %}
-                                    <span class="badge bg-success">{% trans "نشط" %}</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                    {% endif %}
+                    <table class="info-table">
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <td>{{ asset.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "رقم الأصل" %}</th>
+                            <td>{{ asset.asset_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الدفترية" %}</th>
+                            <td>{{ asset.book_value|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "حالة الإهلاك" %}</th>
+                            <td>
+                                {% if asset.depreciation_paused %}
+                                <span class="badge bg-warning">{% trans "متوقف مؤقتاً" %}</span>
+                                {% else %}
+                                <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
-                    {% if asset.depreciation_paused %}
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        {% trans "الإهلاك متوقف مؤقتاً لهذا الأصل بالفعل" %}
-                    </div>
-                    {% else %}
-                    <form method="post" id="pauseForm">
-                        {% csrf_token %}
+            {% if asset.depreciation_paused %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                {% trans "الإهلاك متوقف مؤقتاً لهذا الأصل بالفعل" %}
+            </div>
+            {% else %}
+            <form method="post" id="pauseForm">
+                {% csrf_token %}
 
+                <div class="card section-card section-basic">
+                    <div class="card-header">
+                        <i class="fas fa-edit me-2"></i>بيانات الإيقاف
+                    </div>
+                    <div class="card-body">
                         {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
-                        </div>
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
                         {% endif %}
 
                         {% if not asset %}
                         <div class="mb-3">
-                            <label for="{{ form.asset.id_for_label }}" class="form-label required">
-                                {{ form.asset.label }}
+                            <label for="{{ form.asset.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                {{ form.asset.label }} <span class="text-danger">*</span>
                             </label>
-                            {% render_field form.asset class="form-select select2" %}
+                            {{ form.asset|add_class:"form-select" }}
                             {% if form.asset.errors %}
-                            <div class="text-danger">{{ form.asset.errors }}</div>
+                            <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
                             {% endif %}
                         </div>
                         {% endif %}
 
-                        <div class="mb-3">
-                            <label for="{{ form.pause_date.id_for_label }}" class="form-label required">
-                                {{ form.pause_date.label }}
-                            </label>
-                            {% render_field form.pause_date class="form-control" type="date" %}
-                            {% if form.pause_date.errors %}
-                            <div class="text-danger">{{ form.pause_date.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                {% trans "تاريخ بدء إيقاف الإهلاك" %}
-                            </small>
-                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.pause_date.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                    {{ form.pause_date.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.pause_date|add_class:"form-control" }}
+                                {% if form.pause_date.errors %}
+                                <div class="text-danger small mt-1">{{ form.pause_date.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "تاريخ بدء إيقاف الإهلاك" %}</small>
+                            </div>
 
-                        <div class="mb-3">
-                            <label for="{{ form.reason.id_for_label }}" class="form-label required">
-                                {{ form.reason.label }}
-                            </label>
-                            {% render_field form.reason class="form-control" rows="3" %}
-                            {% if form.reason.errors %}
-                            <div class="text-danger">{{ form.reason.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                {% trans "سبب إيقاف الإهلاك (مثل: صيانة طويلة الأجل، إعادة تقييم، إلخ)" %}
-                            </small>
-                        </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.expected_resume_date.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                    {{ form.expected_resume_date.label }}
+                                </label>
+                                {{ form.expected_resume_date|add_class:"form-control" }}
+                                {% if form.expected_resume_date.errors %}
+                                <div class="text-danger small mt-1">{{ form.expected_resume_date.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "التاريخ المتوقع لاستئناف الإهلاك (اختياري)" %}</small>
+                            </div>
 
-                        <div class="mb-3">
-                            <label for="{{ form.expected_resume_date.id_for_label }}" class="form-label">
-                                {{ form.expected_resume_date.label }}
-                            </label>
-                            {% render_field form.expected_resume_date class="form-control" type="date" %}
-                            {% if form.expected_resume_date.errors %}
-                            <div class="text-danger">{{ form.expected_resume_date.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                {% trans "التاريخ المتوقع لاستئناف الإهلاك (اختياري)" %}
-                            </small>
+                            <div class="col-12">
+                                <label for="{{ form.reason.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                    {{ form.reason.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.reason|add_class:"form-control" }}
+                                {% if form.reason.errors %}
+                                <div class="text-danger small mt-1">{{ form.reason.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "سبب إيقاف الإهلاك (مثل: صيانة طويلة الأجل، إعادة تقييم، إلخ)" %}</small>
+                            </div>
                         </div>
-
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <strong>{% trans "تنبيه" %}:</strong>
-                            <ul class="mb-0 mt-2">
-                                <li>{% trans "لن يتم حساب الإهلاك لهذا الأصل بعد التاريخ المحدد" %}</li>
-                                <li>{% trans "سيتم استبعاد الأصل من عمليات الإهلاك الجماعي" %}</li>
-                                <li>{% trans "يمكنك استئناف الإهلاك في أي وقت" %}</li>
-                            </ul>
-                        </div>
-
-                        <div class="action-buttons">
-                            <button type="submit" class="btn btn-warning">
-                                <i class="fas fa-pause-circle"></i> {% trans "إيقاف الإهلاك" %}
-                            </button>
-                            <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
-                            </a>
-                        </div>
-                    </form>
-                    {% endif %}
+                    </div>
                 </div>
-            </div>
+
+                <div class="card warning-card mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تنبيه" %}
+                        </h6>
+                        <ul class="mb-0">
+                            <li>{% trans "لن يتم حساب الإهلاك لهذا الأصل بعد التاريخ المحدد" %}</li>
+                            <li>{% trans "سيتم استبعاد الأصل من عمليات الإهلاك الجماعي" %}</li>
+                            <li>{% trans "يمكنك استئناف الإهلاك في أي وقت" %}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-warning btn-lg">
+                        <i class="fas fa-pause-circle me-1"></i> {% trans "إيقاف الإهلاك" %}
+                    </button>
+                </div>
+            </form>
+            {% endif %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'assets/js/assets_common.js' %}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    initSelect2('.select2');
-
-    // Confirm before submit
+$(document).ready(function() {
     $('#pauseForm').on('submit', function(e) {
         e.preventDefault();
         const form = this;
 
-        showConfirm(
-            '{% trans "تأكيد الإيقاف" %}',
-            '{% trans "هل أنت متأكد من إيقاف الإهلاك لهذا الأصل؟" %}',
-            'warning',
-            '{% trans "نعم، أوقف الإهلاك" %}',
-            '{% trans "إلغاء" %}'
-        ).then((result) => {
+        Swal.fire({
+            title: '{% trans "تأكيد الإيقاف" %}',
+            text: '{% trans "هل أنت متأكد من إيقاف الإهلاك لهذا الأصل؟" %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "نعم، أوقف الإهلاك" %}',
+            cancelButtonText: '{% trans "إلغاء" %}',
+            confirmButtonColor: '#ffc107'
+        }).then((result) => {
             if (result.isConfirmed) {
                 form.submit();
             }

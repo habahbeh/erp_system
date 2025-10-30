@@ -1,26 +1,192 @@
 {% extends 'base/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "دورات الجرد" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+        border: none;
+        border-radius: 10px;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .filter-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .badge {
+        padding: 0.35em 0.65em;
+        font-weight: 500;
+    }
+    .progress {
+        height: 20px;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-clipboard-list text-primary"></i> {% trans "دورات الجرد" %}</h5>
-            <div>
-                {% if perms.assets.add_physicalcountcycle %}
-                <a href="{% url 'assets:cycle_create' %}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> {% trans "دورة جديدة" %}
-                </a>
-                {% endif %}
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">
+                <i class="fas fa-clipboard-list text-primary"></i>
+                {% trans "دورات الجرد" %}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
+                    <li class="breadcrumb-item active">{% trans "دورات الجرد" %}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            {% if perms.assets.add_physicalcountcycle %}
+            <a href="{% url 'assets:cycle_create' %}" class="btn btn-primary" data-bs-toggle="tooltip" title="{% trans 'إنشاء دورة جرد جديدة' %}">
+                <i class="fas fa-plus me-2"></i>{% trans "دورة جديدة" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statsCards">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي الدورات" %}</h6>
+                            <h2 class="mb-0" id="totalCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-clipboard-list fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-secondary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مخططة" %}</h6>
+                            <h2 class="mb-0" id="plannedCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-calendar-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "جارية" %}</h6>
+                            <h2 class="mb-0" id="inProgressCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-spinner fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مكتملة" %}</h6>
+                            <h2 class="mb-0" id="completedCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card filter-card mb-4">
+        <div class="card-header bg-white">
+            <button class="btn btn-link text-decoration-none p-0 w-100 text-start" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-filter text-primary me-2"></i>{% trans "خيارات البحث والتصفية" %}
+                    </h5>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="planned">{% trans "مخطط" %}</option>
+                            <option value="in_progress">{% trans "جاري" %}</option>
+                            <option value="completed">{% trans "مكتمل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateToFilter">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "المسؤول" %}</label>
+                        <input type="text" class="form-control" id="responsibleFilter" placeholder="{% trans 'اسم المسؤول' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters">
+                            <i class="fas fa-redo me-1"></i>{% trans "إعادة تعيين" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list text-primary me-2"></i>{% trans "قائمة الدورات" %}
+            </h5>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+                <table class="table table-hover table-bordered" id="cyclesTable" style="width:100%">
+                    <thead>
                         <tr>
                             <th>{% trans "الدورة" %}</th>
-                            <th>{% trans "الفترة" %}</th>
+                            <th>{% trans "تاريخ البدء" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
                             <th>{% trans "المسؤول" %}</th>
                             <th>{% trans "التقدم" %}</th>
                             <th>{% trans "الحالة" %}</th>
@@ -30,17 +196,23 @@
                     <tbody>
                         {% for cycle in object_list %}
                         <tr>
-                            <td>{{ cycle.name }}</td>
-                            <td>{{ cycle.start_date|date:"Y-m-d" }} - {{ cycle.end_date|date:"Y-m-d" }}</td>
+                            <td><strong>{{ cycle.name }}</strong></td>
+                            <td>{{ cycle.start_date|date:"Y-m-d" }}</td>
+                            <td>{{ cycle.end_date|date:"Y-m-d" }}</td>
                             <td>{{ cycle.responsible_person|default:"-" }}</td>
                             <td>
                                 <div class="progress">
-                                    <div class="progress-bar" role="progressbar" style="width: {{ cycle.completion_percentage }}%">
+                                    <div class="progress-bar {% if cycle.completion_percentage == 100 %}bg-success{% elif cycle.completion_percentage >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                                         role="progressbar"
+                                         style="width: {{ cycle.completion_percentage }}%"
+                                         aria-valuenow="{{ cycle.completion_percentage }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
                                         {{ cycle.completion_percentage|floatformat:0 }}%
                                     </div>
                                 </div>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if cycle.status == 'planned' %}
                                     <span class="badge bg-secondary">{% trans "مخطط" %}</span>
                                 {% elif cycle.status == 'in_progress' %}
@@ -50,17 +222,31 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">
-                                <a href="{% url 'assets:cycle_detail' cycle.pk %}" class="btn btn-sm btn-info">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{% url 'assets:cycle_update' cycle.pk %}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'assets:cycle_detail' cycle.pk %}"
+                                       class="btn btn-sm btn-info"
+                                       data-bs-toggle="tooltip"
+                                       title="{% trans 'عرض التفاصيل' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if perms.assets.change_physicalcountcycle %}
+                                    <a href="{% url 'assets:cycle_update' cycle.pk %}"
+                                       class="btn btn-sm btn-primary"
+                                       data-bs-toggle="tooltip"
+                                       title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if cycle.status == 'planned' and perms.assets.change_physicalcountcycle %}
+                                    <a href="{% url 'assets:start_cycle' cycle.pk %}"
+                                       class="btn btn-sm btn-success"
+                                       data-bs-toggle="tooltip"
+                                       title="{% trans 'بدء الدورة' %}">
+                                        <i class="fas fa-play"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
                             </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">{% trans "لا توجد دورات جرد" %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -69,4 +255,110 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Calculate Statistics
+    function calculateStats() {
+        var total = $('#cyclesTable tbody tr').not(':has(td[colspan])').length;
+        var planned = 0;
+        var inProgress = 0;
+        var completed = 0;
+
+        $('#cyclesTable tbody tr').each(function() {
+            var status = $(this).find('td:eq(5) .badge').text().trim();
+            if (status === 'مخطط') planned++;
+            else if (status === 'جاري') inProgress++;
+            else if (status === 'مكتمل') completed++;
+        });
+
+        $('#totalCount').text(total);
+        $('#plannedCount').text(planned);
+        $('#inProgressCount').text(inProgress);
+        $('#completedCount').text(completed);
+    }
+
+    calculateStats();
+
+    // Initialize DataTable
+    var table = $('#cyclesTable').DataTable({
+        columnDefs: [
+            { orderable: false, targets: 6 } // Disable ordering on actions column
+        ],
+        language: {
+            "sProcessing": "جارٍ التحميل...",
+            "sLengthMenu": "أظهر _MENU_ مدخلات",
+            "sZeroRecords": "لم يعثر على أية سجلات",
+            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
+            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
+            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
+            "sSearch": "ابحث:",
+            "oPaginate": {
+                "sFirst": "الأول",
+                "sPrevious": "السابق",
+                "sNext": "التالي",
+                "sLast": "الأخير"
+            }
+        },
+        order: [[1, 'desc']], // Order by start date
+        pageLength: 25,
+        responsive: true,
+        drawCallback: function() {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            calculateStats();
+        }
+    });
+
+    // Custom Filters
+    $.fn.dataTable.ext.search.push(
+        function(settings, data, dataIndex) {
+            var statusFilter = $('#statusFilter').val();
+            var dateFrom = $('#dateFromFilter').val();
+            var dateTo = $('#dateToFilter').val();
+            var responsible = $('#responsibleFilter').val().toLowerCase();
+
+            var status = data[5]; // Status column
+            var startDate = data[1]; // Start date column
+            var responsiblePerson = data[3].toLowerCase(); // Responsible column
+
+            // Status filter
+            if (statusFilter && !status.includes(statusFilter === 'planned' ? 'مخطط' :
+                                                  statusFilter === 'in_progress' ? 'جاري' : 'مكتمل')) {
+                return false;
+            }
+
+            // Date filters
+            if (dateFrom && startDate < dateFrom) return false;
+            if (dateTo && startDate > dateTo) return false;
+
+            // Responsible filter
+            if (responsible && !responsiblePerson.includes(responsible)) return false;
+
+            return true;
+        }
+    );
+
+    // Filter change events
+    $('#statusFilter, #dateFromFilter, #dateToFilter, #responsibleFilter').on('change keyup', function() {
+        table.draw();
+    });
+
+    // Reset filters
+    $('#resetFilters').on('click', function() {
+        $('#statusFilter').val('');
+        $('#dateFromFilter').val('');
+        $('#dateToFilter').val('');
+        $('#responsibleFilter').val('');
+        table.draw();
+    });
+
+    // Initialize tooltips
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
 {% endblock %}

@@ -15,55 +15,53 @@
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
 <style>
-/* Card Headers Color Scheme */
-.card-header-depreciation {
-    background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
-    color: white;
-}
-
-.card-header-basic {
-    background: linear-gradient(135deg, #4E73DF 0%, #224ABE 100%);
-    color: white;
-}
-
-.card-header-financial {
-    background: linear-gradient(135deg, #1CC88A 0%, #13855C 100%);
-    color: white;
-}
-
-/* Stats Cards */
-.stat-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
-    border-radius: 10px;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-}
-
-/* Select2 RTL */
+/* Select2 RTL Styles */
 .select2-container--bootstrap-5 .select2-selection--single {
     background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
     direction: rtl;
     text-align: right;
     min-height: 38px;
+    display: flex;
+    align-items: center;
 }
 
-.select2-container--bootstrap-5 .select2-selection__arrow {
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
     left: auto !important;
     right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
 }
 
-.select2-container--bootstrap-5 .select2-selection__rendered {
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
     padding-right: 35px !important;
     text-align: right;
+    direction: rtl;
 }
 
 .select2-container--bootstrap-5 .select2-dropdown {
     direction: rtl;
     text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
 }
 </style>
 {% endblock %}
@@ -85,19 +83,19 @@
         </ol>
     </nav>
 
-    <!-- Page Header -->
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-1">{% trans "سجل الإهلاك" %}</h1>
-            <p class="text-muted mb-0">{% trans "إدارة وتتبع عمليات إهلاك الأصول الثابتة" %}</p>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة وعرض سجلات الإهلاك للأصول" %}</p>
         </div>
-        {% if perms.assets.add_depreciation %}
-        <div class="btn-group" role="group">
-            <a href="{% url 'assets:calculate_depreciation' %}" class="btn btn-primary">
-                <i class="fas fa-calculator"></i> {% trans "حساب الإهلاك" %}
-            </a>
+        {% if can_add %}
+        <div class="btn-group">
             <a href="{% url 'assets:bulk_calculate_depreciation' %}" class="btn btn-success">
                 <i class="fas fa-layer-group"></i> {% trans "حساب جماعي" %}
+            </a>
+            <a href="{% url 'assets:calculate_depreciation' %}" class="btn btn-primary">
+                <i class="fas fa-calculator"></i> {% trans "حساب إهلاك" %}
             </a>
         </div>
         {% endif %}
@@ -111,26 +109,10 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="card-title mb-1">{% trans "إجمالي الإهلاكات" %}</h6>
-                            <h2 class="mb-0">{{ total_depreciation|floatformat:2 }}</h2>
+                            <h2 class="mb-0" id="totalDepreciations">-</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-chart-line fa-3x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-success shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title mb-1">{% trans "السنة الحالية" %}</h6>
-                            <h2 class="mb-0">{{ current_year_depreciation|floatformat:2 }}</h2>
-                        </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-calendar-alt fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -142,11 +124,27 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "الشهر الحالي" %}</h6>
-                            <h2 class="mb-0">{{ current_month_depreciation|floatformat:2 }}</h2>
+                            <h6 class="card-title mb-1">{% trans "قيد الإهلاك" %}</h6>
+                            <h2 class="mb-0" id="totalAmount">0.000</h2>
                         </div>
                         <div class="text-white-50">
-                            <i class="fas fa-calendar-day fa-3x"></i>
+                            <i class="fas fa-dollar-sign fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مرحلة" %}</h6>
+                            <h2 class="mb-0" id="postedDepreciations">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -158,11 +156,11 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "عدد الحركات" %}</h6>
-                            <h2 class="mb-0">{{ total_count }}</h2>
+                            <h6 class="card-title mb-1">{% trans "هذا الشهر" %}</h6>
+                            <h2 class="mb-0" id="monthDepreciations">-</h2>
                         </div>
                         <div class="text-white-50">
-                            <i class="fas fa-list fa-3x"></i>
+                            <i class="fas fa-calendar fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -171,7 +169,7 @@
     </div>
 
     <!-- Filters Card -->
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4" id="filtersCard">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <h6 class="card-title mb-0">
                 <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
@@ -183,23 +181,34 @@
         <div class="collapse show" id="filtersCollapse">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">{% trans "الأصل" %}</label>
-                        <select class="form-select select2" id="assetFilter">
+                        <select class="form-select" id="assetFilter">
                             <option value="">{% trans "جميع الأصول" %}</option>
-                            {% for asset in assets %}
-                                <option value="{{ asset.id }}">{{ asset.name }}</option>
-                            {% endfor %}
                         </select>
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">{% trans "الحالة" %}</label>
-                        <select class="form-select select2" id="statusFilter">
-                            <option value="">{% trans "الكل" %}</option>
-                            <option value="draft">{% trans "مسودة" %}</option>
-                            <option value="posted">{% trans "مُرحّل" %}</option>
-                            <option value="reversed">{% trans "مُعكوس" %}</option>
+                        <label class="form-label">{% trans "السنة" %}</label>
+                        <input type="number" class="form-control" id="yearFilter" placeholder="السنة">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الشهر" %}</label>
+                        <select class="form-select" id="monthFilter">
+                            <option value="">{% trans "جميع الأشهر" %}</option>
+                            <option value="1">يناير</option>
+                            <option value="2">فبراير</option>
+                            <option value="3">مارس</option>
+                            <option value="4">أبريل</option>
+                            <option value="5">مايو</option>
+                            <option value="6">يونيو</option>
+                            <option value="7">يوليو</option>
+                            <option value="8">أغسطس</option>
+                            <option value="9">سبتمبر</option>
+                            <option value="10">أكتوبر</option>
+                            <option value="11">نوفمبر</option>
+                            <option value="12">ديسمبر</option>
                         </select>
                     </div>
 
@@ -213,16 +222,11 @@
                         <input type="date" class="form-control" id="dateToFilter">
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label">{% trans "السنة" %}</label>
-                        <input type="number" class="form-control" id="yearFilter" placeholder="2024">
-                    </div>
-
                     <div class="col-md-1 d-flex align-items-end gap-2">
-                        <button type="button" class="btn btn-outline-secondary" id="clearFilters" title="{% trans 'مسح الفلاتر' %}">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters" title="مسح الفلاتر">
                             <i class="fas fa-times"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-success" onclick="exportData()" title="{% trans 'تصدير Excel' %}">
+                        <button type="button" class="btn btn-outline-success" onclick="exportData()" title="تصدير Excel">
                             <i class="fas fa-file-excel"></i>
                         </button>
                     </div>
@@ -233,22 +237,16 @@
 
     <!-- DataTable -->
     <div class="card shadow-sm">
-        <div class="card-header card-header-depreciation">
-            <h5 class="mb-0">
-                <i class="fas fa-table"></i> {% trans "سجلات الإهلاك" %}
-            </h5>
-        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover table-striped" id="depreciationTable" style="width: 100%">
+                <table class="table table-hover table-striped" id="depreciationsTable" style="width: 100%">
                     <thead class="table-dark">
                         <tr>
-                            <th>{% trans "الرقم" %}</th>
-                            <th>{% trans "التاريخ" %}</th>
                             <th>{% trans "الأصل" %}</th>
                             <th>{% trans "الفترة" %}</th>
-                            <th class="text-end">{% trans "قيمة الإهلاك" %}</th>
-                            <th class="text-end">{% trans "المجمع" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th class="text-end">{% trans "المبلغ" %}</th>
+                            <th class="text-end">{% trans "الإهلاك المجمع" %}</th>
                             <th class="text-end">{% trans "القيمة الدفترية" %}</th>
                             <th class="text-center">{% trans "الحالة" %}</th>
                             <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
@@ -258,19 +256,6 @@
                         <!-- DataTable will populate -->
                     </tbody>
                 </table>
-            </div>
-        </div>
-        <div class="card-footer bg-light">
-            <div class="d-flex justify-content-between align-items-center">
-                <span id="tableInfo" class="text-muted">{% trans "جاري التحميل..." %}</span>
-                <div class="d-flex gap-2">
-                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
-                        <option value="10">10 {% trans "سطر" %}</option>
-                        <option value="25" selected>25 {% trans "سطر" %}</option>
-                        <option value="50">50 {% trans "سطر" %}</option>
-                        <option value="100">100 {% trans "سطر" %}</option>
-                    </select>
-                </div>
             </div>
         </div>
     </div>
@@ -290,151 +275,137 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
-// ==============================
-// Shared Functions
-// ==============================
-function initDataTable(tableId, ajaxUrl, columns, order = [[0, 'desc']]) {
-    return $(tableId).DataTable({
-        "processing": true,
-        "serverSide": false,
-        "pageLength": 25,
-        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
-        "responsive": true,
-        "language": {
-            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
-        },
-        "columnDefs": [
-            { "targets": "no-sort", "orderable": false }
-        ],
-        "order": order,
-        "drawCallback": function(settings) {
-            $('[data-bs-toggle="tooltip"]').tooltip();
-            updateTableInfo();
-        }
-    });
-}
-
-function showConfirm(title, text, confirmText, callback) {
-    Swal.fire({
-        title: title,
-        text: text,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#198754',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: confirmText,
-        cancelButtonText: 'إلغاء'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            callback();
-        }
-    });
-}
-
-function updateTableInfo() {
-    var table = $('#depreciationTable').DataTable();
-    var info = table.page.info();
-    var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' سجل';
-    if (info.recordsFiltered !== info.recordsTotal) {
-        infoText += ' (مفلتر من ' + info.recordsTotal + ')';
-    }
-    $('#tableInfo').text(infoText);
-}
-
-// ==============================
-// Document Ready
-// ==============================
 $(document).ready(function() {
     // Initialize Select2
-    $('.select2').select2({
+    $('#assetFilter').select2({
         theme: 'bootstrap-5',
         width: '100%',
-        dir: "rtl",
-        minimumResultsForSearch: -1,
-        language: {
-            noResults: function() { return "لا توجد نتائج"; }
+        placeholder: 'اختر الأصل...',
+        allowClear: true,
+        ajax: {
+            url: '{% url "assets:asset_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.results
+                };
+            }
         }
     });
 
     // Initialize DataTable
-    var table = $('#depreciationTable').DataTable({
-        "processing": true,
-        "pageLength": 25,
-        "responsive": true,
-        "language": {
-            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+    var table = $('#depreciationsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{% url "assets:depreciation_datatable_ajax" %}',
+            type: 'GET',
+            data: function(d) {
+                d.asset = $('#assetFilter').val();
+                d.year = $('#yearFilter').val();
+                d.month = $('#monthFilter').val();
+                d.date_from = $('#dateFromFilter').val();
+                d.date_to = $('#dateToFilter').val();
+            }
         },
-        "columnDefs": [
-            { "targets": "no-sort", "orderable": false },
-            { "className": "text-center", "targets": [7, 8] },
-            { "className": "text-end", "targets": [4, 5, 6] }
+        columns: [
+            { data: 0 }, // depreciation_date
+            { data: 1 }, // asset_number with link
+            { data: 2 }, // asset name with category
+            {
+                data: 3,
+                className: 'text-end'
+            }, // depreciation_amount
+            {
+                data: 4,
+                className: 'text-end'
+            }, // accumulated_depreciation
+            {
+                data: 5,
+                className: 'text-end'
+            }, // book_value
+            {
+                data: 6,
+                className: 'text-center'
+            }, // status
+            {
+                data: 7,
+                className: 'text-center',
+                orderable: false
+            } // actions
         ],
-        "order": [[1, "desc"]],
-        "drawCallback": function() {
-            $('[data-bs-toggle="tooltip"]').tooltip();
-            updateTableInfo();
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
+        order: [[2, 'desc']],
+        pageLength: 25,
+        responsive: true,
+        drawCallback: function(settings) {
+            var api = this.api();
+            updateStats(api);
         }
     });
 
-    // Filter Events
-    $('#assetFilter, #statusFilter, #yearFilter').on('change', function() {
-        applyFilters();
+    // Filter handlers
+    $('#assetFilter, #yearFilter, #monthFilter, #dateFromFilter, #dateToFilter').on('change', function() {
+        table.ajax.reload();
     });
 
-    $('#dateFromFilter, #dateToFilter').on('change', function() {
-        applyFilters();
-    });
-
+    // Clear filters
     $('#clearFilters').on('click', function() {
-        $('#assetFilter, #statusFilter').val('').trigger('change');
-        $('#dateFromFilter, #dateToFilter, #yearFilter').val('');
-        table.search('').columns().search('').draw();
+        $('#assetFilter').val(null).trigger('change');
+        $('#yearFilter').val('');
+        $('#monthFilter').val('');
+        $('#dateFromFilter').val('');
+        $('#dateToFilter').val('');
+        table.ajax.reload();
     });
 
-    function applyFilters() {
-        table.draw();
+    // Update statistics
+    function updateStats(api) {
+        $.ajax({
+            url: '{% url "assets:depreciation_datatable_ajax" %}',
+            data: {
+                stats_only: true,
+                asset: $('#assetFilter').val(),
+                year: $('#yearFilter').val(),
+                month: $('#monthFilter').val(),
+                date_from: $('#dateFromFilter').val(),
+                date_to: $('#dateToFilter').val()
+            },
+            success: function(response) {
+                $('#totalDepreciations').text(response.total_count || 0);
+                $('#totalAmount').text((response.total_amount || 0).toFixed(3));
+                $('#postedDepreciations').text(response.posted_count || 0);
+                $('#monthDepreciations').text(response.month_count || 0);
+            }
+        });
     }
 
-    // Custom filtering function
-    $.fn.dataTable.ext.search.push(
-        function(settings, data, dataIndex) {
-            var assetFilter = $('#assetFilter').val();
-            var statusFilter = $('#statusFilter').val();
-            var dateFrom = $('#dateFromFilter').val();
-            var dateTo = $('#dateToFilter').val();
-            var yearFilter = $('#yearFilter').val();
-
-            // Apply filters logic here
-            return true; // Simplified for now
-        }
-    );
+    // Initial stats load
+    updateStats();
 });
 
-// ==============================
-// Page Length Change
-// ==============================
-window.changePageLength = function(length) {
-    $('#depreciationTable').DataTable().page.len(parseInt(length)).draw();
-};
-
-// ==============================
 // Export to Excel
-// ==============================
-window.exportData = function() {
-    var params = new URLSearchParams({
-        asset: $('#assetFilter').val(),
-        status: $('#statusFilter').val(),
-        date_from: $('#dateFromFilter').val(),
-        date_to: $('#dateToFilter').val(),
-        year: $('#yearFilter').val()
+function exportData() {
+    const params = new URLSearchParams({
+        asset: $('#assetFilter').val() || '',
+        year: $('#yearFilter').val() || '',
+        month: $('#monthFilter').val() || '',
+        date_from: $('#dateFromFilter').val() || '',
+        date_to: $('#dateToFilter').val() || ''
     });
 
     window.location.href = '{% url "assets:export_depreciation_excel" %}?' + params.toString();
-};
+}
 
-// ==============================
-// Action Functions
-// ==============================
+// Reverse Depreciation
 function reverseDepreciation(id) {
     Swal.fire({
         title: 'عكس الإهلاك',
@@ -465,6 +436,52 @@ function reverseDepreciation(id) {
                 },
                 error: function(xhr) {
                     var message = 'حدث خطأ في عكس الإهلاك';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: message,
+                        icon: 'error',
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            });
+        }
+    });
+}
+
+// Delete Depreciation
+function deleteDepreciation(id) {
+    Swal.fire({
+        title: 'حذف سجل الإهلاك',
+        text: 'هل أنت متأكد من حذف سجل الإهلاك هذا؟ هذا الإجراء لا يمكن التراجع عنه.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:depreciation_delete" 0 %}'.replace('0', id),
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        title: 'تم الحذف!',
+                        text: 'تم حذف سجل الإهلاك بنجاح',
+                        icon: 'success',
+                        confirmButtonText: 'حسناً'
+                    }).then(() => {
+                        $('#depreciationsTable').DataTable().ajax.reload();
+                    });
+                },
+                error: function(xhr) {
+                    var message = 'حدث خطأ في حذف سجل الإهلاك';
                     if (xhr.responseJSON && xhr.responseJSON.message) {
                         message = xhr.responseJSON.message;
                     }

@@ -233,6 +233,77 @@ class AssetDepreciationDetailView(LoginRequiredMixin, PermissionRequiredMixin, C
         return context
 
 
+class AssetDepreciationUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
+    """تعديل سجل إهلاك - للسجلات غير المرحّلة فقط"""
+
+    template_name = 'assets/depreciation/depreciation_update.html'
+    permission_required = 'assets.change_assetdepreciation'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        pk = self.kwargs.get('pk')
+        depreciation = get_object_or_404(
+            AssetDepreciation,
+            pk=pk,
+            company=self.request.current_company
+        )
+
+        # التحقق من أن السجل غير مرحّل
+        if depreciation.is_posted:
+            messages.error(self.request, '❌ لا يمكن تعديل سجل إهلاك مرحّل. يجب عكس الإهلاك أولاً.')
+            return redirect('assets:depreciation_detail', pk=pk)
+
+        context.update({
+            'title': f'تعديل سجل إهلاك - {depreciation.asset.asset_number}',
+            'depreciation': depreciation,
+            'breadcrumbs': [
+                {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
+                {'title': _('سجلات الإهلاك'), 'url': reverse('assets:depreciation_list')},
+                {'title': f'{depreciation.asset.asset_number}', 'url': reverse('assets:depreciation_detail', args=[pk])},
+                {'title': _('تعديل'), 'url': ''},
+            ]
+        })
+        return context
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        try:
+            pk = kwargs.get('pk')
+            depreciation = get_object_or_404(
+                AssetDepreciation,
+                pk=pk,
+                company=request.current_company
+            )
+
+            # التحقق من أن السجل غير مرحّل
+            if depreciation.is_posted:
+                messages.error(request, '❌ لا يمكن تعديل سجل إهلاك مرحّل')
+                return redirect('assets:depreciation_detail', pk=pk)
+
+            # التحقق من وجود قيد محاسبي
+            if depreciation.journal_entry:
+                messages.error(request, '❌ لا يمكن تعديل سجل إهلاك مرتبط بقيد محاسبي')
+                return redirect('assets:depreciation_detail', pk=pk)
+
+            # تحديث الحقول المسموح بتعديلها
+            depreciation_date = request.POST.get('depreciation_date')
+            notes = request.POST.get('notes', '')
+
+            if depreciation_date:
+                depreciation.depreciation_date = depreciation_date
+
+            depreciation.notes = notes
+            depreciation.save()
+
+            messages.success(request, f'✅ تم تعديل سجل الإهلاك بنجاح')
+            return redirect('assets:depreciation_detail', pk=pk)
+
+        except Exception as e:
+            messages.error(request, f'❌ خطأ في التعديل: {str(e)}')
+            return redirect('assets:depreciation_detail', pk=pk)
+
+
 # ==================== Calculation Views ====================
 
 class CalculateDepreciationView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
@@ -702,9 +773,11 @@ def depreciation_datatable_ajax(request):
         search_value = request.GET.get('search[value]', '').strip()
 
         # الفلاتر المخصصة
-        is_posted = request.GET.get('is_posted', '')
-        fiscal_year = request.GET.get('fiscal_year', '')
-        category = request.GET.get('category', '')
+        asset = request.GET.get('asset', '')
+        year = request.GET.get('year', '')
+        month = request.GET.get('month', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
 
         # Query
         queryset = AssetDepreciation.objects.filter(
@@ -715,14 +788,20 @@ def depreciation_datatable_ajax(request):
         )
 
         # تطبيق الفلاتر
-        if is_posted:
-            queryset = queryset.filter(is_posted=(is_posted == '1'))
+        if asset:
+            queryset = queryset.filter(asset_id=asset)
 
-        if fiscal_year:
-            queryset = queryset.filter(fiscal_year_id=fiscal_year)
+        if year:
+            queryset = queryset.filter(period_year=year)
 
-        if category:
-            queryset = queryset.filter(asset__category_id=category)
+        if month:
+            queryset = queryset.filter(period_month=month)
+
+        if date_from:
+            queryset = queryset.filter(depreciation_date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(depreciation_date__lte=date_to)
 
         # البحث العام
         if search_value:
@@ -783,10 +862,13 @@ def depreciation_datatable_ajax(request):
 
             # أزرار الإجراءات
             actions = []
+            can_edit = request.user.has_perm('assets.change_assetdepreciation')
+            can_delete = request.user.has_perm('assets.delete_assetdepreciation')
+            can_reverse = request.user.has_perm('assets.can_calculate_depreciation')
 
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:depreciation_detail', args=[dep.pk])}" 
+                    <a href="{reverse('assets:depreciation_detail', args=[dep.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
@@ -794,10 +876,37 @@ def depreciation_datatable_ajax(request):
 
             if dep.journal_entry and can_view_journal:
                 actions.append(f'''
-                    <a href="{reverse('accounting:journal_entry_detail', args=[dep.journal_entry.pk])}" 
+                    <a href="{reverse('accounting:journal_entry_detail', args=[dep.journal_entry.pk])}"
                        class="btn btn-outline-secondary btn-sm" title="القيد" data-bs-toggle="tooltip">
                         <i class="fas fa-file-invoice"></i>
                     </a>
+                ''')
+
+            # زر تعديل - للسجلات غير المرحّلة فقط
+            if not dep.is_posted and can_edit:
+                actions.append(f'''
+                    <a href="{reverse('assets:depreciation_update', args=[dep.pk])}"
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            # زر عكس الإهلاك - للسجلات المرحّلة فقط
+            if dep.is_posted and can_reverse and not dep.reversal_entry:
+                actions.append(f'''
+                    <button onclick="reverseDepreciation({dep.pk})"
+                       class="btn btn-outline-warning btn-sm" title="عكس" data-bs-toggle="tooltip">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                ''')
+
+            # زر حذف - للسجلات غير المرحّلة فقط
+            if not dep.is_posted and can_delete:
+                actions.append(f'''
+                    <button onclick="deleteDepreciation({dep.pk})"
+                       class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 ''')
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
@@ -1181,3 +1290,64 @@ def export_depreciation_schedule_excel(request):
         print(traceback.format_exc())
         messages.error(request, f'خطأ في التصدير: {str(e)}')
         return redirect('assets:depreciation_list')
+
+
+@login_required
+@permission_required_with_message('assets.delete_assetdepreciation')
+@require_http_methods(["POST"])
+def depreciation_delete_ajax(request, pk):
+    """حذف سجل إهلاك - فقط للسجلات غير المرحّلة"""
+
+    if not hasattr(request, 'current_company') or not request.current_company:
+        return JsonResponse({
+            'success': False,
+            'message': 'لا توجد شركة محددة'
+        }, status=400)
+
+    try:
+        # الحصول على سجل الإهلاك
+        depreciation = get_object_or_404(
+            AssetDepreciation,
+            pk=pk,
+            company=request.current_company
+        )
+
+        # التحقق من أن السجل غير مرحّل
+        if depreciation.is_posted:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن حذف سجل إهلاك مرحّل. يجب عكس الإهلاك أولاً.'
+            }, status=400)
+
+        # التحقق من عدم وجود قيد محاسبي
+        if depreciation.journal_entry:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن حذف سجل الإهلاك لأنه مرتبط بقيد محاسبي.'
+            }, status=400)
+
+        # حفظ معلومات للرسالة
+        asset_number = depreciation.asset.asset_number
+        amount = depreciation.depreciation_amount
+
+        # حذف السجل
+        depreciation.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم حذف سجل إهلاك الأصل {asset_number} بمبلغ {amount:,.2f} بنجاح'
+        })
+
+    except AssetDepreciation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'سجل الإهلاك غير موجود'
+        }, status=404)
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في حذف سجل الإهلاك: {str(e)}'
+        }, status=500)

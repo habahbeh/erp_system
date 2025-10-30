@@ -1,198 +1,252 @@
+{# apps/assets/templates/assets/depreciation/resume_depreciation.html #}
 {% extends 'base/base.html' %}
 {% load i18n widget_tweaks static %}
 
 {% block title %}{% trans "استئناف الإهلاك" %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+<style>
+.section-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.section-card .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 2px solid;
+    font-weight: 600;
+}
+
+.section-basic .card-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-color: #2196f3;
+    color: #1565c0;
+}
+
+.success-card {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-right: 4px solid #4caf50;
+    border-radius: 10px;
+}
+
+.info-table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.info-table th {
+    width: 30%;
+    font-weight: 600;
+    color: #495057;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.info-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <!-- Header -->
-            <div class="page-header">
-                <div class="page-header-icon">
-                    <i class="fas fa-play-circle"></i>
-                </div>
-                <div class="page-header-content">
-                    <h2 class="page-header-title">{% trans "استئناف الإهلاك" %}</h2>
-                    <p class="page-header-subtitle">{% trans "استئناف حساب الإهلاك للأصل المتوقف" %}</p>
-                </div>
-            </div>
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
 
-            <div class="card shadow-sm">
-                <div class="card-header card-header-depreciation">
-                    <h5 class="mb-0"><i class="fas fa-play-circle"></i> {% trans "استئناف الإهلاك" %}</h5>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-play-circle text-success me-2"></i>{% trans "استئناف الإهلاك" %}
+            </h1>
+            <p class="text-muted mb-0">{% trans "استئناف حساب الإهلاك للأصل المتوقف" %}</p>
+        </div>
+        <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            {% if asset %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الأصل" %}</h6>
                 </div>
                 <div class="card-body">
-                    {% if asset %}
-                    <div class="alert alert-info">
-                        <h6><i class="fas fa-info-circle"></i> {% trans "معلومات الأصل" %}</h6>
-                        <table class="table table-sm mb-0">
-                            <tr>
-                                <th width="30%">{% trans "الأصل" %}</th>
-                                <td>{{ asset.name }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "رقم الأصل" %}</th>
-                                <td>{{ asset.asset_number }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "القيمة الدفترية" %}</th>
-                                <td>{{ asset.book_value|floatformat:3 }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "حالة الإهلاك" %}</th>
-                                <td>
-                                    {% if asset.depreciation_paused %}
-                                    <span class="badge bg-warning">{% trans "متوقف مؤقتاً" %}</span>
-                                    {% else %}
-                                    <span class="badge bg-success">{% trans "نشط" %}</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% if asset.depreciation_pause_date %}
-                            <tr>
-                                <th>{% trans "تاريخ الإيقاف" %}</th>
-                                <td>{{ asset.depreciation_pause_date|date:"Y-m-d" }}</td>
-                            </tr>
-                            {% endif %}
-                            {% if asset.depreciation_pause_reason %}
-                            <tr>
-                                <th>{% trans "سبب الإيقاف" %}</th>
-                                <td>{{ asset.depreciation_pause_reason }}</td>
-                            </tr>
-                            {% endif %}
-                        </table>
-                    </div>
-                    {% endif %}
+                    <table class="info-table">
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <td>{{ asset.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "رقم الأصل" %}</th>
+                            <td>{{ asset.asset_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الدفترية" %}</th>
+                            <td>{{ asset.book_value|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "حالة الإهلاك" %}</th>
+                            <td>
+                                {% if asset.depreciation_paused %}
+                                <span class="badge bg-warning">{% trans "متوقف مؤقتاً" %}</span>
+                                {% else %}
+                                <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if asset.depreciation_pause_date %}
+                        <tr>
+                            <th>{% trans "تاريخ الإيقاف" %}</th>
+                            <td>{{ asset.depreciation_pause_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if asset.depreciation_pause_reason %}
+                        <tr>
+                            <th>{% trans "سبب الإيقاف" %}</th>
+                            <td>{{ asset.depreciation_pause_reason }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
-                    {% if not asset.depreciation_paused %}
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        {% trans "الإهلاك نشط بالفعل لهذا الأصل" %}
-                    </div>
-                    {% else %}
-                    <form method="post" id="resumeForm">
-                        {% csrf_token %}
+            {% if not asset.depreciation_paused %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                {% trans "الإهلاك نشط بالفعل لهذا الأصل" %}
+            </div>
+            {% else %}
+            <form method="post" id="resumeForm">
+                {% csrf_token %}
 
+                <div class="card section-card section-basic">
+                    <div class="card-header">
+                        <i class="fas fa-edit me-2"></i>بيانات الاستئناف
+                    </div>
+                    <div class="card-body">
                         {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
-                        </div>
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
                         {% endif %}
 
                         {% if not asset %}
                         <div class="mb-3">
-                            <label for="{{ form.asset.id_for_label }}" class="form-label required">
-                                {{ form.asset.label }}
+                            <label for="{{ form.asset.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                {{ form.asset.label }} <span class="text-danger">*</span>
                             </label>
-                            {% render_field form.asset class="form-select select2" %}
+                            {{ form.asset|add_class:"form-select" }}
                             {% if form.asset.errors %}
-                            <div class="text-danger">{{ form.asset.errors }}</div>
+                            <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
                             {% endif %}
                         </div>
                         {% endif %}
 
-                        <div class="mb-3">
-                            <label for="{{ form.resume_date.id_for_label }}" class="form-label required">
-                                {{ form.resume_date.label }}
-                            </label>
-                            {% render_field form.resume_date class="form-control" type="date" %}
-                            {% if form.resume_date.errors %}
-                            <div class="text-danger">{{ form.resume_date.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                {% trans "تاريخ استئناف الإهلاك" %}
-                            </small>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="{{ form.notes.id_for_label }}" class="form-label">
-                                {{ form.notes.label }}
-                            </label>
-                            {% render_field form.notes class="form-control" rows="3" %}
-                            {% if form.notes.errors %}
-                            <div class="text-danger">{{ form.notes.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                {% trans "ملاحظات حول استئناف الإهلاك (اختياري)" %}
-                            </small>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                {% render_field form.recalculate_missed class="form-check-input" %}
-                                <label for="{{ form.recalculate_missed.id_for_label }}" class="form-check-label">
-                                    {{ form.recalculate_missed.label }}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.resume_date.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                    {{ form.resume_date.label }} <span class="text-danger">*</span>
                                 </label>
-                            </div>
-                            <small class="form-text text-muted">
-                                {% trans "سيتم حساب الإهلاك عن فترة التوقف إذا تم التفعيل" %}
-                            </small>
-                        </div>
-
-                        <div class="alert alert-success">
-                            <i class="fas fa-check-circle"></i>
-                            <strong>{% trans "نتيجة الاستئناف" %}:</strong>
-                            <ul class="mb-0 mt-2">
-                                <li>{% trans "سيتم تفعيل الإهلاك لهذا الأصل" %}</li>
-                                <li>{% trans "سيتم تضمين الأصل في عمليات الإهلاك الجماعي" %}</li>
-                                <li>{% trans "سيتم حساب الإهلاك في الفترات القادمة" %}</li>
-                                {% if form.recalculate_missed.value %}
-                                <li class="text-warning">{% trans "سيتم حساب إهلاك الفترة الفائتة" %}</li>
+                                {{ form.resume_date|add_class:"form-control" }}
+                                {% if form.resume_date.errors %}
+                                <div class="text-danger small mt-1">{{ form.resume_date.errors.0 }}</div>
                                 {% endif %}
-                            </ul>
-                        </div>
+                                <small class="text-muted">{% trans "تاريخ استئناف الإهلاك" %}</small>
+                            </div>
 
-                        {% if asset.depreciation_pause_date %}
-                        <div class="card bg-light mb-3">
-                            <div class="card-body">
-                                <h6>{% trans "معلومات فترة الإيقاف" %}</h6>
-                                <table class="table table-sm mb-0">
-                                    <tr>
-                                        <th>{% trans "تاريخ البدء" %}</th>
-                                        <td>{{ asset.depreciation_pause_date|date:"Y-m-d" }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>{% trans "تاريخ الاستئناف" %}</th>
-                                        <td id="resumeDateDisplay">-</td>
-                                    </tr>
-                                    <tr>
-                                        <th>{% trans "مدة التوقف" %}</th>
-                                        <td id="pauseDuration">-</td>
-                                    </tr>
-                                </table>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch mt-4">
+                                    {{ form.recalculate_missed|add_class:"form-check-input" }}
+                                    <label for="{{ form.recalculate_missed.id_for_label }}" class="form-check-label">
+                                        {{ form.recalculate_missed.label }}
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block mt-1">{% trans "سيتم حساب الإهلاك عن فترة التوقف إذا تم التفعيل" %}</small>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label" style="font-weight: 600;">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes|add_class:"form-control" }}
+                                {% if form.notes.errors %}
+                                <div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{% trans "ملاحظات حول استئناف الإهلاك (اختياري)" %}</small>
                             </div>
                         </div>
-                        {% endif %}
-
-                        <div class="action-buttons">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-play-circle"></i> {% trans "استئناف الإهلاك" %}
-                            </button>
-                            <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
-                            </a>
-                        </div>
-                    </form>
-                    {% endif %}
+                    </div>
                 </div>
-            </div>
+
+                <div class="card success-card mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-check-circle me-2"></i>{% trans "نتيجة الاستئناف" %}
+                        </h6>
+                        <ul class="mb-0">
+                            <li>{% trans "سيتم تفعيل الإهلاك لهذا الأصل" %}</li>
+                            <li>{% trans "سيتم تضمين الأصل في عمليات الإهلاك الجماعي" %}</li>
+                            <li>{% trans "سيتم حساب الإهلاك في الفترات القادمة" %}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if asset.depreciation_pause_date %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">{% trans "معلومات فترة الإيقاف" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="info-table">
+                            <tr>
+                                <th>{% trans "تاريخ البدء" %}</th>
+                                <td>{{ asset.depreciation_pause_date|date:"Y-m-d" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "تاريخ الاستئناف" %}</th>
+                                <td id="resumeDateDisplay">-</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "مدة التوقف" %}</th>
+                                <td id="pauseDuration">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% if asset %}{% url 'assets:asset_detail' asset.pk %}{% else %}{% url 'assets:depreciation_list' %}{% endif %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-play-circle me-1"></i> {% trans "استئناف الإهلاك" %}
+                    </button>
+                </div>
+            </form>
+            {% endif %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'assets/js/assets_common.js' %}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    initSelect2('.select2');
-
-    // Calculate pause duration
+$(document).ready(function() {
     $('#id_resume_date').change(function() {
         var resumeDate = new Date($(this).val());
         {% if asset.depreciation_pause_date %}
@@ -205,24 +259,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
             $('#resumeDateDisplay').text($(this).val());
             $('#pauseDuration').text(diffDays + ' {% trans "يوم" %} (' + diffMonths + ' {% trans "شهر تقريباً" %})');
-        } else {
-            $('#pauseDuration').text('{% trans "تاريخ الاستئناف يجب أن يكون بعد تاريخ الإيقاف" %}').addClass('text-danger');
         }
         {% endif %}
     });
 
-    // Confirm before submit
     $('#resumeForm').on('submit', function(e) {
         e.preventDefault();
         const form = this;
 
-        showConfirm(
-            '{% trans "تأكيد الاستئناف" %}',
-            '{% trans "هل أنت متأكد من استئناف الإهلاك لهذا الأصل؟" %}',
-            'question',
-            '{% trans "نعم، استئنف الإهلاك" %}',
-            '{% trans "إلغاء" %}'
-        ).then((result) => {
+        Swal.fire({
+            title: '{% trans "تأكيد الاستئناف" %}',
+            text: '{% trans "هل أنت متأكد من استئناف الإهلاك لهذا الأصل؟" %}',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "نعم، استئنف الإهلاك" %}',
+            cancelButtonText: '{% trans "إلغاء" %}',
+            confirmButtonColor: '#198754'
+        }).then((result) => {
             if (result.isConfirmed) {
                 form.submit();
             }

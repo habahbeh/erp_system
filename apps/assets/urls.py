@@ -68,6 +68,7 @@ urlpatterns = [
     # ==================== Depreciation ====================
     path('depreciation/', AssetDepreciationListView.as_view(), name='depreciation_list'),
     path('depreciation/<int:pk>/', AssetDepreciationDetailView.as_view(), name='depreciation_detail'),
+    path('depreciation/<int:pk>/update/', AssetDepreciationUpdateView.as_view(), name='depreciation_update'),
     path('depreciation/calculate/', CalculateDepreciationView.as_view(), name='calculate_depreciation'),
     path('depreciation/bulk-calculate/', BulkDepreciationCalculationView.as_view(), name='bulk_calculate_depreciation'),
     path('ajax/depreciation/bulk-preview/', bulk_depreciation_preview_ajax, name='bulk_depreciation_preview'),
@@ -76,6 +77,7 @@ urlpatterns = [
     path('ajax/depreciation/<int:pk>/calculate/', calculate_single_depreciation_ajax,
          name='calculate_single_depreciation_ajax'),
     path('ajax/depreciation/<int:pk>/reverse/', reverse_depreciation_ajax, name='reverse_depreciation'),
+    path('ajax/depreciation/<int:pk>/delete/', depreciation_delete_ajax, name='depreciation_delete'),
 
     # ==================== Transactions ====================
     path('transactions/', AssetTransactionListView.as_view(), name='transaction_list'),
@@ -126,6 +128,8 @@ urlpatterns = [
     path('maintenance/<int:pk>/update/', AssetMaintenanceUpdateView.as_view(), name='maintenance_update'),
     path('ajax/maintenance/datatable/', maintenance_datatable_ajax, name='maintenance_datatable_ajax'),
     path('ajax/maintenance/<int:pk>/complete/', complete_maintenance, name='complete_maintenance'),
+    path('ajax/maintenance/<int:pk>/delete/', delete_maintenance, name='maintenance_delete'),
+    path('maintenance/export/excel/', export_maintenance_list_excel, name='export_maintenance_list_excel'),
 
     # ==================== Physical Count ====================
     path('physical-count/cycles/', PhysicalCountCycleListView.as_view(), name='cycle_list'),

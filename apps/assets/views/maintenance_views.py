@@ -1231,6 +1231,49 @@ def complete_maintenance(request, pk):
 
 
 @login_required
+@permission_required_with_message('assets.delete_assetmaintenance')
+@require_http_methods(["POST"])
+def delete_maintenance(request, pk):
+    """حذف صيانة أصل"""
+
+    try:
+        maintenance = get_object_or_404(
+            AssetMaintenance,
+            pk=pk,
+            company=request.current_company
+        )
+
+        # التحقق من إمكانية الحذف
+        if maintenance.status == 'completed':
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن حذف صيانة مكتملة'
+            }, status=400)
+
+        if maintenance.journal_entry:
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن حذف صيانة لها قيد محاسبي'
+            }, status=400)
+
+        maintenance_number = maintenance.maintenance_number
+        maintenance.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'تم حذف الصيانة {maintenance_number} بنجاح'
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في حذف الصيانة: {str(e)}'
+        }, status=500)
+
+
+@login_required
 @permission_required_with_message('assets.change_assetmaintenance')
 @require_http_methods(["POST"])
 def start_maintenance_ajax(request, pk):
@@ -1476,13 +1519,30 @@ def schedule_datatable_ajax(request):
         })
 
     try:
+        # إذا كان الطلب للإحصائيات فقط
+        if request.GET.get('stats_only'):
+            all_schedules = MaintenanceSchedule.objects.filter(company=request.current_company)
+            today = date.today()
+
+            stats = {
+                'total': all_schedules.count(),
+                'active': all_schedules.filter(is_active=True).count(),
+                'upcoming': sum(1 for s in all_schedules if s.is_active and s.next_maintenance_date and s.is_due_soon()),
+                'overdue': sum(1 for s in all_schedules if s.is_active and s.next_maintenance_date and s.is_overdue())
+            }
+            return JsonResponse({'stats': stats})
+
+        # معاملات DataTables
         draw = int(request.GET.get('draw', 1))
         start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 10))
+        length = int(request.GET.get('length', 25))
         search_value = request.GET.get('search[value]', '').strip()
 
         # الفلاتر
         is_active = request.GET.get('is_active', '')
+        asset_filter = request.GET.get('asset', '')
+        maintenance_type_filter = request.GET.get('maintenance_type', '')
+        frequency_filter = request.GET.get('frequency', '')
 
         # Query
         queryset = MaintenanceSchedule.objects.filter(
@@ -1494,6 +1554,15 @@ def schedule_datatable_ajax(request):
         # تطبيق الفلاتر
         if is_active:
             queryset = queryset.filter(is_active=(is_active == '1'))
+
+        if asset_filter:
+            queryset = queryset.filter(asset_id=asset_filter)
+
+        if maintenance_type_filter:
+            queryset = queryset.filter(maintenance_type_id=maintenance_type_filter)
+
+        if frequency_filter:
+            queryset = queryset.filter(frequency=frequency_filter)
 
         # البحث
         if search_value:
@@ -1538,10 +1607,10 @@ def schedule_datatable_ajax(request):
 
         for schedule in queryset:
             # حالة الجدولة
-            if schedule.is_overdue():
+            if schedule.next_maintenance_date and schedule.is_overdue():
                 days_overdue = (date.today() - schedule.next_maintenance_date).days
                 status = f'<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> متأخرة ({days_overdue} يوم)</span>'
-            elif schedule.is_due_soon():
+            elif schedule.next_maintenance_date and schedule.is_due_soon():
                 days_left = (schedule.next_maintenance_date - date.today()).days
                 status = f'<span class="badge bg-warning"><i class="fas fa-clock"></i> قريبة ({days_left} يوم)</span>'
             elif schedule.is_active:
@@ -1551,27 +1620,76 @@ def schedule_datatable_ajax(request):
 
             # أزرار الإجراءات
             actions = []
+            can_edit = request.user.has_perm('assets.change_maintenanceschedule')
+            can_delete = request.user.has_perm('assets.delete_maintenanceschedule')
 
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:schedule_detail', args=[schedule.pk])}" 
+                    <a href="{reverse('assets:schedule_detail', args=[schedule.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
                 ''')
 
+            if can_edit:
+                actions.append(f'''
+                    <a href="{reverse('assets:schedule_update', args=[schedule.pk])}"
+                       class="btn btn-outline-warning btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            if can_delete:
+                actions.append(f'''
+                    <button type="button" onclick="deleteSchedule({schedule.pk})"
+                       class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ''')
+
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
+            # التكرار display
+            if schedule.frequency == 'custom' and schedule.custom_days:
+                frequency_display = f'''<div>
+                    <strong>{schedule.get_frequency_display()}</strong>
+                    <br><small class="text-muted">كل {schedule.custom_days} يوم</small>
+                </div>'''
+            else:
+                frequency_display = f'<strong>{schedule.get_frequency_display()}</strong>'
+
+            # Get last completed maintenance for this schedule
+            last_maintenance = AssetMaintenance.objects.filter(
+                asset=schedule.asset,
+                maintenance_type=schedule.maintenance_type,
+                status='completed'
+            ).order_by('-completion_date').first()
+
+            last_maintenance_display = (
+                last_maintenance.completion_date.strftime('%Y-%m-%d')
+                if last_maintenance and last_maintenance.completion_date
+                else '<span class="text-muted">-</span>'
+            )
+
             data.append([
-                f'<a href="{reverse("assets:schedule_detail", args=[schedule.pk])}">{schedule.schedule_number}</a>',
-                f'<a href="{reverse("assets:asset_detail", args=[schedule.asset.pk])}">{schedule.asset.asset_number}</a>',
-                schedule.maintenance_type.name,
-                schedule.get_frequency_display(),
+                # الأصل (اسم + رقم)
                 f'''<div>
-                    {schedule.next_maintenance_date.strftime('%Y-%m-%d')}
-                    <br><small class="text-muted">بدأت: {schedule.start_date.strftime('%Y-%m-%d')}</small>
+                    <a href="{reverse("assets:asset_detail", args=[schedule.asset.pk])}" class="text-decoration-none">
+                        <strong>{schedule.asset.name}</strong>
+                    </a>
+                    <br><small class="text-muted">{schedule.asset.asset_number}</small>
                 </div>''',
+                # نوع الصيانة
+                f'<span class="badge bg-primary">{schedule.maintenance_type.name}</span>',
+                # التكرار
+                frequency_display,
+                # آخر صيانة
+                last_maintenance_display,
+                # الصيانة القادمة
+                schedule.next_maintenance_date.strftime('%Y-%m-%d') if schedule.next_maintenance_date else '<span class="text-muted">-</span>',
+                # الحالة
                 status,
+                # الإجراءات
                 actions_html
             ])
 
@@ -1584,7 +1702,12 @@ def schedule_datatable_ajax(request):
 
     except Exception as e:
         import traceback
-        print(traceback.format_exc())
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.error(f"Error in schedule_datatable_ajax: {str(e)}")
+        logger.error(traceback.format_exc())
+
         return JsonResponse({
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': 0,

@@ -1,73 +1,177 @@
+{# apps/assets/templates/assets/maintenance/maintenance_detail.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.print-only {
+    display: none;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .print-only {
+        display: block;
+    }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-wrench text-primary"></i> {% trans "تفاصيل الصيانة" %}</h2>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            {% if maintenance.status == 'scheduled' and perms.assets.change_maintenance %}
+            <h1 class="h3 mb-1">{% trans "الصيانة رقم" %}: {{ maintenance.maintenance_number }}</h1>
+            <p class="text-muted mb-1">{{ maintenance.scheduled_date|date:"Y/m/d l" }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-primary fs-6">{{ maintenance.maintenance_number }}</span>
+
+                {% if maintenance.status == 'scheduled' %}
+                    <span class="badge bg-primary fs-6">
+                        <i class="fas fa-calendar-check"></i> {% trans "مجدولة" %}
+                    </span>
+                {% elif maintenance.status == 'in_progress' %}
+                    <span class="badge bg-warning fs-6">
+                        <i class="fas fa-spinner"></i> {% trans "جارية" %}
+                    </span>
+                {% elif maintenance.status == 'completed' %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> {% trans "مكتملة" %}
+                    </span>
+                {% elif maintenance.status == 'cancelled' %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-ban"></i> {% trans "ملغاة" %}
+                    </span>
+                {% endif %}
+
+                <span class="badge bg-info fs-6">
+                    <i class="fas fa-tag"></i> {{ maintenance.get_category_display }}
+                </span>
+
+                {% if maintenance.is_overdue %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-exclamation-triangle"></i> {% trans "متأخرة" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            {% if maintenance.status == 'scheduled' and perms.assets.change_assetmaintenance %}
             <a href="{% url 'assets:maintenance_update' maintenance.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
+            {% if maintenance.status != 'completed' and maintenance.status != 'cancelled' and perms.assets.change_assetmaintenance %}
+            <button type="button" class="btn btn-success" onclick="completeMaintenance({{ maintenance.pk }})">
+                <i class="fas fa-check"></i> {% trans "إكمال" %}
+            </button>
+            {% endif %}
+            {% if perms.assets.delete_assetmaintenance %}
+            <button type="button" class="btn btn-danger" onclick="deleteMaintenance({{ maintenance.pk }})">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </button>
+            {% endif %}
             <a href="{% url 'assets:maintenance_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
+        <!-- المحتوى الرئيسي -->
         <div class="col-lg-8">
-            <!-- Status Badge -->
-            <div class="mb-4">
-                {% if maintenance.status == 'scheduled' %}
-                    <h3><span class="badge bg-primary fs-5">{% trans "مجدولة" %}</span></h3>
-                {% elif maintenance.status == 'in_progress' %}
-                    <h3><span class="badge bg-warning fs-5">{% trans "جارية" %}</span></h3>
-                {% elif maintenance.status == 'completed' %}
-                    <h3><span class="badge bg-success fs-5">{% trans "مكتملة" %}</span></h3>
-                {% elif maintenance.status == 'cancelled' %}
-                    <h3><span class="badge bg-danger fs-5">{% trans "ملغاة" %}</span></h3>
-                {% endif %}
-            </div>
-
+            <!-- معلومات الأصل -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الصيانة" %}</h5>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-box"></i> {% trans "معلومات الأصل" %}
+                    </h6>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "الأصل" %}</label>
-                            <p class="h6">
+                            <h6 class="text-muted mb-1">{% trans "الأصل" %}</h6>
+                            <p class="mb-0">
                                 <a href="{% url 'assets:asset_detail' maintenance.asset.pk %}">
                                     {{ maintenance.asset.name }}
                                 </a>
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "التاريخ المجدول" %}</label>
-                            <p class="h6">{{ maintenance.scheduled_date|date:"Y-m-d" }}</p>
+                            <h6 class="text-muted mb-1">{% trans "رقم الأصل" %}</h6>
+                            <p class="mb-0">{{ maintenance.asset.asset_number }}</p>
                         </div>
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "نوع الصيانة" %}</label>
-                            <p class="h6">{{ maintenance.maintenance_type.name }}</p>
+                            <h6 class="text-muted mb-1">{% trans "التصنيف" %}</h6>
+                            <p class="mb-0">{{ maintenance.asset.category.name }}</p>
                         </div>
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "التصنيف" %}</label>
-                            <p class="h6">{{ maintenance.get_category_display }}</p>
+                            <h6 class="text-muted mb-1">{% trans "الموقع" %}</h6>
+                            <p class="mb-0">{{ maintenance.asset.location|default:"-" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- تفاصيل الصيانة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-wrench"></i> {% trans "تفاصيل الصيانة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع الصيانة" %}</h6>
+                            <p class="mb-0">{{ maintenance.maintenance_type.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "التاريخ المجدول" %}</h6>
+                            <p class="mb-0">{{ maintenance.scheduled_date|date:"Y/m/d" }}</p>
                         </div>
                         {% if maintenance.actual_start_date %}
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "تاريخ البدء الفعلي" %}</label>
-                            <p class="h6">{{ maintenance.actual_start_date|date:"Y-m-d H:i" }}</p>
+                            <h6 class="text-muted mb-1">{% trans "تاريخ البدء الفعلي" %}</h6>
+                            <p class="mb-0">{{ maintenance.actual_start_date|date:"Y/m/d H:i" }}</p>
                         </div>
                         {% endif %}
                         {% if maintenance.actual_completion_date %}
                         <div class="col-md-6">
-                            <label class="text-muted small">{% trans "تاريخ الانتهاء الفعلي" %}</label>
-                            <p class="h6">{{ maintenance.actual_completion_date|date:"Y-m-d H:i" }}</p>
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الانتهاء الفعلي" %}</h6>
+                            <p class="mb-0">{{ maintenance.actual_completion_date|date:"Y/m/d H:i" }}</p>
+                        </div>
+                        {% endif %}
+                        {% if maintenance.technician %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الفني المسؤول" %}</h6>
+                            <p class="mb-0">{{ maintenance.technician }}</p>
+                        </div>
+                        {% endif %}
+                        {% if maintenance.vendor %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المورد" %}</h6>
+                            <p class="mb-0">{{ maintenance.vendor }}</p>
                         </div>
                         {% endif %}
                     </div>
@@ -75,117 +179,352 @@
                     {% if maintenance.description %}
                     <hr>
                     <div>
-                        <label class="text-muted small">{% trans "الوصف" %}</label>
-                        <p>{{ maintenance.description }}</p>
+                        <h6 class="text-muted mb-2">{% trans "الوصف" %}</h6>
+                        <p class="mb-0">{{ maintenance.description }}</p>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Financial Info -->
+            <!-- المعلومات المالية -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-dollar-sign"></i> {% trans "المعلومات المالية" %}</h5>
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-dollar-sign"></i> {% trans "المعلومات المالية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row text-center">
+                    <div class="row g-3 text-center">
                         <div class="col-md-3">
-                            <div class="p-3 bg-light rounded">
-                                <div class="text-muted small">{% trans "التكلفة المقدرة" %}</div>
-                                <div class="h4 text-primary">{{ maintenance.estimated_cost|floatformat:3|default:"0.000" }}</div>
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ maintenance.estimated_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "التكلفة المقدرة" %}</small>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="p-3 bg-light rounded">
-                                <div class="text-muted small">{% trans "التكلفة الفعلية" %}</div>
-                                <div class="h4 text-success">{{ maintenance.actual_cost|floatformat:3|default:"0.000" }}</div>
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ maintenance.actual_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "التكلفة الفعلية" %}</small>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="p-3 bg-light rounded">
-                                <div class="text-muted small">{% trans "قطع الغيار" %}</div>
-                                <div class="h4 text-info">{{ maintenance.parts_cost|floatformat:3|default:"0.000" }}</div>
+                            <div class="border rounded p-3">
+                                <h3 class="text-info mb-0">{{ maintenance.parts_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "تكلفة قطع الغيار" %}</small>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="p-3 bg-light rounded">
-                                <div class="text-muted small">{% trans "العمالة" %}</div>
-                                <div class="h4 text-warning">{{ maintenance.labor_cost|floatformat:3|default:"0.000" }}</div>
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ maintenance.labor_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "تكلفة العمالة" %}</small>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Work Done -->
+            <!-- العمل المنجز -->
             {% if maintenance.work_done %}
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-clipboard-list"></i> {% trans "العمل المنجز" %}</h5>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-clipboard-list"></i> {% trans "العمل المنجز" %}
+                    </h6>
                 </div>
                 <div class="card-body">
                     <p class="mb-0">{{ maintenance.work_done }}</p>
                 </div>
             </div>
             {% endif %}
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات إضافية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الإنشاء" %}</h6>
+                            <p class="mb-0">{{ maintenance.created_at|date:"Y/m/d H:i" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "أنشأ بواسطة" %}</h6>
+                            <p class="mb-0">{{ maintenance.created_by.get_full_name|default:maintenance.created_by.username|default:"النظام" }}</p>
+                        </div>
+                        {% if maintenance.updated_at %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "آخر تعديل" %}</h6>
+                            <p class="mb-0">{{ maintenance.updated_at|date:"Y/m/d H:i" }}</p>
+                        </div>
+                        {% endif %}
+                        {% if maintenance.updated_by %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "عُدل بواسطة" %}</h6>
+                            <p class="mb-0">{{ maintenance.updated_by.get_full_name|default:maintenance.updated_by.username }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات الإكمال -->
+            {% if maintenance.status == 'completed' %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-check-circle"></i> {% trans "معلومات الإكمال" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الإكمال" %}</h6>
+                            <p class="mb-0">{{ maintenance.actual_completion_date|date:"Y/m/d H:i" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "حالة الصيانة" %}</h6>
+                            <p class="mb-0"><span class="badge bg-success">{% trans "مكتملة" %}</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ملاحظات -->
+            {% if maintenance.notes %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sticky-note"></i> {% trans "ملاحظات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ maintenance.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
+        <!-- الشريط الجانبي -->
         <div class="col-lg-4">
-            <!-- Technician Info -->
-            {% if maintenance.technician %}
+            <!-- إحصائيات سريعة -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-user-cog"></i> {% trans "الفني المسؤول" %}</h6>
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات سريعة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p class="mb-0">{{ maintenance.technician }}</p>
+                    <div class="row g-3 text-center">
+                        <div class="col-12">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ maintenance.estimated_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "التكلفة المقدرة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ maintenance.actual_cost|floatformat:3|default:"0.000" }}</h3>
+                                <small class="text-muted">{% trans "التكلفة الفعلية" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="border rounded p-3">
+                                {% if maintenance.actual_cost and maintenance.estimated_cost %}
+                                    {% widthratio maintenance.actual_cost 1 1 as actual_float %}
+                                    {% widthratio maintenance.estimated_cost 1 1 as estimated_float %}
+                                    {% if actual_float > estimated_float %}
+                                        <h3 class="text-danger mb-0">
+                                            <i class="fas fa-arrow-up"></i>
+                                            {% widthratio maintenance.actual_cost maintenance.estimated_cost 100 %}%
+                                        </h3>
+                                        <small class="text-muted">{% trans "تجاوز التكلفة" %}</small>
+                                    {% else %}
+                                        <h3 class="text-success mb-0">
+                                            <i class="fas fa-check"></i>
+                                            {% widthratio maintenance.actual_cost maintenance.estimated_cost 100 %}%
+                                        </h3>
+                                        <small class="text-muted">{% trans "ضمن الميزانية" %}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <h3 class="text-muted mb-0">-</h3>
+                                    <small class="text-muted">{% trans "نسبة التكلفة" %}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            {% endif %}
 
-            <!-- Vendor Info -->
-            {% if maintenance.vendor %}
+            <!-- إجراءات سريعة -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-building"></i> {% trans "المورد" %}</h6>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p class="mb-0">{{ maintenance.vendor }}</p>
+                    <div class="d-grid gap-2">
+                        {% if maintenance.status == 'scheduled' and perms.assets.change_assetmaintenance %}
+                        <a href="{% url 'assets:maintenance_update' maintenance.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل الصيانة" %}
+                        </a>
+                        {% endif %}
+
+                        {% if maintenance.status != 'completed' and maintenance.status != 'cancelled' and perms.assets.change_assetmaintenance %}
+                        <button type="button" class="btn btn-outline-success" onclick="completeMaintenance({{ maintenance.pk }})">
+                            <i class="fas fa-check"></i> {% trans "إكمال الصيانة" %}
+                        </button>
+                        {% endif %}
+
+                        <button type="button" class="btn btn-outline-info" onclick="printMaintenance()">
+                            <i class="fas fa-print"></i> {% trans "طباعة" %}
+                        </button>
+
+                        <a href="{% url 'assets:asset_detail' maintenance.asset.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-box"></i> {% trans "عرض الأصل" %}
+                        </a>
+
+                        {% if perms.assets.delete_assetmaintenance %}
+                        <button type="button" class="btn btn-outline-danger" onclick="deleteMaintenance({{ maintenance.pk }})">
+                            <i class="fas fa-trash"></i> {% trans "حذف الصيانة" %}
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            {% endif %}
 
-            <!-- Audit Info -->
+            <!-- معلومات الحالة -->
             <div class="card shadow-sm">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-history"></i> {% trans "معلومات التدقيق" %}</h6>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات الحالة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p class="small mb-2">
-                        <i class="fas fa-user text-muted"></i>
-                        <strong>{% trans "أُنشئ بواسطة:" %}</strong><br>
-                        {{ maintenance.created_by|default:"النظام" }}
-                    </p>
-                    <p class="small mb-2">
-                        <i class="fas fa-clock text-muted"></i>
-                        <strong>{% trans "تاريخ الإنشاء:" %}</strong><br>
-                        {{ maintenance.created_at|date:"Y-m-d H:i" }}
-                    </p>
-                    {% if maintenance.updated_by %}
-                    <p class="small mb-2">
-                        <i class="fas fa-user-edit text-muted"></i>
-                        <strong>{% trans "آخر تعديل بواسطة:" %}</strong><br>
-                        {{ maintenance.updated_by }}
-                    </p>
-                    <p class="small mb-0">
-                        <i class="fas fa-clock text-muted"></i>
-                        <strong>{% trans "تاريخ آخر تعديل:" %}</strong><br>
-                        {{ maintenance.updated_at|date:"Y-m-d H:i" }}
-                    </p>
-                    {% endif %}
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "نوع الصيانة" %}:</strong> {{ maintenance.maintenance_type.name }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "التصنيف" %}:</strong> {{ maintenance.get_category_display }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "الحالة" %}:</strong>
+                            {% if maintenance.status == 'scheduled' %}
+                                <span class="text-primary">مجدولة</span>
+                            {% elif maintenance.status == 'in_progress' %}
+                                <span class="text-warning">جارية</span>
+                            {% elif maintenance.status == 'completed' %}
+                                <span class="text-success">مكتملة</span>
+                            {% elif maintenance.status == 'cancelled' %}
+                                <span class="text-danger">ملغاة</span>
+                            {% endif %}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            {% if maintenance.status == 'completed' %}
+                                الصيانة مكتملة ولا يمكن تعديلها
+                            {% elif maintenance.status == 'cancelled' %}
+                                الصيانة ملغاة
+                            {% else %}
+                                الصيانة قابلة للتعديل والإكمال
+                            {% endif %}
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Print Header (Hidden, shown only when printing) -->
+<div class="print-only">
+    <div class="text-center mb-4">
+        <h2>{{ request.current_company.name }}</h2>
+        <h4>{% trans "سجل صيانة رقم" %}: {{ maintenance.maintenance_number }}</h4>
+        <p>{% trans "التاريخ" %}: {{ maintenance.scheduled_date|date:"Y/m/d" }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function printMaintenance() {
+    window.print();
+}
+
+function completeMaintenance(id) {
+    Swal.fire({
+        title: '{% trans "إكمال الصيانة" %}',
+        text: '{% trans "هل أنت متأكد من إكمال هذه الصيانة؟" %}',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '{% trans "نعم، أكمل الصيانة" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post('{% url "assets:complete_maintenance" 0 %}'.replace('0', id), {
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
+            })
+            .done(function(data) {
+                if (data.success) {
+                    Swal.fire('{% trans "تم الإكمال!" %}', data.message, 'success').then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('{% trans "خطأ!" %}', data.message, 'error');
+                }
+            })
+            .fail(function() {
+                Swal.fire('{% trans "خطأ!" %}', '{% trans "حدث خطأ في الشبكة" %}', 'error');
+            });
+        }
+    });
+}
+
+function deleteMaintenance(id) {
+    Swal.fire({
+        title: '{% trans "هل أنت متأكد؟" %}',
+        text: '{% trans "سيتم حذف الصيانة نهائياً" %}',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '{% trans "نعم، احذف" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:maintenance_delete" 0 %}'.replace('0', id),
+                method: 'POST',
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('{% trans "تم الحذف!" %}', response.message, 'success').then(() => {
+                            window.location.href = '{% url "assets:maintenance_list" %}';
+                        });
+                    } else {
+                        Swal.fire('{% trans "خطأ!" %}', response.message, 'error');
+                    }
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON?.message || '{% trans "حدث خطأ في الشبكة" %}';
+                    Swal.fire('{% trans "خطأ!" %}', message, 'error');
+                }
+            });
+        }
+    });
+}
+</script>
 {% endblock %}

@@ -74,6 +74,7 @@ __all__ = [
     # Depreciation
     'AssetDepreciationListView',
     'AssetDepreciationDetailView',
+    'AssetDepreciationUpdateView',
     'CalculateDepreciationView',
     'BulkDepreciationCalculationView',
     'bulk_depreciation_preview_ajax',
@@ -81,6 +82,7 @@ __all__ = [
     'depreciation_schedule_ajax',
     'calculate_single_depreciation_ajax',
     'reverse_depreciation_ajax',
+    'depreciation_delete_ajax',
 
     # Transactions
     'AssetTransactionListView',
@@ -131,7 +133,9 @@ __all__ = [
     'AssetMaintenanceDetailView',
     'AssetMaintenanceUpdateView',
     'complete_maintenance',
+    'delete_maintenance',
     'maintenance_datatable_ajax',
+    'export_maintenance_list_excel',
 
     # Physical Count
     'PhysicalCountCycleListView',

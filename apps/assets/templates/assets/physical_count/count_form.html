@@ -1,93 +1,508 @@
 {% extends 'base/base.html' %}
 {% load i18n widget_tweaks %}
+{% load static %}
+
+{% block title %}
+    {% if form.instance.pk %}{% trans "تعديل سجل عد" %}{% else %}{% trans "سجل عد جديد" %}{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<style>
+    .required::after {
+        content: " *";
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .form-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .section-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 10px 10px 0 0;
+        margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    }
+    .form-section {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    .form-section h6 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+    .form-control.is-invalid,
+    .form-select.is-invalid {
+        border-color: #dc3545;
+        padding-right: calc(1.5em + 0.75rem);
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: left calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    .form-control.is-valid,
+    .form-select.is-valid {
+        border-color: #198754;
+        padding-right: calc(1.5em + 0.75rem);
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: left calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    .invalid-feedback,
+    .valid-feedback {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+    }
+    .invalid-feedback {
+        color: #dc3545;
+    }
+    .valid-feedback {
+        color: #198754;
+    }
+    .select2-container--bootstrap-5.select2-container--focus .select2-selection,
+    .select2-container--bootstrap-5.select2-container--open .select2-selection {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    .select2-container--bootstrap-5 .select2-selection--single.is-invalid {
+        border-color: #dc3545 !important;
+    }
+    .select2-container--bootstrap-5 .select2-selection--single.is-valid {
+        border-color: #198754 !important;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">
+                <i class="fas fa-clipboard-check text-primary"></i>
+                {% if form.instance.pk %}{% trans "تعديل سجل عد" %}{% else %}{% trans "سجل عد جديد" %}{% endif %}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:count_list' %}">{% trans "سجلات الجرد" %}</a></li>
+                    <li class="breadcrumb-item active">
+                        {% if form.instance.pk %}{% trans "تعديل" %}{% else %}{% trans "جديد" %}{% endif %}
+                    </li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Form Card -->
     <div class="row justify-content-center">
-        <div class="col-lg-9">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل سجل عد" %}{% else %}{% trans "سجل عد جديد" %}{% endif %}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form method="post">
+        <div class="col-lg-10">
+            <div class="card form-card">
+                <div class="card-body" style="padding: 2rem;">
+                    <div class="section-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-edit me-2"></i>
+                            {% if form.instance.pk %}{% trans "تعديل بيانات سجل العد" %}{% else %}{% trans "إدخال بيانات سجل العد" %}{% endif %}
+                        </h5>
+                    </div>
+
+                    {% if form.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>{% trans "خطأ!" %}</strong> {% trans "يرجى تصحيح الأخطاء التالية:" %}
+                        <ul class="mb-0 mt-2">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="post" id="countForm" novalidate>
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الأصل" %}</label>
-                                {{ form.asset|add_class:"form-select select2" }}
-                                {% if form.asset.errors %}
-                                    <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "دورة الجرد" %}</label>
-                                {{ form.cycle|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "تاريخ العد" %}</label>
-                                {{ form.count_date|add_class:"form-control" }}
-                                {% if form.count_date.errors %}
-                                    <div class="text-danger small mt-1">{{ form.count_date.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "العداد" %}</label>
-                                {{ form.counted_by|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "الموقع المتوقع" %}</label>
-                                {{ form.expected_location|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "القسم المتوقع" %}</label>
-                                {{ form.expected_department|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "الموقع الفعلي" %}</label>
-                                {{ form.actual_location|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "القسم الفعلي" %}</label>
-                                {{ form.actual_department|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الحالة" %}</label>
-                                {{ form.status|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "الحالة الفيزيائية" %}</label>
-                                {{ form.physical_condition|add_class:"form-select" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
+
+                        <!-- Basic Information -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-info-circle me-2 text-primary"></i>{% trans "المعلومات الأساسية" %}</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label required">{% trans "الأصل" %}</label>
+                                    {{ form.asset|add_class:"form-select select2" }}
+                                    {% if form.asset.errors %}
+                                        <div class="text-danger small mt-1">
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.asset.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{% trans "اختر الأصل المراد جرده" %}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "دورة الجرد" %}</label>
+                                    {{ form.cycle|add_class:"form-select select2" }}
+                                    <small class="form-text text-muted">{% trans "اختياري - ربط بدورة جرد معينة" %}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label required">{% trans "تاريخ العد" %}</label>
+                                    {{ form.count_date|add_class:"form-control" }}
+                                    {% if form.count_date.errors %}
+                                        <div class="text-danger small mt-1">
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.count_date.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "العداد" %}</label>
+                                    {{ form.counted_by|add_class:"form-select select2" }}
+                                    <small class="form-text text-muted">{% trans "الموظف المسؤول عن العد" %}</small>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:count_list' %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
+                        <!-- Location Information -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-map-marker-alt me-2 text-success"></i>{% trans "معلومات الموقع" %}</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "الموقع المتوقع" %}</label>
+                                    {{ form.expected_location|add_class:"form-select select2" }}
+                                    <small class="form-text text-muted">{% trans "الموقع المسجل في النظام" %}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "القسم المتوقع" %}</label>
+                                    {{ form.expected_department|add_class:"form-select select2" }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "الموقع الفعلي" %}</label>
+                                    {{ form.actual_location|add_class:"form-select select2" }}
+                                    <small class="form-text text-muted">{% trans "الموقع الذي وُجد فيه الأصل فعلياً" %}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "القسم الفعلي" %}</label>
+                                    {{ form.actual_department|add_class:"form-select select2" }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status & Notes -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-clipboard-list me-2 text-warning"></i>{% trans "الحالة والملاحظات" %}</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label required">{% trans "الحالة" %}</label>
+                                    {{ form.status|add_class:"form-select" }}
+                                    {% if form.status.errors %}
+                                        <div class="text-danger small mt-1">
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.status.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "الحالة الفيزيائية" %}</label>
+                                    {{ form.physical_condition|add_class:"form-select" }}
+                                    <small class="form-text text-muted">{% trans "حالة الأصل عند الفحص" %}</small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">{% trans "ملاحظات" %}</label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    <small class="form-text text-muted">{% trans "أي ملاحظات إضافية حول العد" %}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:count_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>{% trans "إلغاء" %}
                             </a>
+                            <div>
+                                <button type="reset" class="btn btn-outline-warning me-2">
+                                    <i class="fas fa-redo me-2"></i>{% trans "إعادة تعيين" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>{% trans "حفظ" %}
+                                </button>
+                            </div>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Help Card -->
+            <div class="card mt-3" style="border-left: 4px solid #17a2b8;">
+                <div class="card-body">
+                    <h6 class="text-info"><i class="fas fa-info-circle me-2"></i>{% trans "إرشادات" %}</h6>
+                    <ul class="mb-0 small">
+                        <li>{% trans "الحقول المميزة بـ (*) إلزامية" %}</li>
+                        <li>{% trans "يمكن ربط السجل بدورة جرد معينة أو تركه مستقلاً" %}</li>
+                        <li>{% trans "إذا كان الموقع الفعلي مختلف عن المتوقع، سيتم إنشاء تسوية تلقائياً" %}</li>
+                        <li>{% trans "استخدم الحالة 'موجود' إذا كان الأصل في الموقع الصحيح" %}</li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
+    // Initialize Select2
     $('.select2').select2({
         theme: 'bootstrap-5',
         dir: 'rtl',
-        allowClear: true
+        language: 'ar',
+        allowClear: true,
+        placeholder: '{% trans "اختر..." %}',
+        width: '100%'
+    });
+
+    // Date field default to today
+    if (!$('#id_count_date').val()) {
+        var today = new Date().toISOString().split('T')[0];
+        $('#id_count_date').val(today);
+    }
+
+    // Validation function
+    function validateField(field, fieldName, isRequired = false) {
+        var value = $(field).val();
+        var $field = $(field);
+        var $feedback = $field.parent().find('.invalid-feedback');
+
+        // Remove existing feedback
+        if (!$feedback.length) {
+            $feedback = $('<div class="invalid-feedback"></div>');
+            $field.after($feedback);
+        }
+
+        if (isRequired && !value) {
+            $field.removeClass('is-valid').addClass('is-invalid');
+            $feedback.html('<i class="fas fa-exclamation-circle me-1"></i>' + fieldName + ' {% trans "مطلوب" %}');
+
+            // For Select2 fields
+            if ($field.hasClass('select2')) {
+                $field.next('.select2-container').find('.select2-selection').addClass('is-invalid');
+            }
+            return false;
+        } else if (value) {
+            $field.removeClass('is-invalid').addClass('is-valid');
+            $feedback.remove();
+
+            // For Select2 fields
+            if ($field.hasClass('select2')) {
+                $field.next('.select2-container').find('.select2-selection').removeClass('is-invalid').addClass('is-valid');
+            }
+            return true;
+        } else {
+            $field.removeClass('is-invalid is-valid');
+            $feedback.remove();
+
+            // For Select2 fields
+            if ($field.hasClass('select2')) {
+                $field.next('.select2-container').find('.select2-selection').removeClass('is-invalid is-valid');
+            }
+            return true;
+        }
+    }
+
+    // Real-time validation
+    $('#id_asset').on('change', function() {
+        validateField(this, '{% trans "الأصل" %}', true);
+
+        // Auto-fill expected location from asset
+        var assetId = $(this).val();
+        if (assetId) {
+            // TODO: AJAX call to get asset location
+            console.log('Asset selected:', assetId);
+        }
+    });
+
+    $('#id_count_date').on('blur change', function() {
+        validateField(this, '{% trans "تاريخ العد" %}', true);
+
+        // Check if date is in the future
+        var selectedDate = new Date($(this).val());
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (selectedDate > today) {
+            $(this).removeClass('is-valid').addClass('is-invalid');
+            var $feedback = $(this).parent().find('.invalid-feedback');
+            if (!$feedback.length) {
+                $feedback = $('<div class="invalid-feedback"></div>');
+                $(this).after($feedback);
+            }
+            $feedback.html('<i class="fas fa-exclamation-circle me-1"></i>{% trans "لا يمكن اختيار تاريخ في المستقبل" %}');
+        }
+    });
+
+    $('#id_status').on('change', function() {
+        validateField(this, '{% trans "الحالة" %}', true);
+    });
+
+    $('#id_cycle, #id_counted_by, #id_expected_location, #id_expected_department, #id_actual_location, #id_actual_department, #id_physical_condition').on('change', function() {
+        var fieldName = $(this).parent().find('label').text().replace('*', '').trim();
+        validateField(this, fieldName, false);
+    });
+
+    // Form submission validation
+    $('#countForm').on('submit', function(e) {
+        e.preventDefault();
+
+        var isValid = true;
+        var errors = [];
+
+        // Validate required fields
+        if (!validateField('#id_asset', '{% trans "الأصل" %}', true)) {
+            isValid = false;
+            errors.push('{% trans "الأصل" %}');
+        }
+        if (!validateField('#id_count_date', '{% trans "تاريخ العد" %}', true)) {
+            isValid = false;
+            errors.push('{% trans "تاريخ العد" %}');
+        }
+        if (!validateField('#id_status', '{% trans "الحالة" %}', true)) {
+            isValid = false;
+            errors.push('{% trans "الحالة" %}');
+        }
+
+        // Check date is not in future
+        var selectedDate = new Date($('#id_count_date').val());
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selectedDate > today) {
+            isValid = false;
+            errors.push('{% trans "تاريخ العد (لا يمكن أن يكون في المستقبل)" %}');
+        }
+
+        if (!isValid) {
+            Swal.fire({
+                icon: 'error',
+                title: '{% trans "خطأ في البيانات" %}',
+                html: '<p>{% trans "يرجى تصحيح الأخطاء التالية:" %}</p><ul class="text-start">' +
+                      errors.map(function(err) { return '<li>' + err + '</li>'; }).join('') +
+                      '</ul>',
+                confirmButtonText: '{% trans "حسناً" %}',
+                confirmButtonColor: '#dc3545'
+            });
+
+            // Scroll to first error
+            $('html, body').animate({
+                scrollTop: $('.is-invalid:first').offset().top - 100
+            }, 500);
+
+            return false;
+        }
+
+        // Check if actual location is different from expected
+        var expectedLoc = $('#id_expected_location').val();
+        var actualLoc = $('#id_actual_location').val();
+
+        if (expectedLoc && actualLoc && expectedLoc !== actualLoc) {
+            Swal.fire({
+                icon: 'warning',
+                title: '{% trans "تنبيه" %}',
+                html: '{% trans "الموقع الفعلي مختلف عن الموقع المتوقع." %}<br>' +
+                      '{% trans "سيتم إنشاء تسوية جرد تلقائياً." %}<br><br>' +
+                      '{% trans "هل تريد المتابعة؟" %}',
+                showCancelButton: true,
+                confirmButtonText: '{% trans "نعم، متابعة" %}',
+                cancelButtonText: '{% trans "إلغاء" %}',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    this.submit();
+                }
+            });
+        } else {
+            // Submit the form
+            Swal.fire({
+                icon: 'success',
+                title: '{% trans "جاري الحفظ..." %}',
+                showConfirmButton: false,
+                timer: 500,
+                timerProgressBar: true
+            });
+            setTimeout(() => {
+                this.submit();
+            }, 500);
+        }
+    });
+
+    // Reset button handler
+    $('button[type="reset"]').on('click', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            icon: 'question',
+            title: '{% trans "إعادة تعيين النموذج؟" %}',
+            text: '{% trans "سيتم مسح جميع البيانات المدخلة" %}',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "نعم، إعادة تعيين" %}',
+            cancelButtonText: '{% trans "إلغاء" %}',
+            confirmButtonColor: '#ffc107',
+            cancelButtonColor: '#6c757d'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $('#countForm')[0].reset();
+                $('.select2').val(null).trigger('change');
+                $('.is-valid, .is-invalid').removeClass('is-valid is-invalid');
+                $('.invalid-feedback, .valid-feedback').remove();
+
+                // Set date to today again
+                var today = new Date().toISOString().split('T')[0];
+                $('#id_count_date').val(today);
+            }
+        });
+    });
+
+    // Cancel button confirmation
+    $('a[href="{% url "assets:count_list" %}"]').on('click', function(e) {
+        // Check if form has been modified
+        var formModified = false;
+        $('#countForm').find('input, select, textarea').each(function() {
+            if ($(this).val() && $(this).attr('id') !== 'id_count_date') {
+                formModified = true;
+                return false;
+            }
+        });
+
+        if (formModified) {
+            e.preventDefault();
+            var href = $(this).attr('href');
+
+            Swal.fire({
+                icon: 'warning',
+                title: '{% trans "تنبيه" %}',
+                text: '{% trans "هناك تغييرات غير محفوظة. هل تريد المغادرة؟" %}',
+                showCancelButton: true,
+                confirmButtonText: '{% trans "نعم، المغادرة" %}',
+                cancelButtonText: '{% trans "البقاء" %}',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = href;
+                }
+            });
+        }
     });
 });
 </script>

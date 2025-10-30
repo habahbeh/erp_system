@@ -7,17 +7,23 @@
 {% block extra_css %}
 <!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
 
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
+/* Stat Cards */
 .stat-card {
     transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    border-radius: 10px;
 }
 
 .stat-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
 }
 
 .stat-card .card-body {
@@ -25,20 +31,68 @@
     overflow: hidden;
 }
 
-.stat-card .card-body::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-    transform: scale(0);
-    transition: transform 0.5s;
+/* DataTable Styles */
+.table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
 }
 
-.stat-card:hover .card-body::before {
-    transform: scale(1);
+.table thead th {
+    border: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+/* Filter Card */
+.filter-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.filter-card .card-header {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-bottom: 2px solid #667eea;
+    font-weight: 600;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    left: auto !important;
+    right: 8px !important;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>
 {% endblock %}
@@ -51,6 +105,9 @@
             <li class="breadcrumb-item">
                 <a href="{% url 'assets:dashboard' %}">{% trans "لوحة التحكم" %}</a>
             </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:maintenance_list' %}">{% trans "الصيانة" %}</a>
+            </li>
             <li class="breadcrumb-item active">{% trans "جداول الصيانة الدورية" %}</li>
         </ol>
     </nav>
@@ -61,29 +118,29 @@
             <h1 class="h3 mb-1">
                 <i class="fas fa-calendar-check text-primary"></i> {% trans "جداول الصيانة الدورية" %}
             </h1>
-            <p class="text-muted mb-0">{% trans "جدولة الصيانة الدورية للأصول" %}</p>
+            <p class="text-muted mb-0">{% trans "جدولة الصيانة الدورية للأصول تلقائياً" %}</p>
         </div>
         {% if perms.assets.add_maintenanceschedule %}
         <div>
             <a href="{% url 'assets:schedule_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> {% trans "إضافة جدول جديد" %}
+                <i class="fas fa-plus me-1"></i> {% trans "إضافة جدول جديد" %}
             </a>
         </div>
         {% endif %}
     </div>
 
     <!-- Stats Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4" id="statsCards">
         <div class="col-md-3">
-            <div class="card stat-card text-white shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card stat-card text-white bg-primary shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 text-white-50">{% trans "إجمالي الجداول" %}</h6>
-                            <h2 class="mb-0">{{ object_list.count }}</h2>
+                            <h6 class="card-title mb-1">{% trans "إجمالي الجداول" %}</h6>
+                            <h2 class="mb-0" id="totalCount">-</h2>
                         </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-calendar-alt fa-2x opacity-50"></i>
+                        <div class="text-white-50">
+                            <i class="fas fa-calendar-alt fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -91,15 +148,15 @@
         </div>
 
         <div class="col-md-3">
-            <div class="card stat-card text-white shadow-sm" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <div class="card stat-card text-white bg-success shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 text-white-50">{% trans "جداول نشطة" %}</h6>
-                            <h2 class="mb-0">{{ active_count }}</h2>
+                            <h6 class="card-title mb-1">{% trans "جداول نشطة" %}</h6>
+                            <h2 class="mb-0" id="activeCount">-</h2>
                         </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -107,15 +164,15 @@
         </div>
 
         <div class="col-md-3">
-            <div class="card stat-card text-white shadow-sm" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+            <div class="card stat-card text-white bg-warning shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 text-white-50">{% trans "جداول متأخرة" %}</h6>
-                            <h2 class="mb-0">{{ overdue_count }}</h2>
+                            <h6 class="card-title mb-1">{% trans "صيانة قادمة" %}</h6>
+                            <h2 class="mb-0" id="upcomingCount">-</h2>
                         </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                        <div class="text-white-50">
+                            <i class="fas fa-clock fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -123,15 +180,15 @@
         </div>
 
         <div class="col-md-3">
-            <div class="card stat-card text-white shadow-sm" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <div class="card stat-card text-white bg-danger shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 text-white-50">{% trans "صيانة قادمة" %}</h6>
-                            <h2 class="mb-0">{{ upcoming_count }}</h2>
+                            <h6 class="card-title mb-1">{% trans "جداول متأخرة" %}</h6>
+                            <h2 class="mb-0" id="overdueCount">-</h2>
                         </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-clock fa-2x opacity-50"></i>
+                        <div class="text-white-50">
+                            <i class="fas fa-exclamation-triangle fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -139,128 +196,92 @@
         </div>
     </div>
 
-    <!-- Main Card -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white border-bottom">
-            <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fas fa-list text-primary"></i> {% trans "قائمة الجداول" %}
-                </h5>
-                <div class="btn-group btn-group-sm">
-                    <button type="button" class="btn btn-outline-success" id="exportExcel">
-                        <i class="fas fa-file-excel"></i> {% trans "تصدير" %}
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" id="refreshTable">
-                        <i class="fas fa-sync"></i> {% trans "تحديث" %}
-                    </button>
+    <!-- Filters Card -->
+    <div class="card filter-card">
+        <div class="card-header">
+            <button class="btn btn-link text-decoration-none text-dark p-0 w-100 text-start d-flex justify-content-between align-items-center"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#filterCollapse">
+                <span><i class="fas fa-filter me-2"></i>{% trans "الفلاتر" %}</span>
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filterCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="assetFilter" class="form-label">{% trans "الأصل" %}</label>
+                        <select id="assetFilter" class="form-select">
+                            <option value="">{% trans "جميع الأصول" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="maintenanceTypeFilter" class="form-label">{% trans "نوع الصيانة" %}</label>
+                        <select id="maintenanceTypeFilter" class="form-select">
+                            <option value="">{% trans "جميع الأنواع" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="frequencyFilter" class="form-label">{% trans "التكرار" %}</label>
+                        <select id="frequencyFilter" class="form-select">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="daily">{% trans "يومي" %}</option>
+                            <option value="weekly">{% trans "أسبوعي" %}</option>
+                            <option value="monthly">{% trans "شهري" %}</option>
+                            <option value="quarterly">{% trans "ربع سنوي" %}</option>
+                            <option value="semi_annual">{% trans "نصف سنوي" %}</option>
+                            <option value="annual">{% trans "سنوي" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label">{% trans "الحالة" %}</label>
+                        <select id="statusFilter" class="form-select">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary flex-fill" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-success" id="exportBtn">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Main Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+                <i class="fas fa-list text-primary"></i> {% trans "قائمة الجداول" %}
+            </h5>
+        </div>
 
         <div class="card-body">
-            <!-- Filters -->
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <label class="form-label">{% trans "الحالة" %}</label>
-                    <select id="statusFilter" class="form-select">
-                        <option value="">{% trans "الكل" %}</option>
-                        <option value="1">{% trans "نشط" %}</option>
-                        <option value="0">{% trans "غير نشط" %}</option>
-                    </select>
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label">{% trans "البحث" %}</label>
-                    <input type="text" id="searchInput" class="form-control" placeholder="{% trans 'ابحث عن أصل أو نوع صيانة...' %}">
-                </div>
-            </div>
-
-            <!-- DataTable -->
             <div class="table-responsive">
                 <table id="schedulesTable" class="table table-hover align-middle">
-                    <thead class="table-light">
+                    <thead class="table-dark">
                         <tr>
                             <th>{% trans "الأصل" %}</th>
                             <th>{% trans "نوع الصيانة" %}</th>
                             <th>{% trans "التكرار" %}</th>
                             <th>{% trans "آخر صيانة" %}</th>
                             <th>{% trans "الصيانة القادمة" %}</th>
-                            <th>{% trans "الحالة" %}</th>
-                            <th class="text-center" style="width: 120px;">{% trans "الإجراءات" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for schedule in object_list %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'assets:asset_detail' schedule.asset.pk %}" class="text-decoration-none">
-                                    <i class="fas fa-box text-muted"></i> {{ schedule.asset.name }}
-                                </a>
-                                <br><small class="text-muted">{{ schedule.asset.asset_number }}</small>
-                            </td>
-                            <td>
-                                <span class="badge" style="background-color: {{ schedule.maintenance_type.color_code|default:'#6c757d' }};">
-                                    {{ schedule.maintenance_type.name }}
-                                </span>
-                            </td>
-                            <td>
-                                <strong>{{ schedule.get_frequency_display }}</strong>
-                                <br><small class="text-muted">{{ schedule.interval_value }} {{ schedule.get_interval_unit_display }}</small>
-                            </td>
-                            <td>
-                                {% if schedule.last_maintenance_date %}
-                                    {{ schedule.last_maintenance_date|date:"Y-m-d" }}
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if schedule.next_maintenance_date %}
-                                    {{ schedule.next_maintenance_date|date:"Y-m-d" }}
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if schedule.is_active %}
-                                    <span class="badge bg-success">
-                                        <i class="fas fa-check"></i> {% trans "نشط" %}
-                                    </span>
-                                {% else %}
-                                    <span class="badge bg-secondary">
-                                        <i class="fas fa-times"></i> {% trans "غير نشط" %}
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'assets:schedule_detail' schedule.pk %}"
-                                       class="btn btn-outline-info" title="{% trans 'عرض' %}">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    {% if perms.assets.change_maintenanceschedule %}
-                                    <a href="{% url 'assets:schedule_update' schedule.pk %}"
-                                       class="btn btn-outline-primary" title="{% trans 'تعديل' %}">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    {% endif %}
-                                    {% if perms.assets.delete_maintenanceschedule %}
-                                    <a href="{% url 'assets:schedule_delete' schedule.pk %}"
-                                       class="btn btn-outline-danger" title="{% trans 'حذف' %}">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-5">
-                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                                {% trans "لا توجد جداول صيانة" %}
-                            </td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
@@ -273,62 +294,180 @@
 <!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    // Initialize DataTable
-    const table = $('#schedulesTable').DataTable({
-        responsive: true,
-        order: [[4, 'asc']], // Sort by next maintenance date
+    // Initialize Asset Select2 with AJAX
+    $('#assetFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر الأصل...',
+        allowClear: true,
+        minimumInputLength: 1,
         language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+            inputTooShort: function() { return "اكتب حرف واحد على الأقل"; },
+            noResults: function() { return "لا توجد أصول"; },
+            searching: function() { return "جاري البحث..."; }
         },
-        dom: 'rtip',
-        pageLength: 25,
-        buttons: [
-            {
-                extend: 'excel',
-                text: '<i class="fas fa-file-excel"></i> تصدير Excel',
-                className: 'btn btn-success btn-sm',
-                exportOptions: {
-                    columns: [0, 1, 2, 3, 4, 5]
-                }
-            }
-        ]
-    });
-
-    // Search functionality
-    $('#searchInput').on('keyup', function() {
-        table.search(this.value).draw();
-    });
-
-    // Status filter
-    $('#statusFilter').on('change', function() {
-        const value = this.value;
-        if (value === '') {
-            table.column(5).search('').draw();
-        } else if (value === '1') {
-            table.column(5).search('نشط').draw();
-        } else {
-            table.column(5).search('غير نشط').draw();
+        ajax: {
+            url: '{% url "assets:asset_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results
+                };
+            },
+            cache: true
         }
     });
 
-    // Export button
-    $('#exportExcel').on('click', function() {
-        table.button('.buttons-excel').trigger();
+    // Initialize Maintenance Type Select2
+    $('#maintenanceTypeFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر نوع الصيانة...',
+        allowClear: true
     });
 
-    // Refresh button
-    $('#refreshTable').on('click', function() {
-        location.reload();
+    // Initialize Frequency Select2
+    $('#frequencyFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // Initialize Status Select2
+    $('#statusFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1
+    });
+
+    // Initialize DataTable
+    var table = $('#schedulesTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{% url "assets:schedule_datatable_ajax" %}',
+            type: 'GET',
+            data: function(d) {
+                d.asset = $('#assetFilter').val();
+                d.maintenance_type = $('#maintenanceTypeFilter').val();
+                d.frequency = $('#frequencyFilter').val();
+                d.is_active = $('#statusFilter').val();
+            }
+        },
+        columns: [
+            { data: 0 }, // asset
+            { data: 1 }, // maintenance_type
+            { data: 2 }, // frequency
+            { data: 3 }, // last_maintenance_date
+            { data: 4 }, // next_maintenance_date
+            { data: 5, className: 'text-center' }, // status
+            { data: 6, className: 'text-center', orderable: false } // actions
+        ],
+        language: {
+            "sProcessing": "جارٍ التحميل...",
+            "sLengthMenu": "أظهر _MENU_ مدخلات",
+            "sZeroRecords": "لم يعثر على أية سجلات",
+            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
+            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
+            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
+            "sSearch": "ابحث:",
+            "oPaginate": {
+                "sFirst": "الأول",
+                "sPrevious": "السابق",
+                "sNext": "التالي",
+                "sLast": "الأخير"
+            }
+        },
+        order: [[4, 'asc']], // Sort by next maintenance date
+        pageLength: 25,
+        responsive: true
+    });
+
+    // Update stats function
+    function updateStats() {
+        $.ajax({
+            url: '{% url "assets:schedule_datatable_ajax" %}',
+            type: 'GET',
+            data: {
+                stats_only: true
+            },
+            success: function(data) {
+                if (data.stats) {
+                    $('#totalCount').text(data.stats.total || 0);
+                    $('#activeCount').text(data.stats.active || 0);
+                    $('#upcomingCount').text(data.stats.upcoming || 0);
+                    $('#overdueCount').text(data.stats.overdue || 0);
+                }
+            }
+        });
+    }
+
+    // Initial stats load
+    updateStats();
+
+    // Filter handlers
+    $('#assetFilter, #maintenanceTypeFilter, #frequencyFilter, #statusFilter').on('change', function() {
+        table.ajax.reload();
+        updateStats();
+    });
+
+    // Clear filters
+    $('#clearFilters').on('click', function() {
+        $('#assetFilter').val('').trigger('change');
+        $('#maintenanceTypeFilter').val('').trigger('change');
+        $('#frequencyFilter').val('').trigger('change');
+        $('#statusFilter').val('').trigger('change');
+        table.ajax.reload();
+        updateStats();
+    });
+
+    // Export function
+    $('#exportBtn').on('click', function() {
+        const params = new URLSearchParams({
+            asset: $('#assetFilter').val() || '',
+            maintenance_type: $('#maintenanceTypeFilter').val() || '',
+            frequency: $('#frequencyFilter').val() || '',
+            is_active: $('#statusFilter').val() || ''
+        });
+
+        window.location.href = '{% url "assets:schedule_list" %}?export=excel&' + params.toString();
     });
 });
+
+// Delete Schedule
+function deleteSchedule(id) {
+    Swal.fire({
+        title: 'حذف الجدول',
+        text: 'هل أنت متأكد من حذف هذا الجدول؟ سيتم حذف جميع الصيانات المجدولة المرتبطة به.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "assets:schedule_delete" 0 %}'.replace('0', id);
+        }
+    });
+}
 </script>
 {% endblock %}

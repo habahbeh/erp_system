@@ -1,53 +1,169 @@
 {% extends 'base/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "تفاصيل دورة الجرد" %} - {{ cycle.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: transform 0.2s;
+    }
+    .info-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .gradient-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+    }
+    .stat-box {
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    .progress-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        background: conic-gradient(#667eea calc(var(--progress) * 1%), #e9ecef 0);
+    }
+    .progress-inner {
+        width: 100px;
+        height: 100px;
+        background: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-clipboard-list text-primary"></i> {{ cycle.name }}</h2>
         <div>
-            <a href="{% url 'assets:count_create' %}?cycle={{ cycle.pk %}" class="btn btn-success">
-                <i class="fas fa-plus"></i> {% trans "إضافة عد" %}
+            <h2 class="h3 mb-1">
+                <i class="fas fa-clipboard-list text-primary"></i>
+                {{ cycle.name }}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:cycle_list' %}">{% trans "دورات الجرد" %}</a></li>
+                    <li class="breadcrumb-item active">{{ cycle.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            {% if perms.assets.add_physicalcount %}
+            <a href="{% url 'assets:count_create' %}?cycle={{ cycle.pk }}"
+               class="btn btn-success me-2"
+               data-bs-toggle="tooltip"
+               title="{% trans 'إضافة سجل عد جديد' %}">
+                <i class="fas fa-plus me-2"></i>{% trans "إضافة عد" %}
             </a>
+            {% endif %}
+            {% if perms.assets.change_physicalcountcycle %}
+            <a href="{% url 'assets:cycle_update' cycle.pk %}"
+               class="btn btn-primary me-2"
+               data-bs-toggle="tooltip"
+               title="{% trans 'تعديل الدورة' %}">
+                <i class="fas fa-edit me-2"></i>{% trans "تعديل" %}
+            </a>
+            {% endif %}
             <a href="{% url 'assets:cycle_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+                <i class="fas fa-arrow-left me-2"></i>{% trans "رجوع" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الدورة" %}</h5>
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Cycle Information -->
+            <div class="card info-card mb-4">
+                <div class="card-header gradient-card">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "معلومات الدورة" %}
+                    </h5>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "الفترة:" %}</strong> {{ cycle.start_date|date:"Y-m-d" }} - {{ cycle.end_date|date:"Y-m-d" }}</p>
-                    <p><strong>{% trans "المسؤول:" %}</strong> {{ cycle.responsible_person|default:"-" }}</p>
-                    <p><strong>{% trans "الحالة:" %}</strong>
-                        {% if cycle.status == 'planned' %}
-                            <span class="badge bg-secondary">{% trans "مخطط" %}</span>
-                        {% elif cycle.status == 'in_progress' %}
-                            <span class="badge bg-warning">{% trans "جاري" %}</span>
-                        {% elif cycle.status == 'completed' %}
-                            <span class="badge bg-success">{% trans "مكتمل" %}</span>
-                        {% endif %}
-                    </p>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="fas fa-calendar-alt text-primary me-2"></i>{% trans "تاريخ البدء:" %}</strong>
+                                {{ cycle.start_date|date:"Y-m-d" }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="fas fa-calendar-check text-primary me-2"></i>{% trans "تاريخ الانتهاء:" %}</strong>
+                                {{ cycle.end_date|date:"Y-m-d" }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="fas fa-user text-primary me-2"></i>{% trans "المسؤول:" %}</strong>
+                                {{ cycle.responsible_person|default:"-" }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="fas fa-flag text-primary me-2"></i>{% trans "الحالة:" %}</strong>
+                                {% if cycle.status == 'planned' %}
+                                    <span class="badge bg-secondary">{% trans "مخطط" %}</span>
+                                {% elif cycle.status == 'in_progress' %}
+                                    <span class="badge bg-warning">{% trans "جاري" %}</span>
+                                {% elif cycle.status == 'completed' %}
+                                    <span class="badge bg-success">{% trans "مكتمل" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
                     {% if cycle.notes %}
-                    <p class="mb-0"><strong>{% trans "ملاحظات:" %}</strong> {{ cycle.notes }}</p>
+                    <hr>
+                    <div class="alert alert-info mb-0">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-sticky-note me-2"></i>{% trans "ملاحظات" %}
+                        </h6>
+                        <p class="mb-0">{{ cycle.notes }}</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
 
             <!-- Counts List -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "سجلات العد" %}</h5>
+            <div class="card info-card">
+                <div class="card-header" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-list me-2"></i>{% trans "سجلات العد" %}
+                    </h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
+                        <table class="table table-hover">
+                            <thead class="table-light">
                                 <tr>
                                     <th>{% trans "الأصل" %}</th>
                                     <th>{% trans "التاريخ" %}</th>
@@ -59,25 +175,39 @@
                             <tbody>
                                 {% for count in cycle.counts.all %}
                                 <tr>
-                                    <td>{{ count.asset.name }}</td>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' count.asset.pk %}" class="text-decoration-none">
+                                            <strong>{{ count.asset.name }}</strong>
+                                        </a>
+                                    </td>
                                     <td>{{ count.count_date|date:"Y-m-d" }}</td>
                                     <td>{{ count.counted_by|default:"-" }}</td>
-                                    <td>
+                                    <td class="text-center">
                                         {% if count.status == 'pending' %}
                                             <span class="badge bg-warning">{% trans "قيد العد" %}</span>
+                                        {% elif count.status == 'found' %}
+                                            <span class="badge bg-success">{% trans "موجود" %}</span>
+                                        {% elif count.status == 'not_found' %}
+                                            <span class="badge bg-danger">{% trans "غير موجود" %}</span>
                                         {% elif count.status == 'verified' %}
-                                            <span class="badge bg-success">{% trans "تم التحقق" %}</span>
+                                            <span class="badge bg-info">{% trans "تم التحقق" %}</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        <a href="{% url 'assets:count_detail' count.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'assets:count_detail' count.pk %}"
+                                           class="btn btn-sm btn-info"
+                                           data-bs-toggle="tooltip"
+                                           title="{% trans 'عرض التفاصيل' %}">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted">{% trans "لا توجد سجلات عد" %}</td>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                        {% trans "لا توجد سجلات عد" %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -87,23 +217,57 @@
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "التقدم" %}</h6>
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Progress Card -->
+            <div class="card info-card mb-4">
+                <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6 class="mb-0 text-white">
+                        <i class="fas fa-chart-pie me-2"></i>{% trans "التقدم" %}
+                    </h6>
                 </div>
                 <div class="card-body text-center">
-                    <div class="mb-3">
-                        <div class="h1 text-primary">{{ cycle.completion_percentage|floatformat:0 }}%</div>
-                        <p class="text-muted">{% trans "نسبة الإنجاز" %}</p>
+                    <div class="progress-circle mb-3" style="--progress: {{ cycle.completion_percentage }}">
+                        <div class="progress-inner">
+                            {{ cycle.completion_percentage|floatformat:0 }}%
+                        </div>
                     </div>
-                    <div class="progress mb-3" style="height: 20px;">
-                        <div class="progress-bar" role="progressbar" style="width: {{ cycle.completion_percentage }}%"></div>
-                    </div>
-                    <p><strong>{{ cycle.counts_completed }}</strong> / {{ cycle.total_counts }} {% trans "عد مكتمل" %}</p>
+                    <p class="text-muted mb-2">{% trans "نسبة الإنجاز" %}</p>
+                    <h5 class="mb-0">
+                        <strong>{{ cycle.counts_completed }}</strong> / {{ cycle.total_counts }}
+                        <small class="text-muted">{% trans "عد مكتمل" %}</small>
+                    </h5>
                 </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stat-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                <i class="fas fa-clipboard-check fa-2x mb-2"></i>
+                <h4 id="totalCounts">{{ cycle.total_counts }}</h4>
+                <p class="mb-0">{% trans "إجمالي العد" %}</p>
+            </div>
+
+            <div class="stat-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h4 id="completedCounts">{{ cycle.counts_completed }}</h4>
+                <p class="mb-0">{% trans "العد المكتمل" %}</p>
+            </div>
+
+            <div class="stat-box" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                <i class="fas fa-hourglass-half fa-2x mb-2"></i>
+                <h4 id="pendingCounts">{{ cycle.counts_pending }}</h4>
+                <p class="mb-0">{% trans "قيد العد" %}</p>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize tooltips
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
 {% endblock %}

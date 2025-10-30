@@ -1,59 +1,182 @@
 {% extends 'base/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .company-card {
+        transition: transform 0.2s;
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .company-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .stat-badge {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0"><i class="fas fa-building text-primary"></i> {% trans "شركات التأمين" %}</h5>
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">
+                <i class="fas fa-building text-primary"></i>
+                {% trans "شركات التأمين" %}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:insurance_list' %}">{% trans "التأمين" %}</a></li>
+                    <li class="breadcrumb-item active">{% trans "شركات التأمين" %}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
             {% if perms.assets.add_insurancecompany %}
             <a href="{% url 'assets:insurance_company_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> {% trans "إضافة شركة" %}
+                <i class="fas fa-plus me-2"></i>{% trans "إضافة شركة" %}
             </a>
             {% endif %}
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>{% trans "الاسم" %}</th>
-                            <th>{% trans "رقم الترخيص" %}</th>
-                            <th>{% trans "الهاتف" %}</th>
-                            <th>{% trans "البريد" %}</th>
-                            <th>{% trans "الحالة" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for company in object_list %}
-                        <tr>
-                            <td>{{ company.name }}</td>
-                            <td>{{ company.license_number|default:"-" }}</td>
-                            <td>{{ company.phone|default:"-" }}</td>
-                            <td>{{ company.email|default:"-" }}</td>
-                            <td>
-                                {% if company.is_active %}
-                                    <span class="badge bg-success">{% trans "نشط" %}</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <a href="{% url 'assets:insurance_company_update' company.pk %}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">{% trans "لا توجد شركات تأمين" %}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    </div>
+
+    <!-- Companies Grid -->
+    <div class="row g-4">
+        {% for company in object_list %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card company-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="card-title mb-1">
+                                <i class="fas fa-building text-primary me-2"></i>
+                                {{ company.name }}
+                            </h5>
+                            {% if company.name_en %}
+                            <small class="text-muted">{{ company.name_en }}</small>
+                            {% endif %}
+                        </div>
+                        {% if company.is_active %}
+                        <span class="badge bg-success">{% trans "نشط" %}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {% if company.license_number %}
+                        <p class="mb-2">
+                            <i class="fas fa-id-card text-muted me-2"></i>
+                            <strong>{% trans "رقم الترخيص:" %}</strong> {{ company.license_number }}
+                        </p>
+                        {% endif %}
+                        {% if company.phone %}
+                        <p class="mb-2">
+                            <i class="fas fa-phone text-muted me-2"></i>
+                            <strong>{% trans "الهاتف:" %}</strong> {{ company.phone }}
+                        </p>
+                        {% endif %}
+                        {% if company.email %}
+                        <p class="mb-2">
+                            <i class="fas fa-envelope text-muted me-2"></i>
+                            <strong>{% trans "البريد:" %}</strong> {{ company.email }}
+                        </p>
+                        {% endif %}
+                        {% if company.website %}
+                        <p class="mb-2">
+                            <i class="fas fa-globe text-muted me-2"></i>
+                            <a href="{{ company.website }}" target="_blank">{% trans "الموقع الإلكتروني" %}</a>
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <div>
+                            <span class="stat-badge badge bg-primary">
+                                {{ company.active_policies_count|default:0 }} {% trans "وثيقة" %}
+                            </span>
+                        </div>
+                        <div class="btn-group" role="group">
+                            {% if perms.assets.view_insurancecompany %}
+                            <a href="{% url 'assets:insurance_company_detail' company.pk %}"
+                               class="btn btn-outline-info btn-sm" title="{% trans 'عرض' %}" data-bs-toggle="tooltip">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% endif %}
+                            {% if perms.assets.change_insurancecompany %}
+                            <a href="{% url 'assets:insurance_company_update' company.pk %}"
+                               class="btn btn-outline-warning btn-sm" title="{% trans 'تعديل' %}" data-bs-toggle="tooltip">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                            {% if perms.assets.delete_insurancecompany %}
+                            <a href="{% url 'assets:insurance_company_delete' company.pk %}"
+                               class="btn btn-outline-danger btn-sm" title="{% trans 'حذف' %}" data-bs-toggle="tooltip">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-building fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد شركات تأمين" %}</h5>
+                    {% if perms.assets.add_insurancecompany %}
+                    <a href="{% url 'assets:insurance_company_create' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-plus me-2"></i>{% trans "إضافة أول شركة" %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
 {% endblock %}

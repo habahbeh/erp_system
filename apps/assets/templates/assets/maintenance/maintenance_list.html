@@ -1,8 +1,70 @@
-<!-- Path: apps/assets/templates/assets/maintenance/maintenance_list.html -->
-{% extends 'assets/base_asset.html' %}
-{% load static i18n widget_tweaks %}
+{# apps/assets/templates/assets/maintenance/maintenance_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL Styles */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -13,7 +75,9 @@
                 {% if forloop.last %}
                     <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
                 {% else %}
-                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
                 {% endif %}
             {% endfor %}
         </ol>
@@ -22,80 +86,81 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-1">
-                <i class="fas fa-wrench text-primary"></i> {{ title }}
-            </h1>
-            <p class="text-muted mb-0">متابعة وإدارة صيانة الأصول</p>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "متابعة وإدارة صيانة الأصول الثابتة" %}</p>
         </div>
         {% if can_add %}
         <div class="btn-group">
-            <a href="{% url 'assets:maintenance_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> إضافة صيانة
+            <a href="{% url 'assets:schedule_list' %}" class="btn btn-success">
+                <i class="fas fa-calendar-alt"></i> {% trans "الجدولة" %}
             </a>
-            <a href="{% url 'assets:schedule_list' %}" class="btn btn-outline-primary">
-                <i class="fas fa-calendar-alt"></i> الجدولة
+            <a href="{% url 'assets:maintenance_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة صيانة" %}
             </a>
         </div>
         {% endif %}
     </div>
 
     <!-- Stats Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-xl-3 col-md-6">
-            <div class="card stat-card border-primary">
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon bg-primary bg-opacity-10 text-primary">
-                            <i class="fas fa-calendar-check"></i>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مجدولة" %}</h6>
+                            <h2 class="mb-0" id="scheduledCount">-</h2>
                         </div>
-                        <div class="me-auto">
-                            <h6 class="text-muted mb-1">مجدولة</h6>
-                            <h3 class="mb-0" id="scheduledCount">-</h3>
+                        <div class="text-white-50">
+                            <i class="fas fa-calendar-check fa-3x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="card stat-card border-warning">
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
-                            <i class="fas fa-spinner"></i>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "جارية" %}</h6>
+                            <h2 class="mb-0" id="inProgressCount">-</h2>
                         </div>
-                        <div class="me-auto">
-                            <h6 class="text-muted mb-1">جارية</h6>
-                            <h3 class="mb-0" id="inProgressCount">-</h3>
+                        <div class="text-white-50">
+                            <i class="fas fa-spinner fa-3x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="card stat-card border-success">
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon bg-success bg-opacity-10 text-success">
-                            <i class="fas fa-check-circle"></i>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مكتملة" %}</h6>
+                            <h2 class="mb-0" id="completedCount">-</h2>
                         </div>
-                        <div class="me-auto">
-                            <h6 class="text-muted mb-1">مكتملة</h6>
-                            <h3 class="mb-0" id="completedCount">-</h3>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="card stat-card border-danger">
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-danger shadow-sm">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon bg-danger bg-opacity-10 text-danger">
-                            <i class="fas fa-exclamation-triangle"></i>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "متأخرة" %}</h6>
+                            <h2 class="mb-0" id="overdueCount">-</h2>
                         </div>
-                        <div class="me-auto">
-                            <h6 class="text-muted mb-1">متأخرة</h6>
-                            <h3 class="mb-0" id="overdueCount">-</h3>
+                        <div class="text-white-50">
+                            <i class="fas fa-exclamation-triangle fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -104,72 +169,103 @@
     </div>
 
     <!-- Filters Card -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-light">
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <h6 class="card-title mb-0">
-                <i class="fas fa-filter"></i> البحث والفلترة
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
             </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
         </div>
-        <div class="card-body">
-            <form method="get" id="filterForm">
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">الأصل</label>
-                        {{ filter_form.asset|add_class:"form-select" }}
-                    </div>
                     <div class="col-md-2">
-                        <label class="form-label">نوع الصيانة</label>
-                        {{ filter_form.maintenance_type|add_class:"form-select" }}
+                        <label class="form-label">{% trans "الأصل" %}</label>
+                        <select class="form-select" id="assetFilter">
+                            <option value="">{% trans "جميع الأصول" %}</option>
+                        </select>
                     </div>
+
                     <div class="col-md-2">
-                        <label class="form-label">الحالة</label>
-                        {{ filter_form.status|add_class:"form-select" }}
+                        <label class="form-label">{% trans "نوع الصيانة" %}</label>
+                        <select class="form-select" id="maintenanceTypeFilter">
+                            <option value="">{% trans "جميع الأنواع" %}</option>
+                        </select>
                     </div>
+
                     <div class="col-md-2">
-                        <label class="form-label">التصنيف</label>
-                        {{ filter_form.maintenance_category|add_class:"form-select" }}
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "جميع الحالات" %}</option>
+                            <option value="scheduled">{% trans "مجدولة" %}</option>
+                            <option value="in_progress">{% trans "جارية" %}</option>
+                            <option value="completed">{% trans "مكتملة" %}</option>
+                            <option value="cancelled">{% trans "ملغاة" %}</option>
+                        </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">من تاريخ</label>
-                        {{ filter_form.date_from }}
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "التصنيف" %}</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">{% trans "جميع التصنيفات" %}</option>
+                            <option value="preventive">{% trans "وقائية" %}</option>
+                            <option value="corrective">{% trans "تصحيحية" %}</option>
+                            <option value="predictive">{% trans "تنبؤية" %}</option>
+                            <option value="emergency">{% trans "طارئة" %}</option>
+                        </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">إلى تاريخ</label>
-                        {{ filter_form.date_to }}
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
                     </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateToFilter">
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
                     <div class="col-md-3">
-                        <div class="form-check mt-4">
-                            {{ filter_form.overdue_only }}
-                            <label class="form-check-label" for="id_overdue_only">
-                                المتأخرة فقط
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="overdueOnlyFilter">
+                            <label class="form-check-label" for="overdueOnlyFilter">
+                                {% trans "المتأخرة فقط" %}
                             </label>
                         </div>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button type="button" class="btn btn-primary w-100" id="applyFilters">
-                            <i class="fas fa-search"></i> تطبيق
+
+                    <div class="col-md-9 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-success" onclick="exportData()">
+                            <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
                         </button>
                     </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
-    <!-- DataTable Card -->
+    <!-- DataTable -->
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover" id="maintenanceTable" style="width: 100%">
-                    <thead>
+                <table class="table table-hover table-striped" id="maintenanceTable" style="width: 100%">
+                    <thead class="table-dark">
                         <tr>
-                            <th>رقم الصيانة</th>
-                            <th>التاريخ المجدول</th>
-                            <th>الأصل</th>
-                            <th>نوع الصيانة</th>
-                            <th>التصنيف</th>
-                            <th class="text-end">التكلفة</th>
-                            <th class="text-center">الحالة</th>
-                            <th class="text-center no-print">الإجراءات</th>
+                            <th>{% trans "رقم الصيانة" %}</th>
+                            <th>{% trans "التاريخ المجدول" %}</th>
+                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "نوع الصيانة" %}</th>
+                            <th>{% trans "التصنيف" %}</th>
+                            <th class="text-end">{% trans "التكلفة" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -182,73 +278,228 @@
 </div>
 {% endblock %}
 
-{% block asset_extra_js %}
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    // تكوين DataTable
+    // Initialize Select2 for Asset Filter
+    $('#assetFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الأصل...',
+        allowClear: true,
+        ajax: {
+            url: '{% url "assets:asset_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.results
+                };
+            }
+        }
+    });
+
+    // Initialize Select2 for Maintenance Type Filter
+    $('#maintenanceTypeFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع الصيانة...',
+        allowClear: true
+    });
+
+    // Initialize DataTable
     var table = $('#maintenanceTable').DataTable({
         processing: true,
         serverSide: true,
         ajax: {
-            url: "{% url 'assets:maintenance_datatable_ajax' %}",
-            type: "GET",
+            url: '{% url "assets:maintenance_datatable_ajax" %}',
+            type: 'GET',
             data: function(d) {
-                d.asset = $('#id_asset').val();
-                d.maintenance_type = $('#id_maintenance_type').val();
-                d.status = $('#id_status').val();
-                d.maintenance_category = $('#id_maintenance_category').val();
-                d.date_from = $('#id_date_from').val();
-                d.date_to = $('#id_date_to').val();
-                d.overdue_only = $('#id_overdue_only').is(':checked');
-            },
-            dataSrc: function(json) {
-                // تحديث الإحصائيات
-                updateStats();
-                return json.data;
+                d.asset = $('#assetFilter').val();
+                d.maintenance_type = $('#maintenanceTypeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.maintenance_category = $('#categoryFilter').val();
+                d.date_from = $('#dateFromFilter').val();
+                d.date_to = $('#dateToFilter').val();
+                d.overdue_only = $('#overdueOnlyFilter').is(':checked');
             }
         },
         columns: [
-            { data: 0 },
-            { data: 1 },
-            { data: 2 },
-            { data: 3 },
-            { data: 4, className: 'text-center' },
-            { data: 5, className: 'text-end' },
-            { data: 6, className: 'text-center' },
-            { data: 7, orderable: false, className: 'text-center' }
+            { data: 0 }, // maintenance_number
+            { data: 1 }, // scheduled_date
+            { data: 2 }, // asset
+            { data: 3 }, // maintenance_type
+            { data: 4, className: 'text-center' }, // category
+            { data: 5, className: 'text-end' }, // cost
+            { data: 6, className: 'text-center' }, // status
+            { data: 7, className: 'text-center', orderable: false } // actions
         ],
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        },
         order: [[1, 'desc']],
         pageLength: 25,
-        language: {
-            url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+        responsive: true,
+        drawCallback: function(settings) {
+            var api = this.api();
+            updateStats();
         }
     });
 
-    // إعادة تحميل عند تطبيق الفلاتر
-    $('#applyFilters').on('click', function() {
+    // Filter handlers
+    $('#assetFilter, #maintenanceTypeFilter, #statusFilter, #categoryFilter, #dateFromFilter, #dateToFilter, #overdueOnlyFilter').on('change', function() {
         table.ajax.reload();
     });
 
-    // دالة تحديث الإحصائيات
+    // Clear filters
+    $('#clearFilters').on('click', function() {
+        $('#assetFilter').val(null).trigger('change');
+        $('#maintenanceTypeFilter').val(null).trigger('change');
+        $('#statusFilter').val('');
+        $('#categoryFilter').val('');
+        $('#dateFromFilter').val('');
+        $('#dateToFilter').val('');
+        $('#overdueOnlyFilter').prop('checked', false);
+        table.ajax.reload();
+    });
+
+    // Update statistics
     function updateStats() {
         $.ajax({
-            url: "{% url 'assets:maintenance_datatable_ajax' %}",
+            url: '{% url "assets:maintenance_datatable_ajax" %}',
             data: {
-                get_stats: true
+                get_stats: true,
+                asset: $('#assetFilter').val(),
+                maintenance_type: $('#maintenanceTypeFilter').val(),
+                status: $('#statusFilter').val(),
+                maintenance_category: $('#categoryFilter').val(),
+                date_from: $('#dateFromFilter').val(),
+                date_to: $('#dateToFilter').val(),
+                overdue_only: $('#overdueOnlyFilter').is(':checked')
             },
-            success: function(data) {
-                if (data.stats) {
-                    $('#scheduledCount').text(data.stats.scheduled || 0);
-                    $('#inProgressCount').text(data.stats.in_progress || 0);
-                    $('#completedCount').text(data.stats.completed || 0);
-                    $('#overdueCount').text(data.stats.overdue || 0);
+            success: function(response) {
+                if (response.stats) {
+                    $('#scheduledCount').text(response.stats.scheduled || 0);
+                    $('#inProgressCount').text(response.stats.in_progress || 0);
+                    $('#completedCount').text(response.stats.completed || 0);
+                    $('#overdueCount').text(response.stats.overdue || 0);
                 }
             }
         });
     }
 
-    // تحديث الإحصائيات عند التحميل
+    // Initial stats load
     updateStats();
+
+    // Load maintenance types for filter
+    $.ajax({
+        url: '{% url "assets:maintenance_datatable_ajax" %}',
+        data: { get_types: true },
+        success: function(response) {
+            if (response.types) {
+                var $select = $('#maintenanceTypeFilter');
+                $select.empty().append('<option value="">جميع الأنواع</option>');
+                response.types.forEach(function(type) {
+                    $select.append(new Option(type.name, type.id));
+                });
+            }
+        }
+    });
 });
+
+// Export to Excel
+function exportData() {
+    const params = new URLSearchParams({
+        asset: $('#assetFilter').val() || '',
+        maintenance_type: $('#maintenanceTypeFilter').val() || '',
+        status: $('#statusFilter').val() || '',
+        maintenance_category: $('#categoryFilter').val() || '',
+        date_from: $('#dateFromFilter').val() || '',
+        date_to: $('#dateToFilter').val() || '',
+        overdue_only: $('#overdueOnlyFilter').is(':checked') || ''
+    });
+
+    window.location.href = '{% url "assets:export_maintenance_list_excel" %}?' + params.toString();
+}
+
+// Complete Maintenance
+function completeMaintenance(id) {
+    Swal.fire({
+        title: 'إتمام الصيانة',
+        text: 'هل أنت متأكد من إتمام هذه الصيانة؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، أتمم الصيانة',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '{% url "assets:complete_maintenance" 0 %}'.replace('0', id);
+        }
+    });
+}
+
+// Delete Maintenance
+function deleteMaintenance(id) {
+    Swal.fire({
+        title: 'حذف الصيانة',
+        text: 'هل أنت متأكد من حذف هذه الصيانة؟ هذا الإجراء لا يمكن التراجع عنه.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:maintenance_delete" 0 %}'.replace('0', id),
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        title: 'تم الحذف!',
+                        text: 'تم حذف الصيانة بنجاح',
+                        icon: 'success',
+                        confirmButtonText: 'حسناً'
+                    }).then(() => {
+                        $('#maintenanceTable').DataTable().ajax.reload();
+                    });
+                },
+                error: function(xhr) {
+                    var message = 'حدث خطأ في حذف الصيانة';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: message,
+                        icon: 'error',
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            });
+        }
+    });
+}
 </script>
 {% endblock %}

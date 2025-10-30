@@ -1,74 +1,333 @@
 {% extends 'base/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+        border: none;
+        border-radius: 10px;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .filter-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .badge {
+        padding: 0.35em 0.65em;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0"><i class="fas fa-file-invoice-dollar text-warning"></i> {% trans "مطالبات التأمين" %}</h5>
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">
+                <i class="fas fa-file-invoice-dollar text-warning"></i>
+                {% trans "مطالبات التأمين" %}
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'assets:insurance_list' %}">{% trans "التأمين" %}</a></li>
+                    <li class="breadcrumb-item active">{% trans "المطالبات" %}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
             {% if perms.assets.add_insuranceclaim %}
             <a href="{% url 'assets:claim_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> {% trans "مطالبة جديدة" %}
+                <i class="fas fa-plus me-2"></i>{% trans "مطالبة جديدة" %}
             </a>
             {% endif %}
         </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statsCards">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي المطالبات" %}</h6>
+                            <h2 class="mb-0" id="totalCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-file-invoice-dollar fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "قيد المراجعة" %}</h6>
+                            <h2 class="mb-0" id="pendingCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-clock fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "موافق عليها" %}</h6>
+                            <h2 class="mb-0" id="approvedCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مسددة" %}</h6>
+                            <h2 class="mb-0" id="settledCount">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-money-check-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card filter-card mb-4">
+        <div class="card-header bg-white">
+            <button class="btn btn-link text-decoration-none p-0 w-100 text-start" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-filter text-primary me-2"></i>{% trans "خيارات البحث والتصفية" %}
+                    </h5>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الوثيقة" %}</label>
+                        <select class="form-select select2" id="insuranceFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع الحادث" %}</label>
+                        <select class="form-select" id="incidentTypeFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="fire">{% trans "حريق" %}</option>
+                            <option value="theft">{% trans "سرقة" %}</option>
+                            <option value="accident">{% trans "حادث" %}</option>
+                            <option value="natural_disaster">{% trans "كارثة طبيعية" %}</option>
+                            <option value="other">{% trans "أخرى" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="pending">{% trans "قيد المراجعة" %}</option>
+                            <option value="approved">{% trans "موافق" %}</option>
+                            <option value="rejected">{% trans "مرفوض" %}</option>
+                            <option value="settled">{% trans "مسدد" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters">
+                            <i class="fas fa-redo me-1"></i>{% trans "إعادة تعيين" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list text-primary me-2"></i>{% trans "قائمة المطالبات" %}
+            </h5>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+                <table class="table table-hover table-bordered" id="claimsTable" style="width:100%">
+                    <thead>
                         <tr>
-                            <th>{% trans "الرقم" %}</th>
+                            <th>{% trans "رقم المطالبة" %}</th>
                             <th>{% trans "الوثيقة" %}</th>
-                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "تاريخ الحادث" %}</th>
                             <th>{% trans "نوع الحادث" %}</th>
-                            <th class="text-end">{% trans "المبلغ المطالب" %}</th>
-                            <th class="text-end">{% trans "المبلغ المعتمد" %}</th>
+                            <th>{% trans "المبلغ المطالب" %}</th>
+                            <th>{% trans "المبلغ المعتمد" %}</th>
                             <th>{% trans "الحالة" %}</th>
                             <th class="text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for claim in object_list %}
-                        <tr>
-                            <td>{{ claim.claim_number }}</td>
-                            <td>
-                                <a href="{% url 'assets:insurance_detail' claim.insurance.pk %}">
-                                    {{ claim.insurance.policy_number }}
-                                </a>
-                            </td>
-                            <td>{{ claim.claim_date|date:"Y-m-d" }}</td>
-                            <td>{{ claim.get_incident_type_display }}</td>
-                            <td class="text-end">{{ claim.claim_amount|floatformat:3 }}</td>
-                            <td class="text-end">{{ claim.approved_amount|floatformat:3|default:"-" }}</td>
-                            <td>
-                                {% if claim.status == 'pending' %}
-                                    <span class="badge bg-warning">{% trans "قيد المراجعة" %}</span>
-                                {% elif claim.status == 'approved' %}
-                                    <span class="badge bg-success">{% trans "موافق" %}</span>
-                                {% elif claim.status == 'rejected' %}
-                                    <span class="badge bg-danger">{% trans "مرفوض" %}</span>
-                                {% elif claim.status == 'settled' %}
-                                    <span class="badge bg-info">{% trans "مسدد" %}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <a href="{% url 'assets:claim_detail' claim.pk %}" class="btn btn-sm btn-info">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{% url 'assets:claim_update' claim.pk %}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد مطالبات" %}</td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar',
+        placeholder: '{% trans "اختر..." %}',
+        allowClear: true
+    });
+
+    // Load Insurances for filter
+    $.ajax({
+        url: '{% url "assets:claim_datatable_ajax" %}?get_insurances=true',
+        method: 'GET',
+        success: function(response) {
+            if (response.insurances) {
+                response.insurances.forEach(function(insurance) {
+                    $('#insuranceFilter').append(
+                        $('<option></option>').val(insurance.id).text(insurance.policy_number)
+                    );
+                });
+            }
+        }
+    });
+
+    // Load Statistics
+    function loadStats() {
+        $.ajax({
+            url: '{% url "assets:claim_datatable_ajax" %}?stats_only=true',
+            method: 'GET',
+            success: function(response) {
+                if (response.stats) {
+                    $('#totalCount').text(response.stats.total);
+                    $('#pendingCount').text(response.stats.pending);
+                    $('#approvedCount').text(response.stats.approved);
+                    $('#settledCount').text(response.stats.settled);
+                }
+            },
+            error: function() {
+                $('#totalCount, #pendingCount, #approvedCount, #settledCount').text('0');
+            }
+        });
+    }
+
+    loadStats();
+
+    // Initialize DataTable
+    var table = $('#claimsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{% url "assets:claim_datatable_ajax" %}',
+            type: 'GET',
+            data: function(d) {
+                d.insurance = $('#insuranceFilter').val();
+                d.incident_type = $('#incidentTypeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.date_from = $('#dateFromFilter').val();
+            }
+        },
+        columns: [
+            { data: 0 }, // claim_number
+            { data: 1 }, // insurance
+            { data: 2 }, // incident_date
+            { data: 3 }, // incident_type
+            { data: 4, className: 'text-end' }, // claim_amount
+            { data: 5, className: 'text-end' }, // approved_amount
+            { data: 6, className: 'text-center' }, // status
+            { data: 7, className: 'text-center', orderable: false } // actions
+        ],
+        language: {
+            "sProcessing": "جارٍ التحميل...",
+            "sLengthMenu": "أظهر _MENU_ مدخلات",
+            "sZeroRecords": "لم يعثر على أية سجلات",
+            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
+            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
+            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
+            "sSearch": "ابحث:",
+            "oPaginate": {
+                "sFirst": "الأول",
+                "sPrevious": "السابق",
+                "sNext": "التالي",
+                "sLast": "الأخير"
+            }
+        },
+        order: [[2, 'desc']], // Order by incident_date
+        pageLength: 25,
+        responsive: true,
+        drawCallback: function() {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
+    });
+
+    // Filter change events
+    $('#insuranceFilter, #incidentTypeFilter, #statusFilter, #dateFromFilter').on('change', function() {
+        table.ajax.reload();
+        loadStats();
+    });
+
+    // Reset filters
+    $('#resetFilters').on('click', function() {
+        $('#insuranceFilter').val('').trigger('change');
+        $('#incidentTypeFilter').val('').trigger('change');
+        $('#statusFilter').val('').trigger('change');
+        $('#dateFromFilter').val('');
+        table.ajax.reload();
+        loadStats();
+    });
+
+    // Auto-refresh stats every 30 seconds
+    setInterval(loadStats, 30000);
+});
+</script>
 {% endblock %}

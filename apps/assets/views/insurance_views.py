@@ -1475,14 +1475,43 @@ def insurance_datatable_ajax(request):
         })
 
     try:
+        # إذا كان الطلب للإحصائيات فقط
+        if request.GET.get('stats_only'):
+            all_insurances = AssetInsurance.objects.filter(company=request.current_company)
+            today = date.today()
+            expiry_date = today + timedelta(days=60)
+
+            stats = {
+                'total': all_insurances.count(),
+                'active': all_insurances.filter(status='active').count(),
+                'expiring_soon': all_insurances.filter(
+                    status='active',
+                    end_date__lte=expiry_date,
+                    end_date__gte=today
+                ).count(),
+                'expired': all_insurances.filter(status='expired').count()
+            }
+            return JsonResponse({'stats': stats})
+
+        # إذا كان الطلب لقائمة شركات التأمين
+        if request.GET.get('get_companies'):
+            companies = InsuranceCompany.objects.filter(
+                company=request.current_company,
+                is_active=True
+            ).values('id', 'name').order_by('name')
+            return JsonResponse({'companies': list(companies)})
+
+        # معاملات DataTables
         draw = int(request.GET.get('draw', 1))
         start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 10))
+        length = int(request.GET.get('length', 25))
         search_value = request.GET.get('search[value]', '').strip()
 
         # الفلاتر
         status = request.GET.get('status', '')
         insurance_company = request.GET.get('insurance_company', '')
+        asset_filter = request.GET.get('asset', '')
+        coverage_type = request.GET.get('coverage_type', '')
 
         # Query
         queryset = AssetInsurance.objects.filter(
@@ -1497,6 +1526,12 @@ def insurance_datatable_ajax(request):
 
         if insurance_company:
             queryset = queryset.filter(insurance_company_id=insurance_company)
+
+        if asset_filter:
+            queryset = queryset.filter(asset_id=asset_filter)
+
+        if coverage_type:
+            queryset = queryset.filter(coverage_type=coverage_type)
 
         # البحث
         if search_value:
@@ -1540,48 +1575,76 @@ def insurance_datatable_ajax(request):
         # إعداد البيانات
         data = []
         can_view = request.user.has_perm('assets.view_assetinsurance')
+        can_edit = request.user.has_perm('assets.change_assetinsurance')
+        can_delete = request.user.has_perm('assets.delete_assetinsurance')
 
         for insurance in queryset:
             # الحالة
             status_map = {
-                'draft': '<span class="badge bg-secondary"><i class="fas fa-file"></i> مسودة</span>',
-                'active': '<span class="badge bg-success"><i class="fas fa-check-circle"></i> نشط</span>',
-                'expired': '<span class="badge bg-danger"><i class="fas fa-times-circle"></i> منتهي</span>',
-                'cancelled': '<span class="badge bg-dark"><i class="fas fa-ban"></i> ملغي</span>',
+                'draft': '<span class="badge bg-secondary">مسودة</span>',
+                'active': '<span class="badge bg-success">نشط</span>',
+                'expired': '<span class="badge bg-danger">منتهي</span>',
+                'cancelled': '<span class="badge bg-dark">ملغي</span>',
             }
             status_badge = status_map.get(insurance.status, insurance.status)
 
             # التحقق من قرب الانتهاء
-            if insurance.is_expiring_soon() and insurance.status == 'active':
+            if insurance.status == 'active' and insurance.end_date:
                 days_remaining = (insurance.end_date - date.today()).days
-                status_badge += f' <span class="badge bg-warning" title="{days_remaining} يوم متبقي"><i class="fas fa-exclamation-triangle"></i></span>'
+                if 0 < days_remaining <= 60:
+                    status_badge += f' <span class="badge bg-warning text-dark">قرب الانتهاء ({days_remaining} يوم)</span>'
 
             # أزرار الإجراءات
             actions = []
 
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:insurance_detail', args=[insurance.pk])}" 
+                    <a href="{reverse('assets:insurance_detail', args=[insurance.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
                 ''')
 
+            if can_edit:
+                actions.append(f'''
+                    <a href="{reverse('assets:insurance_update', args=[insurance.pk])}"
+                       class="btn btn-outline-warning btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
+            # نوع التغطية
+            coverage_type_display = insurance.get_coverage_type_display() if hasattr(insurance, 'get_coverage_type_display') else insurance.coverage_type
+
             data.append([
-                f'<a href="{reverse("assets:insurance_detail", args=[insurance.pk])}">{insurance.policy_number}</a>',
-                f'<a href="{reverse("assets:asset_detail", args=[insurance.asset.pk])}">{insurance.asset.asset_number}</a>',
+                # رقم الوثيقة
+                f'''<div>
+                    <a href="{reverse("assets:insurance_detail", args=[insurance.pk])}" class="text-decoration-none">
+                        <strong>{insurance.policy_number}</strong>
+                    </a>
+                </div>''',
+                # الأصل
+                f'''<div>
+                    <a href="{reverse("assets:asset_detail", args=[insurance.asset.pk])}" class="text-decoration-none">
+                        <strong>{insurance.asset.name}</strong>
+                    </a>
+                    <br><small class="text-muted">{insurance.asset.asset_number}</small>
+                </div>''',
+                # شركة التأمين
                 f'''<div>
                     <strong>{insurance.insurance_company.name}</strong>
-                    <br><small class="text-muted">{insurance.insurance_company.phone or ''}</small>
+                    <br><small class="text-muted">{insurance.insurance_company.phone or '-'}</small>
                 </div>''',
-                insurance.get_coverage_type_display(),
-                f'<div class="text-end"><strong>{insurance.coverage_amount:,.2f}</strong></div>',
-                f'''<div>
-                    {insurance.end_date.strftime('%Y-%m-%d')}
-                    <br><small class="text-muted">تبدأ: {insurance.start_date.strftime('%Y-%m-%d')}</small>
-                </div>''',
+                # نوع التغطية
+                f'<span class="badge bg-info">{coverage_type_display}</span>',
+                # تاريخ البداية
+                insurance.start_date.strftime('%Y-%m-%d'),
+                # تاريخ الانتهاء
+                insurance.end_date.strftime('%Y-%m-%d') if insurance.end_date else '<span class="text-muted">-</span>',
+                # القيمة المؤمنة
+                f'{insurance.coverage_amount:,.3f}',
                 status_badge,
                 actions_html
             ])
@@ -1595,7 +1658,11 @@ def insurance_datatable_ajax(request):
 
     except Exception as e:
         import traceback
-        print(traceback.format_exc())
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in insurance_datatable_ajax: {str(e)}")
+        logger.error(traceback.format_exc())
+
         return JsonResponse({
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': 0,
@@ -1621,14 +1688,36 @@ def claim_datatable_ajax(request):
         })
 
     try:
+        # إذا كان الطلب للإحصائيات فقط
+        if request.GET.get('stats_only'):
+            all_claims = InsuranceClaim.objects.filter(company=request.current_company)
+            stats = {
+                'total': all_claims.count(),
+                'pending': all_claims.filter(status='pending').count(),
+                'approved': all_claims.filter(status='approved').count(),
+                'settled': all_claims.filter(status='settled').count()
+            }
+            return JsonResponse({'stats': stats})
+
+        # إذا كان الطلب لقائمة الوثائق
+        if request.GET.get('get_insurances'):
+            insurances = AssetInsurance.objects.filter(
+                company=request.current_company,
+                status='active'
+            ).values('id', 'policy_number').order_by('policy_number')
+            return JsonResponse({'insurances': list(insurances)})
+
+        # معاملات DataTables
         draw = int(request.GET.get('draw', 1))
         start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 10))
+        length = int(request.GET.get('length', 25))
         search_value = request.GET.get('search[value]', '').strip()
 
         # الفلاتر
         status = request.GET.get('status', '')
-        claim_type = request.GET.get('claim_type', '')
+        insurance_filter = request.GET.get('insurance', '')
+        incident_type = request.GET.get('incident_type', '')
+        date_from = request.GET.get('date_from', '')
 
         # Query
         queryset = InsuranceClaim.objects.filter(
@@ -1641,8 +1730,14 @@ def claim_datatable_ajax(request):
         if status:
             queryset = queryset.filter(status=status)
 
-        if claim_type:
-            queryset = queryset.filter(claim_type=claim_type)
+        if insurance_filter:
+            queryset = queryset.filter(insurance_id=insurance_filter)
+
+        if incident_type:
+            queryset = queryset.filter(incident_type=incident_type)
+
+        if date_from:
+            queryset = queryset.filter(incident_date__gte=date_from)
 
         # البحث
         if search_value:
