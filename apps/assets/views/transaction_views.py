@@ -194,7 +194,7 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
         'transaction_date', 'transaction_type', 'asset',
         'amount', 'sale_price', 'payment_method',
         'business_partner', 'reference_number',
-        'description', 'notes'
+        'status', 'description', 'notes', 'attachment'
     ]
 
     def get_form(self, form_class=None):
@@ -215,9 +215,18 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
         # القيم الافتراضية
         form.fields['transaction_date'].initial = date.today()
         form.fields['payment_method'].initial = 'cash'
+        form.fields['status'].initial = 'draft'
+
+        # تعيين widget للتاريخ
+        form.fields['transaction_date'].widget.attrs.update({
+            'type': 'date',
+            'class': 'form-control'
+        })
 
         # إضافة classes
         for field_name, field in form.fields.items():
+            if field_name == 'transaction_date':
+                continue  # Already handled above
             if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
                 field.widget.attrs.update({'class': 'form-control'})
             elif field.widget.__class__.__name__ == 'Textarea':
@@ -231,7 +240,7 @@ class AssetTransactionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
             form.instance.company = self.request.current_company
             form.instance.branch = self.request.current_branch
             form.instance.created_by = self.request.user
-            form.instance.status = 'draft'
+            # حقل status سيأتي من النموذج - لا حاجة لتعيينه هنا
 
             self.object = form.save()
 
@@ -358,7 +367,7 @@ class AssetTransactionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
         'transaction_date', 'transaction_type', 'asset',
         'amount', 'sale_price', 'payment_method',
         'business_partner', 'reference_number',
-        'description', 'notes'
+        'status', 'description', 'notes', 'attachment'
     ]
 
     def get_queryset(self):
@@ -663,6 +672,13 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, T
                 status='active'
             )
 
+        # Get all active assets for the dropdown
+        assets = Asset.objects.filter(
+            company=self.request.current_company,
+            status='active',
+            is_active=True
+        ).select_related('category')
+
         # الشركاء (المشترين)
         buyers = BusinessPartner.objects.filter(
             company=self.request.current_company,
@@ -672,6 +688,7 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, T
         context.update({
             'title': _('بيع أصل'),
             'asset': asset,
+            'assets': assets,
             'buyers': buyers,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
@@ -712,12 +729,22 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, T
             transaction_obj = asset.sell(
                 sale_price=sale_price,
                 buyer=buyer,
-                sale_date=sale_date,
-                payment_method=payment_method,
-                reference_number=reference_number,
-                description=description,
                 user=request.user
             )
+
+            # تحديث بيانات المعاملة الإضافية
+            if sale_date:
+                if isinstance(sale_date, str):
+                    from datetime import datetime
+                    sale_date = datetime.strptime(sale_date, '%Y-%m-%d').date()
+                transaction_obj.transaction_date = sale_date
+            if payment_method:
+                transaction_obj.payment_method = payment_method
+            if reference_number:
+                transaction_obj.reference_number = reference_number
+            if description:
+                transaction_obj.description = description
+            transaction_obj.save()
 
             # حساب الربح/الخسارة
             gain_loss = sale_price - asset.current_book_value
@@ -734,7 +761,15 @@ class SellAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, T
             return redirect('assets:transaction_detail', pk=transaction_obj.pk)
 
         except ValidationError as e:
-            messages.error(request, f'❌ {str(e)}')
+            error_msg = str(e)
+            if 'بنك افتراضي' in error_msg or 'نقدية افتراضي' in error_msg:
+                messages.error(request, f'❌ {error_msg}')
+                messages.warning(request, '⚠️ يرجى تحديد حساب البنك/النقدية الافتراضي من لوحة الإدارة: Admin > إعدادات حسابات الأصول')
+            elif 'حساب' in error_msg:
+                messages.error(request, f'❌ {error_msg}')
+                messages.warning(request, '⚠️ يرجى التحقق من إعدادات الحسابات المحاسبية للأصول من لوحة الإدارة')
+            else:
+                messages.error(request, f'❌ {error_msg}')
             return redirect('assets:sell_asset')
 
         except PermissionDenied as e:
@@ -768,9 +803,17 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
                 status='active'
             )
 
+        # Get all active assets for the dropdown
+        assets = Asset.objects.filter(
+            company=self.request.current_company,
+            status='active',
+            is_active=True
+        ).select_related('category')
+
         context.update({
             'title': _('استبعاد أصل'),
             'asset': asset,
+            'assets': assets,
             'disposal_reasons': [
                 ('damaged', 'تالف'),
                 ('obsolete', 'قديم ومتقادم'),
@@ -806,11 +849,19 @@ class DisposeAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
 
             # استبعاد الأصل
             transaction_obj = asset.dispose(
-                disposal_date=disposal_date,
                 reason=reason,
-                description=description,
                 user=request.user
             )
+
+            # تحديث بيانات المعاملة الإضافية
+            if disposal_date:
+                if isinstance(disposal_date, str):
+                    from datetime import datetime
+                    disposal_date = datetime.strptime(disposal_date, '%Y-%m-%d').date()
+                transaction_obj.transaction_date = disposal_date
+            if description:
+                transaction_obj.description = description
+            transaction_obj.save()
 
             messages.success(
                 request,
@@ -853,9 +904,17 @@ class RevalueAssetView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin
                 company=self.request.current_company
             )
 
+        # Get all active assets for the dropdown
+        assets = Asset.objects.filter(
+            company=self.request.current_company,
+            status='active',
+            is_active=True
+        ).select_related('category')
+
         context.update({
             'title': _('إعادة تقييم أصل'),
             'asset': asset,
+            'assets': assets,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('إعادة تقييم أصل'), 'url': ''},
@@ -1629,7 +1688,7 @@ def transfer_datatable_ajax(request):
         if search_filter:
             queryset = queryset.filter(
                 Q(transfer_number__icontains=search_filter) |
-                Q(asset__code__icontains=search_filter) |
+                Q(asset__asset_number__icontains=search_filter) |
                 Q(asset__name__icontains=search_filter) |
                 Q(from_branch__name__icontains=search_filter) |
                 Q(to_branch__name__icontains=search_filter)
@@ -1645,7 +1704,7 @@ def transfer_datatable_ajax(request):
         if search_value:
             queryset = queryset.filter(
                 Q(transfer_number__icontains=search_value) |
-                Q(asset__code__icontains=search_value) |
+                Q(asset__asset_number__icontains=search_value) |
                 Q(asset__name__icontains=search_value)
             )
 
@@ -1657,7 +1716,7 @@ def transfer_datatable_ajax(request):
         order_column_index = request.GET.get('order[0][column]')
         order_dir = request.GET.get('order[0][dir]', 'desc')
 
-        order_columns = ['transfer_number', 'transfer_date', 'asset__code', 'from_branch__name', 'to_branch__name', 'status']
+        order_columns = ['transfer_number', 'transfer_date', 'asset__asset_number', 'from_branch__name', 'to_branch__name', 'status']
 
         if order_column_index:
             order_column = order_columns[int(order_column_index)]
@@ -1704,9 +1763,11 @@ def transfer_datatable_ajax(request):
             status_badge = status_map.get(transfer.status, transfer.status)
 
             # الإجراءات
+            from django.urls import reverse
+            detail_url = reverse('assets:transfer_detail', args=[transfer.pk])
             actions_html = f'''
                 <div class="btn-group btn-group-sm" role="group">
-                    <a href="/assets/transfers/{transfer.pk}/view/"
+                    <a href="{detail_url}"
                        class="btn btn-sm btn-outline-info"
                        data-bs-toggle="tooltip"
                        title="عرض">
@@ -1715,8 +1776,9 @@ def transfer_datatable_ajax(request):
             '''
 
             if transfer.status == 'pending' and request.user.has_perm('assets.change_assettransfer'):
+                update_url = reverse('assets:transfer_update', args=[transfer.pk])
                 actions_html += f'''
-                    <a href="/assets/transfers/{transfer.pk}/update/"
+                    <a href="{update_url}"
                        class="btn btn-sm btn-outline-primary"
                        data-bs-toggle="tooltip"
                        title="تعديل">
@@ -1743,7 +1805,7 @@ def transfer_datatable_ajax(request):
             data.append([
                 f'<strong>{transfer.transfer_number}</strong>',
                 transfer.transfer_date.strftime('%Y-%m-%d'),
-                f'<a href="/assets/{transfer.asset.pk}/view/">{transfer.asset.code} - {transfer.asset.name}</a>',
+                f'<a href="/assets/assets/{transfer.asset.pk}/">{transfer.asset.asset_number} - {transfer.asset.name}</a>',
                 from_html,
                 to_html,
                 status_badge,

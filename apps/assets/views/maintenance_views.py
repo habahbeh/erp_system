@@ -45,6 +45,9 @@ from ..models import (
     MaintenanceType, MaintenanceSchedule, AssetMaintenance,
     Asset, AssetCategory
 )
+from ..forms.maintenance_forms import (
+    MaintenanceTypeForm, MaintenanceScheduleForm, AssetMaintenanceForm
+)
 from apps.core.models import BusinessPartner
 
 
@@ -120,20 +123,8 @@ class MaintenanceTypeCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     model = MaintenanceType
     template_name = 'assets/maintenance/type_form.html'
     permission_required = 'assets.add_maintenancetype'
-    fields = ['code', 'name', 'name_en', 'description', 'is_active']
+    form_class = MaintenanceTypeForm
     success_url = reverse_lazy('assets:maintenance_type_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم إنشاء نوع الصيانة {form.instance.name} بنجاح')
@@ -159,20 +150,8 @@ class MaintenanceTypeUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     model = MaintenanceType
     template_name = 'assets/maintenance/type_form.html'
     permission_required = 'assets.change_maintenancetype'
-    fields = ['code', 'name', 'name_en', 'description', 'is_active']
+    form_class = MaintenanceTypeForm
     success_url = reverse_lazy('assets:maintenance_type_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم تحديث نوع الصيانة {form.instance.name} بنجاح')
@@ -407,39 +386,12 @@ class MaintenanceScheduleCreateView(LoginRequiredMixin, PermissionRequiredMixin,
     model = MaintenanceSchedule
     template_name = 'assets/maintenance/schedule_form.html'
     permission_required = 'assets.add_maintenanceschedule'
-    fields = [
-        'asset', 'maintenance_type', 'frequency', 'custom_days',
-        'start_date', 'end_date', 'alert_before_days',
-        'assigned_to', 'estimated_cost', 'description', 'notes'
-    ]
+    form_class = MaintenanceScheduleForm
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company,
-            status='active'
-        ).select_related('category')
-
-        form.fields['maintenance_type'].queryset = MaintenanceType.objects.filter(
-            is_active=True
-        ).order_by('name')
-
-        # القيم الافتراضية
-        form.fields['start_date'].initial = date.today()
-        form.fields['alert_before_days'].initial = 7
-        form.fields['frequency'].initial = 'monthly'
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -525,8 +477,10 @@ class MaintenanceScheduleDetailView(LoginRequiredMixin, PermissionRequiredMixin,
         # الأيام المتبقية
         if self.object.next_maintenance_date:
             days_until_next = (self.object.next_maintenance_date - date.today()).days
+            days_until_next_abs = abs(days_until_next)
         else:
             days_until_next = None
+            days_until_next_abs = None
 
         # التحذيرات
         warnings = []
@@ -551,6 +505,7 @@ class MaintenanceScheduleDetailView(LoginRequiredMixin, PermissionRequiredMixin,
             'maintenances': maintenances[:10],
             'maintenance_stats': maintenance_stats,
             'days_until_next': days_until_next,
+            'days_until_next_abs': days_until_next_abs,
             'warnings': warnings,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
@@ -568,36 +523,15 @@ class MaintenanceScheduleUpdateView(LoginRequiredMixin, PermissionRequiredMixin,
     model = MaintenanceSchedule
     template_name = 'assets/maintenance/schedule_form.html'
     permission_required = 'assets.change_maintenanceschedule'
-    fields = [
-        'asset', 'maintenance_type', 'frequency', 'custom_days',
-        'start_date', 'end_date', 'alert_before_days',
-        'assigned_to', 'estimated_cost', 'is_active', 'description', 'notes'
-    ]
+    form_class = MaintenanceScheduleForm
 
     def get_queryset(self):
         return MaintenanceSchedule.objects.filter(company=self.request.current_company)
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company
-        ).select_related('category')
-
-        form.fields['maintenance_type'].queryset = MaintenanceType.objects.filter(
-            is_active=True
-        ).order_by('name')
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -787,53 +721,12 @@ class AssetMaintenanceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     model = AssetMaintenance
     template_name = 'assets/maintenance/maintenance_form.html'
     permission_required = 'assets.add_assetmaintenance'
-    fields = [
-        'asset', 'maintenance_type', 'maintenance_category',
-        'maintenance_schedule', 'scheduled_date', 'start_date',
-        'performed_by', 'external_vendor', 'vendor_invoice_number',
-        'labor_cost', 'parts_cost', 'other_cost',
-        'is_capital_improvement', 'parts_description',
-        'description', 'issues_found', 'recommendations', 'notes'
-    ]
+    form_class = AssetMaintenanceForm
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company,
-            status__in=['active', 'under_maintenance']
-        ).select_related('category')
-
-        form.fields['maintenance_type'].queryset = MaintenanceType.objects.filter(
-            is_active=True
-        ).order_by('name')
-
-        form.fields['maintenance_schedule'].queryset = MaintenanceSchedule.objects.filter(
-            company=company,
-            is_active=True
-        ).select_related('asset')
-        form.fields['maintenance_schedule'].required = False
-
-        form.fields['external_vendor'].queryset = BusinessPartner.objects.filter(
-            company=company,
-            partner_type__in=['supplier', 'both']
-        ).order_by('name')
-        form.fields['external_vendor'].required = False
-
-        # القيم الافتراضية
-        form.fields['scheduled_date'].initial = date.today()
-        form.fields['maintenance_category'].initial = 'preventive'
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -960,52 +853,17 @@ class AssetMaintenanceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     model = AssetMaintenance
     template_name = 'assets/maintenance/maintenance_form.html'
     permission_required = 'assets.change_assetmaintenance'
-    fields = [
-        'asset', 'maintenance_type', 'maintenance_category',
-        'maintenance_schedule', 'scheduled_date', 'start_date', 'completion_date',
-        'status', 'performed_by', 'external_vendor', 'vendor_invoice_number',
-        'labor_cost', 'parts_cost', 'other_cost',
-        'is_capital_improvement', 'parts_description',
-        'description', 'issues_found', 'recommendations', 'notes'
-    ]
+    form_class = AssetMaintenanceForm
 
     def get_queryset(self):
         return AssetMaintenance.objects.filter(
             company=self.request.current_company
         ).exclude(status='completed')
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company
-        ).select_related('category')
-
-        form.fields['maintenance_type'].queryset = MaintenanceType.objects.filter(
-            is_active=True
-        ).order_by('name')
-
-        form.fields['maintenance_schedule'].queryset = MaintenanceSchedule.objects.filter(
-            company=company
-        ).select_related('asset')
-        form.fields['maintenance_schedule'].required = False
-
-        form.fields['external_vendor'].queryset = BusinessPartner.objects.filter(
-            company=company,
-            partner_type__in=['supplier', 'both']
-        ).order_by('name')
-        form.fields['external_vendor'].required = False
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -1438,6 +1296,7 @@ def maintenance_datatable_ajax(request):
         data = []
         can_view = request.user.has_perm('assets.view_assetmaintenance')
         can_edit = request.user.has_perm('assets.change_assetmaintenance')
+        can_delete = request.user.has_perm('assets.delete_assetmaintenance')
 
         for maint in queryset:
             # الحالة
@@ -1452,20 +1311,32 @@ def maintenance_datatable_ajax(request):
             # أزرار الإجراءات
             actions = []
 
+            # زر العرض
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:maintenance_detail', args=[maint.pk])}" 
+                    <a href="{reverse('assets:maintenance_detail', args=[maint.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
                 ''')
 
+            # زر التعديل
             if maint.status != 'completed' and can_edit:
                 actions.append(f'''
-                    <a href="{reverse('assets:maintenance_update', args=[maint.pk])}" 
+                    <a href="{reverse('assets:maintenance_update', args=[maint.pk])}"
                        class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
                         <i class="fas fa-edit"></i>
                     </a>
+                ''')
+
+            # زر الحذف
+            if can_delete and maint.status not in ['completed']:
+                actions.append(f'''
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                            onclick="deleteMaintenance({maint.pk})"
+                            title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 ''')
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'

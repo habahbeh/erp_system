@@ -41,6 +41,7 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from apps.core.mixins import CompanyMixin, AuditLogMixin
 from apps.core.decorators import permission_required_with_message
 from ..models import AssetLease, LeasePayment, Asset, AssetCategory
+from ..forms.lease_forms import AssetLeaseForm, LeasePaymentForm
 from apps.core.models import BusinessPartner
 
 
@@ -129,11 +130,12 @@ class AssetLeaseListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
         )
 
         stats = leases.aggregate(
-            total_count=Count('id'),
-            active_count=Count('id', filter=Q(status='active')),
+            total_leases=Count('id'),
+            active_leases=Count('id', filter=Q(status='active')),
             completed_count=Count('id', filter=Q(status='completed')),
             terminated_count=Count('id', filter=Q(status='terminated')),
-            total_monthly=Coalesce(
+            expired_leases=Count('id', filter=Q(status__in=['expired', 'terminated'])),
+            monthly_value=Coalesce(
                 Sum('monthly_payment', filter=Q(status='active')),
                 Decimal('0')
             ),
@@ -165,7 +167,9 @@ class AssetLeaseListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             'title': _('عقود الإيجار'),
             'can_add': self.request.user.has_perm('assets.add_assetlease'),
             'can_edit': self.request.user.has_perm('assets.change_assetlease'),
+            'can_delete': self.request.user.has_perm('assets.delete_assetlease'),
             'can_export': self.request.user.has_perm('assets.view_assetlease'),
+            'can_view': self.request.user.has_perm('assets.view_assetlease'),
             'status_choices': AssetLease.STATUS_CHOICES,
             'lease_types': AssetLease.LEASE_TYPES,
             'lessors': lessors,
@@ -173,6 +177,7 @@ class AssetLeaseListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMix
             'stats': stats,
             'expiring_90': expiring_90,
             'overdue_payments': overdue_payments,
+            'conditions': [],  # Not applicable for leases but needed for template consistency
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('عقود الإيجار'), 'url': ''},
@@ -187,42 +192,20 @@ class AssetLeaseCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
     model = AssetLease
     template_name = 'assets/lease/lease_form.html'
     permission_required = 'assets.add_assetlease'
-    fields = [
-        'asset', 'lease_type', 'lessor',
-        'start_date', 'end_date', 'payment_frequency',
-        'monthly_payment', 'security_deposit',
-        'interest_rate', 'residual_value', 'purchase_option_price',
-        'status', 'notes'
-    ]
+    form_class = AssetLeaseForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company,
-            is_leased=True
-        ).select_related('category')
-
-        form.fields['lessor'].queryset = BusinessPartner.objects.filter(
-            company=company,
-            partner_type__in=['supplier', 'both']
-        ).order_by('name')
-
         # القيم الافتراضية
         form.fields['start_date'].initial = date.today()
         form.fields['end_date'].initial = date.today() + relativedelta(years=1)
         form.fields['payment_frequency'].initial = 'monthly'
         form.fields['status'].initial = 'draft'
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
         return form
 
     @transaction.atomic
@@ -466,47 +449,60 @@ class AssetLeaseDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
         return context
 
 
+class AssetLeaseDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, DeleteView):
+    """حذف عقد إيجار - جديد"""
+
+    model = AssetLease
+    template_name = 'assets/lease/lease_confirm_delete.html'
+    permission_required = 'assets.delete_assetlease'
+    success_url = reverse_lazy('assets:lease_list')
+
+    def get_queryset(self):
+        return AssetLease.objects.filter(
+            company=self.request.current_company
+        )
+
+    @transaction.atomic
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # التحقق من إمكانية الحذف
+        if not self.object.can_delete():
+            messages.error(
+                request,
+                '❌ لا يمكن حذف هذا العقد (له دفعات مدفوعة أو قيود محاسبية)'
+            )
+            return redirect('assets:lease_detail', pk=self.object.pk)
+
+        lease_number = self.object.lease_number
+
+        # حذف الدفعات المرتبطة أولاً
+        self.object.payments.all().delete()
+
+        self.log_action('delete', self.object)
+
+        messages.success(request, f'✅ تم حذف عقد الإيجار {lease_number} بنجاح')
+
+        return super().delete(request, *args, **kwargs)
+
+
 class AssetLeaseUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, AuditLogMixin, UpdateView):
     """تعديل عقد إيجار - محسّن"""
 
     model = AssetLease
     template_name = 'assets/lease/lease_form.html'
     permission_required = 'assets.change_assetlease'
-    fields = [
-        'asset', 'lease_type', 'lessor',
-        'start_date', 'end_date', 'payment_frequency',
-        'monthly_payment', 'security_deposit',
-        'interest_rate', 'residual_value', 'purchase_option_price',
-        'status', 'notes'
-    ]
+    form_class = AssetLeaseForm
 
     def get_queryset(self):
         return AssetLease.objects.filter(
             company=self.request.current_company
         ).exclude(status__in=['completed', 'cancelled'])
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['asset'].queryset = Asset.objects.filter(
-            company=company
-        ).select_related('category')
-
-        form.fields['lessor'].queryset = BusinessPartner.objects.filter(
-            company=company,
-            partner_type__in=['supplier', 'both']
-        ).order_by('name')
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -1098,30 +1094,17 @@ class LeasePaymentCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
     model = LeasePayment
     template_name = 'assets/lease/payment_form.html'
     permission_required = 'assets.change_assetlease'
-    fields = [
-        'lease', 'payment_number', 'payment_date',
-        'amount', 'principal_amount', 'interest_amount',
-        'notes'
-    ]
+    form_class = LeasePaymentForm
     success_url = reverse_lazy('assets:payment_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
-        form.fields['lease'].queryset = AssetLease.objects.filter(
-            company=self.request.current_company,
-            status='active'
-        ).select_related('asset')
-
         form.fields['payment_date'].initial = date.today()
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
         return form
 
     @transaction.atomic
@@ -1276,6 +1259,8 @@ def lease_datatable_ajax(request):
         # الفلاتر
         status = request.GET.get('status', '')
         lease_type = request.GET.get('lease_type', '')
+        lessor = request.GET.get('lessor', '')
+        search_filter = request.GET.get('search_filter', '').strip()
 
         # Query
         queryset = AssetLease.objects.filter(
@@ -1291,13 +1276,17 @@ def lease_datatable_ajax(request):
         if lease_type:
             queryset = queryset.filter(lease_type=lease_type)
 
+        if lessor:
+            queryset = queryset.filter(lessor_id=lessor)
+
         # البحث
-        if search_value:
+        search_text = search_filter or search_value
+        if search_text:
             queryset = queryset.filter(
-                Q(lease_number__icontains=search_value) |
-                Q(asset__asset_number__icontains=search_value) |
-                Q(asset__name__icontains=search_value) |
-                Q(lessor__name__icontains=search_value)
+                Q(lease_number__icontains=search_text) |
+                Q(asset__asset_number__icontains=search_text) |
+                Q(asset__name__icontains=search_text) |
+                Q(lessor__name__icontains=search_text)
             )
 
         # الترتيب
@@ -1359,30 +1348,49 @@ def lease_datatable_ajax(request):
 
             if can_view:
                 actions.append(f'''
-                    <a href="{reverse('assets:lease_detail', args=[lease.pk])}" 
+                    <a href="{reverse('assets:lease_detail', args=[lease.pk])}"
                        class="btn btn-outline-info btn-sm" title="عرض" data-bs-toggle="tooltip">
                         <i class="fas fa-eye"></i>
                     </a>
                 ''')
 
-            actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
+            if request.user.has_perm('assets.change_assetlease') and lease.status in ['draft', 'active']:
+                actions.append(f'''
+                    <a href="{reverse('assets:lease_update', args=[lease.pk])}"
+                       class="btn btn-outline-primary btn-sm" title="تعديل" data-bs-toggle="tooltip">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                ''')
+
+            if request.user.has_perm('assets.delete_assetlease') and lease.status == 'draft':
+                actions.append(f'''
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                            onclick="deleteLease({lease.pk}, '{lease.lease_number}')"
+                            title="حذف" data-bs-toggle="tooltip">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ''')
+
+            actions_html = '<div class="btn-group btn-group-sm" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
             data.append([
-                f'<a href="{reverse("assets:lease_detail", args=[lease.pk])}">{lease.lease_number}</a>',
+                f'<a href="{reverse("assets:lease_detail", args=[lease.pk])}" class="text-decoration-none"><strong>{lease.lease_number}</strong></a>',
                 f'''<div>
-                    <strong><a href="{reverse("assets:asset_detail", args=[lease.asset.pk])}">{lease.asset.asset_number}</a></strong>
-                    <br><small class="text-muted">{lease.asset.name}</small>
+                    <a href="{reverse("assets:asset_detail", args=[lease.asset.pk])}" class="text-decoration-none">
+                        <strong>{lease.asset.asset_number}</strong>
+                    </a>
+                    <br><small class="text-muted">{lease.asset.name[:30]}...</small>
                 </div>''',
-                lease.get_lease_type_display(),
                 f'''<div>
                     <strong>{lease.lessor.name}</strong>
-                    <br><small class="text-muted">{lease.lessor.phone or ''}</small>
+                    {f'<br><small class="text-muted">{lease.lessor.phone}</small>' if lease.lessor.phone else ''}
                 </div>''',
-                f'<div class="text-end"><strong>{lease.monthly_payment:,.2f}</strong></div>',
+                f'<span class="badge bg-{"info" if lease.lease_type == "operating" else "warning"}">{lease.get_lease_type_display()}</span>',
                 f'''<div>
-                    {remaining_months} شهر
+                    <strong>{remaining_months} شهر</strong>
                     {'<br>' + ' '.join(warnings) if warnings else ''}
                 </div>''',
+                f'<strong>{lease.monthly_payment:,.3f}</strong>',
                 status_badge,
                 actions_html
             ])

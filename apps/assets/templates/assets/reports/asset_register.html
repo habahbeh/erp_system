@@ -1,6 +1,47 @@
 {% extends 'base/base.html' %}
 {% load static i18n %}
 
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
@@ -247,32 +288,93 @@
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
 <script>
-    // تصدير إلى Excel
+    // تصدير إلى Excel - استخدام رابط Django
     function exportToExcel() {
-        // يمكن استخدام مكتبة مثل SheetJS أو TableExport
-        alert('جاري تصدير التقرير إلى Excel...');
-        // TODO: Implement Excel export
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "assets:export_asset_register_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
     }
 
-    // تصدير إلى PDF
+    // تصدير إلى PDF - استخدام رابط Django
     function exportToPDF() {
-        alert('جاري تصدير التقرير إلى PDF...');
-        // TODO: Implement PDF export
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "assets:export_asset_register_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    // طباعة التقرير
+    function printReport() {
+        window.print();
     }
 
     // DataTable للتقرير
     $(document).ready(function() {
-        $('#assetsRegisterTable').DataTable({
+        // تهيئة DataTable
+        const table = $('#assetsRegisterTable').DataTable({
             pageLength: 50,
             language: {
                 url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
             },
-            dom: 'Bfrtip',
+            dom: 'Blfrtip',
             buttons: [
-                'excel', 'pdf', 'print'
+                {
+                    extend: 'excel',
+                    text: '<i class="fas fa-file-excel"></i> Excel',
+                    className: 'btn btn-success btn-sm',
+                    title: 'تقرير سجل الأصول',
+                    exportOptions: {
+                        columns: ':visible'
+                    }
+                },
+                {
+                    extend: 'pdf',
+                    text: '<i class="fas fa-file-pdf"></i> PDF',
+                    className: 'btn btn-danger btn-sm',
+                    title: 'تقرير سجل الأصول',
+                    orientation: 'landscape',
+                    pageSize: 'A4',
+                    exportOptions: {
+                        columns: ':visible'
+                    },
+                    customize: function(doc) {
+                        // RTL support for PDF
+                        doc.defaultStyle.font = 'Arial';
+                        doc.styles.tableHeader.alignment = 'right';
+                        doc.content[1].table.widths = Array(doc.content[1].table.body[0].length + 1).join('*').split('');
+                    }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="fas fa-print"></i> طباعة',
+                    className: 'btn btn-primary btn-sm',
+                    title: 'تقرير سجل الأصول',
+                    exportOptions: {
+                        columns: ':visible'
+                    }
+                }
+            ],
+            responsive: true,
+            order: [[1, 'asc']], // ترتيب حسب رقم الأصل
+            columnDefs: [
+                { targets: [5, 6, 7], className: 'text-end' } // محاذاة الأرقام
             ]
         });
+
+        // نقل أزرار DataTables إلى مكان مخصص (اختياري)
+        table.buttons().container().appendTo('#datatables-buttons');
     });
 </script>
 {% endblock %}

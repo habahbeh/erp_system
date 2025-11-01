@@ -471,30 +471,36 @@ $(document).ready(function() {
         });
     }
 
-    function renderTree(nodes, container) {
+    function renderTree(nodes, container, level = 0) {
         if (!nodes || nodes.length === 0) return;
 
         const ul = $('<ul class="list-unstyled ps-3"></ul>');
 
         nodes.forEach(node => {
             const li = $('<li class="mb-3"></li>');
-            const item = $(`
-                <div class="d-flex align-items-center p-2 bg-light rounded">
-                    <span class="category-level-badge level-${node.level} me-2">${node.level}</span>
-                    <i class="fas fa-folder text-primary me-2"></i>
-                    <strong>${node.name}</strong>
-                    <span class="badge bg-secondary ms-2">${node.code}</span>
-                    <small class="text-muted ms-2">(${node.assets_count} أصل)</small>
-                    <a href="{% url 'assets:category_detail' 0 %}".replace('0', node.id) class="btn btn-sm btn-outline-primary ms-auto">
-                        <i class="fas fa-eye"></i>
-                    </a>
-                </div>
-            `);
+
+            // Create elements safely
+            const levelBadge = $('<span>')
+                .addClass(`category-level-badge level-${level} me-2`)
+                .text(level);
+
+            const icon = $('<i>').addClass(node.icon || 'fas fa-folder text-primary me-2');
+            const nameStrong = $('<strong>').text(node.text || 'غير محدد');
+            const assetsCount = $('<small>').addClass('text-muted ms-2').text(`(${node.asset_count || 0} أصل)`);
+
+            const viewBtn = $('<a>')
+                .attr('href', "{% url 'assets:category_detail' 0 %}".replace('0', node.id))
+                .addClass('btn btn-sm btn-outline-primary ms-auto')
+                .html('<i class="fas fa-eye"></i>');
+
+            const item = $('<div>')
+                .addClass('d-flex align-items-center p-2 bg-light rounded mb-2')
+                .append(levelBadge, icon, nameStrong, assetsCount, viewBtn);
 
             li.append(item);
 
             if (node.children && node.children.length > 0) {
-                renderTree(node.children, li);
+                renderTree(node.children, li, level + 1);
             }
 
             ul.append(li);

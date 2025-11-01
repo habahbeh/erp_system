@@ -29,6 +29,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.core.paginator import Paginator
+from django import forms
 import json
 from datetime import date, timedelta, datetime
 from decimal import Decimal
@@ -43,6 +44,9 @@ from apps.core.decorators import permission_required_with_message
 from ..models import (
     InsuranceCompany, AssetInsurance, InsuranceClaim,
     Asset, AssetCategory
+)
+from ..forms.insurance_forms import (
+    InsuranceCompanyForm, AssetInsuranceForm, InsuranceClaimForm
 )
 
 
@@ -141,25 +145,8 @@ class InsuranceCompanyCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     model = InsuranceCompany
     template_name = 'assets/insurance/company_form.html'
     permission_required = 'assets.add_insurancecompany'
-    fields = [
-        'code', 'name', 'name_en', 'contact_person',
-        'phone', 'mobile', 'email', 'fax',
-        'address', 'city', 'country',
-        'website', 'license_number', 'notes'
-    ]
+    form_class = InsuranceCompanyForm
     success_url = reverse_lazy('assets:insurance_company_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
 
     @transaction.atomic
     def form_valid(self, form):
@@ -174,6 +161,11 @@ class InsuranceCompanyCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
                 self.request,
                 f'✅ تم إنشاء شركة التأمين {self.object.name} بنجاح'
             )
+
+            # Check if "save and add another" was clicked
+            if 'save_and_add' in self.request.POST:
+                return redirect('assets:insurance_company_create')
+
             return redirect(self.success_url)
 
         except Exception as e:
@@ -200,28 +192,11 @@ class InsuranceCompanyUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     model = InsuranceCompany
     template_name = 'assets/insurance/company_form.html'
     permission_required = 'assets.change_insurancecompany'
-    fields = [
-        'code', 'name', 'name_en', 'contact_person',
-        'phone', 'mobile', 'email', 'fax',
-        'address', 'city', 'country',
-        'website', 'license_number', 'notes'
-    ]
+    form_class = InsuranceCompanyForm
     success_url = reverse_lazy('assets:insurance_company_list')
 
     def get_queryset(self):
         return InsuranceCompany.objects.filter(company=self.request.current_company)
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
 
     @transaction.atomic
     def form_valid(self, form):
@@ -520,12 +495,28 @@ class AssetInsuranceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         form.fields['start_date'].initial = date.today()
         form.fields['status'].initial = 'active'
 
-        # إضافة classes
+        # تعيين widgets للتواريخ بشكل صريح
+        date_fields = ['start_date', 'end_date', 'renewal_date', 'next_payment_date']
+        for field_name in date_fields:
+            if field_name in form.fields:
+                form.fields[field_name].widget = forms.DateInput(attrs={
+                    'class': 'form-control',
+                    'type': 'date'
+                })
+
+        # إضافة classes للحقول الأخرى
         for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
+            if field_name in date_fields:
+                continue  # تم معالجتها بالأعلى
+            elif field.widget.__class__.__name__ == 'Select':
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-select'})
             elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+            elif field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control'})
 
         return form
 
@@ -589,8 +580,8 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             company=self.request.current_company
         ).select_related(
             'insurance_company', 'asset', 'asset__category',
-            'created_by', 'renewed_from'
-        ).prefetch_related('claims', 'renewals')
+            'created_by'
+        ).prefetch_related('claims')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -613,9 +604,6 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             days_remaining = (self.object.end_date - date.today()).days
         else:
             days_remaining = None
-
-        # التجديدات
-        renewals = self.object.renewals.order_by('-start_date')[:5]
 
         # التحذيرات
         warnings = []
@@ -659,7 +647,6 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             'claims': claims,
             'claim_stats': claim_stats,
             'days_remaining': days_remaining,
-            'renewals': renewals,
             'warnings': warnings,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
@@ -700,12 +687,28 @@ class AssetInsuranceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             company=company
         ).select_related('category')
 
-        # إضافة classes
+        # تعيين widgets للتواريخ بشكل صريح
+        date_fields = ['start_date', 'end_date', 'renewal_date', 'next_payment_date']
+        for field_name in date_fields:
+            if field_name in form.fields:
+                form.fields[field_name].widget = forms.DateInput(attrs={
+                    'class': 'form-control',
+                    'type': 'date'
+                })
+
+        # إضافة classes للحقول الأخرى
         for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
+            if field_name in date_fields:
+                continue  # تم معالجتها بالأعلى
+            elif field.widget.__class__.__name__ == 'Select':
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-select'})
             elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+            elif field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control'})
 
         return form
 
@@ -1068,12 +1071,32 @@ class InsuranceClaimCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         form.fields['incident_date'].initial = date.today()
         form.fields['claim_type'].initial = 'accident'
 
-        # إضافة classes
+        # تعيين widgets بشكل صريح
+        if 'incident_date' in form.fields:
+            form.fields['incident_date'].widget = forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            })
+
+        if 'incident_time' in form.fields:
+            form.fields['incident_time'].widget = forms.TimeInput(attrs={
+                'class': 'form-control',
+                'type': 'time'
+            })
+
+        # إضافة classes للحقول الأخرى
         for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
+            if field_name in ['incident_date', 'incident_time']:
+                continue  # تم معالجتها بالأعلى
+            elif field.widget.__class__.__name__ == 'Select':
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-select'})
             elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 4})
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control', 'rows': 4})
+            elif field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control'})
 
         return form
 
@@ -1211,12 +1234,32 @@ class InsuranceClaimUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
             company=self.request.current_company
         ).select_related('asset', 'insurance_company')
 
-        # إضافة classes
+        # تعيين widgets بشكل صريح
+        if 'incident_date' in form.fields:
+            form.fields['incident_date'].widget = forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            })
+
+        if 'incident_time' in form.fields:
+            form.fields['incident_time'].widget = forms.TimeInput(attrs={
+                'class': 'form-control',
+                'type': 'time'
+            })
+
+        # إضافة classes للحقول الأخرى
         for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
+            if field_name in ['incident_date', 'incident_time']:
+                continue  # تم معالجتها بالأعلى
+            elif field.widget.__class__.__name__ == 'Select':
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-select'})
             elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 4})
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control', 'rows': 4})
+            elif field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs.update({'class': 'form-control'})
 
         return form
 

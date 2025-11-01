@@ -475,7 +475,14 @@ class AssetTransfer(DocumentBaseModel):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.transfer_number} - {self.asset.name} - {self.from_branch.name} → {self.to_branch.name}"
+        if self.transfer_number and hasattr(self, 'asset') and self.asset:
+            parts = [self.transfer_number, self.asset.name]
+
+            if hasattr(self, 'from_branch') and self.from_branch and hasattr(self, 'to_branch') and self.to_branch:
+                parts.append(f"{self.from_branch.name} → {self.to_branch.name}")
+
+            return " - ".join(parts)
+        return str(_('تحويل جديد'))
 
     def clean(self):
         """التحقق من صحة البيانات"""
@@ -637,9 +644,9 @@ class AssetTransfer(DocumentBaseModel):
             asset.cost_center = self.to_cost_center
 
         if self.to_employee:
-            asset.assigned_to = self.to_employee
+            asset.responsible_employee = self.to_employee
 
-        asset.save(update_fields=['branch', 'cost_center', 'assigned_to', 'updated_at'])
+        asset.save(update_fields=['branch', 'cost_center', 'responsible_employee', 'updated_at'])
 
         # تحديث حالة التحويل
         self.status = 'completed'
@@ -655,6 +662,13 @@ class AssetLease(DocumentBaseModel):
     LEASE_TYPES = [
         ('operating', _('إيجار تشغيلي')),
         ('finance', _('إيجار تمويلي')),
+    ]
+
+    PAYMENT_FREQUENCY_CHOICES = [
+        ('monthly', _('شهري')),
+        ('quarterly', _('ربع سنوي')),
+        ('semi_annual', _('نصف سنوي')),
+        ('annual', _('سنوي')),
     ]
 
     STATUS_CHOICES = [
@@ -701,6 +715,15 @@ class AssetLease(DocumentBaseModel):
     contract_duration_months = models.IntegerField(
         _('مدة العقد (شهور)'),
         editable=False
+    )
+
+    # دورية الدفع
+    payment_frequency = models.CharField(
+        _('دورية الدفع'),
+        max_length=20,
+        choices=PAYMENT_FREQUENCY_CHOICES,
+        default='monthly',
+        help_text=_('تكرار دفع الأقساط')
     )
 
     # المبالغ

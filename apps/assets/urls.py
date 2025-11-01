@@ -184,10 +184,12 @@ urlpatterns = [
     path('leases/create/', AssetLeaseCreateView.as_view(), name='lease_create'),
     path('leases/<int:pk>/', AssetLeaseDetailView.as_view(), name='lease_detail'),
     path('leases/<int:pk>/update/', AssetLeaseUpdateView.as_view(), name='lease_update'),
+    path('leases/<int:pk>/delete/', AssetLeaseDeleteView.as_view(), name='lease_delete'),
     path('leases/<int:pk>/terminate/', TerminateLeaseView.as_view(), name='terminate_lease'),
     path('leases/<int:pk>/renew/', RenewLeaseView.as_view(), name='renew_lease'),
     path('leases/<int:pk>/exercise-purchase/', ExercisePurchaseOptionView.as_view(), name='exercise_purchase'),
     path('ajax/leases/datatable/', lease_datatable_ajax, name='lease_datatable_ajax'),
+    path('leases/export/', export_lease_list_excel, name='lease_export'),
 
     path('lease-payments/', LeasePaymentListView.as_view(), name='payment_list'),
     path('lease-payments/create/', LeasePaymentCreateView.as_view(), name='payment_create'),
@@ -207,9 +209,11 @@ urlpatterns = [
 
     path('approval-requests/', ApprovalRequestListView.as_view(), name='request_list'),
     path('approval-requests/<int:pk>/', ApprovalRequestDetailView.as_view(), name='request_detail'),
+    path('approval-requests/export/', request_export, name='request_export'),
     path('ajax/requests/datatable/', request_datatable_ajax, name='request_datatable_ajax'),
-    path('ajax/requests/<int:pk>/approve/', approve_request, name='approve_request'),
-    path('ajax/requests/<int:pk>/reject/', reject_request, name='reject_request'),
+    path('ajax/approval-stats/', approval_stats_ajax, name='approval_stats_ajax'),
+    path('ajax/requests/<int:pk>/approve/', approve_request, name='approve_request_ajax'),
+    path('ajax/requests/<int:pk>/reject/', reject_request, name='reject_request_ajax'),
     path('ajax/requests/my-pending/', my_pending_approvals_ajax, name='my_pending_approvals_ajax'),
 
     # ==================== Notifications ====================
@@ -230,7 +234,13 @@ urlpatterns = [
     path('reports/valuation/', valuation_report, name='valuation_report'),
     path('reports/physical-count/', physical_count_report, name='physical_count_report'),
     path('reports/export/asset-register/', export_asset_register_excel, name='export_asset_register_excel'),
+    path('reports/export/asset-register-pdf/', export_asset_register_pdf, name='export_asset_register_pdf'),
     path('reports/export/depreciation/', export_depreciation_excel, name='export_depreciation_excel'),
+    path('reports/export/depreciation-pdf/', export_depreciation_pdf, name='export_depreciation_pdf'),
+    path('reports/export/maintenance/', export_maintenance_excel, name='export_maintenance_excel'),
+    path('reports/export/maintenance-pdf/', export_maintenance_pdf, name='export_maintenance_pdf'),
+    path('reports/export/valuation/', export_valuation_excel, name='export_valuation_excel'),
+    path('reports/export/valuation-pdf/', export_valuation_pdf, name='export_valuation_pdf'),
 
     # ==================== API ====================
     path('api/assets/search/', asset_search_api, name='asset_search_api'),
@@ -247,6 +257,10 @@ urlpatterns = [
     path('api/validate-asset-number/', validate_asset_number_api, name='validate_asset_number_api'),
     path('api/assets/<int:pk>/qr-code/', asset_qr_code_api, name='asset_qr_code_api'),
 
-
+    # ==================== Accounting Configuration ====================
+    path('accounting-config/', AccountingConfigListView.as_view(), name='accounting_config_list'),
+    path('accounting-config/create/', AccountingConfigCreateView.as_view(), name='accounting_config_create'),
+    path('accounting-config/<int:pk>/', AccountingConfigDetailView.as_view(), name='accounting_config_detail'),
+    path('accounting-config/<int:pk>/update/', AccountingConfigUpdateView.as_view(), name='accounting_config_update'),
 
 ]

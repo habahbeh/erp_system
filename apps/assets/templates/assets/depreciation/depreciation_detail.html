@@ -4,94 +4,6 @@
 
 {% block title %}{% trans "تفاصيل الإهلاك" %} #{{ depreciation.id }}{% endblock %}
 
-{% block extra_css %}
-<style>
-/* Print Styles */
-@media print {
-    .no-print {
-        display: none !important;
-    }
-
-    .card {
-        border: 1px solid #dee2e6 !important;
-        box-shadow: none !important;
-        page-break-inside: avoid;
-    }
-
-    .card-header {
-        background-color: #f8f9fa !important;
-        color: #000 !important;
-        -webkit-print-color-adjust: exact;
-    }
-}
-
-/* Stat Boxes */
-.stat-box {
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 1rem;
-    background-color: #fff;
-}
-
-.stat-box h3 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 0;
-}
-
-.stat-box small {
-    font-size: 0.875rem;
-}
-
-/* Table Styles */
-.info-table {
-    width: 100%;
-    margin-bottom: 0;
-}
-
-.info-table th {
-    width: 35%;
-    font-weight: 600;
-    color: #495057;
-    padding: 0.75rem;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.info-table td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.info-table tr:last-child th,
-.info-table tr:last-child td {
-    border-bottom: none;
-}
-
-/* Journal Entry Table */
-.journal-entry-table {
-    margin-bottom: 0;
-}
-
-.journal-entry-table thead th {
-    background-color: #e9ecef;
-    font-weight: 600;
-    border-bottom: 2px solid #dee2e6;
-    padding: 0.75rem;
-}
-
-.journal-entry-table tbody td {
-    padding: 0.75rem;
-}
-
-.journal-entry-table tfoot td {
-    font-weight: 600;
-    background-color: #f8f9fa;
-    border-top: 2px solid #dee2e6;
-}
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
@@ -109,36 +21,44 @@
         </ol>
     </nav>
 
-    <!-- Page Header -->
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h1 class="h3 mb-1">
-                {% trans "تفاصيل الإهلاك" %} #{{ depreciation.id }}
-            </h1>
-            <p class="text-muted mb-1">
-                {% trans "عرض تفاصيل حركة الإهلاك والقيد المحاسبي المرتبط" %}
-            </p>
-            <div class="mt-2">
+            <h1 class="h3 mb-1">{% trans "إهلاك" %} - {{ depreciation.asset.name }}</h1>
+            <p class="text-muted mb-1">{{ depreciation.depreciation_date|date:"l، j F Y" }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-hashtag"></i> {{ depreciation.id }}
+                </span>
                 {% if depreciation.is_posted %}
-                    <span class="badge bg-success fs-6"><i class="fas fa-check-circle"></i> {% trans "مُرحّل" %}</span>
-                {% elif depreciation.is_reversed %}
-                    <span class="badge bg-danger fs-6"><i class="fas fa-ban"></i> {% trans "مُعكوس" %}</span>
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> {% trans "مرحّل" %}
+                    </span>
                 {% else %}
-                    <span class="badge bg-warning fs-6"><i class="fas fa-edit"></i> {% trans "مسودة" %}</span>
+                    <span class="badge bg-warning text-dark fs-6">
+                        <i class="fas fa-clock"></i> {% trans "غير مرحّل" %}
+                    </span>
+                {% endif %}
+                {% if depreciation.reversal_entry %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-undo"></i> {% trans "معكوس" %}
+                    </span>
                 {% endif %}
             </div>
         </div>
-        <div class="btn-group no-print" role="group">
-            {% if not depreciation.is_posted and perms.assets.change_depreciation %}
-            <a href="{% url 'assets:reverse_depreciation' depreciation.pk %}" class="btn btn-warning">
-                <i class="fas fa-undo"></i> {% trans "عكس الإهلاك" %}
+        <div class="d-flex gap-2">
+            {% if not depreciation.is_posted and can_edit %}
+            <a href="{% url 'assets:depreciation_update' depreciation.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
-            <button onclick="window.print()" class="btn btn-outline-secondary">
-                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            {% if depreciation.is_posted and can_reverse and not depreciation.reversal_entry %}
+            <button onclick="reverseDepreciation({{ depreciation.pk }})" class="btn btn-danger">
+                <i class="fas fa-undo"></i> {% trans "عكس" %}
             </button>
+            {% endif %}
             <a href="{% url 'assets:depreciation_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع للقائمة" %}
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
@@ -146,7 +66,7 @@
     <div class="row">
         <!-- Main Content -->
         <div class="col-lg-8">
-            <!-- Basic Information -->
+            <!-- المعلومات الأساسية -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
                     <h6 class="card-title mb-0">
@@ -154,38 +74,62 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th><i class="fas fa-cube text-muted"></i> {% trans "الأصل" %}</th>
-                                <td>
-                                    <a href="{% url 'assets:asset_detail' depreciation.asset.pk %}" class="text-decoration-none">
-                                        {{ depreciation.asset.name }}
-                                    </a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-calendar text-muted"></i> {% trans "تاريخ الإهلاك" %}</th>
-                                <td>{{ depreciation.depreciation_date|date:"Y-m-d" }}</td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-calendar-alt text-muted"></i> {% trans "السنة المالية" %}</th>
-                                <td>{{ depreciation.period_year }}</td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-calendar-check text-muted"></i> {% trans "الشهر" %}</th>
-                                <td>{{ depreciation.period_month }}</td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-calculator text-muted"></i> {% trans "طريقة الإهلاك" %}</th>
-                                <td>{{ depreciation.depreciation_method.name }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الأصل" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'assets:asset_detail' depreciation.asset.pk %}" class="text-decoration-none fs-5">
+                                    <strong>{{ depreciation.asset.name }}</strong>
+                                </a>
+                            </p>
+                            <small class="text-muted">{{ depreciation.asset.asset_number }}</small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الإهلاك" %}</h6>
+                            <p class="mb-0">{{ depreciation.depreciation_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        {% if depreciation.fiscal_year %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "السنة المالية" %}</h6>
+                            <p class="mb-0">{{ depreciation.fiscal_year }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if depreciation.period %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الفترة المحاسبية" %}</h6>
+                            <p class="mb-0">{{ depreciation.period }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            <p class="mb-0">
+                                {% if depreciation.is_posted %}
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-check-circle"></i> {% trans "مرحّل" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark fs-6">
+                                        <i class="fas fa-clock"></i> {% trans "غير مرحّل" %}
+                                    </span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        {% if depreciation.units_used_in_period %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الوحدات المستخدمة" %}</h6>
+                            <p class="mb-0">{{ depreciation.units_used_in_period|floatformat:0 }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
-            <!-- Financial Details -->
+            <!-- المعلومات المالية -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
                     <h6 class="card-title mb-0">
@@ -193,29 +137,40 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 text-center">
                         <div class="col-md-4">
-                            <div class="stat-box text-center">
+                            <div class="border rounded p-3">
                                 <h3 class="text-primary mb-0">{{ depreciation.depreciation_amount|floatformat:3 }}</h3>
                                 <small class="text-muted">{% trans "قيمة الإهلاك" %}</small>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="stat-box text-center">
-                                <h3 class="text-warning mb-0">{{ depreciation.accumulated_depreciation|floatformat:3 }}</h3>
-                                <small class="text-muted">{% trans "الإهلاك المجمع" %}</small>
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ depreciation.accumulated_depreciation_after|floatformat:3 }}</h3>
+                                <small class="text-muted">{% trans "الإهلاك المتراكم" %}</small>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="stat-box text-center">
-                                <h3 class="text-success mb-0">{{ depreciation.book_value|floatformat:3 }}</h3>
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ depreciation.book_value_after|floatformat:3 }}</h3>
                                 <small class="text-muted">{% trans "القيمة الدفترية" %}</small>
                             </div>
                         </div>
                     </div>
 
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الإهلاك المتراكم قبل" %}</h6>
+                            <p class="mb-0">{{ depreciation.accumulated_depreciation_before|floatformat:3 }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الإهلاك المتراكم بعد" %}</h6>
+                            <p class="mb-0">{{ depreciation.accumulated_depreciation_after|floatformat:3 }}</p>
+                        </div>
+                    </div>
+
                     {% if depreciation.notes %}
-                    <div class="mt-3">
+                    <div class="mt-4 pt-3 border-top">
                         <h6 class="text-muted mb-2">
                             <i class="fas fa-sticky-note"></i> {% trans "الملاحظات" %}
                         </h6>
@@ -225,7 +180,7 @@
                 </div>
             </div>
 
-            <!-- Journal Entry -->
+            <!-- القيد المحاسبي -->
             {% if depreciation.journal_entry %}
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-info text-white">
@@ -234,26 +189,24 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    <table class="info-table mb-3">
-                        <tbody>
-                            <tr>
-                                <th><i class="fas fa-file-alt text-muted"></i> {% trans "رقم القيد" %}</th>
-                                <td>
-                                    <a href="{% url 'accounting:journal_entry_detail' depreciation.journal_entry.pk %}" class="text-decoration-none">
-                                        {{ depreciation.journal_entry.entry_number }}
-                                    </a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-calendar text-muted"></i> {% trans "تاريخ القيد" %}</th>
-                                <td>{{ depreciation.journal_entry.entry_date|date:"Y-m-d" }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="row g-4 mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم القيد" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'accounting:journal_entry_detail' depreciation.journal_entry.pk %}" class="text-decoration-none">
+                                    {{ depreciation.journal_entry.entry_number }}
+                                </a>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ القيد" %}</h6>
+                            <p class="mb-0">{{ depreciation.journal_entry.entry_date|date:"l، j F Y" }}</p>
+                        </div>
+                    </div>
 
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover journal-entry-table">
-                            <thead>
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
                                 <tr>
                                     <th>{% trans "الحساب" %}</th>
                                     <th class="text-end">{% trans "مدين" %}</th>
@@ -263,13 +216,13 @@
                             <tbody>
                                 {% for detail in depreciation.journal_entry.details.all %}
                                 <tr>
-                                    <td><i class="fas fa-folder text-muted"></i> {{ detail.account.name }}</td>
+                                    <td>{{ detail.account.code }} - {{ detail.account.name }}</td>
                                     <td class="text-end">{{ detail.debit|floatformat:3 }}</td>
                                     <td class="text-end">{{ detail.credit|floatformat:3 }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
-                            <tfoot>
+                            <tfoot class="table-light fw-bold">
                                 <tr>
                                     <td>{% trans "الإجمالي" %}</td>
                                     <td class="text-end">{{ depreciation.journal_entry.total_debit|floatformat:3 }}</td>
@@ -281,47 +234,72 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- القيد العكسي -->
+            {% if depreciation.reversal_entry %}
+            <div class="card shadow-sm mb-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-undo"></i> {% trans "القيد العكسي" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم القيد العكسي" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'accounting:journal_entry_detail' depreciation.reversal_entry.pk %}" class="text-decoration-none">
+                                    {{ depreciation.reversal_entry.entry_number }}
+                                </a>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ العكس" %}</h6>
+                            <p class="mb-0">{{ depreciation.reversal_entry.entry_date|date:"l، j F Y" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Sidebar -->
         <div class="col-lg-4">
-            <!-- Asset Summary -->
+            <!-- ملخص الأصل -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-info text-white">
+                <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
                         <i class="fas fa-cube"></i> {% trans "ملخص الأصل" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th>{% trans "الرمز" %}</th>
-                                <td>{{ depreciation.asset.code }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "الفئة" %}</th>
-                                <td>{{ depreciation.asset.category.name }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "التكلفة الأصلية" %}</th>
-                                <td>{{ depreciation.asset.purchase_cost|floatformat:3 }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "القيمة المتبقية" %}</th>
-                                <td>{{ depreciation.asset.salvage_value|floatformat:3 }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "العمر الافتراضي" %}</th>
-                                <td>{{ depreciation.asset.useful_life_months }} {% trans "شهر" %}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "رقم الأصل" %}</h6>
+                        <p class="mb-0">
+                            <span class="badge bg-dark">{{ depreciation.asset.asset_number }}</span>
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "الفئة" %}</h6>
+                        <p class="mb-0">{{ depreciation.asset.category.name }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "التكلفة الأصلية" %}</h6>
+                        <p class="mb-0">{{ depreciation.asset.original_cost|floatformat:3 }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "القيمة المتبقية" %}</h6>
+                        <p class="mb-0">{{ depreciation.asset.salvage_value|floatformat:3 }}</p>
+                    </div>
+                    <div class="mb-0">
+                        <h6 class="text-muted mb-1">{% trans "العمر الافتراضي" %}</h6>
+                        <p class="mb-0">{{ depreciation.asset.useful_life_years }} {% trans "سنة" %}</p>
+                    </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card shadow-sm mb-4 no-print">
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
                         <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
@@ -337,6 +315,11 @@
                             <i class="fas fa-book"></i> {% trans "عرض القيد المحاسبي" %}
                         </a>
                         {% endif %}
+                        {% if depreciation.reversal_entry %}
+                        <a href="{% url 'accounting:journal_entry_detail' depreciation.reversal_entry.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-undo"></i> {% trans "عرض القيد العكسي" %}
+                        </a>
+                        {% endif %}
                         <a href="{% url 'assets:depreciation_list' %}" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-list"></i> {% trans "قائمة الإهلاكات" %}
                         </a>
@@ -344,39 +327,81 @@
                 </div>
             </div>
 
-            <!-- System Information -->
+            <!-- معلومات النظام -->
             <div class="card shadow-sm">
-                <div class="card-header bg-info text-white">
+                <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
                         <i class="fas fa-info-circle"></i> {% trans "معلومات النظام" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th><i class="fas fa-user text-muted"></i> {% trans "أُنشئ بواسطة" %}</th>
-                                <td>{{ depreciation.created_by|default:"النظام" }}</td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-clock text-muted"></i> {% trans "تاريخ الإنشاء" %}</th>
-                                <td>{{ depreciation.created_at|date:"Y-m-d H:i" }}</td>
-                            </tr>
-                            {% if depreciation.updated_by %}
-                            <tr>
-                                <th><i class="fas fa-user-edit text-muted"></i> {% trans "آخر تعديل بواسطة" %}</th>
-                                <td>{{ depreciation.updated_by }}</td>
-                            </tr>
-                            <tr>
-                                <th><i class="fas fa-clock text-muted"></i> {% trans "تاريخ آخر تعديل" %}</th>
-                                <td>{{ depreciation.updated_at|date:"Y-m-d H:i" }}</td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "أنشئ بواسطة" %}</h6>
+                        <p class="mb-0">{{ depreciation.created_by.get_full_name|default:"النظام" }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "تاريخ الإنشاء" %}</h6>
+                        <p class="mb-0">{{ depreciation.created_at|date:"Y-m-d H:i" }}</p>
+                    </div>
+                    {% if depreciation.updated_at != depreciation.created_at %}
+                    <div class="mb-0">
+                        <h6 class="text-muted mb-1">{% trans "آخر تحديث" %}</h6>
+                        <p class="mb-0">{{ depreciation.updated_at|date:"Y-m-d H:i" }}</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Reverse Depreciation
+function reverseDepreciation(id) {
+    Swal.fire({
+        title: '{% trans "عكس الإهلاك" %}',
+        text: '{% trans "هل أنت متأكد من عكس هذا الإهلاك؟ سيتم إنشاء قيد محاسبي عكسي." %}',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '{% trans "نعم، عكس الإهلاك" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:reverse_depreciation" 0 %}'.replace('0', id),
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        title: '{% trans "تم بنجاح!" %}',
+                        text: response.message || '{% trans "تم عكس الإهلاك بنجاح" %}',
+                        icon: 'success',
+                        confirmButtonText: '{% trans "حسناً" %}'
+                    }).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function(xhr) {
+                    var message = '{% trans "حدث خطأ في عكس الإهلاك" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        title: '{% trans "خطأ!" %}',
+                        text: message,
+                        icon: 'error',
+                        confirmButtonText: '{% trans "حسناً" %}'
+                    });
+                }
+            });
+        }
+    });
+}
+</script>
 {% endblock %}

@@ -41,6 +41,10 @@ from ..models import (
     Asset, AssetCategory, DepreciationMethod, AssetCondition,
     AssetAttachment, AssetValuation
 )
+from ..forms import (
+    AssetForm, AssetAttachmentForm, AssetValuationForm,
+    AssetCategoryForm, DepreciationMethodForm, AssetConditionForm
+)
 from apps.accounting.models import Account, CostCenter, JournalEntry
 
 
@@ -160,51 +164,24 @@ class AssetCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """إنشاء أصل جديد"""
 
     model = Asset
+    form_class = AssetForm
     template_name = 'assets/assets/asset_form.html'
     permission_required = 'assets.add_asset'
-    fields = [
-        'name', 'name_en', 'category', 'condition', 'status',
-        'purchase_date', 'purchase_invoice_number', 'supplier',
-        'currency', 'original_cost', 'salvage_value',
-        'depreciation_method', 'useful_life_months', 'depreciation_start_date',
-        'depreciation_status', 'total_expected_units', 'unit_name',
-        'cost_center', 'responsible_employee', 'physical_location',
-        'serial_number', 'model', 'manufacturer',
-        'warranty_start_date', 'warranty_end_date', 'warranty_provider',
-        'barcode', 'is_leased', 'description', 'notes'
-    ]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        kwargs['branch'] = getattr(self.request.user, 'branch', None)
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
-        # تخصيص الحقول
-        company = self.request.current_company
-
-        form.fields['category'].queryset = AssetCategory.objects.filter(
-            company=company, is_active=True
-        )
-        form.fields['depreciation_method'].queryset = DepreciationMethod.objects.filter(
-            is_active=True
-        )
-        form.fields['condition'].queryset = AssetCondition.objects.filter(
-            is_active=True
-        )
-
-        if 'cost_center' in form.fields:
-            form.fields['cost_center'].queryset = CostCenter.objects.filter(
-                company=company, is_active=True
-            )
 
         # القيم الافتراضية
         form.fields['purchase_date'].initial = date.today()
         form.fields['depreciation_start_date'].initial = date.today()
         form.fields['status'].initial = 'active'
         form.fields['depreciation_status'].initial = 'active'
-
-        # إضافة classes للـ styling
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
 
         return form
 
@@ -278,49 +255,18 @@ class AssetUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin,
     """تعديل أصل"""
 
     model = Asset
+    form_class = AssetForm
     template_name = 'assets/assets/asset_form.html'
     permission_required = 'assets.change_asset'
-    fields = [
-        'name', 'name_en', 'category', 'condition', 'status',
-        'purchase_date', 'purchase_invoice_number', 'supplier',
-        'currency', 'original_cost', 'salvage_value',
-        'depreciation_method', 'useful_life_months', 'depreciation_start_date',
-        'depreciation_status', 'total_expected_units', 'unit_name',
-        'cost_center', 'responsible_employee', 'physical_location',
-        'serial_number', 'model', 'manufacturer',
-        'warranty_start_date', 'warranty_end_date', 'warranty_provider',
-        'barcode', 'is_leased', 'insurance_status', 'description', 'notes'
-    ]
 
     def get_queryset(self):
         return Asset.objects.filter(company=self.request.current_company)
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['category'].queryset = AssetCategory.objects.filter(
-            company=company, is_active=True
-        )
-        form.fields['depreciation_method'].queryset = DepreciationMethod.objects.filter(
-            is_active=True
-        )
-        form.fields['condition'].queryset = AssetCondition.objects.filter(
-            is_active=True
-        )
-
-        if 'cost_center' in form.fields:
-            form.fields['cost_center'].queryset = CostCenter.objects.filter(
-                company=company, is_active=True
-            )
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        kwargs['branch'] = getattr(self.request.user, 'branch', None)
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -598,55 +544,13 @@ class AssetCategoryCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     model = AssetCategory
     template_name = 'assets/categories/category_form.html'
     permission_required = 'assets.add_assetcategory'
-    fields = [
-        'code', 'name', 'name_en', 'parent',
-        'asset_account', 'accumulated_depreciation_account',
-        'depreciation_expense_account', 'loss_on_disposal_account',
-        'gain_on_sale_account', 'maintenance_expense_account',
-        'default_depreciation_method', 'default_useful_life_months',
-        'default_salvage_value_rate', 'default_physical_count_frequency',
-        'description'
-    ]
+    form_class = AssetCategoryForm
     success_url = reverse_lazy('assets:category_list')
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        # تخصيص الحقول
-        form.fields['parent'].queryset = AssetCategory.objects.filter(
-            company=company, is_active=True
-        )
-        form.fields['parent'].required = False
-
-        # الحسابات المحاسبية
-        accounts = Account.objects.filter(
-            company=company,
-            accept_entries=True,
-            is_active=True
-        )
-
-        for field_name in [
-            'asset_account', 'accumulated_depreciation_account',
-            'depreciation_expense_account', 'loss_on_disposal_account',
-            'gain_on_sale_account', 'maintenance_expense_account'
-        ]:
-            if field_name in form.fields:
-                form.fields[field_name].queryset = accounts
-                form.fields[field_name].required = False
-
-        form.fields['default_depreciation_method'].queryset = DepreciationMethod.objects.filter(
-            is_active=True
-        )
-        form.fields['default_depreciation_method'].required = False
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -687,58 +591,16 @@ class AssetCategoryUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     model = AssetCategory
     template_name = 'assets/categories/category_form.html'
     permission_required = 'assets.change_assetcategory'
-    fields = [
-        'code', 'name', 'name_en', 'parent',
-        'asset_account', 'accumulated_depreciation_account',
-        'depreciation_expense_account', 'loss_on_disposal_account',
-        'gain_on_sale_account', 'maintenance_expense_account',
-        'default_depreciation_method', 'default_useful_life_months',
-        'default_salvage_value_rate', 'default_physical_count_frequency',
-        'description'
-    ]
+    form_class = AssetCategoryForm
     success_url = reverse_lazy('assets:category_list')
 
     def get_queryset(self):
         return AssetCategory.objects.filter(company=self.request.current_company)
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        # منع اختيار نفسه كأب
-        form.fields['parent'].queryset = AssetCategory.objects.filter(
-            company=company, is_active=True
-        ).exclude(pk=self.object.pk)
-        form.fields['parent'].required = False
-
-        # الحسابات المحاسبية
-        accounts = Account.objects.filter(
-            company=company,
-            accept_entries=True,
-            is_active=True
-        )
-
-        for field_name in [
-            'asset_account', 'accumulated_depreciation_account',
-            'depreciation_expense_account', 'loss_on_disposal_account',
-            'gain_on_sale_account', 'maintenance_expense_account'
-        ]:
-            if field_name in form.fields:
-                form.fields[field_name].queryset = accounts
-                form.fields[field_name].required = False
-
-        form.fields['default_depreciation_method'].queryset = DepreciationMethod.objects.filter(
-            is_active=True
-        )
-        form.fields['default_depreciation_method'].required = False
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -924,21 +786,8 @@ class DepreciationMethodCreateView(LoginRequiredMixin, PermissionRequiredMixin, 
     model = DepreciationMethod
     template_name = 'assets/categories/depreciation_method_form.html'
     permission_required = 'assets.add_depreciationmethod'
-    fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
+    form_class = DepreciationMethodForm
     success_url = reverse_lazy('assets:depreciation_method_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        # Help texts
-        form.fields['rate_percentage'].help_text = 'للقسط المتناقص فقط - مثال: 200 للقسط المتناقص المضاعف'
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم إنشاء طريقة الإهلاك {form.instance.name} بنجاح')
@@ -964,18 +813,8 @@ class DepreciationMethodUpdateView(LoginRequiredMixin, PermissionRequiredMixin, 
     model = DepreciationMethod
     template_name = 'assets/categories/depreciation_method_form.html'
     permission_required = 'assets.change_depreciationmethod'
-    fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
+    form_class = DepreciationMethodForm
     success_url = reverse_lazy('assets:depreciation_method_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'RadioSelect']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم تحديث طريقة الإهلاك {form.instance.name} بنجاح')
@@ -1112,24 +951,8 @@ class AssetConditionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
     model = AssetCondition
     template_name = 'assets/categories/condition_form.html'
     permission_required = 'assets.add_assetcondition'
-    fields = ['name', 'name_en', 'color_code', 'description', 'is_active']
+    form_class = AssetConditionForm
     success_url = reverse_lazy('assets:condition_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        # Color picker
-        form.fields['color_code'].widget.attrs.update({
-            'type': 'color',
-            'class': 'form-control form-control-color'
-        })
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم إنشاء الحالة {form.instance.name} بنجاح')
@@ -1155,24 +978,8 @@ class AssetConditionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upda
     model = AssetCondition
     template_name = 'assets/categories/condition_form.html'
     permission_required = 'assets.change_assetcondition'
-    fields = ['name', 'name_en', 'color_code', 'description', 'is_active']
+    form_class = AssetConditionForm
     success_url = reverse_lazy('assets:condition_list')
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        # Color picker
-        form.fields['color_code'].widget.attrs.update({
-            'type': 'color',
-            'class': 'form-control form-control-color'
-        })
-
-        return form
 
     def form_valid(self, form):
         messages.success(self.request, f'✅ تم تحديث الحالة {form.instance.name} بنجاح')
@@ -1341,9 +1148,9 @@ class AssetAttachmentCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     """إضافة مرفق جديد"""
 
     model = AssetAttachment
+    form_class = AssetAttachmentForm
     template_name = 'assets/assets/attachment_form.html'
     permission_required = 'assets.change_asset'
-    fields = ['title', 'attachment_type', 'file', 'issue_date', 'expiry_date', 'description']
 
     def dispatch(self, request, *args, **kwargs):
         self.asset = get_object_or_404(
@@ -1352,16 +1159,6 @@ class AssetAttachmentCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
             company=request.current_company
         )
         return super().dispatch(request, *args, **kwargs)
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'FileInput']:
-                field.widget.attrs.update({'class': 'form-control'})
-
-        return form
 
     @transaction.atomic
     def form_valid(self, form):
@@ -1397,9 +1194,9 @@ class AssetAttachmentUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
     """تعديل مرفق"""
 
     model = AssetAttachment
+    form_class = AssetAttachmentForm
     template_name = 'assets/assets/attachment_form.html'
     permission_required = 'assets.change_asset'
-    fields = ['title', 'attachment_type', 'file', 'issue_date', 'expiry_date', 'description']
 
     def get_queryset(self):
         return AssetAttachment.objects.filter(
@@ -1408,15 +1205,8 @@ class AssetAttachmentUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
         # جعل الملف اختياري في التعديل
         form.fields['file'].required = False
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'FileInput']:
-                field.widget.attrs.update({'class': 'form-control'})
-
         return form
 
     @transaction.atomic
@@ -1575,12 +1365,9 @@ class AssetValuationCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
     """إنشاء إعادة تقييم"""
 
     model = AssetValuation
+    form_class = AssetValuationForm
     template_name = 'assets/assets/valuation_form.html'
     permission_required = 'assets.can_revalue_asset'
-    fields = [
-        'valuation_date', 'new_value', 'reason',
-        'valuator_name', 'valuation_report', 'notes'
-    ]
 
     def dispatch(self, request, *args, **kwargs):
         self.asset = get_object_or_404(
@@ -1601,20 +1388,10 @@ class AssetValuationCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
         # القيمة الحالية
         form.fields['new_value'].help_text = f'القيمة الدفترية الحالية: {self.asset.book_value:,.2f}'
-
         # القيمة الافتراضية
         form.fields['valuation_date'].initial = date.today()
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'FileInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 4})
-
         return form
 
     @transaction.atomic
@@ -1765,12 +1542,12 @@ def asset_datatable_ajax(request):
         order_dir = request.GET.get('order[0][dir]', 'desc')
 
         order_columns = {
-            '1': 'asset_number',
-            '2': 'name',
-            '3': 'category__code',
-            '4': 'purchase_date',
-            '5': 'book_value',
-            '6': 'status',
+            '0': 'asset_number',
+            '1': 'name',
+            '2': 'category__code',
+            '3': 'purchase_date',
+            '4': 'book_value',
+            '5': 'status',
         }
 
         if order_column_index and order_column_index in order_columns:
@@ -1840,11 +1617,19 @@ def asset_datatable_ajax(request):
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
-            # Checkbox
-            checkbox_html = f'<input type="checkbox" class="asset-checkbox" value="{asset.pk}">'
+            # تنسيق القيمة الدفترية بالأرقام الغربية
+            book_value_formatted = "{:,.0f}".format(float(asset.book_value))
+            # تحويل الأرقام الهندية إلى غربية إذا لزم الأمر
+            hindi_to_western = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+            book_value_formatted = book_value_formatted.translate(hindi_to_western)
+
+            # تنسيق التكلفة الأصلية
+            original_cost_formatted = "{:,.0f}".format(float(asset.original_cost))
+            original_cost_formatted = original_cost_formatted.translate(hindi_to_western)
+
+            currency_code = asset.currency.code if asset.currency else ''
 
             data.append([
-                checkbox_html,
                 f'<a href="{reverse("assets:asset_detail", args=[asset.pk])}">{asset.asset_number}</a>',
                 f'''<div>
                     <strong>{asset.name}</strong>
@@ -1853,11 +1638,11 @@ def asset_datatable_ajax(request):
                 f'''<div>
                     <span class="badge bg-light text-dark">{asset.category.code}</span>
                     <small class="d-block text-muted">{asset.category.name}</small>
-                </div>''',
-                asset.purchase_date.strftime('%Y-%m-%d'),
-                f'''<div class="text-end">
-                    <div><strong>{asset.book_value:,.2f}</strong> {asset.currency.code if asset.currency else ''}</div>
-                    <small class="text-muted">من أصل {asset.original_cost:,.2f}</small>
+                </div>''' if asset.category else '-',
+                asset.purchase_date.strftime('%Y-%m-%d') if asset.purchase_date else '-',
+                f'''<div style="white-space: nowrap;">
+                    <div><strong class="text-primary">{book_value_formatted}</strong> <small class="text-muted">{currency_code}</small></div>
+                    <small class="text-muted" style="font-size: 0.75rem;">من أصل {original_cost_formatted}</small>
                 </div>''',
                 status_badge,
                 actions_html
@@ -2023,12 +1808,76 @@ def asset_export(request):
         # إنشاء ملف Excel
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "الأصول"
+        ws.title = "الأصول الثابتة"
+
+        # إضافة شعار الشركة (إذا كان موجوداً)
+        from openpyxl.drawing.image import Image as OpenpyxlImage
+        from django.conf import settings
+        import os
+
+        logo_path = os.path.join(settings.STATIC_ROOT or settings.STATICFILES_DIRS[0], 'images', 'logo.png')
+        current_row = 1
+
+        if os.path.exists(logo_path):
+            try:
+                img = OpenpyxlImage(logo_path)
+                img.width = 80
+                img.height = 80
+                ws.add_image(img, 'A1')
+                current_row = 5
+            except:
+                pass
+
+        # معلومات الشركة والتقرير
+        ws.merge_cells(f'B1:F1')
+        title_cell = ws['B1']
+        title_cell.value = request.current_company.name if request.current_company else 'تقرير الأصول الثابتة'
+        title_cell.font = openpyxl.styles.Font(size=18, bold=True, color="1F4E78")
+        title_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells(f'B2:F2')
+        subtitle_cell = ws['B2']
+        subtitle_cell.value = 'تقرير الأصول الثابتة'
+        subtitle_cell.font = openpyxl.styles.Font(size=14, bold=True, color="366092")
+        subtitle_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells(f'B3:F3')
+        date_cell = ws['B3']
+        date_cell.value = f'تاريخ التقرير: {timezone.now().strftime("%Y-%m-%d %H:%M")}'
+        date_cell.font = openpyxl.styles.Font(size=10, color="666666")
+        date_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+        # إضافة معلومات الفلاتر
+        filter_info = []
+        if status:
+            status_display = dict([
+                ('active', 'نشط'), ('inactive', 'غير نشط'),
+                ('under_maintenance', 'تحت الصيانة'),
+                ('disposed', 'مستبعد'), ('sold', 'مباع')
+            ]).get(status, status)
+            filter_info.append(f'الحالة: {status_display}')
+        if category:
+            try:
+                from apps.assets.models import AssetCategory
+                cat = AssetCategory.objects.get(pk=category)
+                filter_info.append(f'التصنيف: {cat.name}')
+            except:
+                pass
+
+        if filter_info:
+            ws.merge_cells(f'B4:F4')
+            filter_cell = ws['B4']
+            filter_cell.value = 'الفلاتر المطبقة: ' + ' | '.join(filter_info)
+            filter_cell.font = openpyxl.styles.Font(size=9, italic=True, color="999999")
+            filter_cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+            current_row = 6
+        else:
+            current_row = 5
 
         # العناوين
         headers = [
             'رقم الأصل', 'الاسم', 'الاسم بالإنجليزية', 'التصنيف',
-            'الحالة', 'تاريخ الشراء', 'التكلفة الأصلية', 'القيمة الدفترية',
+            'الحالة الفيزيائية', 'تاريخ الشراء', 'التكلفة الأصلية', 'القيمة الدفترية',
             'العملة', 'حالة الأصل', 'طريقة الإهلاك', 'العمر الإنتاجي (شهر)',
             'الموقع الفعلي', 'الرقم التسلسلي', 'الموديل', 'الشركة المصنعة',
             'الباركود', 'المسؤول', 'مركز التكلفة', 'ملاحظات'
@@ -2036,23 +1885,44 @@ def asset_export(request):
 
         # كتابة العناوين
         for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num)
+            cell = ws.cell(row=current_row, column=col_num)
             cell.value = header
-            cell.font = openpyxl.styles.Font(bold=True)
             cell.fill = openpyxl.styles.PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-            cell.font = openpyxl.styles.Font(color="FFFFFF", bold=True)
-            cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+            cell.font = openpyxl.styles.Font(color="FFFFFF", bold=True, size=11)
+            cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+            cell.border = openpyxl.styles.Border(
+                left=openpyxl.styles.Side(style='thin', color='FFFFFF'),
+                right=openpyxl.styles.Side(style='thin', color='FFFFFF'),
+                top=openpyxl.styles.Side(style='thin', color='FFFFFF'),
+                bottom=openpyxl.styles.Side(style='thin', color='FFFFFF')
+            )
+
+        # ضبط ارتفاع صف العناوين
+        ws.row_dimensions[current_row].height = 25
+        data_start_row = current_row + 1
 
         # كتابة البيانات
-        for row_num, asset in enumerate(queryset, 2):
+        total_original_cost = 0
+        total_book_value = 0
+
+        for idx, asset in enumerate(queryset, 0):
+            row_num = data_start_row + idx
+
+            # كتابة البيانات
             ws.cell(row=row_num, column=1, value=asset.asset_number)
             ws.cell(row=row_num, column=2, value=asset.name)
             ws.cell(row=row_num, column=3, value=asset.name_en or '')
             ws.cell(row=row_num, column=4, value=f"{asset.category.code} - {asset.category.name}")
             ws.cell(row=row_num, column=5, value=asset.condition.name if asset.condition else '')
             ws.cell(row=row_num, column=6, value=asset.purchase_date.strftime('%Y-%m-%d'))
-            ws.cell(row=row_num, column=7, value=float(asset.original_cost))
-            ws.cell(row=row_num, column=8, value=float(asset.book_value))
+
+            # تنسيق الأرقام المالية
+            cost_cell = ws.cell(row=row_num, column=7, value=float(asset.original_cost))
+            cost_cell.number_format = '#,##0'
+
+            book_value_cell = ws.cell(row=row_num, column=8, value=float(asset.book_value))
+            book_value_cell.number_format = '#,##0'
+
             ws.cell(row=row_num, column=9, value=asset.currency.code if asset.currency else '')
             ws.cell(row=row_num, column=10, value=asset.get_status_display())
             ws.cell(row=row_num, column=11, value=asset.depreciation_method.name if asset.depreciation_method else '')
@@ -2066,18 +1936,74 @@ def asset_export(request):
             ws.cell(row=row_num, column=19, value=asset.cost_center.name if asset.cost_center else '')
             ws.cell(row=row_num, column=20, value=asset.notes or '')
 
+            # إضافة تلوين متبادل للصفوف
+            fill_color = "F8F9FA" if idx % 2 == 0 else "FFFFFF"
+            for col_num in range(1, 21):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.fill = openpyxl.styles.PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+                cell.border = openpyxl.styles.Border(
+                    left=openpyxl.styles.Side(style='thin', color='DDDDDD'),
+                    right=openpyxl.styles.Side(style='thin', color='DDDDDD'),
+                    top=openpyxl.styles.Side(style='thin', color='DDDDDD'),
+                    bottom=openpyxl.styles.Side(style='thin', color='DDDDDD')
+                )
+                cell.alignment = openpyxl.styles.Alignment(horizontal='right', vertical='center', wrap_text=True)
+
+            # احتساب الإجماليات
+            total_original_cost += float(asset.original_cost)
+            total_book_value += float(asset.book_value)
+
+        # إضافة صف الإجماليات
+        if queryset.exists():
+            total_row = data_start_row + queryset.count()
+
+            # دمج الخلايا للنص "الإجمالي"
+            ws.merge_cells(f'A{total_row}:F{total_row}')
+            total_label_cell = ws[f'A{total_row}']
+            total_label_cell.value = 'الإجمالي'
+            total_label_cell.font = openpyxl.styles.Font(bold=True, size=12, color="1F4E78")
+            total_label_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+            total_label_cell.fill = openpyxl.styles.PatternFill(start_color="E7E9EB", end_color="E7E9EB", fill_type="solid")
+
+            # إجمالي التكلفة الأصلية
+            total_cost_cell = ws.cell(row=total_row, column=7, value=total_original_cost)
+            total_cost_cell.number_format = '#,##0'
+            total_cost_cell.font = openpyxl.styles.Font(bold=True, size=11, color="1F4E78")
+            total_cost_cell.alignment = openpyxl.styles.Alignment(horizontal='right', vertical='center')
+            total_cost_cell.fill = openpyxl.styles.PatternFill(start_color="E7E9EB", end_color="E7E9EB", fill_type="solid")
+
+            # إجمالي القيمة الدفترية
+            total_book_cell = ws.cell(row=total_row, column=8, value=total_book_value)
+            total_book_cell.number_format = '#,##0'
+            total_book_cell.font = openpyxl.styles.Font(bold=True, size=11, color="1F4E78")
+            total_book_cell.alignment = openpyxl.styles.Alignment(horizontal='right', vertical='center')
+            total_book_cell.fill = openpyxl.styles.PatternFill(start_color="E7E9EB", end_color="E7E9EB", fill_type="solid")
+
+            # تطبيق نفس التنسيق على باقي خلايا صف الإجمالي
+            for col_num in range(9, 21):
+                cell = ws.cell(row=total_row, column=col_num)
+                cell.fill = openpyxl.styles.PatternFill(start_color="E7E9EB", end_color="E7E9EB", fill_type="solid")
+
+            # إضافة حدود لصف الإجماليات
+            for col_num in range(1, 21):
+                cell = ws.cell(row=total_row, column=col_num)
+                cell.border = openpyxl.styles.Border(
+                    top=openpyxl.styles.Side(style='medium', color='366092'),
+                    bottom=openpyxl.styles.Side(style='medium', color='366092'),
+                    left=openpyxl.styles.Side(style='thin', color='DDDDDD'),
+                    right=openpyxl.styles.Side(style='thin', color='DDDDDD')
+                )
+
         # تعديل عرض الأعمدة
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+        column_widths = {
+            'A': 12, 'B': 25, 'C': 25, 'D': 25, 'E': 15,
+            'F': 12, 'G': 15, 'H': 15, 'I': 8, 'J': 12,
+            'K': 20, 'L': 10, 'M': 20, 'N': 15, 'O': 15,
+            'P': 15, 'Q': 15, 'R': 25, 'S': 20, 'T': 30
+        }
+
+        for column_letter, width in column_widths.items():
+            ws.column_dimensions[column_letter].width = width
 
         # الاستجابة
         response = HttpResponse(

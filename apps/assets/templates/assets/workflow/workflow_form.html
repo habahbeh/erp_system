@@ -1,138 +1,907 @@
+{# apps/assets/templates/assets/workflow/workflow_form.html #}
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.success-card {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+}
+
+.form-check-input {
+    cursor: pointer;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Approval Level Cards */
+.approval-level-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+}
+
+.approval-level-card:hover {
+    box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.1);
+}
+
+.level-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.delete-level-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.approval-level-card:hover .delete-level-btn {
+    opacity: 1;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات سير العمل ومستويات الاعتماد" %}
+                {% else %}
+                    {% trans "إضافة سير عمل جديد لإدارة الموافقات" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:workflow_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
         <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل سير عمل" %}{% else %}{% trans "سير عمل جديد" %}{% endif %}
+                        <i class="fas fa-project-diagram me-2"></i>
+                        {% if object %}{% trans "تعديل سير العمل" %}{% else %}{% trans "بيانات سير العمل" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" novalidate id="workflowForm">
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الاسم" %}</label>
-                                {{ form.name|add_class:"form-control" }}
-                                {% if form.name.errors %}
-                                    <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نوع الطلب" %}</label>
-                                {{ form.request_type|add_class:"form-select" }}
-                                {% if form.request_type.errors %}
-                                    <div class="text-danger small mt-1">{{ form.request_type.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "الوصف" %}</label>
-                                {{ form.description|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <div class="form-check">
-                                    {{ form.is_active|add_class:"form-check-input" }}
-                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                        {% trans "نشط" %}
+
+                        <!-- البيانات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>البيانات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Code -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.code.id_for_label }}" class="form-label required-field">
+                                        {{ form.code.label }}
                                     </label>
+                                    {{ form.code|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-lightbulb text-warning"></i>
+                                        رمز فريد لتمييز سير العمل
+                                    </div>
+                                    {% if form.code.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.code.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Name -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required-field">
+                                        {{ form.name.label }}
+                                    </label>
+                                    {{ form.name|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-lightbulb text-warning"></i>
+                                        اسم وصفي لسير العمل
+                                    </div>
+                                    {% if form.name.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.name.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Document Type -->
+                                <div class="col-12">
+                                    <label for="{{ form.document_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.document_type.label }}
+                                    </label>
+                                    {{ form.document_type|add_class:"form-select" }}
+                                    <div class="help-text">
+                                        نوع المستند الذي سيتم تطبيق سير العمل عليه
+                                    </div>
+                                    {% if form.document_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.document_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Description -->
+                                <div class="col-12">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        {{ form.description.label }}
+                                    </label>
+                                    {{ form.description|add_class:"form-control" }}
+                                    {% if form.description.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <hr class="my-4">
+                        <!-- خصائص سير العمل -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-cogs me-2"></i>خصائص سير العمل
+                            </h6>
 
-                        <!-- Approval Levels -->
-                        <h6 class="mb-3"><i class="fas fa-layer-group"></i> {% trans "مستويات الاعتماد" %}</h6>
-                        <div id="approval-levels">
-                            {{ formset.management_form }}
-                            {% for form in formset %}
-                            <div class="card mb-3 approval-level-form">
-                                <div class="card-body">
-                                    <div class="row g-3">
-                                        <div class="col-md-2">
-                                            <label class="form-label">{% trans "المستوى" %}</label>
-                                            {{ form.level|add_class:"form-control" }}
+                            <div class="row">
+                                <!-- Is Sequential -->
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        {{ form.is_sequential|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_sequential.id_for_label }}">
+                                            {{ form.is_sequential.label }}
+                                        </label>
+                                        <div class="help-text mt-1">
+                                            الموافقات التسلسلية تتطلب الموافقة حسب الترتيب
                                         </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label">{% trans "الاسم" %}</label>
-                                            {{ form.name|add_class:"form-control" }}
+                                    </div>
+                                    {% if form.is_sequential.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.is_sequential.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Is Active -->
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        {{ form.is_active|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                            {{ form.is_active.label }}
+                                        </label>
+                                        <div class="help-text mt-1">
+                                            سير العمل النشط فقط يتم تطبيقه على المستندات الجديدة
                                         </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label">{% trans "المعتمد" %}</label>
-                                            {{ form.approver|add_class:"form-select select2" }}
+                                    </div>
+                                    {% if form.is_active.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.is_active.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- مستويات الاعتماد -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                                <h6 class="text-primary mb-0">
+                                    <i class="fas fa-layer-group me-2"></i>مستويات الاعتماد
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="add-level">
+                                    <i class="fas fa-plus me-1"></i> إضافة مستوى
+                                </button>
+                            </div>
+
+                            <div id="approval-levels">
+                                {{ formset.management_form }}
+                                {% for level_form in formset %}
+                                <div class="approval-level-card p-3 mb-3" data-level-form>
+                                    <div class="d-flex align-items-start gap-3">
+                                        <!-- Level Number Badge -->
+                                        <div class="level-badge bg-primary text-white flex-shrink-0">
+                                            <span class="level-number">{{ forloop.counter }}</span>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">{% trans "الدور" %}</label>
-                                            {{ form.approver_role|add_class:"form-select" }}
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">{% trans "الشرط" %}</label>
-                                            {{ form.condition|add_class:"form-control" }}
-                                        </div>
-                                        <div class="col-12">
-                                            <div class="form-check">
-                                                {{ form.is_required|add_class:"form-check-input" }}
-                                                <label class="form-check-label">
-                                                    {% trans "إلزامي" %}
-                                                </label>
+
+                                        <!-- Form Fields -->
+                                        <div class="flex-grow-1">
+                                            <div class="row g-3">
+                                                <!-- Level Order (Hidden input for ordering) -->
+                                                <div class="col-12" style="display: none;">
+                                                    {{ level_form.level_order|add_class:"form-control level-input" }}
+                                                </div>
+
+                                                <!-- Name -->
+                                                <div class="col-md-12">
+                                                    <label class="form-label">
+                                                        {{ level_form.name.label }}
+                                                    </label>
+                                                    {{ level_form.name|add_class:"form-control" }}
+                                                    <div class="help-text">
+                                                        اسم وصفي للمستوى (مثل: موافقة المدير المباشر)
+                                                    </div>
+                                                    {% if level_form.name.errors %}
+                                                        <ul class="error-list">
+                                                            {% for error in level_form.name.errors %}
+                                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% endif %}
+                                                </div>
+
+                                                <!-- Approver Role -->
+                                                <div class="col-md-12">
+                                                    <label class="form-label required-field">
+                                                        {{ level_form.approver_role.label }}
+                                                    </label>
+                                                    {{ level_form.approver_role|add_class:"form-select select2-level" }}
+                                                    <div class="help-text">
+                                                        المجموعة المسؤولة عن الموافقة في هذا المستوى
+                                                    </div>
+                                                    {% if level_form.approver_role.errors %}
+                                                        <ul class="error-list">
+                                                            {% for error in level_form.approver_role.errors %}
+                                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% endif %}
+                                                </div>
+
+                                                <!-- Amount Range -->
+                                                <div class="col-md-6">
+                                                    <label class="form-label">
+                                                        {{ level_form.amount_from.label }}
+                                                    </label>
+                                                    {{ level_form.amount_from|add_class:"form-control" }}
+                                                    <div class="help-text">
+                                                        الحد الأدنى للمبلغ (اختياري)
+                                                    </div>
+                                                    {% if level_form.amount_from.errors %}
+                                                        <ul class="error-list">
+                                                            {% for error in level_form.amount_from.errors %}
+                                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% endif %}
+                                                </div>
+
+                                                <div class="col-md-6">
+                                                    <label class="form-label">
+                                                        {{ level_form.amount_to.label }}
+                                                    </label>
+                                                    {{ level_form.amount_to|add_class:"form-control" }}
+                                                    <div class="help-text">
+                                                        الحد الأقصى للمبلغ (اختياري)
+                                                    </div>
+                                                    {% if level_form.amount_to.errors %}
+                                                        <ul class="error-list">
+                                                            {% for error in level_form.amount_to.errors %}
+                                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% endif %}
+                                                </div>
+
+                                                <!-- Is Required -->
+                                                <div class="col-12">
+                                                    <div class="form-check">
+                                                        {{ level_form.is_required|add_class:"form-check-input" }}
+                                                        <label class="form-check-label" for="{{ level_form.is_required.id_for_label }}">
+                                                            {{ level_form.is_required.label }}
+                                                        </label>
+                                                    </div>
+                                                    {% if level_form.is_required.errors %}
+                                                        <ul class="error-list">
+                                                            {% for error in level_form.is_required.errors %}
+                                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
+                                            <!-- Hidden Fields -->
+                                            {{ level_form.id }}
+                                            <div style="display: none;">
+                                                {{ level_form.DELETE }}
                                             </div>
                                         </div>
-                                        {{ form.id }}
-                                        {{ form.DELETE }}
+
+                                        <!-- Delete Button -->
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-level-btn" data-delete-level>
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
+
+                            <!-- Empty State -->
+                            <div id="no-levels-message" class="text-center text-muted py-4" style="display: none;">
+                                <i class="fas fa-layer-group fa-3x mb-2"></i>
+                                <p>لا توجد مستويات اعتماد. اضغط على "إضافة مستوى" لبدء إنشاء سير العمل</p>
+                            </div>
                         </div>
 
-                        <button type="button" class="btn btn-sm btn-outline-primary mb-4" id="add-level">
-                            <i class="fas fa-plus"></i> {% trans "إضافة مستوى" %}
-                        </button>
+                        <!-- Non-field Errors -->
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger" role="alert">
+                            <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في النموذج:</h6>
+                            <ul class="mb-0">
+                                {% for error in form.non_field_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:workflow_list' %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
+                        <!-- Formset Errors -->
+                        {% if formset.non_form_errors %}
+                        <div class="alert alert-danger" role="alert">
+                            <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>أخطاء في مستويات الاعتماد:</h6>
+                            <ul class="mb-0">
+                                {% for error in formset.non_form_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:workflow_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
+                            <div>
+                                {% if object %}
+                                <a href="{% url 'assets:workflow_detail' object.pk %}" class="btn btn-outline-info me-2">
+                                    <i class="fas fa-eye me-1"></i> عرض التفاصيل
+                                </a>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary" id="submitBtn">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث سير العمل{% else %}حفظ سير العمل{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>معلومات مهمة
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            كل سير عمل يحتاج لمستوى اعتماد واحد على الأقل
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            الموافقات التسلسلية تتم حسب ترتيب المستويات
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يمكن تحديد نطاق مبالغ لكل مستوى اعتماد
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            سير العمل النشط فقط يطبق على المستندات الجديدة
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tips Card -->
+            <div class="card success-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-graduation-cap me-2"></i>نصائح
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">استخدم أسماء واضحة لسير العمل</li>
+                        <li class="mb-2">حدد الأدوار بدقة لكل مستوى</li>
+                        <li class="mb-2">نطاقات المبالغ تساعد في تطبيق المستوى المناسب</li>
+                        <li class="mb-0">يمكن تعطيل سير العمل بدلاً من حذفه</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Document Types Info -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-alt me-2"></i>أنواع المستندات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2"><i class="fas fa-box text-primary me-1"></i> شراء أصل</li>
+                            <li class="mb-2"><i class="fas fa-exchange-alt text-info me-1"></i> نقل أصل</li>
+                            <li class="mb-2"><i class="fas fa-trash-alt text-danger me-1"></i> بيع/استبعاد أصل</li>
+                            <li class="mb-2"><i class="fas fa-file-contract text-warning me-1"></i> عقد إيجار</li>
+                            <li class="mb-0"><i class="fas fa-shield-alt text-success me-1"></i> تأمين</li>
+                        </ul>
+                    </small>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object and object.pk %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الحالة:</span>
+                        {% if object.is_active %}
+                            <span class="badge bg-success">نشط</span>
+                        {% else %}
+                            <span class="badge bg-secondary">غير نشط</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">النوع:</span>
+                        {% if object.is_sequential %}
+                            <span class="badge bg-primary">تسلسلي</span>
+                        {% else %}
+                            <span class="badge bg-info">متوازي</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">عدد المستويات:</span>
+                        <span class="badge bg-secondary">{{ object.levels.count }}</span>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
+<!-- Level Template (Hidden) -->
+<div id="level-template" style="display: none;">
+    <div class="approval-level-card p-3 mb-3" data-level-form>
+        <div class="d-flex align-items-start gap-3">
+            <!-- Level Number Badge -->
+            <div class="level-badge bg-primary text-white flex-shrink-0">
+                <span class="level-number">__NUM__</span>
+            </div>
+
+            <!-- Form Fields -->
+            <div class="flex-grow-1">
+                <div class="row g-3">
+                    <!-- Level Order (Hidden input for ordering) -->
+                    <div class="col-12" style="display: none;">
+                        <input type="number" name="form-__prefix__-level_order" class="form-control level-input" value="__NUM__">
+                    </div>
+
+                    <!-- Name -->
+                    <div class="col-md-12">
+                        <label class="form-label">اسم المستوى</label>
+                        <input type="text" name="form-__prefix__-name" class="form-control" placeholder="مثال: موافقة المدير المباشر">
+                        <div class="help-text">اسم وصفي للمستوى</div>
+                    </div>
+
+                    <!-- Approver Role -->
+                    <div class="col-md-12">
+                        <label class="form-label required-field">دور المعتمد</label>
+                        <select name="form-__prefix__-approver_role" class="form-select select2-level" required>
+                            <option value="">اختر الدور...</option>
+                            {% for group in groups %}
+                            <option value="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="help-text">المجموعة المسؤولة عن الموافقة في هذا المستوى</div>
+                    </div>
+
+                    <!-- Amount Range -->
+                    <div class="col-md-6">
+                        <label class="form-label">من مبلغ</label>
+                        <input type="number" step="0.01" name="form-__prefix__-amount_from" class="form-control" placeholder="0.00">
+                        <div class="help-text">الحد الأدنى للمبلغ (اختياري)</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">إلى مبلغ</label>
+                        <input type="number" step="0.01" name="form-__prefix__-amount_to" class="form-control" placeholder="0.00">
+                        <div class="help-text">الحد الأقصى للمبلغ (اختياري)</div>
+                    </div>
+
+                    <!-- Is Required -->
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input type="checkbox" name="form-__prefix__-is_required" class="form-check-input" id="id_form-__prefix__-is_required" checked>
+                            <label class="form-check-label" for="id_form-__prefix__-is_required">إلزامي</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden Fields -->
+                <input type="hidden" name="form-__prefix__-id" id="id_form-__prefix__-id">
+                <input type="hidden" name="form-__prefix__-workflow" id="id_form-__prefix__-workflow" value="{{ object.pk|default:'' }}">
+                <div style="display: none;">
+                    <input type="checkbox" name="form-__prefix__-DELETE" id="id_form-__prefix__-DELETE">
+                </div>
+            </div>
+
+            <!-- Delete Button -->
+            <button type="button" class="btn btn-sm btn-outline-danger delete-level-btn" data-delete-level>
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
-        theme: 'bootstrap-5',
-        dir: 'rtl'
-    });
-
-    // Add new approval level
-    $('#add-level').click(function() {
-        var totalForms = $('#id_form-TOTAL_FORMS');
-        var currentFormCount = parseInt(totalForms.val());
-        var newForm = $('.approval-level-form:first').clone();
-
-        // Update form index
-        newForm.find('input, select, textarea').each(function() {
-            var name = $(this).attr('name');
-            if (name) {
-                $(this).attr('name', name.replace(/form-\d+-/, 'form-' + currentFormCount + '-'));
-                $(this).attr('id', 'id_' + name.replace(/form-\d+-/, 'form-' + currentFormCount + '-'));
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    function initializeSelect2() {
+        $('#id_document_type').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر نوع المستند',
+            allowClear: false,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
             }
-            $(this).val('');
         });
 
+        $('.select2-level').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر الدور...',
+            allowClear: true,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
+            }
+        });
+    }
+
+    initializeSelect2();
+
+    // ==============================
+    // Update Level Numbers
+    // ==============================
+    function updateLevelNumbers() {
+        var levels = $('[data-level-form]:visible');
+        var totalForms = $('#id_form-TOTAL_FORMS');
+
+        levels.each(function(index) {
+            $(this).find('.level-number').text(index + 1);
+            $(this).find('.level-input').val(index + 1);
+        });
+
+        // Show/hide empty state
+        if (levels.length === 0) {
+            $('#no-levels-message').show();
+        } else {
+            $('#no-levels-message').hide();
+        }
+    }
+
+    // ==============================
+    // Add New Level
+    // ==============================
+    $('#add-level').on('click', function() {
+        var totalForms = $('#id_form-TOTAL_FORMS');
+        var currentFormCount = parseInt(totalForms.val());
+        var template = $('#level-template').html();
+
+        // Replace placeholders
+        var newForm = template.replace(/__prefix__/g, currentFormCount);
+        var levelNum = $('[data-level-form]:visible').length + 1;
+        newForm = newForm.replace(/__NUM__/g, levelNum);
+
+        // Append to container
         $('#approval-levels').append(newForm);
+
+        // Update total forms count
         totalForms.val(currentFormCount + 1);
+
+        // Re-initialize Select2 for new dropdowns
+        initializeSelect2();
+
+        // Update level numbers
+        updateLevelNumbers();
+    });
+
+    // ==============================
+    // Delete Level
+    // ==============================
+    $(document).on('click', '[data-delete-level]', function() {
+        var levelCard = $(this).closest('[data-level-form]');
+        var deleteCheckbox = levelCard.find('input[name$="-DELETE"]');
+
+        Swal.fire({
+            title: 'هل أنت متأكد؟',
+            text: "سيتم حذف هذا المستوى من سير العمل",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // If this is an existing level, mark for deletion
+                if (deleteCheckbox.length > 0 && levelCard.find('input[name$="-id"]').val()) {
+                    deleteCheckbox.prop('checked', true);
+                    levelCard.hide();
+                } else {
+                    // If new level, just remove from DOM
+                    levelCard.remove();
+                }
+
+                updateLevelNumbers();
+
+                Swal.fire({
+                    title: 'تم الحذف',
+                    text: 'تم حذف المستوى بنجاح',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        });
+    });
+
+    // Initialize level numbers on page load
+    updateLevelNumbers();
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    // ==============================
+    // Form Submission
+    // ==============================
+    $('#workflowForm').on('submit', function(e) {
+        formChanged = false;
+
+        // Validate at least one level
+        var visibleLevels = $('[data-level-form]:visible').length;
+        var markedForDeletion = $('input[name$="-DELETE"]:checked').length;
+        var activeLevels = visibleLevels - markedForDeletion;
+
+        if (activeLevels === 0) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'خطأ',
+                text: 'يجب إضافة مستوى اعتماد واحد على الأقل',
+                icon: 'error',
+                confirmButtonText: 'حسناً'
+            });
+            return false;
+        }
+
+        const submitBtn = $('#submitBtn');
+        submitBtn.prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

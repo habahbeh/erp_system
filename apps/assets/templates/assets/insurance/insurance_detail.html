@@ -1,102 +1,450 @@
+{# apps/assets/templates/assets/insurance/insurance_detail.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-shield-alt text-primary"></i> {% trans "وثيقة تأمين" %}</h2>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
+            <h1 class="h3 mb-1">{% trans "بوليصة" %} {{ insurance.policy_number }}</h1>
+            <p class="text-muted mb-1">{{ insurance.asset.name }}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-barcode"></i> {{ insurance.policy_number }}
+                </span>
+                <span class="badge bg-{% if insurance.status == 'active' %}success{% elif insurance.status == 'expired' %}danger{% elif insurance.status == 'cancelled' %}secondary{% else %}warning{% endif %} fs-6">
+                    <i class="fas fa-circle"></i> {{ insurance.get_status_display }}
+                </span>
+                {% if days_remaining %}
+                    {% if days_remaining > 30 %}
+                        <span class="badge bg-success fs-6">
+                            <i class="fas fa-calendar-check"></i> {{ days_remaining }} {% trans "يوم متبقي" %}
+                        </span>
+                    {% elif days_remaining > 0 %}
+                        <span class="badge bg-warning fs-6">
+                            <i class="fas fa-exclamation-triangle"></i> {{ days_remaining }} {% trans "يوم متبقي" %}
+                        </span>
+                    {% else %}
+                        <span class="badge bg-danger fs-6">
+                            <i class="fas fa-times-circle"></i> {% trans "منتهية" %}
+                        </span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_edit %}
             <a href="{% url 'assets:insurance_update' insurance.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{% url 'assets:insurance_delete' insurance.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
             <a href="{% url 'assets:insurance_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
 
+    <!-- Warnings -->
+    {% if warnings %}
+    <div class="row mb-4">
+        <div class="col-12">
+            {% for warning in warnings %}
+            <div class="alert alert-{{ warning.type }} alert-dismissible fade show" role="alert">
+                <i class="fas {{ warning.icon }} me-2"></i>{{ warning.message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row">
-        <div class="col-md-8">
+        <!-- معلومات البوليصة -->
+        <div class="col-lg-8">
+            <!-- المعلومات الأساسية -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الوثيقة" %}</h5>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "رقم الوثيقة:" %}</strong> {{ insurance.policy_number }}</p>
-                    <p><strong>{% trans "الأصل:" %}</strong>
-                        <a href="{% url 'assets:asset_detail' insurance.asset.pk %}">{{ insurance.asset.name }}</a>
-                    </p>
-                    <p><strong>{% trans "شركة التأمين:" %}</strong> {{ insurance.insurance_company.name }}</p>
-                    <p><strong>{% trans "نوع التأمين:" %}</strong> {{ insurance.get_insurance_type_display }}</p>
-                    <p><strong>{% trans "بداية التغطية:" %}</strong> {{ insurance.start_date|date:"Y-m-d" }}</p>
-                    <p><strong>{% trans "نهاية التغطية:" %}</strong> {{ insurance.end_date|date:"Y-m-d" }}</p>
-                    <p><strong>{% trans "القيمة المؤمنة:" %}</strong> {{ insurance.insured_value|floatformat:3 }}</p>
-                    <p><strong>{% trans "قسط التأمين:" %}</strong> {{ insurance.premium_amount|floatformat:3 }}</p>
-                    <p><strong>{% trans "التخفيض:" %}</strong> {{ insurance.deductible|floatformat:3|default:"0.000" }}</p>
-                    {% if insurance.notes %}
-                    <p class="mb-0"><strong>{% trans "ملاحظات:" %}</strong> {{ insurance.notes }}</p>
-                    {% endif %}
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم البوليصة" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ insurance.policy_number }}</strong></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "شركة التأمين" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'assets:insurance_company_detail' insurance.insurance_company.pk %}" class="text-decoration-none">
+                                    {{ insurance.insurance_company.name }}
+                                </a>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الأصل المؤمن" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'assets:asset_detail' insurance.asset.pk %}" class="text-decoration-none">
+                                    {{ insurance.asset.asset_number }} - {{ insurance.asset.name }}
+                                </a>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الفرع" %}</h6>
+                            <p class="mb-0">{{ insurance.branch.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع التغطية" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ insurance.get_coverage_type_display }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-{% if insurance.status == 'active' %}success{% elif insurance.status == 'expired' %}danger{% elif insurance.status == 'cancelled' %}secondary{% else %}warning{% endif %} fs-6">
+                                    {{ insurance.get_status_display }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Claims -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-warning">
-                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> {% trans "المطالبات" %}</h5>
+            <!-- المعلومات المالية -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-dollar-sign"></i> {% trans "المعلومات المالية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    {% if insurance.claims.all %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>{% trans "الرقم" %}</th>
-                                    <th>{% trans "التاريخ" %}</th>
-                                    <th class="text-end">{% trans "المبلغ" %}</th>
-                                    <th>{% trans "الحالة" %}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for claim in insurance.claims.all %}
-                                <tr>
-                                    <td><a href="{% url 'assets:claim_detail' claim.pk %}">{{ claim.claim_number }}</a></td>
-                                    <td>{{ claim.claim_date|date:"Y-m-d" }}</td>
-                                    <td class="text-end">{{ claim.claim_amount|floatformat:3 }}</td>
-                                    <td>
-                                        {% if claim.status == 'pending' %}
-                                            <span class="badge bg-warning">{% trans "قيد المراجعة" %}</span>
-                                        {% elif claim.status == 'approved' %}
-                                            <span class="badge bg-success">{% trans "موافق" %}</span>
-                                        {% elif claim.status == 'rejected' %}
-                                            <span class="badge bg-danger">{% trans "مرفوض" %}</span>
-                                        {% elif claim.status == 'settled' %}
-                                            <span class="badge bg-info">{% trans "مسدد" %}</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="row g-3 text-center">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ insurance.coverage_amount|floatformat:0 }}</h3>
+                                <small class="text-muted">{% trans "مبلغ التغطية" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ insurance.premium_amount|floatformat:0 }}</h3>
+                                <small class="text-muted">{% trans "قسط التأمين" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ insurance.deductible_amount|floatformat:0 }}</h3>
+                                <small class="text-muted">{% trans "مبلغ التحمل" %}</small>
+                            </div>
+                        </div>
                     </div>
+
+                    <hr class="my-4">
+
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "دورية الدفع" %}</h6>
+                            <p class="mb-0">{{ insurance.get_payment_frequency_display }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الدفعة القادمة" %}</h6>
+                            <p class="mb-0">
+                                {% if insurance.next_payment_date %}
+                                    {{ insurance.next_payment_date|date:"l، j F Y" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- التواريخ -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-calendar-alt"></i> {% trans "فترة التغطية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ البداية" %}</h6>
+                            <p class="mb-0">{{ insurance.start_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ النهاية" %}</h6>
+                            <p class="mb-0">{{ insurance.end_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ التجديد" %}</h6>
+                            <p class="mb-0">
+                                {% if insurance.renewal_date %}
+                                    {{ insurance.renewal_date|date:"Y/m/d" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        {% if days_remaining %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الأيام المتبقية" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-{% if days_remaining > 30 %}success{% elif days_remaining > 0 %}warning{% else %}danger{% endif %} fs-6">
+                                    {{ days_remaining }} {% trans "يوم" %}
+                                </span>
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- المطالبات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-file-medical"></i> {% trans "المطالبات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if claims %}
+                        <div class="row g-3 text-center mb-3">
+                            <div class="col-md-3">
+                                <div class="border rounded p-2">
+                                    <h5 class="text-primary mb-0">{{ claim_stats.total_count }}</h5>
+                                    <small class="text-muted">{% trans "إجمالي" %}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-2">
+                                    <h5 class="text-success mb-0">{{ claim_stats.approved_count }}</h5>
+                                    <small class="text-muted">{% trans "معتمدة" %}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-2">
+                                    <h5 class="text-info mb-0">{{ claim_stats.paid_count }}</h5>
+                                    <small class="text-muted">{% trans "مدفوعة" %}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-2">
+                                    <h5 class="text-danger mb-0">{{ claim_stats.rejected_count }}</h5>
+                                    <small class="text-muted">{% trans "مرفوضة" %}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>{% trans "رقم المطالبة" %}</th>
+                                        <th>{% trans "التاريخ" %}</th>
+                                        <th>{% trans "نوع الحادث" %}</th>
+                                        <th class="text-end">{% trans "المبلغ المطالب" %}</th>
+                                        <th class="text-end">{% trans "المبلغ المعتمد" %}</th>
+                                        <th>{% trans "الحالة" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for claim in claims %}
+                                    <tr>
+                                        <td>
+                                            <a href="{% url 'assets:claim_detail' claim.pk %}" class="text-decoration-none">
+                                                {{ claim.claim_number }}
+                                            </a>
+                                        </td>
+                                        <td>{{ claim.filed_date|date:"Y-m-d" }}</td>
+                                        <td>{{ claim.get_claim_type_display }}</td>
+                                        <td class="text-end">{{ claim.claim_amount|floatformat:2 }}</td>
+                                        <td class="text-end">{{ claim.approved_amount|floatformat:2|default:"-" }}</td>
+                                        <td>
+                                            <span class="badge bg-{% if claim.status == 'approved' %}success{% elif claim.status == 'rejected' %}danger{% elif claim.status == 'paid' %}info{% else %}warning{% endif %}">
+                                                {{ claim.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
-                    <p class="text-muted">{% trans "لا توجد مطالبات" %}</p>
+                        <div class="text-center py-4">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد مطالبات" %}</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}</h6>
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "الرمز:" %}</strong> {{ insurance.asset.code }}</p>
-                    <p><strong>{% trans "الفئة:" %}</strong> {{ insurance.asset.category.name }}</p>
-                    <p class="mb-0"><strong>{% trans "القيمة الدفترية:" %}</strong> {{ insurance.asset.book_value|floatformat:3 }}</p>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ insurance.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ insurance.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if insurance.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong>
+                        {{ insurance.created_by.get_full_name|default:insurance.created_by.username }}
+                    </small>
+                    {% endif %}
                 </div>
             </div>
+
+            <!-- معلومات الأصل -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "اسم الأصل" %}</h6>
+                        <p class="mb-0 small">
+                            <a href="{% url 'assets:asset_detail' insurance.asset.pk %}" class="text-decoration-none">
+                                {{ insurance.asset.name }}
+                            </a>
+                        </p>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "رقم الأصل" %}</h6>
+                        <p class="mb-0 small">{{ insurance.asset.asset_number }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "التصنيف" %}</h6>
+                        <p class="mb-0 small">{{ insurance.asset.category.name }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">{% trans "القيمة الدفترية" %}</h6>
+                        <p class="mb-0 small">{{ insurance.asset.book_value|floatformat:2 }}</p>
+                    </div>
+
+                    <div class="mb-0">
+                        <h6 class="text-muted mb-1">{% trans "الموقع" %}</h6>
+                        <p class="mb-0 small">{{ insurance.asset.physical_location|default:"-" }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_edit %}
+                        <a href="{% url 'assets:insurance_update' insurance.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل البوليصة" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_add_claim %}
+                        <a href="{% url 'assets:claim_create' %}?insurance={{ insurance.pk }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-medical"></i> {% trans "إضافة مطالبة" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'assets:asset_detail' insurance.asset.pk %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-cube"></i> {% trans "عرض الأصل" %}
+                        </a>
+
+                        <a href="{% url 'assets:insurance_company_detail' insurance.insurance_company.pk %}" class="btn btn-outline-info">
+                            <i class="fas fa-building"></i> {% trans "عرض الشركة" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- وصف التغطية -->
+            {% if insurance.coverage_description %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-shield-alt text-primary"></i> {% trans "وصف التغطية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0 small">{{ insurance.coverage_description }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ملاحظات -->
+            {% if insurance.notes %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-sticky-note text-warning"></i> {% trans "ملاحظات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0 small">{{ insurance.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Placeholder for future functionality
+</script>
 {% endblock %}

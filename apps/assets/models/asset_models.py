@@ -520,16 +520,18 @@ class Asset(DocumentBaseModel):
 
     def clean(self):
         """التحقق من صحة البيانات"""
-        if self.salvage_value >= self.original_cost:
+        if self.salvage_value and self.original_cost and self.salvage_value >= self.original_cost:
             raise ValidationError({
                 'salvage_value': _('القيمة المتبقية يجب أن تكون أقل من التكلفة الأصلية')
             })
 
-        if self.depreciation_method.method_type == 'units_of_production':
-            if not self.total_expected_units:
-                raise ValidationError({
-                    'total_expected_units': _('يجب تحديد إجمالي الوحدات المتوقعة لطريقة وحدات الإنتاج')
-                })
+        # Check if depreciation_method exists before accessing it
+        if hasattr(self, 'depreciation_method') and self.depreciation_method:
+            if self.depreciation_method.method_type == 'units_of_production':
+                if not self.total_expected_units:
+                    raise ValidationError({
+                        'total_expected_units': _('يجب تحديد إجمالي الوحدات المتوقعة لطريقة وحدات الإنتاج')
+                    })
 
         if self.warranty_start_date and self.warranty_end_date:
             if self.warranty_end_date < self.warranty_start_date:
@@ -539,7 +541,10 @@ class Asset(DocumentBaseModel):
 
     def get_depreciable_amount(self):
         """المبلغ القابل للإهلاك = التكلفة - القيمة المتبقية"""
-        return self.original_cost - self.salvage_value
+        if self.original_cost is None:
+            return Decimal('0')
+        salvage = self.salvage_value or Decimal('0')
+        return self.original_cost - salvage
 
     def get_remaining_months(self):
         """الأشهر المتبقية من العمر الافتراضي"""
@@ -863,7 +868,7 @@ class Asset(DocumentBaseModel):
             line_number=1,
             account=self.category.asset_account,
             description=f'شراء {self.name}',
-            debit_amount=self.purchase_price,
+            debit_amount=self.original_cost,
             credit_amount=0,
             currency=self.currency,
             cost_center=self.cost_center
@@ -876,7 +881,7 @@ class Asset(DocumentBaseModel):
             account=payment_account,
             description=f'دفع ثمن {self.name}' + (f' - {self.supplier.name}' if self.supplier else ''),
             debit_amount=0,
-            credit_amount=self.purchase_price,
+            credit_amount=self.original_cost,
             currency=self.currency
         )
 
@@ -935,7 +940,6 @@ class Asset(DocumentBaseModel):
         return transfer
 
     # العمليات
-    @transaction.atomic
     def calculate_monthly_depreciation(self, user=None):
         """احتساب الإهلاك الشهري مع القيد المحاسبي"""
         from django.utils import timezone
@@ -952,6 +956,10 @@ class Asset(DocumentBaseModel):
 
         if self.depreciation_status != 'active':
             raise ValidationError(_('الإهلاك متوقف لهذا الأصل'))
+
+        # Check if depreciation_method exists
+        if not hasattr(self, 'depreciation_method') or not self.depreciation_method:
+            raise ValidationError(_('يجب تحديد طريقة الإهلاك'))
 
         # حساب مبلغ الإهلاك الشهري
         depreciable_amount = self.get_depreciable_amount()
@@ -974,6 +982,17 @@ class Asset(DocumentBaseModel):
 
         today = timezone.now().date()
 
+        # ✅ التحقق من عدم وجود سجل إهلاك لنفس الأصل ونفس التاريخ
+        existing_depreciation = AssetDepreciation.objects.filter(
+            asset=self,
+            depreciation_date=today
+        ).first()
+
+        if existing_depreciation:
+            raise ValidationError(
+                _('تم احتساب الإهلاك لهذا الأصل في تاريخ %(date)s مسبقاً') % {'date': today}
+            )
+
         # ✅ الحصول على السنة والفترة المالية
         try:
             fiscal_year = FiscalYear.objects.get(
@@ -992,8 +1011,8 @@ class Asset(DocumentBaseModel):
             is_closed=False
         ).first()
 
-        # ✅ إنشاء القيد المحاسبي
-        journal_entry = JournalEntry.objects.create(
+        # ✅ Step 1: إنشاء القيد وتوليد الرقم (خارج transaction)
+        journal_entry = JournalEntry(
             company=self.company,
             branch=self.branch if hasattr(self, 'branch') else None,
             fiscal_year=fiscal_year,
@@ -1003,70 +1022,78 @@ class Asset(DocumentBaseModel):
             description=f"إهلاك شهري - {self.name}",
             reference=self.asset_number,
             source_document='asset_depreciation',
-            source_id=None,  # سيتم تحديثه بعد إنشاء السجل
+            source_id=None,
             created_by=user
         )
 
-        # ✅ سطر 1: مصروف الإهلاك (مدين)
-        if not self.category.depreciation_expense_account:
-            raise ValidationError(_('لم يتم تحديد حساب مصروف الإهلاك في فئة الأصل'))
+        # توليد الرقم أولاً (هذا يحصل على قفل ويزيد العداد)
+        journal_entry.number = journal_entry.generate_number()
 
-        JournalEntryLine.objects.create(
-            journal_entry=journal_entry,
-            line_number=1,
-            account=self.category.depreciation_expense_account,
-            description=f"إهلاك شهري - {self.name}",
-            debit_amount=monthly_depreciation,
-            credit_amount=0,
-            currency=self.company.base_currency,
-            cost_center=self.cost_center
-        )
+        # ✅ Step 2: حفظ كل شيء في transaction واحدة
+        with transaction.atomic():
+            # حفظ القيد
+            journal_entry.save()
 
-        # ✅ سطر 2: مجمع الإهلاك (دائن)
-        if not self.category.accumulated_depreciation_account:
-            raise ValidationError(_('لم يتم تحديد حساب مجمع الإهلاك في فئة الأصل'))
+            # ✅ سطر 1: مصروف الإهلاك (مدين)
+            if not self.category.depreciation_expense_account:
+                raise ValidationError(_('لم يتم تحديد حساب مصروف الإهلاك في فئة الأصل'))
 
-        JournalEntryLine.objects.create(
-            journal_entry=journal_entry,
-            line_number=2,
-            account=self.category.accumulated_depreciation_account,
-            description=f"مجمع إهلاك - {self.name}",
-            debit_amount=0,
-            credit_amount=monthly_depreciation,
-            currency=self.company.base_currency
-        )
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=1,
+                account=self.category.depreciation_expense_account,
+                description=f"إهلاك شهري - {self.name}",
+                debit_amount=monthly_depreciation,
+                credit_amount=0,
+                currency=self.company.base_currency,
+                cost_center=self.cost_center
+            )
 
-        # ✅ ترحيل القيد
-        journal_entry.post(user=user)
+            # ✅ سطر 2: مجمع الإهلاك (دائن)
+            if not self.category.accumulated_depreciation_account:
+                raise ValidationError(_('لم يتم تحديد حساب مجمع الإهلاك في فئة الأصل'))
 
-        # ✅ إنشاء سجل الإهلاك
-        depreciation_record = AssetDepreciation.objects.create(
-            asset=self,
-            company=self.company,
-            fiscal_year=fiscal_year,
-            period=period,
-            depreciation_date=today,
-            depreciation_amount=monthly_depreciation,
-            accumulated_depreciation_before=self.accumulated_depreciation,
-            accumulated_depreciation_after=self.accumulated_depreciation + monthly_depreciation,
-            book_value_after=self.book_value - monthly_depreciation,
-            journal_entry=journal_entry,  # ✅ ربط القيد
-            is_posted=True,  # ✅ مرحّل
-            created_by=user
-        )
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=2,
+                account=self.category.accumulated_depreciation_account,
+                description=f"مجمع إهلاك - {self.name}",
+                debit_amount=0,
+                credit_amount=monthly_depreciation,
+                currency=self.company.base_currency
+            )
 
-        # ✅ تحديث source_id في القيد
-        journal_entry.source_id = depreciation_record.pk
-        journal_entry.save(update_fields=['source_id'])
+            # ✅ ترحيل القيد
+            journal_entry.post(user=user)
 
-        # ✅ تحديث الأصل
-        self.accumulated_depreciation += monthly_depreciation
-        self.book_value -= monthly_depreciation
+            # ✅ إنشاء سجل الإهلاك
+            depreciation_record = AssetDepreciation.objects.create(
+                asset=self,
+                company=self.company,
+                fiscal_year=fiscal_year,
+                period=period,
+                depreciation_date=today,
+                depreciation_amount=monthly_depreciation,
+                accumulated_depreciation_before=self.accumulated_depreciation,
+                accumulated_depreciation_after=self.accumulated_depreciation + monthly_depreciation,
+                book_value_after=self.book_value - monthly_depreciation,
+                journal_entry=journal_entry,
+                is_posted=True,
+                created_by=user
+            )
 
-        if self.is_fully_depreciated():
-            self.depreciation_status = 'completed'
+            # ✅ تحديث source_id في القيد
+            journal_entry.source_id = depreciation_record.pk
+            journal_entry.save(update_fields=['source_id'])
 
-        self.save()
+            # ✅ تحديث الأصل
+            self.accumulated_depreciation += monthly_depreciation
+            self.book_value -= monthly_depreciation
+
+            if self.is_fully_depreciated():
+                self.depreciation_status = 'completed'
+
+            self.save()
 
         return depreciation_record
 
@@ -1075,7 +1102,7 @@ class Asset(DocumentBaseModel):
         """بيع الأصل مع إنشاء القيد المحاسبي"""
         from django.utils import timezone
         from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
-        from ..accounting_config import AssetAccountingConfiguration
+        from .accounting_config import AssetAccountingConfiguration
 
         if not self.can_user_sell(user):
             raise PermissionDenied(_('ليس لديك صلاحية بيع الأصول'))
@@ -1137,7 +1164,19 @@ class Asset(DocumentBaseModel):
         line_number = 1
 
         # ✅ 1. البنك/الصندوق (مدين) - ديناميكي
-        cash_account = config.get_bank_account()
+        # Try to get bank/cash account, if not available use buyer's account
+        try:
+            cash_account = config.get_bank_account()
+        except ValidationError:
+            # If no default bank/cash account, use buyer's account if available
+            if buyer and hasattr(buyer, 'customer_account') and buyer.customer_account:
+                cash_account = buyer.customer_account
+            else:
+                raise ValidationError(
+                    _('لم يتم تحديد حساب بنك/نقدية افتراضي في إعدادات الأصول، '
+                      'ولا يوجد حساب محدد للمشتري. يرجى تحديد أحدهما.')
+                )
+
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,

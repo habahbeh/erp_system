@@ -81,8 +81,8 @@ def asset_details_api(request, pk):
             },
             'status': asset.status,
             'status_display': asset.get_status_display(),
-            'acquisition_date': asset.acquisition_date.strftime('%Y-%m-%d') if asset.acquisition_date else None,
-            'acquisition_cost': float(asset.acquisition_cost),
+            'purchase_date': asset.purchase_date.strftime('%Y-%m-%d') if asset.purchase_date else None,
+            'original_cost': float(asset.original_cost),
             'accumulated_depreciation': float(asset.accumulated_depreciation),
             'book_value': float(asset.book_value),
             'depreciation_method': asset.depreciation_method.name if asset.depreciation_method else None,
@@ -114,7 +114,7 @@ def category_assets_api(request, pk):
             category=category
         ).values(
             'id', 'asset_number', 'name', 'status',
-            'acquisition_cost', 'book_value'
+            'original_cost', 'book_value'
         )[:100]
 
         return JsonResponse({
@@ -140,7 +140,7 @@ def asset_stats_api(request):
         ).aggregate(
             total_count=Count('id'),
             active_count=Count('id', filter=Q(status='active')),
-            total_cost=Sum('acquisition_cost'),
+            total_cost=Sum('original_cost'),
             total_book_value=Sum('book_value')
         )
 
@@ -149,7 +149,7 @@ def asset_stats_api(request):
             company=request.current_company
         ).values('category__name').annotate(
             count=Count('id'),
-            total_cost=Sum('acquisition_cost')
+            total_cost=Sum('original_cost')
         ).order_by('-total_cost')[:10])
 
         # حسب الحالة

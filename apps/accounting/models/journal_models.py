@@ -176,45 +176,119 @@ class JournalEntry(DocumentBaseModel):
         ]
 
     def save(self, *args, **kwargs):
+        from django.db import transaction as db_transaction
+
         self.full_clean()
 
-        # الحفظ أولاً للحصول على ID
         is_new = self.pk is None
-        super().save(*args, **kwargs)
 
-        # توليد رقم القيد بعد الحفظ للمرة الأولى
+        # ✅ توليد رقم القيد قبل الحفظ للمرة الأولى
         if is_new and not self.number:
+            # Generate number outside of any transaction to avoid issues
             self.number = self.generate_number()
             # تحديد السنة والفترة
             if not self.fiscal_year_id:
                 self.auto_set_fiscal_period()
-            # حفظ مرة أخرى مع الرقم والفترة
-            super().save(update_fields=['number', 'fiscal_year', 'period'])
+
+        # الآن احفظ
+        super().save(*args, **kwargs)
 
         # حساب الإجماليات
         if self.pk:
             self.calculate_totals()
 
     def generate_number(self):
-        """توليد رقم القيد بناءً على التسلسل"""
+        """توليد رقم القيد بناءً على التسلسل - مع قفل لمنع التكرار"""
         from apps.core.models import NumberingSequence
+        from django.db import transaction, connection
+        from django.db.models import F
+        import datetime
+        import time
 
-        try:
-            sequence = NumberingSequence.objects.get(
-                company=self.company,
-                document_type='journal_entry'
-            )
-            return sequence.get_next_number()
-        except NumberingSequence.DoesNotExist:
-            # إنشاء تسلسل افتراضي
-            sequence = NumberingSequence.objects.create(
-                company=self.company,
-                document_type='journal_entry',
-                prefix='JV',
-                next_number=1,
-                padding=6
-            )
-            return sequence.get_next_number()
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            try:
+                # استخدام transaction مستقل تماماً مع عزلية عالية
+                with transaction.atomic(using='default'):
+                    # استخدام FOR UPDATE مع SKIP LOCKED للتعامل مع التنافس
+                    try:
+                        sequence = NumberingSequence.objects.select_for_update(nowait=False, skip_locked=False).get(
+                            company=self.company,
+                            document_type='journal_entry'
+                        )
+                    except NumberingSequence.DoesNotExist:
+                        # إنشاء تسلسل افتراضي
+                        sequence, created = NumberingSequence.objects.get_or_create(
+                            company=self.company,
+                            document_type='journal_entry',
+                            defaults={
+                                'prefix': 'JV',
+                                'next_number': 1,
+                                'padding': 6,
+                                'include_year': True,
+                                'yearly_reset': True,
+                                'separator': '/'
+                            }
+                        )
+                        if not created:
+                            # إعادة القراءة مع القفل
+                            sequence = NumberingSequence.objects.select_for_update(nowait=False).get(pk=sequence.pk)
+
+                    # بناء الرقم مباشرة هنا
+                    current_year = datetime.date.today().year
+                    current_month = datetime.date.today().month
+
+                    # التحقق من إعادة الترقيم السنوي
+                    if sequence.yearly_reset and sequence.include_year:
+                        if sequence.last_reset_year != current_year:
+                            sequence.next_number = 1
+                            sequence.last_reset_year = current_year
+
+                    # احفظ الرقم الحالي قبل الزيادة
+                    current_number = sequence.next_number
+
+                    # بناء الرقم
+                    parts = []
+                    if sequence.prefix:
+                        parts.append(sequence.prefix)
+                    if sequence.include_year:
+                        parts.append(str(current_year))
+                    if sequence.include_month:
+                        parts.append(f"{current_month:02d}")
+                    parts.append(str(current_number).zfill(sequence.padding))
+                    if sequence.suffix:
+                        parts.append(sequence.suffix)
+
+                    number = sequence.separator.join(parts)
+
+                    # زيادة العداد باستخدام F expression (atomic على مستوى قاعدة البيانات)
+                    updated_rows = NumberingSequence.objects.filter(
+                        pk=sequence.pk,
+                        next_number=current_number  # تأكد أن القيمة لم تتغير
+                    ).update(
+                        next_number=F('next_number') + 1,
+                        last_reset_year=current_year
+                    )
+
+                    # إذا لم يتم التحديث (لأن رقم آخر قام بالتغيير)، حاول مرة أخرى
+                    if updated_rows == 0:
+                        raise Exception("تم تعديل التسلسل من قبل عملية أخرى")
+
+                # إذا نجحت العملية، اخرج من الحلقة
+                print(f"✅ Generated number: {number} (attempt {attempt + 1})")
+                return number
+
+            except Exception as e:
+                error_msg = str(e)
+                print(f"⚠️ Attempt {attempt + 1} failed: {error_msg}")
+                # في حالة وجود أي خطأ، انتظر قليلاً وحاول مرة أخرى
+                if attempt < max_attempts - 1:
+                    wait_time = 0.05 * (2 ** attempt)  # Exponential backoff: 50ms, 100ms, 200ms, 400ms...
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # فشلت جميع المحاولات
+                    raise ValidationError(f'فشل في توليد رقم القيد بعد {max_attempts} محاولات: {error_msg}')
 
     def auto_set_fiscal_period(self):
         """تحديد السنة والفترة المالية تلقائياً"""
@@ -385,6 +459,65 @@ class JournalEntry(DocumentBaseModel):
 
     def get_absolute_url(self):
         return reverse('accounting:journal_entry_detail', kwargs={'pk': self.pk})
+
+    def reverse_entry(self, user=None, reversal_date=None, reason=None):
+        """
+        عكس القيد المحاسبي (إنشاء قيد معكوس)
+
+        Args:
+            user: المستخدم الذي يقوم بالعكس
+            reversal_date: تاريخ القيد العكسي (افتراضي: اليوم)
+            reason: سبب العكس
+
+        Returns:
+            القيد العكسي الجديد
+        """
+        if self.status != 'posted':
+            raise ValidationError(_('لا يمكن عكس قيد غير مرحّل'))
+
+        if not reversal_date:
+            reversal_date = date.today()
+
+        # إنشاء القيد العكسي
+        reversal_entry = JournalEntry(
+            company=self.company,
+            branch=self.branch,
+            fiscal_year=self.fiscal_year,
+            period=self.period,
+            entry_date=reversal_date,
+            entry_type='adjustment',
+            description=f"عكس قيد: {self.number} - {reason or self.description}",
+            reference=f"REV-{self.number}",
+            source_document=self.source_document,
+            source_id=self.source_id,
+            created_by=user
+        )
+
+        # توليد رقم القيد العكسي
+        reversal_entry.number = reversal_entry.generate_number()
+
+        # حفظ القيد في transaction
+        with transaction.atomic():
+            reversal_entry.save()
+
+            # نسخ السطور بشكل معكوس (المدين يصبح دائن والعكس)
+            for line in self.lines.all():
+                JournalEntryLine.objects.create(
+                    journal_entry=reversal_entry,
+                    line_number=line.line_number,
+                    account=line.account,
+                    description=f"عكس: {line.description}",
+                    debit_amount=line.credit_amount,  # عكس
+                    credit_amount=line.debit_amount,  # عكس
+                    currency=line.currency,
+                    exchange_rate=line.exchange_rate,
+                    cost_center=line.cost_center
+                )
+
+            # ترحيل القيد العكسي تلقائياً
+            reversal_entry.post(user=user)
+
+        return reversal_entry
 
     def __str__(self):
         return f"{self.number} - {self.description[:50]}"

@@ -1,58 +1,123 @@
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load static i18n %}
+
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
     <!-- Header -->
-    <div class="d-flex justify-content-between mb-4 no-print">
-        <h2><i class="fas fa-chart-line text-primary"></i> {% trans "تقرير الإهلاك" %}</h2>
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-chart-line text-primary"></i> {{ title }}
+        </h1>
+        <p class="text-muted">تقرير شامل بإهلاك الأصول الثابتة</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
         <div>
-            <button onclick="window.print()" class="btn btn-primary">
-                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            <button onclick="printReport()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
             </button>
-            <a href="{% url 'assets:reports' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
-            </a>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-danger">
+                <i class="fas fa-file-pdf"></i> تصدير PDF
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
         </div>
     </div>
 
     <!-- Filters -->
     <div class="card shadow-sm mb-4 no-print">
         <div class="card-header bg-light">
-            <h6 class="mb-0"><i class="fas fa-filter"></i> {% trans "الفلاتر" %}</h6>
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> الفلاتر
+            </h6>
         </div>
         <div class="card-body">
             <form method="get">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">{% trans "الفترة" %}</label>
-                        <select name="period" class="form-select">
-                            <option value="month">{% trans "الشهر الحالي" %}</option>
-                            <option value="quarter">{% trans "الربع الحالي" %}</option>
-                            <option value="year">{% trans "السنة الحالية" %}</option>
-                            <option value="custom">{% trans "فترة مخصصة" %}</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{% trans "من تاريخ" %}</label>
-                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
-                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{% trans "الفئة" %}</label>
+                        <label class="form-label">الفئة</label>
                         <select name="category" class="form-select">
-                            <option value="">{% trans "كل الفئات" %}</option>
+                            <option value="">جميع الفئات</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"s" %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
                     <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-search"></i> {% trans "تطبيق" %}
+                            <i class="fas fa-search"></i> تطبيق
                         </button>
                     </div>
                 </div>
@@ -60,84 +125,90 @@
         </div>
     </div>
 
-    <!-- Summary Statistics -->
-    <div class="row mb-4">
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card shadow-sm border-start border-primary border-4">
-                <div class="card-body">
-                    <h6 class="text-muted mb-2">{% trans "إهلاك الفترة" %}</h6>
-                    <h3 class="mb-0 text-primary">{{ summary.period_depreciation|floatformat:3 }}</h3>
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">عدد السجلات</h6>
+                    <h3 class="text-primary mb-0">{{ totals.total_records }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm border-start border-warning border-4">
-                <div class="card-body">
-                    <h6 class="text-muted mb-2">{% trans "الإهلاك المتراكم" %}</h6>
-                    <h3 class="mb-0 text-warning">{{ summary.accumulated_depreciation|floatformat:3 }}</h3>
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">التكلفة الأصلية</h6>
+                    <h3 class="text-success mb-0">{{ totals.original_cost|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm border-start border-success border-4">
-                <div class="card-body">
-                    <h6 class="text-muted mb-2">{% trans "التكلفة الأصلية" %}</h6>
-                    <h3 class="mb-0 text-success">{{ summary.original_cost|floatformat:3 }}</h3>
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">إهلاك الفترة</h6>
+                    <h3 class="text-warning mb-0">{{ totals.period_depreciation|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm border-start border-info border-4">
-                <div class="card-body">
-                    <h6 class="text-muted mb-2">{% trans "القيمة الدفترية" %}</h6>
-                    <h3 class="mb-0 text-info">{{ summary.book_value|floatformat:3 }}</h3>
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">القيمة الدفترية</h6>
+                    <h3 class="text-info mb-0">{{ totals.book_value|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Depreciation by Category -->
+    {% if by_category %}
     <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "الإهلاك حسب الفئة" %}</h5>
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-pie"></i> الإهلاك حسب الفئة
+            </h5>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
                         <tr>
-                            <th>{% trans "الفئة" %}</th>
-                            <th class="text-center">{% trans "عدد الأصول" %}</th>
-                            <th class="text-end">{% trans "التكلفة الأصلية" %}</th>
-                            <th class="text-end">{% trans "إهلاك الفترة" %}</th>
-                            <th class="text-end">{% trans "الإهلاك المتراكم" %}</th>
-                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
-                            <th class="text-center">{% trans "نسبة الإهلاك" %}</th>
+                            <th>الفئة</th>
+                            <th class="text-center">عدد السجلات</th>
+                            <th class="text-end">التكلفة الأصلية</th>
+                            <th class="text-end">إهلاك الفترة</th>
+                            <th class="text-end">الإهلاك المتراكم</th>
+                            <th class="text-end">القيمة الدفترية</th>
+                            <th class="text-center">نسبة الإهلاك</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in by_category %}
+                        {% for cat in by_category %}
                         <tr>
-                            <td><strong>{{ item.category }}</strong></td>
-                            <td class="text-center">{{ item.count }}</td>
-                            <td class="text-end">{{ item.original_cost|floatformat:3 }}</td>
-                            <td class="text-end">{{ item.period_depreciation|floatformat:3 }}</td>
-                            <td class="text-end">{{ item.accumulated_depreciation|floatformat:3 }}</td>
-                            <td class="text-end">{{ item.book_value|floatformat:3 }}</td>
+                            <td><strong>{{ cat.asset__category__name }}</strong></td>
+                            <td class="text-center">{{ cat.count }}</td>
+                            <td class="text-end">{{ cat.original_cost|floatformat:3 }}</td>
+                            <td class="text-end">{{ cat.period_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ cat.accumulated_depreciation|floatformat:3 }}</td>
+                            <td class="text-end">{{ cat.book_value|floatformat:3 }}</td>
                             <td class="text-center">
-                                <span class="badge bg-secondary">{{ item.depreciation_percentage|floatformat:1 }}%</span>
+                                <span class="badge bg-secondary">{{ cat.depreciation_percentage|floatformat:1 }}%</span>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="table-secondary">
                         <tr>
-                            <th>{% trans "الإجمالي" %}</th>
-                            <th class="text-center">{{ summary.total_assets }}</th>
-                            <th class="text-end">{{ summary.original_cost|floatformat:3 }}</th>
-                            <th class="text-end">{{ summary.period_depreciation|floatformat:3 }}</th>
-                            <th class="text-end">{{ summary.accumulated_depreciation|floatformat:3 }}</th>
-                            <th class="text-end">{{ summary.book_value|floatformat:3 }}</th>
+                            <th>الإجمالي</th>
+                            <th class="text-center">{{ totals.total_records }}</th>
+                            <th class="text-end">{{ totals.original_cost|floatformat:3 }}</th>
+                            <th class="text-end">{{ totals.period_depreciation|floatformat:3 }}</th>
+                            <th class="text-end">{{ totals.accumulated_depreciation|floatformat:3 }}</th>
+                            <th class="text-end">{{ totals.book_value|floatformat:3 }}</th>
                             <th class="text-center">-</th>
                         </tr>
                     </tfoot>
@@ -145,44 +216,52 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Detailed Depreciation Records -->
     <div class="card shadow-sm">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "سجل الإهلاك التفصيلي" %}</h5>
+        <div class="card-header bg-primary bg-opacity-10">
+            <h5 class="mb-0 text-primary">
+                <i class="fas fa-list"></i> سجل الإهلاك التفصيلي
+            </h5>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead class="table-light">
+                <table class="table table-sm table-hover mb-0" id="depreciationTable">
+                    <thead class="table-dark">
                         <tr>
-                            <th>{% trans "التاريخ" %}</th>
-                            <th>{% trans "الأصل" %}</th>
-                            <th>{% trans "الفئة" %}</th>
-                            <th class="text-end">{% trans "مبلغ الإهلاك" %}</th>
-                            <th class="text-end">{% trans "الإهلاك المتراكم" %}</th>
-                            <th class="text-end">{% trans "القيمة الدفترية" %}</th>
-                            <th>{% trans "الطريقة" %}</th>
+                            <th>التاريخ</th>
+                            <th>رقم الأصل</th>
+                            <th>الأصل</th>
+                            <th>الفئة</th>
+                            <th class="text-end">مبلغ الإهلاك</th>
+                            <th class="text-end">الإهلاك المتراكم</th>
+                            <th class="text-end">القيمة الدفترية</th>
+                            <th>الطريقة</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for depreciation in depreciation_records %}
                         <tr>
                             <td>{{ depreciation.depreciation_date|date:"Y-m-d" }}</td>
+                            <td><strong>{{ depreciation.asset.asset_number }}</strong></td>
                             <td>
                                 <a href="{% url 'assets:asset_detail' depreciation.asset.pk %}">
                                     {{ depreciation.asset.name }}
                                 </a>
                             </td>
                             <td>{{ depreciation.asset.category.name }}</td>
-                            <td class="text-end">{{ depreciation.amount|floatformat:3 }}</td>
-                            <td class="text-end">{{ depreciation.accumulated_amount|floatformat:3 }}</td>
+                            <td class="text-end">{{ depreciation.depreciation_amount|floatformat:3 }}</td>
+                            <td class="text-end">{{ depreciation.accumulated_depreciation_after|floatformat:3 }}</td>
                             <td class="text-end">{{ depreciation.book_value_after|floatformat:3 }}</td>
-                            <td>{{ depreciation.asset.get_depreciation_method_display }}</td>
+                            <td>{{ depreciation.asset.depreciation_method.name|default:"-" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="text-center text-muted">{% trans "لا توجد سجلات إهلاك للفترة المحددة" %}</td>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد سجلات إهلاك مطابقة للفلاتر المحددة
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -194,46 +273,153 @@
     <!-- Chart -->
     <div class="card shadow-sm mt-4 no-print">
         <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "رسم بياني للإهلاك" %}</h5>
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> رسم بياني للإهلاك</h5>
         </div>
         <div class="card-body">
             <canvas id="depreciationChart" height="80"></canvas>
         </div>
     </div>
-</div>
 
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted small">
+        <p class="mb-1">
+            <i class="fas fa-building"></i> {{ user.company.name }}
+        </p>
+        <p class="mb-0">
+            تم إنشاء هذا التقرير بواسطة: {{ user.get_full_name }}
+            في {{ now|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-$(document).ready(function() {
-    var ctx = document.getElementById('depreciationChart').getContext('2d');
-    var depreciationChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: {{ category_labels|safe }},
-            datasets: [{
-                label: '{% trans "إهلاك الفترة" %}',
-                data: {{ category_period_data|safe }},
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }, {
-                label: '{% trans "الإهلاك المتراكم" %}',
-                data: {{ category_accumulated_data|safe }},
-                backgroundColor: 'rgba(255, 206, 86, 0.5)',
-                borderColor: 'rgba(255, 206, 86, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            scales: {
-                y: {
-                    beginAtZero: true
+    // تصدير إلى Excel - استخدام رابط Django
+    function exportToExcel() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "assets:export_depreciation_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    // تصدير إلى PDF - استخدام رابط Django
+    function exportToPDF() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "assets:export_depreciation_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    // طباعة التقرير
+    function printReport() {
+        window.print();
+    }
+
+    // DataTable للتقرير
+    $(document).ready(function() {
+        // Check if table has data rows (not just empty state)
+        var tableRows = $('#depreciationTable tbody tr').length;
+        var hasColspan = $('#depreciationTable tbody tr td[colspan]').length > 0;
+
+        if (tableRows > 0 && !hasColspan) {
+            // تهيئة DataTable
+            const table = $('#depreciationTable').DataTable({
+                pageLength: 50,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                },
+                dom: 'Blfrtip',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'تقرير الإهلاك',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-danger btn-sm',
+                        title: 'تقرير الإهلاك',
+                        orientation: 'landscape',
+                        pageSize: 'A4',
+                        exportOptions: {
+                            columns: ':visible'
+                        },
+                        customize: function(doc) {
+                            // RTL support for PDF
+                            doc.defaultStyle.font = 'Arial';
+                            doc.styles.tableHeader.alignment = 'right';
+                            doc.content[1].table.widths = Array(doc.content[1].table.body[0].length + 1).join('*').split('');
+                        }
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> طباعة',
+                        className: 'btn btn-primary btn-sm',
+                        title: 'تقرير الإهلاك',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ],
+                responsive: true,
+                order: [[0, 'desc']], // ترتيب حسب التاريخ
+                columnDefs: [
+                    { targets: [4, 5, 6], className: 'text-end' } // محاذاة الأرقام
+                ]
+            });
+        }
+
+        // رسم بياني
+        var ctx = document.getElementById('depreciationChart');
+        if (ctx) {
+            ctx = ctx.getContext('2d');
+            var depreciationChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: {{ category_labels|safe }},
+                    datasets: [{
+                        label: 'إهلاك الفترة',
+                        data: {{ category_period_data|safe }},
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: 'الإهلاك المتراكم',
+                        data: {{ category_accumulated_data|safe }},
+                        backgroundColor: 'rgba(255, 206, 86, 0.5)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
                 }
-            }
+            });
         }
     });
-});
 </script>
 {% endblock %}

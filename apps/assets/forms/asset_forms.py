@@ -28,9 +28,11 @@ class AssetCategoryForm(forms.ModelForm):
         fields = [
             'code', 'name', 'name_en', 'parent',
             'asset_account', 'accumulated_depreciation_account',
-            'depreciation_expense_account',
+            'depreciation_expense_account', 'loss_on_disposal_account',
+            'gain_on_sale_account', 'maintenance_expense_account',
             'default_depreciation_method', 'default_useful_life_months',
-            'default_salvage_value_rate', 'description'
+            'default_salvage_value_rate', 'default_physical_count_frequency',
+            'is_active', 'description'
         ]
         widgets = {
             'code': forms.TextInput(attrs={
@@ -49,6 +51,9 @@ class AssetCategoryForm(forms.ModelForm):
             'asset_account': forms.Select(attrs={'class': 'form-select'}),
             'accumulated_depreciation_account': forms.Select(attrs={'class': 'form-select'}),
             'depreciation_expense_account': forms.Select(attrs={'class': 'form-select'}),
+            'loss_on_disposal_account': forms.Select(attrs={'class': 'form-select'}),
+            'gain_on_sale_account': forms.Select(attrs={'class': 'form-select'}),
+            'maintenance_expense_account': forms.Select(attrs={'class': 'form-select'}),
             'default_depreciation_method': forms.Select(attrs={'class': 'form-select'}),
             'default_useful_life_months': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -59,6 +64,8 @@ class AssetCategoryForm(forms.ModelForm):
                 'placeholder': '0-100',
                 'step': '0.01'
             }),
+            'default_physical_count_frequency': forms.Select(attrs={'class': 'form-select'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3
@@ -86,6 +93,21 @@ class AssetCategoryForm(forms.ModelForm):
                 account_type__type_category='expenses',
                 is_active=True
             )
+            self.fields['loss_on_disposal_account'].queryset = Account.objects.filter(
+                company=self.company,
+                account_type__type_category='expenses',
+                is_active=True
+            )
+            self.fields['gain_on_sale_account'].queryset = Account.objects.filter(
+                company=self.company,
+                account_type__type_category='revenue',
+                is_active=True
+            )
+            self.fields['maintenance_expense_account'].queryset = Account.objects.filter(
+                company=self.company,
+                account_type__type_category='expenses',
+                is_active=True
+            )
             self.fields['parent'].queryset = AssetCategory.objects.filter(
                 company=self.company,
                 is_active=True
@@ -103,7 +125,7 @@ class DepreciationMethodForm(forms.ModelForm):
 
     class Meta:
         model = DepreciationMethod
-        fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description']
+        fields = ['code', 'name', 'name_en', 'method_type', 'rate_percentage', 'description', 'is_active']
         widgets = {
             'code': forms.TextInput(attrs={'class': 'form-control'}),
             'name': forms.TextInput(attrs={'class': 'form-control'}),
@@ -115,6 +137,7 @@ class DepreciationMethodForm(forms.ModelForm):
                 'placeholder': 'للقسط المتناقص فقط - مثال: 200'
             }),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 
@@ -123,7 +146,7 @@ class AssetConditionForm(forms.ModelForm):
 
     class Meta:
         model = AssetCondition
-        fields = ['name', 'name_en', 'color_code', 'description']
+        fields = ['name', 'name_en', 'color_code', 'description', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'name_en': forms.TextInput(attrs={'class': 'form-control'}),
@@ -132,6 +155,7 @@ class AssetConditionForm(forms.ModelForm):
                 'type': 'color'
             }),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 
@@ -141,7 +165,7 @@ class AssetForm(forms.ModelForm):
     class Meta:
         model = Asset
         fields = [
-            'name', 'name_en', 'category', 'condition', 'status', 'depreciation_status',
+            'name', 'name_en', 'category', 'branch', 'condition', 'status', 'depreciation_status',
             'purchase_date', 'purchase_invoice_number', 'supplier', 'currency',
             'original_cost', 'salvage_value',
             'depreciation_method', 'useful_life_months', 'depreciation_start_date',
@@ -162,6 +186,7 @@ class AssetForm(forms.ModelForm):
                 'placeholder': 'Hyundai Azera 2023'
             }),
             'category': forms.Select(attrs={'class': 'form-select'}),
+            'branch': forms.Select(attrs={'class': 'form-select'}),
             'condition': forms.Select(attrs={'class': 'form-select'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'depreciation_status': forms.Select(attrs={'class': 'form-select'}),
@@ -255,6 +280,13 @@ class AssetForm(forms.ModelForm):
 
         if self.company:
             # تصفية حسب الشركة
+            from apps.core.models import Branch, Currency
+
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=self.company,
+                is_active=True
+            )
+
             self.fields['category'].queryset = AssetCategory.objects.filter(
                 company=self.company,
                 is_active=True
@@ -266,7 +298,6 @@ class AssetForm(forms.ModelForm):
             )
 
             # تصفية العملات
-            from apps.core.models import Currency
             self.fields['currency'].queryset = Currency.objects.filter(is_active=True)
 
             self.fields['cost_center'].queryset = CostCenter.objects.filter(

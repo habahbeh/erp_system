@@ -749,41 +749,47 @@ class NumberingSequence(BaseModel):
         unique_together = [['company', 'document_type']]
 
     def get_next_number(self):
-        """الحصول على الرقم التالي مع دعم الترقيم السنوي"""
+        """الحصول على الرقم التالي مع دعم الترقيم السنوي - مع قفل للمنع من التكرار"""
         import datetime
+        from django.db import transaction
 
         current_year = datetime.date.today().year
         current_month = datetime.date.today().month
 
-        # التحقق من إعادة الترقيم السنوي
-        if self.yearly_reset and self.include_year:
-            # إذا تغيرت السنة، أعد الترقيم
-            if self.last_reset_year != current_year:
-                self.next_number = 1
-                self.last_reset_year = current_year
+        # استخدام select_for_update لمنع التداخل في الأرقام
+        with transaction.atomic():
+            # إعادة قراءة السجل مع قفل
+            sequence = NumberingSequence.objects.select_for_update().get(pk=self.pk)
 
-        # بناء الرقم
-        parts = []
+            # التحقق من إعادة الترقيم السنوي
+            if sequence.yearly_reset and sequence.include_year:
+                # إذا تغيرت السنة، أعد الترقيم
+                if sequence.last_reset_year != current_year:
+                    sequence.next_number = 1
+                    sequence.last_reset_year = current_year
 
-        if self.prefix:
-            parts.append(self.prefix)
+            # بناء الرقم
+            parts = []
 
-        if self.include_year:
-            parts.append(str(current_year))
+            if sequence.prefix:
+                parts.append(sequence.prefix)
 
-        if self.include_month:
-            parts.append(f"{current_month:02d}")
+            if sequence.include_year:
+                parts.append(str(current_year))
 
-        parts.append(str(self.next_number).zfill(self.padding))
+            if sequence.include_month:
+                parts.append(f"{current_month:02d}")
 
-        if self.suffix:
-            parts.append(self.suffix)
+            parts.append(str(sequence.next_number).zfill(sequence.padding))
 
-        number = self.separator.join(parts)
+            if sequence.suffix:
+                parts.append(sequence.suffix)
 
-        # زيادة العداد
-        self.next_number += 1
-        self.save()
+            number = sequence.separator.join(parts)
+
+            # زيادة العداد
+            sequence.next_number += 1
+            sequence.save()
 
         return number
 

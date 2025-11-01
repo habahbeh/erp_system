@@ -1,95 +1,798 @@
+<!-- apps/assets/templates/assets/insurance/insurance_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.form-check-input {
+    cursor: pointer;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات وثيقة التأمين" %}
+                {% else %}
+                    {% trans "إضافة وثيقة تأمين جديدة لحماية الأصول الثابتة" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:insurance_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
         <div class="col-lg-9">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل وثيقة تأمين" %}{% else %}{% trans "وثيقة تأمين جديدة" %}{% endif %}
+                        <i class="fas fa-shield-alt me-2"></i>
+                        {% if object %}{% trans "تعديل وثيقة التأمين" %}{% else %}{% trans "بيانات وثيقة التأمين" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "رقم الوثيقة" %}</label>
-                                {{ form.policy_number|add_class:"form-control" }}
-                                {% if form.policy_number.errors %}
-                                    <div class="text-danger small mt-1">{{ form.policy_number.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الأصل" %}</label>
-                                {{ form.asset|add_class:"form-select select2" }}
-                                {% if form.asset.errors %}
-                                    <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "شركة التأمين" %}</label>
-                                {{ form.insurance_company|add_class:"form-select select2" }}
-                                {% if form.insurance_company.errors %}
-                                    <div class="text-danger small mt-1">{{ form.insurance_company.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نوع التأمين" %}</label>
-                                {{ form.insurance_type|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "بداية التغطية" %}</label>
-                                {{ form.start_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نهاية التغطية" %}</label>
-                                {{ form.end_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label required">{% trans "القيمة المؤمنة" %}</label>
-                                {{ form.insured_value|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label required">{% trans "قسط التأمين" %}</label>
-                                {{ form.premium_amount|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "التخفيض" %}</label>
-                                {{ form.deductible|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "التغطية" %}</label>
-                                {{ form.coverage_details|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
+
+                        <!-- الأصل وشركة التأمين -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Insurance Company -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.insurance_company.id_for_label }}" class="form-label required-field">
+                                        {{ form.insurance_company.label }}
+                                    </label>
+                                    {{ form.insurance_company|add_class:"form-select" }}
+                                    {% if form.insurance_company.help_text %}
+                                        <div class="help-text">{{ form.insurance_company.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.insurance_company.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.insurance_company.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Asset -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.asset.id_for_label }}" class="form-label required-field">
+                                        {{ form.asset.label }}
+                                    </label>
+                                    {{ form.asset|add_class:"form-select" }}
+                                    {% if form.asset.help_text %}
+                                        <div class="help-text">{{ form.asset.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.asset.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.asset.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:insurance_list' %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
+                        <!-- نوع التغطية والتفاصيل -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-umbrella me-2"></i>التغطية التأمينية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Coverage Type -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.coverage_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.coverage_type.label }}
+                                    </label>
+                                    {{ form.coverage_type|add_class:"form-select" }}
+                                    {% if form.coverage_type.help_text %}
+                                        <div class="help-text">{{ form.coverage_type.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.coverage_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.coverage_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Coverage Amount -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.coverage_amount.id_for_label }}" class="form-label required-field">
+                                        {{ form.coverage_amount.label }}
+                                    </label>
+                                    {{ form.coverage_amount|add_class:"form-control" }}
+                                    {% if form.coverage_amount.help_text %}
+                                        <div class="help-text">{{ form.coverage_amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.coverage_amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.coverage_amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Coverage Description -->
+                                <div class="col-12">
+                                    <label for="{{ form.coverage_description.id_for_label }}" class="form-label">
+                                        {{ form.coverage_description.label }}
+                                    </label>
+                                    {{ form.coverage_description|add_class:"form-control" }}
+                                    {% if form.coverage_description.help_text %}
+                                        <div class="help-text">{{ form.coverage_description.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.coverage_description.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.coverage_description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الأقساط والمدفوعات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-money-bill-wave me-2"></i>الأقساط والمدفوعات
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Premium Amount -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.premium_amount.id_for_label }}" class="form-label required-field">
+                                        {{ form.premium_amount.label }}
+                                    </label>
+                                    {{ form.premium_amount|add_class:"form-control" }}
+                                    {% if form.premium_amount.help_text %}
+                                        <div class="help-text">{{ form.premium_amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.premium_amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.premium_amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Deductible Amount -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.deductible_amount.id_for_label }}" class="form-label">
+                                        {{ form.deductible_amount.label }}
+                                    </label>
+                                    {{ form.deductible_amount|add_class:"form-control" }}
+                                    {% if form.deductible_amount.help_text %}
+                                        <div class="help-text">{{ form.deductible_amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.deductible_amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.deductible_amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Payment Frequency -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.payment_frequency.id_for_label }}" class="form-label">
+                                        {{ form.payment_frequency.label }}
+                                    </label>
+                                    {{ form.payment_frequency|add_class:"form-select" }}
+                                    {% if form.payment_frequency.help_text %}
+                                        <div class="help-text">{{ form.payment_frequency.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.payment_frequency.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.payment_frequency.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Next Payment Date -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.next_payment_date.id_for_label }}" class="form-label">
+                                        {{ form.next_payment_date.label }}
+                                    </label>
+                                    {{ form.next_payment_date|add_class:"form-control" }}
+                                    {% if form.next_payment_date.help_text %}
+                                        <div class="help-text">{{ form.next_payment_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.next_payment_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.next_payment_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- فترة الوثيقة -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-calendar-alt me-2"></i>فترة سريان الوثيقة
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Start Date -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.start_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.start_date.label }}
+                                    </label>
+                                    {{ form.start_date|add_class:"form-control" }}
+                                    {% if form.start_date.help_text %}
+                                        <div class="help-text">{{ form.start_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.start_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.start_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- End Date -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.end_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.end_date.label }}
+                                    </label>
+                                    {{ form.end_date|add_class:"form-control" }}
+                                    {% if form.end_date.help_text %}
+                                        <div class="help-text">{{ form.end_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.end_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.end_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Renewal Date -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.renewal_date.id_for_label }}" class="form-label">
+                                        {{ form.renewal_date.label }}
+                                    </label>
+                                    {{ form.renewal_date|add_class:"form-control" }}
+                                    {% if form.renewal_date.help_text %}
+                                        <div class="help-text">{{ form.renewal_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.renewal_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.renewal_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الحالة -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-toggle-on me-2"></i>حالة الوثيقة
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Status -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.status.id_for_label }}" class="form-label required-field">
+                                        {{ form.status.label }}
+                                    </label>
+                                    {{ form.status|add_class:"form-select" }}
+                                    {% if form.status.help_text %}
+                                        <div class="help-text">{{ form.status.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.status.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.status.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ملاحظات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                            </h6>
+
+                            <div class="row">
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:insurance_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
+                            <div>
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة أخرى
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث الوثيقة{% else %}حفظ الوثيقة{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Quick Actions Card -->
+            <div class="card mb-3" style="border-left: 4px solid #28a745;">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-plus-circle me-2"></i>إضافات سريعة
+                    </h6>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'assets:insurance_company_create' %}" class="btn btn-success btn-sm" target="_blank">
+                            <i class="fas fa-building me-1"></i>إضافة شركة تأمين
+                        </a>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        سيتم فتح نافذة جديدة. بعد الحفظ، قم بتحديث القائمة هنا.
+                    </small>
+                </div>
+            </div>
+
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            تأكد من صحة تواريخ بداية ونهاية التغطية
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            مبلغ التغطية يجب أن يكون مناسب لقيمة الأصل
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            قسط التأمين يجب أن يكون أقل من مبلغ التغطية
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            يمكنك رفع نسخة من وثيقة التأمين
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">تاريخ التجديد اختياري للتذكير بموعد التجديد</li>
+                        <li class="mb-2">التحمل (التخفيض) هو المبلغ الذي يتحمله المؤمن له</li>
+                        <li class="mb-2">اختر دورية الدفع المناسبة (شهري، ربع سنوي، سنوي)</li>
+                        <li class="mb-0">يمكن تحديد موعد الدفع التالي لتنبيهك</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الحالة:</span>
+                        {% if object.status == 'active' %}
+                            <span class="badge bg-success">نشط</span>
+                        {% elif object.status == 'expired' %}
+                            <span class="badge bg-danger">منتهي</span>
+                        {% elif object.status == 'cancelled' %}
+                            <span class="badge bg-secondary">ملغي</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">عدد المطالبات:</span>
+                        <span class="badge bg-info">{{ object.claims.count }}</span>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Insurance Company
+    $('#id_insurance_company').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl'
+        width: '100%',
+        placeholder: 'اختر شركة التأمين',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Asset
+    $('#id_asset').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الأصل',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Coverage Type
+    $('#id_coverage_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع التغطية',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // Payment Frequency
+    $('#id_payment_frequency').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر دورية الدفع',
+        allowClear: true,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // Status
+    $('#id_status').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الحالة',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Form Validation & Logic
+    // ==============================
+
+    // Auto-fill coverage amount from asset book value
+    $('#id_asset').on('change', function() {
+        var assetId = $(this).val();
+        if (assetId) {
+            // يمكن إضافة Ajax لجلب القيمة الدفترية
+            console.log('Asset selected:', assetId);
+        }
+    });
+
+    // Validate dates
+    $('#id_end_date').on('change', function() {
+        var startDate = new Date($('#id_start_date').val());
+        var endDate = new Date($(this).val());
+
+        if (endDate < startDate) {
+            alert('تاريخ النهاية يجب أن يكون بعد تاريخ البداية');
+            $(this).val('');
+        }
+    });
+
+    $('#id_renewal_date').on('change', function() {
+        var endDate = new Date($('#id_end_date').val());
+        var renewalDate = new Date($(this).val());
+
+        if (renewalDate > endDate) {
+            alert('تاريخ التجديد يجب أن يكون قبل أو يساوي تاريخ النهاية');
+            $(this).val('');
+        }
+    });
+
+    // Validate premium vs coverage
+    $('#id_premium_amount').on('blur', function() {
+        var premium = parseFloat($(this).val());
+        var coverage = parseFloat($('#id_coverage_amount').val());
+
+        if (premium && coverage && premium >= coverage) {
+            alert('قسط التأمين يجب أن يكون أقل من مبلغ التغطية');
+            $(this).focus();
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

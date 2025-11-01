@@ -11,6 +11,7 @@ from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.forms import inlineformset_factory
 from django.db.models import Q, Sum, Count
 from django.utils.translation import gettext_lazy as _
 from django.db import transaction
@@ -56,12 +57,25 @@ class ApprovalWorkflowListView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Calculate statistics
+        workflows = ApprovalWorkflow.objects.filter(company=self.request.current_company)
+        stats = {
+            'total': workflows.count(),
+            'active': workflows.filter(is_active=True).count(),
+            'inactive': workflows.filter(is_active=False).count(),
+            'total_levels': ApprovalLevel.objects.filter(
+                workflow__company=self.request.current_company
+            ).count()
+        }
+
         context.update({
             'title': _('سير العمل'),
             'can_add': self.request.user.has_perm('assets.add_approvalworkflow'),
             'can_edit': self.request.user.has_perm('assets.change_approvalworkflow'),
             'can_delete': self.request.user.has_perm('assets.delete_approvalworkflow'),
             'document_types': ApprovalWorkflow.DOCUMENT_TYPES,
+            'stats': stats,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('سير العمل'), 'url': ''},
@@ -79,19 +93,33 @@ class ApprovalWorkflowCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     fields = ['code', 'name', 'document_type', 'is_sequential', 'description', 'is_active']
     success_url = reverse_lazy('assets:workflow_list')
 
-    @transaction.atomic
-    def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.created_by = self.request.user
-        self.object = form.save()
-
-        messages.success(self.request, f'تم إنشاء سير العمل {self.object.name} بنجاح')
-        return redirect('assets:workflow_detail', pk=self.object.pk)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Get all groups for the dropdown
+        from django.contrib.auth.models import Group
+        groups = Group.objects.all().order_by('name')
+
+        if self.request.POST:
+            context['formset'] = inlineformset_factory(
+                ApprovalWorkflow,
+                ApprovalLevel,
+                fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+                extra=1,
+                can_delete=True
+            )(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = inlineformset_factory(
+                ApprovalWorkflow,
+                ApprovalLevel,
+                fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+                extra=1,
+                can_delete=True
+            )(instance=self.object)
+
         context.update({
             'title': _('إضافة سير عمل'),
+            'groups': groups,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('سير العمل'), 'url': reverse('assets:workflow_list')},
@@ -99,6 +127,28 @@ class ApprovalWorkflowCreateView(LoginRequiredMixin, PermissionRequiredMixin, Co
             ]
         })
         return context
+
+    @transaction.atomic
+    def form_valid(self, form):
+        form.instance.company = self.request.current_company
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        # Save formset
+        formset = inlineformset_factory(
+            ApprovalWorkflow,
+            ApprovalLevel,
+            fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+            extra=1,
+            can_delete=True
+        )(self.request.POST, instance=self.object)
+
+        if formset.is_valid():
+            formset.save()
+            messages.success(self.request, f'تم إنشاء سير العمل {self.object.name} بنجاح')
+            return redirect('assets:workflow_detail', pk=self.object.pk)
+        else:
+            return self.form_invalid(form)
 
 
 class ApprovalWorkflowDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
@@ -145,16 +195,33 @@ class ApprovalWorkflowUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
     def get_queryset(self):
         return ApprovalWorkflow.objects.filter(company=self.request.current_company)
 
-    @transaction.atomic
-    def form_valid(self, form):
-        self.object = form.save()
-        messages.success(self.request, f'تم تحديث سير العمل {self.object.name} بنجاح')
-        return redirect('assets:workflow_detail', pk=self.object.pk)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Get all groups for the dropdown
+        from django.contrib.auth.models import Group
+        groups = Group.objects.all().order_by('name')
+
+        if self.request.POST:
+            context['formset'] = inlineformset_factory(
+                ApprovalWorkflow,
+                ApprovalLevel,
+                fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+                extra=0,
+                can_delete=True
+            )(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = inlineformset_factory(
+                ApprovalWorkflow,
+                ApprovalLevel,
+                fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+                extra=0,
+                can_delete=True
+            )(instance=self.object)
+
         context.update({
             'title': f'تعديل سير العمل {self.object.name}',
+            'groups': groups,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('سير العمل'), 'url': reverse('assets:workflow_list')},
@@ -163,6 +230,26 @@ class ApprovalWorkflowUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Co
             ]
         })
         return context
+
+    @transaction.atomic
+    def form_valid(self, form):
+        self.object = form.save()
+
+        # Save formset
+        formset = inlineformset_factory(
+            ApprovalWorkflow,
+            ApprovalLevel,
+            fields=['level_order', 'name', 'approver_role', 'amount_from', 'amount_to', 'is_required'],
+            extra=0,
+            can_delete=True
+        )(self.request.POST, instance=self.object)
+
+        if formset.is_valid():
+            formset.save()
+            messages.success(self.request, f'تم تحديث سير العمل {self.object.name} بنجاح')
+            return redirect('assets:workflow_detail', pk=self.object.pk)
+        else:
+            return self.form_invalid(form)
 
 
 class ApprovalWorkflowDeleteView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DeleteView):
@@ -201,7 +288,7 @@ class ApprovalRequestListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     def get_queryset(self):
         queryset = ApprovalRequest.objects.filter(
             company=self.request.current_company
-        ).select_related('workflow', 'requested_by', 'current_approver')
+        ).select_related('workflow', 'requested_by', 'current_level', 'current_level__approver_role')
 
         # الفلترة
         status = self.request.GET.get('status')
@@ -219,12 +306,13 @@ class ApprovalRequestListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
             queryset = queryset.filter(requested_by=self.request.user)
 
         if pending_my_approval == '1':
+            # Filter by current level's approver role
             queryset = queryset.filter(
                 status='pending',
-                current_approver=self.request.user
+                current_level__approver_role__user=self.request.user
             )
 
-        return queryset.order_by('-request_date', '-request_number')
+        return queryset.order_by('-requested_date', '-request_number')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -233,13 +321,20 @@ class ApprovalRequestListView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         pending_my_approval = ApprovalRequest.objects.filter(
             company=self.request.current_company,
             status='pending',
-            current_approver=self.request.user
+            current_level__approver_role__user=self.request.user
         ).count()
+
+        # قائمة سير العمل
+        workflows = ApprovalWorkflow.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('name')
 
         context.update({
             'title': _('طلبات الموافقة'),
             'status_choices': ApprovalRequest.STATUS_CHOICES,
             'pending_my_approval': pending_my_approval,
+            'workflows': workflows,
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('طلبات الموافقة'), 'url': ''},
@@ -259,7 +354,7 @@ class ApprovalRequestDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
     def get_queryset(self):
         return ApprovalRequest.objects.filter(
             company=self.request.current_company
-        ).select_related('workflow', 'requested_by', 'current_approver')
+        ).select_related('workflow', 'requested_by', 'current_level', 'current_level__approver_role')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -270,7 +365,8 @@ class ApprovalRequestDetailView(LoginRequiredMixin, PermissionRequiredMixin, Com
         # هل يمكن للمستخدم الموافقة
         can_approve = (
                 self.object.status == 'pending' and
-                self.object.current_approver == self.request.user
+                self.object.current_level and
+                self.request.user.groups.filter(id=self.object.current_level.approver_role_id).exists()
         )
 
         context.update({
@@ -515,18 +611,43 @@ def request_datatable_ajax(request):
     length = int(request.GET.get('length', 10))
     search_value = request.GET.get('search[value]', '')
 
+    # الفلاتر الجديدة
+    status = request.GET.get('status', '')
+    workflow = request.GET.get('workflow', '')
+    quick_filter = request.GET.get('quick_filter', '')
+    search_filter = request.GET.get('search_filter', '').strip()
+
     try:
         queryset = ApprovalRequest.objects.filter(
             company=request.current_company
-        ).select_related('workflow', 'requested_by', 'current_approver')
+        ).select_related('workflow', 'requested_by', 'current_level', 'current_level__approver_role')
 
-        if search_value:
+        # تطبيق الفلاتر
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if workflow:
+            queryset = queryset.filter(workflow_id=workflow)
+
+        if quick_filter == 'my_requests':
+            queryset = queryset.filter(requested_by=request.user)
+        elif quick_filter == 'pending_my_approval':
             queryset = queryset.filter(
-                Q(request_number__icontains=search_value) |
-                Q(document_number__icontains=search_value)
+                status='pending',
+                current_level__approver_role__user=request.user
             )
 
-        queryset = queryset.order_by('-request_date', '-request_number')
+        # البحث
+        search_text = search_filter or search_value
+        if search_text:
+            queryset = queryset.filter(
+                Q(request_number__icontains=search_text) |
+                Q(document_number__icontains=search_text) |
+                Q(requested_by__first_name__icontains=search_text) |
+                Q(requested_by__last_name__icontains=search_text)
+            )
+
+        queryset = queryset.order_by('-requested_date', '-request_number')
 
         total_records = ApprovalRequest.objects.filter(company=request.current_company).count()
         filtered_records = queryset.count()
@@ -544,8 +665,8 @@ def request_datatable_ajax(request):
             }
             status_badge = status_map.get(req.status, req.status)
 
-            # المعتمد الحالي
-            current_approver = req.current_approver.get_full_name() if req.current_approver else '-'
+            # المعتمد الحالي (من المستوى الحالي)
+            current_approver = req.current_level.approver_role.name if req.current_level else '-'
 
             actions = []
             actions.append(f'''
@@ -556,7 +677,7 @@ def request_datatable_ajax(request):
             ''')
 
             # زر الموافقة
-            if req.status == 'pending' and req.current_approver == request.user:
+            if req.status == 'pending' and req.current_level and request.user.groups.filter(id=req.current_level.approver_role_id).exists():
                 actions.append(f'''
                     <button type="button" class="btn btn-outline-success btn-sm" 
                             onclick="approveRequest({req.pk})" title="موافقة" data-bs-toggle="tooltip">
@@ -574,7 +695,7 @@ def request_datatable_ajax(request):
 
             data.append([
                 req.request_number,
-                req.request_date.strftime('%Y-%m-%d'),
+                req.requested_date.strftime('%Y-%m-%d'),
                 req.workflow.name,
                 req.document_number or '-',
                 req.requested_by.get_full_name(),
@@ -605,6 +726,119 @@ def request_datatable_ajax(request):
 @login_required
 @permission_required_with_message('assets.view_approvalrequest')
 @require_http_methods(["GET"])
+def approval_stats_ajax(request):
+    """إحصائيات طلبات الموافقة"""
+
+    try:
+        requests = ApprovalRequest.objects.filter(
+            company=request.current_company
+        )
+
+        stats = {
+            'total': requests.count(),
+            'pending': requests.filter(status='pending').count(),
+            'approved': requests.filter(status='approved').count(),
+            'rejected': requests.filter(status='rejected').count(),
+            'cancelled': requests.filter(status='cancelled').count(),
+        }
+
+        return JsonResponse({
+            'success': True,
+            'stats': stats
+        })
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'خطأ في تحميل الإحصائيات: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@permission_required_with_message('assets.view_approvalrequest')
+@require_http_methods(["GET"])
+def request_export(request):
+    """تصدير طلبات الموافقة إلى Excel"""
+
+    try:
+        import pandas as pd
+        from datetime import datetime
+
+        # تطبيق نفس الفلاتر المستخدمة في العرض
+        queryset = ApprovalRequest.objects.filter(
+            company=request.current_company
+        ).select_related('workflow', 'requested_by', 'current_level', 'current_level__approver_role')
+
+        status = request.GET.get('status', '')
+        workflow = request.GET.get('workflow', '')
+        quick_filter = request.GET.get('quick_filter', '')
+
+        if status:
+            queryset = queryset.filter(status=status)
+        if workflow:
+            queryset = queryset.filter(workflow_id=workflow)
+        if quick_filter == 'my_requests':
+            queryset = queryset.filter(requested_by=request.user)
+        elif quick_filter == 'pending_my_approval':
+            queryset = queryset.filter(
+                status='pending',
+                current_level__approver_role__user=request.user
+            )
+
+        # تحضير البيانات
+        data = []
+        for req in queryset.order_by('-requested_date'):
+            data.append({
+                'رقم الطلب': req.request_number,
+                'تاريخ الطلب': req.requested_date.strftime('%Y-%m-%d'),
+                'نوع سير العمل': req.workflow.name,
+                'رقم المستند': req.document_number or '-',
+                'مقدم الطلب': req.requested_by.get_full_name(),
+                'المعتمد الحالي': req.current_level.approver_role.name if req.current_level else '-',
+                'الحالة': req.get_status_display(),
+                'القيمة': float(req.amount) if req.amount else 0,
+                'المستوى الحالي': req.current_level or '-',
+            })
+
+        # إنشاء ملف Excel
+        df = pd.DataFrame(data)
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="approval_requests_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='طلبات الموافقة')
+
+            # تنسيق الأعمدة
+            worksheet = writer.sheets['طلبات الموافقة']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في تصدير البيانات: {str(e)}')
+        return redirect('assets:request_list')
+
+
+@login_required
+@permission_required_with_message('assets.view_approvalrequest')
+@require_http_methods(["GET"])
 def my_pending_approvals_ajax(request):
     """طلبات الموافقة المعلقة للمستخدم الحالي"""
 
@@ -612,15 +846,15 @@ def my_pending_approvals_ajax(request):
         requests = ApprovalRequest.objects.filter(
             company=request.current_company,
             status='pending',
-            current_approver=request.user
-        ).select_related('workflow', 'requested_by').order_by('request_date')[:10]
+            current_level__approver_role__user=request.user
+        ).select_related('workflow', 'requested_by', 'current_level').order_by('requested_date')[:10]
 
         results = []
         for req in requests:
             results.append({
                 'id': req.pk,
                 'request_number': req.request_number,
-                'request_date': req.request_date.strftime('%Y-%m-%d'),
+                'request_date': req.requested_date.strftime('%Y-%m-%d'),
                 'workflow': req.workflow.name,
                 'document_number': req.document_number or '',
                 'requested_by': req.requested_by.get_full_name(),

@@ -78,7 +78,29 @@ class AssetDepreciationForm(forms.ModelForm):
 class BulkDepreciationCalculationForm(forms.Form):
     """نموذج احتساب الإهلاك الجماعي"""
 
+    period_year = forms.IntegerField(
+        label=_('السنة'),
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '2020',
+            'max': '2099'
+        }),
+        help_text=_('سنة الفترة المالية')
+    )
+
+    period_month = forms.IntegerField(
+        label=_('الشهر'),
+        widget=forms.Select(choices=[
+            (1, _('يناير')), (2, _('فبراير')), (3, _('مارس')),
+            (4, _('أبريل')), (5, _('مايو')), (6, _('يونيو')),
+            (7, _('يوليو')), (8, _('أغسطس')), (9, _('سبتمبر')),
+            (10, _('أكتوبر')), (11, _('نوفمبر')), (12, _('ديسمبر'))
+        ], attrs={'class': 'form-select'}),
+        help_text=_('شهر الفترة المالية')
+    )
+
     calculation_date = forms.DateField(
+        required=False,
         label=_('تاريخ الاحتساب'),
         widget=forms.DateInput(attrs={
             'class': 'form-control',
@@ -106,6 +128,35 @@ class BulkDepreciationCalculationForm(forms.Form):
         empty_label=_('جميع الفئات'),
         widget=forms.Select(attrs={'class': 'form-select'}),
         help_text=_('احتساب الإهلاك لفئة معينة فقط')
+    )
+
+    location = forms.CharField(
+        required=False,
+        label=_('الموقع الفعلي'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'ابحث عن موقع'
+        }),
+        help_text=_('تصفية حسب الموقع الفعلي (نص)')
+    )
+
+    department = forms.CharField(
+        required=False,
+        label=_('القسم'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'ابحث عن قسم'
+        }),
+        help_text=_('تصفية حسب القسم (نص)')
+    )
+
+    depreciation_method = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        label=_('طريقة الإهلاك'),
+        empty_label=_('جميع الطرق'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text=_('تصفية حسب طريقة الإهلاك')
     )
 
     force_recalculate = forms.BooleanField(
@@ -143,10 +194,20 @@ class BulkDepreciationCalculationForm(forms.Form):
                 is_active=True
             ).order_by('name')
 
+        # طرق الإهلاك (system-wide, no company filter)
+        from ..models import DepreciationMethod
+        self.fields['depreciation_method'].queryset = DepreciationMethod.objects.filter(
+            is_active=True
+        ).order_by('name')
+
         # تعيين التاريخ الافتراضي لنهاية الشهر الماضي
         today = datetime.date.today()
         last_month_end = (today.replace(day=1) - datetime.timedelta(days=1))
         self.fields['calculation_date'].initial = last_month_end
+
+        # تعيين السنة والشهر الافتراضي
+        self.fields['period_year'].initial = last_month_end.year
+        self.fields['period_month'].initial = last_month_end.month
 
     def clean(self):
         cleaned_data = super().clean()

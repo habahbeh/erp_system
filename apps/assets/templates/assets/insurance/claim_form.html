@@ -1,88 +1,705 @@
+<!-- apps/assets/templates/assets/insurance/claim_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-warning">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات مطالبة التأمين" %}
+                {% else %}
+                    {% trans "تقديم مطالبة تأمين جديدة على الأصول المؤمنة" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:claim_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل مطالبة" %}{% else %}{% trans "مطالبة جديدة" %}{% endif %}
+                        <i class="fas fa-file-invoice-dollar me-2"></i>
+                        {% if object %}{% trans "تعديل المطالبة" %}{% else %}{% trans "بيانات المطالبة" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "رقم المطالبة" %}</label>
-                                {{ form.claim_number|add_class:"form-control" }}
-                                {% if form.claim_number.errors %}
-                                    <div class="text-danger small mt-1">{{ form.claim_number.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الوثيقة" %}</label>
-                                {{ form.insurance|add_class:"form-select select2" }}
-                                {% if form.insurance.errors %}
-                                    <div class="text-danger small mt-1">{{ form.insurance.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "تاريخ المطالبة" %}</label>
-                                {{ form.claim_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "تاريخ الحادث" %}</label>
-                                {{ form.incident_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نوع الحادث" %}</label>
-                                {{ form.incident_type|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الحالة" %}</label>
-                                {{ form.status|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "المبلغ المطالب" %}</label>
-                                {{ form.claim_amount|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "المبلغ المعتمد" %}</label>
-                                {{ form.approved_amount|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "وصف الحادث" %}</label>
-                                {{ form.description|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
+
+                        <!-- معلومات الوثيقة -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-shield-alt me-2"></i>معلومات الوثيقة
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Insurance -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.insurance.id_for_label }}" class="form-label required-field">
+                                        {{ form.insurance.label }}
+                                    </label>
+                                    {{ form.insurance|add_class:"form-select" }}
+                                    {% if form.insurance.help_text %}
+                                        <div class="help-text">{{ form.insurance.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.insurance.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.insurance.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:claim_list' %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
+                        <!-- تفاصيل الحادث -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-car-crash me-2"></i>تفاصيل الحادث
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Claim Type -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.claim_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.claim_type.label }}
+                                    </label>
+                                    {{ form.claim_type|add_class:"form-select" }}
+                                    {% if form.claim_type.help_text %}
+                                        <div class="help-text">{{ form.claim_type.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.claim_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.claim_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Incident Date -->
+                                <div class="col-md-3">
+                                    <label for="{{ form.incident_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.incident_date.label }}
+                                    </label>
+                                    {{ form.incident_date|add_class:"form-control" }}
+                                    {% if form.incident_date.help_text %}
+                                        <div class="help-text">{{ form.incident_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.incident_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.incident_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Incident Time -->
+                                <div class="col-md-3">
+                                    <label for="{{ form.incident_time.id_for_label }}" class="form-label">
+                                        {{ form.incident_time.label }}
+                                    </label>
+                                    {{ form.incident_time|add_class:"form-control" }}
+                                    {% if form.incident_time.help_text %}
+                                        <div class="help-text">{{ form.incident_time.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.incident_time.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.incident_time.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Incident Location -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.incident_location.id_for_label }}" class="form-label">
+                                        {{ form.incident_location.label }}
+                                    </label>
+                                    {{ form.incident_location|add_class:"form-control" }}
+                                    {% if form.incident_location.help_text %}
+                                        <div class="help-text">{{ form.incident_location.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.incident_location.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.incident_location.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Incident Description -->
+                                <div class="col-12">
+                                    <label for="{{ form.incident_description.id_for_label }}" class="form-label required-field">
+                                        {{ form.incident_description.label }}
+                                    </label>
+                                    {{ form.incident_description|add_class:"form-control" }}
+                                    {% if form.incident_description.help_text %}
+                                        <div class="help-text">{{ form.incident_description.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.incident_description.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.incident_description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- المبالغ المالية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-dollar-sign me-2"></i>المبالغ المالية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Estimated Damage -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.estimated_damage.id_for_label }}" class="form-label">
+                                        {{ form.estimated_damage.label }}
+                                    </label>
+                                    {{ form.estimated_damage|add_class:"form-control" }}
+                                    {% if form.estimated_damage.help_text %}
+                                        <div class="help-text">{{ form.estimated_damage.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.estimated_damage.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.estimated_damage.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Claim Amount -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.claim_amount.id_for_label }}" class="form-label required-field">
+                                        {{ form.claim_amount.label }}
+                                    </label>
+                                    {{ form.claim_amount|add_class:"form-control" }}
+                                    {% if form.claim_amount.help_text %}
+                                        <div class="help-text">{{ form.claim_amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.claim_amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.claim_amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if 'status' in form.fields %}
+                        <!-- المراجعة والاعتماد -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-clipboard-check me-2"></i>المراجعة والاعتماد
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Status -->
+                                {% if 'status' in form.fields %}
+                                <div class="col-md-6">
+                                    <label for="{{ form.status.id_for_label }}" class="form-label required-field">
+                                        {{ form.status.label }}
+                                    </label>
+                                    {{ form.status|add_class:"form-select" }}
+                                    {% if form.status.help_text %}
+                                        <div class="help-text">{{ form.status.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.status.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.status.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Approved Amount -->
+                                {% if 'approved_amount' in form.fields %}
+                                <div class="col-md-6">
+                                    <label for="{{ form.approved_amount.id_for_label }}" class="form-label">
+                                        {{ form.approved_amount.label }}
+                                    </label>
+                                    {{ form.approved_amount|add_class:"form-control" }}
+                                    {% if form.approved_amount.help_text %}
+                                        <div class="help-text">{{ form.approved_amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.approved_amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.approved_amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Deductible Applied -->
+                                {% if 'deductible_applied' in form.fields %}
+                                <div class="col-md-6">
+                                    <label for="{{ form.deductible_applied.id_for_label }}" class="form-label">
+                                        {{ form.deductible_applied.label }}
+                                    </label>
+                                    {{ form.deductible_applied|add_class:"form-control" }}
+                                    {% if form.deductible_applied.help_text %}
+                                        <div class="help-text">{{ form.deductible_applied.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.deductible_applied.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.deductible_applied.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Rejection Reason -->
+                                {% if 'rejection_reason' in form.fields %}
+                                <div class="col-md-12">
+                                    <label for="{{ form.rejection_reason.id_for_label }}" class="form-label">
+                                        {{ form.rejection_reason.label }}
+                                    </label>
+                                    {{ form.rejection_reason|add_class:"form-control" }}
+                                    {% if form.rejection_reason.help_text %}
+                                        <div class="help-text">{{ form.rejection_reason.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.rejection_reason.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.rejection_reason.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- ملاحظات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات إضافية
+                            </h6>
+
+                            <div class="row">
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:claim_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
+                            <div>
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة أخرى
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث المطالبة{% else %}تقديم المطالبة{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            تأكد من صحة تفاصيل الحادث
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            قدم وصف دقيق للحادث
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            المبلغ المطالب يجب أن يتناسب مع الضرر
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            ستتم مراجعة المطالبة من قبل المختصين
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">حدد نوع الحادث بدقة</li>
+                        <li class="mb-2">اذكر تاريخ ووقت الحادث الفعلي</li>
+                        <li class="mb-2">قدم تقدير أولي للأضرار</li>
+                        <li class="mb-0">أرفق المستندات الداعمة إن وجدت</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>معلومات المطالبة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الحالة:</span>
+                        {% if object.status == 'filed' %}
+                            <span class="badge bg-info">مقدمة</span>
+                        {% elif object.status == 'under_review' %}
+                            <span class="badge bg-warning">قيد المراجعة</span>
+                        {% elif object.status == 'approved' %}
+                            <span class="badge bg-success">معتمدة</span>
+                        {% elif object.status == 'rejected' %}
+                            <span class="badge bg-danger">مرفوضة</span>
+                        {% elif object.status == 'paid' %}
+                            <span class="badge bg-primary">مدفوعة</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">رقم المطالبة:</span>
+                        <strong>{{ object.claim_number }}</strong>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Insurance
+    $('#id_insurance').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl'
+        width: '100%',
+        placeholder: 'اختر الوثيقة',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Claim Type
+    $('#id_claim_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع المطالبة',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // Status (only in edit mode)
+    if ($('#id_status').length) {
+        $('#id_status').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: 'اختر الحالة',
+            allowClear: false,
+            dir: "rtl",
+            minimumResultsForSearch: -1,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; }
+            }
+        });
+    }
+
+    // ==============================
+    // Form Validation & Logic
+    // ==============================
+
+    // Validate claim amount vs estimated damage
+    $('#id_claim_amount').on('blur', function() {
+        var claimAmount = parseFloat($(this).val());
+        var estimatedDamage = parseFloat($('#id_estimated_damage').val());
+
+        if (estimatedDamage && claimAmount && claimAmount > estimatedDamage) {
+            if (!confirm('المبلغ المطالب أكبر من التقدير الأولي للضرر. هل تريد المتابعة؟')) {
+                $(this).focus();
+            }
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

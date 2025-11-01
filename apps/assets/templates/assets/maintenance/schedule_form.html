@@ -1,86 +1,719 @@
+<!-- apps/assets/templates/assets/maintenance/schedule_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{% if form.instance.pk %}{% trans "تعديل جدول صيانة" %}{% else %}{% trans "إضافة جدول صيانة" %}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+/* Custom days field visibility */
+#div_id_custom_days {
+    display: none;
+}
+
+#div_id_custom_days.show {
+    display: block;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:dashboard' %}">{% trans "الأصول الثابتة" %}</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'assets:schedule_list' %}">{% trans "جدولة الصيانة" %}</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {% if form.instance.pk %}{% trans "تعديل" %}{% else %}{% trans "إضافة جديد" %}{% endif %}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                {% if form.instance.pk %}
+                    {% trans "تعديل جدول صيانة" %}
+                {% else %}
+                    {% trans "إضافة جدول صيانة جديد" %}
+                {% endif %}
+            </h1>
+            <p class="text-muted mb-0">
+                {% if form.instance.pk %}
+                    {% trans "تحديث بيانات جدولة الصيانة الدورية" %}
+                {% else %}
+                    {% trans "إضافة جدول صيانة دورية جديد للأصل" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:schedule_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل جدول صيانة" %}{% else %}{% trans "إضافة جدول صيانة" %}{% endif %}
+                        <i class="fas fa-edit me-2"></i>
+                        {% if form.instance.pk %}{% trans "تعديل الجدول" %}{% else %}{% trans "بيانات الجدول" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" id="scheduleForm" novalidate>
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الأصل" %}</label>
-                                {{ form.asset|add_class:"form-select select2" }}
-                                {% if form.asset.errors %}
-                                    <div class="text-danger small mt-1">{{ form.asset.errors.0 }}</div>
-                                {% endif %}
+
+                        <!-- Display all form non-field errors -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نوع الصيانة" %}</label>
-                                {{ form.maintenance_type|add_class:"form-select" }}
-                                {% if form.maintenance_type.errors %}
-                                    <div class="text-danger small mt-1">{{ form.maintenance_type.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "التكرار" %}</label>
-                                {{ form.frequency|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label required">{% trans "قيمة الفترة" %}</label>
-                                {{ form.interval_value|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label required">{% trans "وحدة الفترة" %}</label>
-                                {{ form.interval_unit|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "تاريخ آخر صيانة" %}</label>
-                                {{ form.last_maintenance_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "تاريخ الصيانة القادمة" %}</label>
-                                {{ form.next_maintenance_date|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
-                            </div>
-                            <div class="col-12">
-                                <div class="form-check">
-                                    {{ form.is_active|add_class:"form-check-input" }}
-                                    <label class="form-check-label">{% trans "نشط" %}</label>
+                        {% endif %}
+
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Asset -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.asset.id_for_label }}" class="form-label required-field">
+                                        {{ form.asset.label }}
+                                    </label>
+                                    {{ form.asset|add_class:"form-select" }}
+                                    {% if form.asset.help_text %}
+                                        <div class="help-text">{{ form.asset.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.asset.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.asset.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Maintenance Type -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.maintenance_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.maintenance_type.label }}
+                                    </label>
+                                    {{ form.maintenance_type|add_class:"form-select" }}
+                                    {% if form.maintenance_type.help_text %}
+                                        <div class="help-text">{{ form.maintenance_type.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.maintenance_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.maintenance_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:schedule_list' %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
-                            </a>
+                        <!-- الجدولة والتكرار -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-redo-alt me-2"></i>الجدولة والتكرار
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Frequency -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.frequency.id_for_label }}" class="form-label required-field">
+                                        {{ form.frequency.label }}
+                                    </label>
+                                    {{ form.frequency|add_class:"form-select" }}
+                                    {% if form.frequency.help_text %}
+                                        <div class="help-text">{{ form.frequency.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.frequency.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.frequency.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Custom Days -->
+                                <div class="col-md-4" id="div_id_custom_days">
+                                    <label for="{{ form.custom_days.id_for_label }}" class="form-label">
+                                        {{ form.custom_days.label }}
+                                    </label>
+                                    {{ form.custom_days|add_class:"form-control" }}
+                                    {% if form.custom_days.help_text %}
+                                        <div class="help-text">{{ form.custom_days.help_text }}</div>
+                                    {% else %}
+                                        <div class="help-text">فقط عند اختيار 'مخصص'</div>
+                                    {% endif %}
+                                    {% if form.custom_days.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.custom_days.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Alert Before Days -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.alert_before_days.id_for_label }}" class="form-label">
+                                        {{ form.alert_before_days.label }}
+                                    </label>
+                                    {{ form.alert_before_days|add_class:"form-control" }}
+                                    {% if form.alert_before_days.help_text %}
+                                        <div class="help-text">{{ form.alert_before_days.help_text }}</div>
+                                    {% else %}
+                                        <div class="help-text">عدد الأيام للتنبيه قبل موعد الصيانة</div>
+                                    {% endif %}
+                                    {% if form.alert_before_days.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.alert_before_days.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Start Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.start_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.start_date.label }}
+                                    </label>
+                                    {{ form.start_date|add_class:"form-control" }}
+                                    {% if form.start_date.help_text %}
+                                        <div class="help-text">{{ form.start_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.start_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.start_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- End Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.end_date.id_for_label }}" class="form-label">
+                                        {{ form.end_date.label }}
+                                    </label>
+                                    {{ form.end_date|add_class:"form-control" }}
+                                    {% if form.end_date.help_text %}
+                                        <div class="help-text">{{ form.end_date.help_text }}</div>
+                                    {% else %}
+                                        <div class="help-text">اتركه فارغاً للجدولة غير المحدودة</div>
+                                    {% endif %}
+                                    {% if form.end_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.end_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- التخصيص والتكلفة -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-user-cog me-2"></i>التخصيص والتكلفة
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Assigned To -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.assigned_to.id_for_label }}" class="form-label">
+                                        {{ form.assigned_to.label }}
+                                    </label>
+                                    {{ form.assigned_to|add_class:"form-select" }}
+                                    {% if form.assigned_to.help_text %}
+                                        <div class="help-text">{{ form.assigned_to.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.assigned_to.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.assigned_to.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Estimated Cost -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.estimated_cost.id_for_label }}" class="form-label">
+                                        {{ form.estimated_cost.label }}
+                                    </label>
+                                    {{ form.estimated_cost|add_class:"form-control" }}
+                                    {% if form.estimated_cost.help_text %}
+                                        <div class="help-text">{{ form.estimated_cost.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.estimated_cost.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.estimated_cost.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ملاحظات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Description -->
+                                <div class="col-12">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        {{ form.description.label }}
+                                    </label>
+                                    {{ form.description|add_class:"form-control" }}
+                                    {% if form.description.help_text %}
+                                        <div class="help-text">{{ form.description.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.description.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.description.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:schedule_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if form.instance.pk %}تحديث الجدول{% else %}حفظ الجدول{% endif %}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Hidden Fields (if any) -->
+                        {% for hidden_field in form.hidden_fields %}
+                            {{ hidden_field }}
+                        {% endfor %}
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            حدد الأصل المراد جدولة صيانته
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            اختر نوع الصيانة المطلوبة
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            حدد التكرار المناسب للصيانة
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            يمكنك تحديد تاريخ انتهاء أو تركه مفتوحاً
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2"><strong>يومي:</strong> صيانة يومية أو فحص روتيني</li>
+                        <li class="mb-2"><strong>أسبوعي:</strong> صيانة أسبوعية منتظمة</li>
+                        <li class="mb-2"><strong>شهري:</strong> صيانة شهرية دورية</li>
+                        <li class="mb-2"><strong>ربع سنوي:</strong> صيانة كل 3 أشهر</li>
+                        <li class="mb-2"><strong>نصف سنوي:</strong> صيانة كل 6 أشهر</li>
+                        <li class="mb-2"><strong>سنوي:</strong> صيانة سنوية شاملة</li>
+                        <li class="mb-0"><strong>مخصص:</strong> حدد عدد الأيام بنفسك</li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Asset
+    $('#id_asset').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl'
+        width: '100%',
+        placeholder: 'اختر الأصل',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Maintenance Type
+    $('#id_maintenance_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع الصيانة',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Frequency
+    $('#id_frequency').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر التكرار',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // Assigned To
+    $('#id_assigned_to').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر المستخدم (اختياري)',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // ==============================
+    // Toggle Custom Days Field
+    // ==============================
+    function toggleCustomDays() {
+        const frequency = $('#id_frequency').val();
+        const customDaysDiv = $('#div_id_custom_days');
+
+        if (frequency === 'custom') {
+            customDaysDiv.addClass('show');
+            $('#id_custom_days').prop('required', true);
+        } else {
+            customDaysDiv.removeClass('show');
+            $('#id_custom_days').prop('required', false);
+            $('#id_custom_days').val('');
+        }
+    }
+
+    // Run on page load
+    toggleCustomDays();
+
+    // Run on frequency change
+    $('#id_frequency').on('change', function() {
+        toggleCustomDays();
+    });
+
+    // ==============================
+    // Form Validation
+    // ==============================
+    $('#scheduleForm').on('submit', function(e) {
+        let isValid = true;
+        let errorMessage = '';
+
+        // Check asset
+        if (!$('#id_asset').val()) {
+            isValid = false;
+            errorMessage += '- يجب اختيار الأصل\n';
+        }
+
+        // Check maintenance type
+        if (!$('#id_maintenance_type').val()) {
+            isValid = false;
+            errorMessage += '- يجب اختيار نوع الصيانة\n';
+        }
+
+        // Check frequency
+        if (!$('#id_frequency').val()) {
+            isValid = false;
+            errorMessage += '- يجب اختيار التكرار\n';
+        }
+
+        // Check custom days if frequency is custom
+        if ($('#id_frequency').val() === 'custom' && !$('#id_custom_days').val()) {
+            isValid = false;
+            errorMessage += '- يجب إدخال عدد الأيام للتكرار المخصص\n';
+        }
+
+        // Check start date
+        if (!$('#id_start_date').val()) {
+            isValid = false;
+            errorMessage += '- يجب إدخال تاريخ البدء\n';
+        }
+
+        // Check dates (end date should be after start date)
+        const startDate = $('#id_start_date').val();
+        const endDate = $('#id_end_date').val();
+
+        if (startDate && endDate && endDate <= startDate) {
+            isValid = false;
+            errorMessage += '- تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء\n';
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+            alert('خطأ في البيانات:\n\n' + errorMessage);
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

@@ -1,72 +1,207 @@
 {% extends 'base/base.html' %}
-{% load i18n %}
-{% load static %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
+<!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<!-- Select2 CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+
 <style>
-    .stat-card {
-        transition: transform 0.2s;
-        border: none;
-        border-radius: 10px;
-    }
-    .stat-card:hover {
-        transform: translateY(-5px);
-    }
-    .filter-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-    .table thead th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-    }
-    .badge {
-        padding: 0.35em 0.65em;
-        font-weight: 500;
-    }
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Card Styling */
+.stat-card {
+    transition: transform 0.2s;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.15);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.2);
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+/* Table Styling */
+.table thead th {
+    background-color: #212529;
+    color: white;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+    vertical-align: middle;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0,0,0,.02);
+}
+
+.badge {
+    padding: 0.35em 0.65em;
+    font-weight: 500;
+}
+
+/* Card Footer */
+.card-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 0.75rem 1.25rem;
+}
+
+.dataTables_info {
+    padding-top: 0.5rem;
+}
+
+.dataTables_length label {
+    margin-bottom: 0;
+}
+
+.dataTables_length select {
+    margin: 0 0.5rem;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="h3 mb-1">
-                <i class="fas fa-file-invoice-dollar text-warning"></i>
-                {% trans "مطالبات التأمين" %}
-            </h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:insurance_list' %}">{% trans "التأمين" %}</a></li>
-                    <li class="breadcrumb-item active">{% trans "المطالبات" %}</li>
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-file-invoice-dollar text-warning me-2"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "إدارة ومتابعة مطالبات التأمين على الأصول" %}</p>
         </div>
         <div>
-            {% if perms.assets.add_insuranceclaim %}
+            {% if can_add %}
             <a href="{% url 'assets:claim_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>{% trans "مطالبة جديدة" %}
+            </a>
+            {% endif %}
+            {% if can_export %}
+            <a href="#" class="btn btn-success">
+                <i class="fas fa-file-excel me-2"></i>{% trans "تصدير" %}
             </a>
             {% endif %}
         </div>
     </div>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4" id="statsCards">
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-primary shadow-sm">
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card text-white bg-primary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "إجمالي المطالبات" %}</h6>
-                            <h2 class="mb-0" id="totalCount">-</h2>
+                            <h6 class="card-title text-white-50 mb-2">{% trans "إجمالي المطالبات" %}</h6>
+                            <h2 class="mb-0">{{ stats.total_count }}</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-file-invoice-dollar fa-3x"></i>
@@ -75,28 +210,28 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-warning shadow-sm">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card text-white bg-info">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "قيد المراجعة" %}</h6>
-                            <h2 class="mb-0" id="pendingCount">-</h2>
+                            <h6 class="card-title text-white-50 mb-2">{% trans "قيد المراجعة" %}</h6>
+                            <h2 class="mb-0">{{ stats.filed_count }}</h2>
                         </div>
                         <div class="text-white-50">
-                            <i class="fas fa-clock fa-3x"></i>
+                            <i class="fas fa-search fa-3x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-success shadow-sm">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card text-white bg-success">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "موافق عليها" %}</h6>
-                            <h2 class="mb-0" id="approvedCount">-</h2>
+                            <h6 class="card-title text-white-50 mb-2">{% trans "معتمدة" %}</h6>
+                            <h2 class="mb-0">{{ stats.approved_count }}</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-check-circle fa-3x"></i>
@@ -105,16 +240,16 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-info shadow-sm">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card text-white bg-danger">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "مسددة" %}</h6>
-                            <h2 class="mb-0" id="settledCount">-</h2>
+                            <h6 class="card-title text-white-50 mb-2">{% trans "مرفوضة" %}</h6>
+                            <h2 class="mb-0">{{ stats.rejected_count }}</h2>
                         </div>
                         <div class="text-white-50">
-                            <i class="fas fa-money-check-alt fa-3x"></i>
+                            <i class="fas fa-times-circle fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -123,9 +258,10 @@
     </div>
 
     <!-- Filters Card -->
-    <div class="card filter-card mb-4">
+    <div class="card mb-4">
         <div class="card-header bg-white">
-            <button class="btn btn-link text-decoration-none p-0 w-100 text-start" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+            <button class="btn btn-link text-decoration-none p-0 w-100 text-start collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false">
                 <div class="d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-filter text-primary me-2"></i>{% trans "خيارات البحث والتصفية" %}
@@ -134,41 +270,37 @@
                 </div>
             </button>
         </div>
-        <div class="collapse show" id="filtersCollapse">
+        <div class="collapse" id="filtersCollapse">
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">{% trans "الوثيقة" %}</label>
-                        <select class="form-select select2" id="insuranceFilter">
-                            <option value="">{% trans "الكل" %}</option>
+                        <label class="form-label">{% trans "نوع المطالبة" %}</label>
+                        <select class="form-select" id="claimTypeFilter">
+                            <option value="">{% trans "جميع الأنواع" %}</option>
+                            {% for type_value, type_label in claim_types %}
+                            <option value="{{ type_value }}">{{ type_label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">{% trans "نوع الحادث" %}</label>
-                        <select class="form-select" id="incidentTypeFilter">
-                            <option value="">{% trans "الكل" %}</option>
-                            <option value="fire">{% trans "حريق" %}</option>
-                            <option value="theft">{% trans "سرقة" %}</option>
-                            <option value="accident">{% trans "حادث" %}</option>
-                            <option value="natural_disaster">{% trans "كارثة طبيعية" %}</option>
-                            <option value="other">{% trans "أخرى" %}</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
                         <label class="form-label">{% trans "الحالة" %}</label>
                         <select class="form-select" id="statusFilter">
-                            <option value="">{% trans "الكل" %}</option>
-                            <option value="pending">{% trans "قيد المراجعة" %}</option>
-                            <option value="approved">{% trans "موافق" %}</option>
-                            <option value="rejected">{% trans "مرفوض" %}</option>
-                            <option value="settled">{% trans "مسدد" %}</option>
+                            <option value="">{% trans "جميع الحالات" %}</option>
+                            {% for status_value, status_label in status_choices %}
+                            <option value="{{ status_value }}">{{ status_label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">{% trans "من تاريخ" %}</label>
-                        <input type="date" class="form-control" id="dateFromFilter">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "شركة التأمين" %}</label>
+                        <select class="form-select" id="insuranceCompanyFilter">
+                            <option value="">{% trans "جميع الشركات" %}</option>
+                            {% for company in insurance_companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label class="form-label d-block">&nbsp;</label>
                         <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters">
                             <i class="fas fa-redo me-1"></i>{% trans "إعادة تعيين" %}
@@ -180,7 +312,7 @@
     </div>
 
     <!-- Data Table Card -->
-    <div class="card shadow-sm">
+    <div class="card">
         <div class="card-header bg-white">
             <h5 class="mb-0">
                 <i class="fas fa-list text-primary me-2"></i>{% trans "قائمة المطالبات" %}
@@ -188,17 +320,17 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered" id="claimsTable" style="width:100%">
-                    <thead>
+                <table class="table table-hover table-striped table-bordered" id="claimsTable" style="width:100%">
+                    <thead class="table-dark">
                         <tr>
                             <th>{% trans "رقم المطالبة" %}</th>
-                            <th>{% trans "الوثيقة" %}</th>
-                            <th>{% trans "تاريخ الحادث" %}</th>
-                            <th>{% trans "نوع الحادث" %}</th>
+                            <th>{% trans "تاريخ التقديم" %}</th>
+                            <th>{% trans "نوع المطالبة" %}</th>
+                            <th>{% trans "الأصل" %}</th>
                             <th>{% trans "المبلغ المطالب" %}</th>
                             <th>{% trans "المبلغ المعتمد" %}</th>
-                            <th>{% trans "الحالة" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center no-sort">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -206,128 +338,184 @@
                 </table>
             </div>
         </div>
+        <div class="card-footer">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div id="tableInfo" class="dataTables_info"></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <label class="me-2 mb-0">{% trans "عرض" %}:</label>
+                        <select id="pageLengthSelect" class="form-select form-select-sm" style="width: auto;">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<!-- Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 $(document).ready(function() {
-    // Initialize Select2
-    $('.select2').select2({
+    // ==============================
+    // Initialize Select2 with RTL
+    // ==============================
+    $('#claimTypeFilter, #statusFilter, #insuranceCompanyFilter').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl',
-        language: 'ar',
-        placeholder: '{% trans "اختر..." %}',
-        allowClear: true
-    });
-
-    // Load Insurances for filter
-    $.ajax({
-        url: '{% url "assets:claim_datatable_ajax" %}?get_insurances=true',
-        method: 'GET',
-        success: function(response) {
-            if (response.insurances) {
-                response.insurances.forEach(function(insurance) {
-                    $('#insuranceFilter').append(
-                        $('<option></option>').val(insurance.id).text(insurance.policy_number)
-                    );
-                });
-            }
+        width: '100%',
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
         }
     });
 
-    // Load Statistics
-    function loadStats() {
-        $.ajax({
-            url: '{% url "assets:claim_datatable_ajax" %}?stats_only=true',
-            method: 'GET',
-            success: function(response) {
-                if (response.stats) {
-                    $('#totalCount').text(response.stats.total);
-                    $('#pendingCount').text(response.stats.pending);
-                    $('#approvedCount').text(response.stats.approved);
-                    $('#settledCount').text(response.stats.settled);
-                }
-            },
-            error: function() {
-                $('#totalCount, #pendingCount, #approvedCount, #settledCount').text('0');
+    // ==============================
+    // Initialize DataTable
+    // ==============================
+    var table = $('#claimsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'assets:claim_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.claim_type = $('#claimTypeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.insurance_company = $('#insuranceCompanyFilter').val();
             }
-        });
+        },
+        "columns": [
+            {"data": 0, "name": "claim_number"},
+            {"data": 1, "name": "filed_date"},
+            {"data": 2, "name": "claim_type"},
+            {"data": 3, "name": "asset"},
+            {"data": 4, "name": "claim_amount", "className": "text-end"},
+            {"data": 5, "name": "approved_amount", "className": "text-end"},
+            {"data": 6, "name": "status", "className": "text-center"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false, "className": "text-center"}
+        ],
+        "order": [[1, "desc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "dom": '<"row"<"col-sm-12"tr>><"row"<"col-sm-5"i><"col-sm-7"p>>',
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [6, 7] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+
+            // Update table info
+            var info = table.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    // ==============================
+    // Helper Functions
+    // ==============================
+    function updateTableInfo(info) {
+        var start = info.recordsDisplay === 0 ? 0 : info.start + 1;
+        var end = info.end;
+        var total = info.recordsDisplay;
+        var totalAll = info.recordsTotal;
+
+        var infoText = 'عرض ' + start + ' إلى ' + end + ' من ' + total + ' مدخل';
+        if (total < totalAll) {
+            infoText += ' (تمت التصفية من ' + totalAll + ' إجمالي المدخلات)';
+        }
+
+        $('#tableInfo').html(infoText);
     }
 
-    loadStats();
-
-    // Initialize DataTable
-    var table = $('#claimsTable').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: '{% url "assets:claim_datatable_ajax" %}',
-            type: 'GET',
-            data: function(d) {
-                d.insurance = $('#insuranceFilter').val();
-                d.incident_type = $('#incidentTypeFilter').val();
-                d.status = $('#statusFilter').val();
-                d.date_from = $('#dateFromFilter').val();
-            }
-        },
-        columns: [
-            { data: 0 }, // claim_number
-            { data: 1 }, // insurance
-            { data: 2 }, // incident_date
-            { data: 3 }, // incident_type
-            { data: 4, className: 'text-end' }, // claim_amount
-            { data: 5, className: 'text-end' }, // approved_amount
-            { data: 6, className: 'text-center' }, // status
-            { data: 7, className: 'text-center', orderable: false } // actions
-        ],
-        language: {
-            "sProcessing": "جارٍ التحميل...",
-            "sLengthMenu": "أظهر _MENU_ مدخلات",
-            "sZeroRecords": "لم يعثر على أية سجلات",
-            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
-            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
-            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
-            "sSearch": "ابحث:",
-            "oPaginate": {
-                "sFirst": "الأول",
-                "sPrevious": "السابق",
-                "sNext": "التالي",
-                "sLast": "الأخير"
-            }
-        },
-        order: [[2, 'desc']], // Order by incident_date
-        pageLength: 25,
-        responsive: true,
-        drawCallback: function() {
-            $('[data-bs-toggle="tooltip"]').tooltip();
-        }
+    // ==============================
+    // Page Length Change
+    // ==============================
+    $('#pageLengthSelect').on('change', function() {
+        var length = $(this).val();
+        table.page.len(length).draw();
     });
 
-    // Filter change events
-    $('#insuranceFilter, #incidentTypeFilter, #statusFilter, #dateFromFilter').on('change', function() {
+    // ==============================
+    // Filter Events
+    // ==============================
+    $('#claimTypeFilter, #statusFilter, #insuranceCompanyFilter').on('change', function() {
         table.ajax.reload();
-        loadStats();
     });
 
-    // Reset filters
+    // ==============================
+    // Reset Filters
+    // ==============================
     $('#resetFilters').on('click', function() {
-        $('#insuranceFilter').val('').trigger('change');
-        $('#incidentTypeFilter').val('').trigger('change');
+        $('#claimTypeFilter').val('').trigger('change');
         $('#statusFilter').val('').trigger('change');
-        $('#dateFromFilter').val('');
+        $('#insuranceCompanyFilter').val('').trigger('change');
         table.ajax.reload();
-        loadStats();
     });
 
-    // Auto-refresh stats every 30 seconds
-    setInterval(loadStats, 30000);
+    // ==============================
+    // Delete Function
+    // ==============================
+    window.deleteClaim = function(claimId, claimNumber) {
+        Swal.fire({
+            title: 'هل أنت متأكد؟',
+            html: 'سيتم حذف المطالبة <strong>' + claimNumber + '</strong>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Perform delete via AJAX
+                $.ajax({
+                    url: '/assets/insurance/claims/' + claimId + '/delete/',
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم الحذف!',
+                            text: 'تم حذف المطالبة بنجاح',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ!',
+                            text: 'حدث خطأ أثناء حذف المطالبة'
+                        });
+                    }
+                });
+            }
+        });
+    };
 });
 </script>
 {% endblock %}

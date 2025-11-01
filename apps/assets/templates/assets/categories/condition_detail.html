@@ -4,90 +4,6 @@
 
 {% block title %}{{ condition.name }} - {% trans "تفاصيل الحالة" %}{% endblock %}
 
-{% block extra_css %}
-<!-- DataTables CSS -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-
-<style>
-.detail-card {
-    border: none;
-    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-    margin-bottom: 1.5rem;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-.detail-card .card-header {
-    padding: 1.25rem;
-    border-bottom: 2px solid;
-    font-weight: 600;
-}
-
-.section-info .card-header {
-    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-    border-bottom-color: #2196f3;
-    color: #1565c0;
-}
-
-.section-assets .card-header {
-    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-    border-bottom-color: #ff9800;
-    color: #e65100;
-}
-
-.stat-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
-}
-
-.info-row {
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.info-row:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    font-weight: 600;
-    color: #6c757d;
-    margin-bottom: 0.25rem;
-}
-
-.info-value {
-    font-size: 1.1rem;
-    color: #212529;
-}
-
-.color-display {
-    width: 60px;
-    height: 60px;
-    border-radius: 12px;
-    border: 3px solid #dee2e6;
-    display: inline-block;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.action-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
-}
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
@@ -106,106 +22,150 @@
     </nav>
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h1 class="h3 mb-1">
-                <i class="fas fa-star text-primary"></i>
-                {{ condition.name }}
-            </h1>
-            <p class="text-muted mb-0">
-                <span class="color-display" style="background-color: {{ condition.color_code }}; width: 30px; height: 30px; vertical-align: middle;"></span>
-                <span class="ms-2">{{ condition.color_code }}</span>
-            </p>
+            <h1 class="h3 mb-1">{{ condition.name }}</h1>
+            <p class="text-muted mb-1">{% trans "حالة الأصل" %}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-secondary fs-6">
+                    <span style="display: inline-block; width: 12px; height: 12px; background-color: {{ condition.color_code }}; border-radius: 50%; margin-left: 5px;"></span>
+                    {{ condition.color_code }}
+                </span>
+                {% if condition.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
         </div>
-        <div class="btn-group">
+        <div class="d-flex gap-2">
             {% if perms.assets.change_assetcondition %}
-            <a href="{% url 'assets:condition_update' condition.pk %}" class="btn btn-primary">
+            <a href="{% url 'assets:condition_update' condition.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
-            <a href="{% url 'assets:condition_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right"></i> {% trans "العودة" %}
+            {% if perms.assets.delete_assetcondition %}
+            <a href="{% url 'assets:condition_delete' condition.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'assets:condition_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <!-- Main Content -->
+        <!-- معلومات الحالة -->
         <div class="col-lg-8">
-            <!-- Basic Information -->
-            <div class="card detail-card section-info">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        {% trans "المعلومات الأساسية" %}
-                    </h5>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "المعلومات الأساسية" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-4">
                         <div class="col-md-6">
-                            <div class="info-row">
-                                <div class="info-label">{% trans "الاسم بالعربية" %}</div>
-                                <div class="info-value">{{ condition.name }}</div>
-                            </div>
-                            {% if condition.name_en %}
-                            <div class="info-row">
-                                <div class="info-label">{% trans "الاسم بالإنجليزية" %}</div>
-                                <div class="info-value">{{ condition.name_en }}</div>
-                            </div>
-                            {% endif %}
+                            <h6 class="text-muted mb-1">{% trans "الاسم بالعربية" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ condition.name }}</strong></p>
                         </div>
+
+                        {% if condition.name_en %}
                         <div class="col-md-6">
-                            <div class="info-row">
-                                <div class="info-label">{% trans "رمز اللون" %}</div>
-                                <div class="info-value">
-                                    <span class="color-display me-2" style="background-color: {{ condition.color_code }};"></span>
-                                    <span class="badge bg-dark fs-6">{{ condition.color_code }}</span>
-                                </div>
+                            <h6 class="text-muted mb-1">{% trans "الاسم بالإنجليزية" %}</h6>
+                            <p class="mb-0">{{ condition.name_en }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رمز اللون" %}</h6>
+                            <p class="mb-0">
+                                <span style="display: inline-block; width: 40px; height: 40px; background-color: {{ condition.color_code }}; border-radius: 8px; border: 2px solid #dee2e6; vertical-align: middle;"></span>
+                                <span class="ms-2 badge bg-dark fs-6">{{ condition.color_code }}</span>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الحالة" %}</h6>
+                            <p class="mb-0">
+                                {% if condition.is_active %}
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">
+                                        <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                                    </span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        {% if condition.description %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "الوصف" %}</h6>
+                            <p class="mb-0">{{ condition.description }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- إحصائيات الأصول -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الأصول" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ condition.asset_set.count }}</h3>
+                                <small class="text-muted">{% trans "إجمالي الأصول" %}</small>
                             </div>
-                            <div class="info-row">
-                                <div class="info-label">{% trans "الحالة" %}</div>
-                                <div class="info-value">
-                                    {% if condition.is_active %}
-                                        <span class="badge bg-success fs-6">
-                                            <i class="fas fa-check-circle"></i> {% trans "نشط" %}
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-secondary fs-6">
-                                            <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
-                                        </span>
-                                    {% endif %}
-                                </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ active_assets_count|default:0 }}</h3>
+                                <small class="text-muted">{% trans "أصول نشطة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <h3 class="text-info mb-0">{{ total_value|floatformat:0|default:"0" }}</h3>
+                                <small class="text-muted">{% trans "إجمالي القيمة" %}</small>
                             </div>
                         </div>
                     </div>
 
-                    {% if condition.description %}
-                    <div class="info-row mt-3">
-                        <div class="info-label">{% trans "الوصف" %}</div>
-                        <div class="info-value">{{ condition.description }}</div>
+                    {% if condition.asset_set.exists %}
+                    <div class="text-center mt-4">
+                        <a href="{% url 'assets:asset_list' %}?condition={{ condition.pk }}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الأصول" %}
+                        </a>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Assets with this Condition -->
-            <div class="card detail-card section-assets">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-boxes me-2"></i>
-                        {% trans "الأصول بهذه الحالة" %}
-                        <span class="badge bg-warning ms-2">{{ condition.asset_set.count }}</span>
-                    </h5>
-                    {% if perms.assets.add_asset %}
-                    <a href="{% url 'assets:asset_create' %}?condition={{ condition.pk }}" class="btn btn-sm btn-warning">
-                        <i class="fas fa-plus"></i> {% trans "إضافة أصل" %}
-                    </a>
-                    {% endif %}
+            <!-- الأصول بهذه الحالة -->
+            {% if condition.asset_set.exists %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-boxes"></i> {% trans "الأصول بهذه الحالة" %}
+                        <span class="badge bg-dark ms-2">{{ condition.asset_set.count }}</span>
+                    </h6>
                 </div>
                 <div class="card-body">
-                    {% if condition.asset_set.exists %}
                     <div class="table-responsive">
-                        <table class="table table-hover" id="assetsTable">
+                        <table class="table table-hover">
                             <thead class="table-light">
                                 <tr>
                                     <th>{% trans "رقم الأصل" %}</th>
@@ -227,9 +187,7 @@
                                     <td>{{ asset.name }}</td>
                                     <td>
                                         {% if asset.category %}
-                                            <a href="{% url 'assets:category_detail' asset.category.pk %}">
-                                                {{ asset.category.name }}
-                                            </a>
+                                            {{ asset.category.name }}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -252,156 +210,137 @@
                     </div>
                     {% if condition.asset_set.count > 10 %}
                     <div class="text-center mt-3">
-                        <a href="{% url 'assets:asset_list' %}?condition={{ condition.pk }}" class="btn btn-outline-warning">
-                            {% trans "عرض جميع الأصول" %} ({{ condition.asset_set.count }})
+                        <a href="{% url 'assets:asset_list' %}?condition={{ condition.pk }}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الأصول" %} ({{ condition.asset_set.count }})
                         </a>
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                        <p class="text-muted">{% trans "لا توجد أصول بهذه الحالة" %}</p>
                     </div>
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
 
-        <!-- Sidebar -->
+        <!-- الشريط الجانبي -->
         <div class="col-lg-4">
-            <!-- Statistics Card -->
-            <div class="card detail-card mb-3">
-                <div class="card-header bg-primary text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-chart-bar me-2"></i>
-                        {% trans "إحصائيات الحالة" %}
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
-                        <div class="stat-badge bg-primary bg-opacity-10 text-primary">
-                            <i class="fas fa-boxes"></i>
-                        </div>
-                        <div class="ms-3">
-                            <div class="text-muted small">{% trans "عدد الأصول" %}</div>
-                            <h4 class="mb-0">{{ condition.asset_set.count }}</h4>
-                        </div>
-                    </div>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong>
+                        {% if condition.created_at %}
+                            {{ condition.created_at|date:"d/m/Y H:i" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong>
+                        {% if condition.updated_at %}
+                            {{ condition.updated_at|date:"d/m/Y H:i" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
 
-                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
-                        <div class="stat-badge bg-success bg-opacity-10 text-success">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="ms-3">
-                            <div class="text-muted small">{% trans "أصول نشطة" %}</div>
-                            <h4 class="mb-0">{{ active_assets_count|default:0 }}</h4>
-                        </div>
+            <!-- إحصائيات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">{% trans "الحالة" %}:</span>
+                        {% if condition.is_active %}
+                            <span class="badge bg-success">نشطة</span>
+                        {% else %}
+                            <span class="badge bg-secondary">غير نشطة</span>
+                        {% endif %}
                     </div>
-
-                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
-                        <div class="stat-badge bg-info bg-opacity-10 text-info">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="ms-3">
-                            <div class="text-muted small">{% trans "إجمالي القيمة" %}</div>
-                            <h4 class="mb-0">{{ total_value|floatformat:2|default:"0.00" }}</h4>
-                        </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">{% trans "اللون" %}:</span>
+                        <span style="display: inline-block; width: 30px; height: 30px; background-color: {{ condition.color_code }}; border-radius: 8px; border: 2px solid #dee2e6;"></span>
                     </div>
-
-                    <div class="d-flex align-items-center">
-                        <div class="stat-badge bg-warning bg-opacity-10 text-warning">
-                            <i class="fas fa-palette"></i>
-                        </div>
-                        <div class="ms-3">
-                            <div class="text-muted small">{% trans "اللون المميز" %}</div>
-                            <div>
-                                <span class="color-display" style="background-color: {{ condition.color_code }};"></span>
-                            </div>
-                        </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">{% trans "عدد الأصول" %}:</span>
+                        <span class="badge bg-primary">{{ condition.asset_set.count }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card detail-card mb-3">
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0">
-                        <i class="fas fa-bolt me-2"></i>
-                        {% trans "إجراءات سريعة" %}
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
                     </h6>
                 </div>
-                <div class="card-body p-2">
+                <div class="card-body">
                     <div class="d-grid gap-2">
-                        {% if perms.assets.add_asset %}
-                        <a href="{% url 'assets:asset_create' %}?condition={{ condition.pk }}" class="btn btn-outline-primary text-start">
-                            <i class="fas fa-plus me-2"></i> {% trans "إضافة أصل جديد" %}
-                        </a>
-                        {% endif %}
-
                         {% if perms.assets.change_assetcondition %}
-                        <a href="{% url 'assets:condition_update' condition.pk %}" class="btn btn-outline-warning text-start">
-                            <i class="fas fa-edit me-2"></i> {% trans "تعديل الحالة" %}
+                        <a href="{% url 'assets:condition_update' condition.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل الحالة" %}
                         </a>
                         {% endif %}
 
-                        <a href="{% url 'assets:asset_list' %}?condition={{ condition.pk }}" class="btn btn-outline-info text-start">
-                            <i class="fas fa-list me-2"></i> {% trans "عرض جميع الأصول" %}
+                        {% if perms.assets.add_asset %}
+                        <a href="{% url 'assets:asset_create' %}?condition={{ condition.pk }}" class="btn btn-outline-primary">
+                            <i class="fas fa-plus"></i> {% trans "إضافة أصل جديد" %}
                         </a>
+                        {% endif %}
+
+                        {% if condition.asset_set.exists %}
+                        <a href="{% url 'assets:asset_list' %}?condition={{ condition.pk }}" class="btn btn-outline-info">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الأصول" %}
+                        </a>
+                        {% endif %}
 
                         {% if perms.assets.delete_assetcondition %}
-                        <a href="{% url 'assets:condition_delete' condition.pk %}" class="btn btn-outline-danger text-start">
-                            <i class="fas fa-trash me-2"></i> {% trans "حذف الحالة" %}
+                        <a href="{% url 'assets:condition_delete' condition.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i> {% trans "حذف الحالة" %}
                         </a>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Color Preview Card -->
-            <div class="card detail-card">
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0">
-                        <i class="fas fa-palette me-2"></i>
-                        {% trans "معاينة اللون" %}
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
                     </h6>
                 </div>
-                <div class="card-body text-center">
-                    <div class="mb-3">
-                        <div class="color-display mx-auto" style="background-color: {{ condition.color_code }}; width: 100px; height: 100px;"></div>
-                    </div>
-                    <div class="mb-2">
-                        <strong>{{ condition.color_code }}</strong>
-                    </div>
-                    <div class="text-muted small">
-                        {% trans "هذا اللون يُستخدم لتمييز هذه الحالة في النظام" %}
-                    </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "اللون" %}:</strong> {{ condition.color_code }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "عدد الأصول" %}:</strong> {{ condition.asset_set.count }}
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            {% if condition.is_active %}
+                                هذه الحالة نشطة ويمكن استخدامها
+                            {% else %}
+                                هذه الحالة غير نشطة
+                            {% endif %}
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<!-- DataTables JS -->
-<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
-
-<script>
-$(document).ready(function() {
-    // Initialize DataTable if table exists
-    if ($('#assetsTable').length) {
-        $('#assetsTable').DataTable({
-            "language": {
-                "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
-            },
-            "pageLength": 10,
-            "order": [[0, 'asc']],
-            "columnDefs": [
-                { "orderable": false, "targets": 5 }
-            ]
-        });
-    }
-});
-</script>
 {% endblock %}

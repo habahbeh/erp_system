@@ -1,107 +1,519 @@
+{# apps/assets/templates/assets/workflow/request_list.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL Styles */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card .card-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card .card-body::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s;
+}
+
+.stat-card:hover .card-body::before {
+    transform: scale(1);
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0"><i class="fas fa-tasks text-info"></i> {% trans "طلبات الموافقة" %}</h5>
-            {% if perms.assets.add_workflowrequest %}
-            <a href="{% url 'assets:request_list' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> {% trans "طلب جديد" %}
-            </a>
-            {% endif %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة ومتابعة طلبات الموافقة على العمليات" %}</p>
         </div>
-        <div class="card-body">
-            <!-- Filter Section -->
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <select class="form-select" id="statusFilter">
-                        <option value="">{% trans "كل الحالات" %}</option>
-                        <option value="pending">{% trans "قيد المراجعة" %}</option>
-                        <option value="approved">{% trans "معتمد" %}</option>
-                        <option value="rejected">{% trans "مرفوض" %}</option>
-                        <option value="cancelled">{% trans "ملغي" %}</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="typeFilter">
-                        <option value="">{% trans "كل الأنواع" %}</option>
-                        {% for workflow in workflows %}
-                        <option value="{{ workflow.pk }}">{{ workflow.name }}</option>
-                        {% endfor %}
-                    </select>
+        <div class="d-flex gap-2">
+            <a href="{% url 'assets:workflow_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-cog"></i> {% trans "إدارة سير العمل" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي الطلبات" %}</h6>
+                            <h2 class="mb-0" id="totalRequests">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-tasks fa-3x"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
 
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "قيد المراجعة" %}</h6>
+                            <h2 class="mb-0" id="pendingRequests">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-clock fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "معتمدة" %}</h6>
+                            <h2 class="mb-0" id="approvedRequests">-</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "تنتظر موافقتي" %}</h6>
+                            <h2 class="mb-0" id="myPendingApprovals">{{ pending_my_approval|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-user-check fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="pending">{% trans "قيد المراجعة" %}</option>
+                            <option value="approved">{% trans "معتمد" %}</option>
+                            <option value="rejected">{% trans "مرفوض" %}</option>
+                            <option value="cancelled">{% trans "ملغي" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "نوع سير العمل" %}</label>
+                        <select class="form-select" id="workflowFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            {% for workflow in workflows %}
+                            <option value="{{ workflow.id }}">{{ workflow.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الفلتر السريع" %}</label>
+                        <select class="form-select" id="quickFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="my_requests">{% trans "طلباتي" %}</option>
+                            <option value="pending_my_approval">{% trans "تنتظر موافقتي" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'رقم الطلب، رقم المستند...' %}">
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters" title="{% trans 'مسح الفلاتر' %}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-success" onclick="exportData()" title="{% trans 'تصدير Excel' %}">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="window.location.href='{% url 'assets:workflow_list' %}'" title="{% trans 'سير العمل' %}">
+                            <i class="fas fa-sitemap"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+                <table class="table table-hover table-striped" id="requestsTable" style="width: 100%">
+                    <thead class="table-dark">
                         <tr>
-                            <th>{% trans "الرقم" %}</th>
-                            <th>{% trans "النوع" %}</th>
-                            <th>{% trans "الأصل" %}</th>
+                            <th>{% trans "رقم الطلب" %}</th>
+                            <th class="text-center">{% trans "التاريخ" %}</th>
+                            <th>{% trans "نوع سير العمل" %}</th>
+                            <th>{% trans "رقم المستند" %}</th>
                             <th>{% trans "مقدم الطلب" %}</th>
-                            <th>{% trans "التاريخ" %}</th>
-                            <th>{% trans "الحالة" %}</th>
-                            <th>{% trans "المستوى الحالي" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                            <th>{% trans "المعتمد الحالي" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for request in object_list %}
-                        <tr>
-                            <td>{{ request.request_number }}</td>
-                            <td>{{ request.workflow.name }}</td>
-                            <td>
-                                {% if request.asset %}
-                                <a href="{% url 'assets:asset_detail' request.asset.pk %}">
-                                    {{ request.asset.name }}
-                                </a>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>{{ request.requester.get_full_name|default:request.requester.username }}</td>
-                            <td>{{ request.created_at|date:"Y-m-d H:i" }}</td>
-                            <td>
-                                {% if request.status == 'pending' %}
-                                    <span class="badge bg-warning">{% trans "قيد المراجعة" %}</span>
-                                {% elif request.status == 'approved' %}
-                                    <span class="badge bg-success">{% trans "معتمد" %}</span>
-                                {% elif request.status == 'rejected' %}
-                                    <span class="badge bg-danger">{% trans "مرفوض" %}</span>
-                                {% elif request.status == 'cancelled' %}
-                                    <span class="badge bg-secondary">{% trans "ملغي" %}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if request.current_level %}
-                                    <span class="badge bg-info">{% trans "المستوى" %} {{ request.current_level }}</span>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <a href="{% url 'assets:request_detail' request.pk %}" class="btn btn-sm btn-info">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                {% if request.can_approve and request.status == 'pending' %}
-                                <a href="{% url 'assets:approve_request' request.pk %}" class="btn btn-sm btn-success">
-                                    <i class="fas fa-check"></i>
-                                </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد طلبات" %}</td>
-                        </tr>
-                        {% endfor %}
+                        <!-- DataTable will populate -->
                     </tbody>
                 </table>
             </div>
         </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">{% trans "جاري التحميل..." %}</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 {% trans "سطر" %}</option>
+                        <option value="25" selected>25 {% trans "سطر" %}</option>
+                        <option value="50">50 {% trans "سطر" %}</option>
+                        <option value="100">100 {% trans "سطر" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#statusFilter, #workflowFilter, #quickFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; }
+        }
+    });
+
+    // ==============================
+    // Initialize DataTable
+    // ==============================
+    var table = $('#requestsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'assets:request_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.workflow = $('#workflowFilter').val();
+                d.quick_filter = $('#quickFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "request_number"},
+            {"data": 1, "name": "request_date", "className": "text-center"},
+            {"data": 2, "name": "workflow"},
+            {"data": 3, "name": "document_number"},
+            {"data": 4, "name": "requested_by"},
+            {"data": 5, "name": "current_approver"},
+            {"data": 6, "name": "status", "className": "text-center"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false, "className": "text-center"}
+        ],
+        "order": [[1, "desc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [1, 6, 7] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = table.page.info();
+            updateTableInfo(info);
+        },
+        "initComplete": function(settings, json) {
+            loadStats();
+        }
+    });
+
+    // ==============================
+    // Filter Events
+    // ==============================
+    $('#statusFilter, #workflowFilter, #quickFilter').on('change', function() {
+        table.ajax.reload();
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter').val('').trigger('change');
+        $('#workflowFilter').val('').trigger('change');
+        $('#quickFilter').val('').trigger('change');
+        $('#searchFilter').val('');
+        table.ajax.reload();
+    });
+
+    // ==============================
+    // Helper Functions
+    // ==============================
+    function updateTableInfo(info) {
+        var infoText = '{% trans "عرض" %} ' + (info.start + 1) + ' {% trans "إلى" %} ' + info.end + ' {% trans "من" %} ' + info.recordsTotal + ' {% trans "طلب" %}';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' ({% trans "مفلتر من" %} ' + info.recordsTotal + ')';
+        }
+        $('#tableInfo').text(infoText);
+    }
+
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
+
+    // ==============================
+    // Load Stats
+    // ==============================
+    function loadStats() {
+        $.get('{% url "assets:approval_stats_ajax" %}', function(data) {
+            if (data.success) {
+                $('#totalRequests').text(data.stats.total || 0);
+                $('#pendingRequests').text(data.stats.pending || 0);
+                $('#approvedRequests').text(data.stats.approved || 0);
+            }
+        }).fail(function() {
+            $('#totalRequests').text('0');
+            $('#pendingRequests').text('0');
+            $('#approvedRequests').text('0');
+        });
+    }
+});
+
+// ==============================
+// Global Action Functions
+// ==============================
+function approveRequest(id) {
+    Swal.fire({
+        title: '{% trans "تأكيد الموافقة" %}',
+        input: 'textarea',
+        inputLabel: '{% trans "ملاحظات (اختياري)" %}',
+        inputPlaceholder: '{% trans "أدخل ملاحظاتك..." %}',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '{% trans "موافقة" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:approve_request_ajax" 0 %}'.replace('0', id),
+                type: 'POST',
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'notes': result.value || ''
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('{% trans "نجح!" %}', response.message, 'success');
+                        $('#requestsTable').DataTable().ajax.reload();
+                        loadStats();
+                    } else {
+                        Swal.fire('{% trans "خطأ!" %}', response.message, 'error');
+                    }
+                },
+                error: function() {
+                    Swal.fire('{% trans "خطأ!" %}', '{% trans "حدث خطأ أثناء الموافقة" %}', 'error');
+                }
+            });
+        }
+    });
+}
+
+function rejectRequest(id) {
+    Swal.fire({
+        title: '{% trans "تأكيد الرفض" %}',
+        input: 'textarea',
+        inputLabel: '{% trans "سبب الرفض (مطلوب)" %}',
+        inputPlaceholder: '{% trans "أدخل سبب الرفض..." %}',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '{% trans "رفض" %}',
+        cancelButtonText: '{% trans "إلغاء" %}',
+        inputValidator: (value) => {
+            if (!value) {
+                return '{% trans "يجب إدخال سبب الرفض!" %}';
+            }
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: '{% url "assets:reject_request_ajax" 0 %}'.replace('0', id),
+                type: 'POST',
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'notes': result.value
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('{% trans "تم الرفض!" %}', response.message, 'success');
+                        $('#requestsTable').DataTable().ajax.reload();
+                        loadStats();
+                    } else {
+                        Swal.fire('{% trans "خطأ!" %}', response.message, 'error');
+                    }
+                },
+                error: function() {
+                    Swal.fire('{% trans "خطأ!" %}', '{% trans "حدث خطأ أثناء الرفض" %}', 'error');
+                }
+            });
+        }
+    });
+}
+
+// ==============================
+// Export to Excel
+// ==============================
+window.exportData = function() {
+    var params = new URLSearchParams({
+        status: $('#statusFilter').val(),
+        workflow: $('#workflowFilter').val(),
+        quick_filter: $('#quickFilter').val(),
+        search: $('#searchFilter').val()
+    });
+
+    window.location.href = '{% url "assets:request_export" %}?' + params.toString();
+};
+</script>
 {% endblock %}

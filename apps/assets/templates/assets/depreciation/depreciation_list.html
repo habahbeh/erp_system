@@ -15,7 +15,7 @@
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
 <style>
-/* Select2 RTL Styles */
+/* إخفاء سهم Bootstrap وتفعيل Select2 RTL */
 .select2-container--bootstrap-5 .select2-selection--single {
     background-image: none !important;
     background-color: #fff !important;
@@ -37,6 +37,26 @@ select[data-select2-id] {
     right: 8px !important;
     top: 50% !important;
     transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
 }
 
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
@@ -44,16 +64,45 @@ select[data-select2-id] {
     padding-right: 35px !important;
     text-align: right;
     direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
 }
 
 .select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
     direction: rtl;
     text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
 }
 
 .select2-container--bootstrap-5 .select2-results__options {
     text-align: right;
     direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
 }
 
 .stat-card {
@@ -89,7 +138,7 @@ select[data-select2-id] {
             <h1 class="h3 mb-1">{{ title }}</h1>
             <p class="text-muted mb-0">{% trans "إدارة وعرض سجلات الإهلاك للأصول" %}</p>
         </div>
-        {% if can_add %}
+        {% if can_calculate %}
         <div class="btn-group">
             <a href="{% url 'assets:bulk_calculate_depreciation' %}" class="btn btn-success">
                 <i class="fas fa-layer-group"></i> {% trans "حساب جماعي" %}
@@ -282,20 +331,39 @@ $(document).ready(function() {
         width: '100%',
         placeholder: 'اختر الأصل...',
         allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        },
         ajax: {
             url: '{% url "assets:asset_autocomplete" %}',
             dataType: 'json',
             delay: 250,
             data: function(params) {
                 return {
-                    q: params.term
+                    term: params.term,
+                    only_active: '0'  // Show all assets in filter
                 };
             },
             processResults: function(data) {
                 return {
-                    results: data.results
+                    results: data
                 };
             }
+        }
+    });
+
+    // Initialize Month Filter Select2
+    $('#monthFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الشهر',
+        allowClear: true,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
         }
     });
 
@@ -315,30 +383,40 @@ $(document).ready(function() {
             }
         },
         columns: [
-            { data: 0 }, // depreciation_date
-            { data: 1 }, // asset_number with link
-            { data: 2 }, // asset name with category
+            { data: 1 }, // asset_number with link (الأصل)
+            {
+                data: 0,
+                render: function(data, type, row) {
+                    // Extract year and month from date
+                    const parts = data.split('-');
+                    if (parts.length === 3) {
+                        return parts[0] + '-' + parts[1]; // YYYY-MM format (الفترة)
+                    }
+                    return data;
+                }
+            }, // period (السنة-الشهر)
+            { data: 0 }, // full depreciation_date (التاريخ)
             {
                 data: 3,
                 className: 'text-end'
-            }, // depreciation_amount
+            }, // depreciation_amount (المبلغ)
             {
                 data: 4,
                 className: 'text-end'
-            }, // accumulated_depreciation
+            }, // accumulated_depreciation (الإهلاك المجمع)
             {
                 data: 5,
                 className: 'text-end'
-            }, // book_value
+            }, // book_value (القيمة الدفترية)
             {
                 data: 6,
                 className: 'text-center'
-            }, // status
+            }, // status (الحالة)
             {
                 data: 7,
                 className: 'text-center',
                 orderable: false
-            } // actions
+            } // actions (الإجراءات)
         ],
         language: {
             url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'

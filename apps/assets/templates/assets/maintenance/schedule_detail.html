@@ -1,65 +1,449 @@
+{# apps/assets/templates/assets/maintenance/schedule_detail.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-calendar-check text-primary"></i> {% trans "جدول صيانة" %}</h2>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
+            <h1 class="h3 mb-1">{{ schedule.schedule_number }}</h1>
+            <p class="text-muted mb-1">
+                <a href="{% url 'assets:asset_detail' schedule.asset.pk %}" class="text-decoration-none">
+                    {{ schedule.asset.name }}
+                </a>
+            </p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-calendar"></i> {{ schedule.start_date|date:"Y/m/d" }}
+                    {% if schedule.end_date %} - {{ schedule.end_date|date:"Y/m/d" }}{% else %} - مفتوح{% endif %}
+                </span>
+                <span class="badge bg-info fs-6">
+                    <i class="fas fa-redo-alt"></i> {{ schedule.get_frequency_display }}
+                </span>
+                {% if schedule.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-times-circle"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+                {% if warnings %}
+                    {% for warning in warnings %}
+                        {% if warning.type == 'danger' %}
+                            <span class="badge bg-danger fs-6">
+                                <i class="fas {{ warning.icon }}"></i> متأخرة
+                            </span>
+                        {% elif warning.type == 'warning' %}
+                            <span class="badge bg-warning text-dark fs-6">
+                                <i class="fas {{ warning.icon }}"></i> قريبة
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_edit and schedule.is_active %}
             <a href="{% url 'assets:schedule_update' schedule.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
+            {% endif %}
+            {% if can_add_maintenance %}
+            <a href="{% url 'assets:maintenance_create' %}?schedule={{ schedule.pk }}" class="btn btn-success">
+                <i class="fas fa-plus"></i> {% trans "إضافة صيانة" %}
+            </a>
+            {% endif %}
+            {% if can_delete and schedule.is_active %}
+            <a href="{% url 'assets:schedule_delete' schedule.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
             <a href="{% url 'assets:schedule_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> {% trans "رجوع" %}
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-md-8">
+        <!-- معلومات الجدول -->
+        <div class="col-lg-8">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الجدول" %}</h5>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات جدول الصيانة" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "الأصل:" %}</strong>
-                        <a href="{% url 'assets:asset_detail' schedule.asset.pk %}">{{ schedule.asset.name }}</a>
-                    </p>
-                    <p><strong>{% trans "نوع الصيانة:" %}</strong> {{ schedule.maintenance_type.name }}</p>
-                    <p><strong>{% trans "التكرار:" %}</strong> {{ schedule.get_frequency_display }}</p>
-                    <p><strong>{% trans "الفترة:" %}</strong> كل {{ schedule.interval_value }} {{ schedule.get_interval_unit_display }}</p>
-                    <p><strong>{% trans "آخر صيانة:" %}</strong> {{ schedule.last_maintenance_date|date:"Y-m-d"|default:"-" }}</p>
-                    <p><strong>{% trans "الصيانة القادمة:" %}</strong> {{ schedule.next_maintenance_date|date:"Y-m-d"|default:"-" }}</p>
-                    {% if schedule.notes %}
-                    <p class="mb-0"><strong>{% trans "ملاحظات:" %}</strong> {{ schedule.notes }}</p>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم الجدول" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ schedule.schedule_number }}</strong></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الأصل" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'assets:asset_detail' schedule.asset.pk %}" class="text-decoration-none">
+                                    {{ schedule.asset.name }} ({{ schedule.asset.asset_number }})
+                                </a>
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "نوع الصيانة" %}</h6>
+                            <p class="mb-0">{{ schedule.maintenance_type.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "التكرار" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ schedule.get_frequency_display }}</span>
+                                {% if schedule.frequency == 'custom' and schedule.custom_days %}
+                                    <span class="text-muted small">(كل {{ schedule.custom_days }} يوم)</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ البداية" %}</h6>
+                            <p class="mb-0">{{ schedule.start_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ النهاية" %}</h6>
+                            <p class="mb-0">
+                                {% if schedule.end_date %}
+                                    {{ schedule.end_date|date:"l، j F Y" }}
+                                {% else %}
+                                    <span class="badge bg-secondary">مفتوح</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الصيانة القادمة" %}</h6>
+                            <p class="mb-0">
+                                <strong class="text-primary">{{ schedule.next_maintenance_date|date:"Y/m/d" }}</strong>
+                                {% if days_until_next is not None %}
+                                    {% if days_until_next < 0 %}
+                                        <span class="badge bg-danger">متأخرة {{ days_until_next_abs }} يوم</span>
+                                    {% elif days_until_next == 0 %}
+                                        <span class="badge bg-warning text-dark">اليوم</span>
+                                    {% elif days_until_next <= schedule.alert_before_days %}
+                                        <span class="badge bg-warning text-dark">بعد {{ days_until_next }} يوم</span>
+                                    {% else %}
+                                        <span class="badge bg-success">بعد {{ days_until_next }} يوم</span>
+                                    {% endif %}
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "التنبيه قبل" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-info fs-6">{{ schedule.alert_before_days }} يوم</span>
+                            </p>
+                        </div>
+
+                        {% if schedule.assigned_to %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المخصص له" %}</h6>
+                            <p class="mb-0">
+                                <i class="fas fa-user text-primary"></i>
+                                {{ schedule.assigned_to.get_full_name|default:schedule.assigned_to.username }}
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        {% if schedule.estimated_cost > 0 %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "التكلفة المتوقعة" %}</h6>
+                            <p class="mb-0">
+                                <strong class="text-success">{{ schedule.estimated_cost|floatformat:3 }}</strong>
+                                <small class="text-muted">دينار</small>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        {% if schedule.description %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "الوصف" %}</h6>
+                            <p class="mb-0">{{ schedule.description }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if schedule.notes %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "ملاحظات" %}</h6>
+                            <p class="mb-0">{{ schedule.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- إحصائيات الصيانات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الصيانات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ maintenance_stats.total_count|default:0 }}</h3>
+                                <small class="text-muted">{% trans "إجمالي الصيانات" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ maintenance_stats.completed_count|default:0 }}</h3>
+                                <small class="text-muted">{% trans "مكتملة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ maintenance_stats.in_progress_count|default:0 }}</h3>
+                                <small class="text-muted">{% trans "جارية" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-info mb-0">{{ maintenance_stats.total_cost|default:0|floatformat:0 }}</h3>
+                                <small class="text-muted">{% trans "التكلفة الإجمالية" %}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if maintenance_stats.total_count > 0 %}
+                    <div class="text-center mt-4">
+                        <a href="{% url 'assets:maintenance_list' %}?schedule={{ schedule.pk }}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض جميع الصيانات" %}
+                        </a>
+                    </div>
                     {% endif %}
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            <div class="card shadow-sm">
+            <!-- آخر الصيانات -->
+            {% if maintenances %}
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-history"></i> {% trans "سجل الصيانات" %}</h6>
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-history"></i> {% trans "آخر الصيانات" %}
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small">{% trans "آخر 5 صيانات مرتبطة بهذا الجدول" %}</p>
-                    {% if recent_maintenances %}
-                    <ul class="list-unstyled">
-                        {% for maintenance in recent_maintenances %}
-                        <li class="mb-2">
-                            <a href="{% url 'assets:maintenance_detail' maintenance.pk %}">
-                                {{ maintenance.maintenance_date|date:"Y-m-d" }}
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "الرقم" %}</th>
+                                    <th>{% trans "التاريخ المجدول" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th>{% trans "التكلفة" %}</th>
+                                    <th>{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for maintenance in maintenances %}
+                                <tr>
+                                    <td>{{ maintenance.maintenance_number }}</td>
+                                    <td>{{ maintenance.scheduled_date|date:"Y/m/d" }}</td>
+                                    <td>
+                                        {% if maintenance.status == 'completed' %}
+                                            <span class="badge bg-success">مكتملة</span>
+                                        {% elif maintenance.status == 'in_progress' %}
+                                            <span class="badge bg-warning text-dark">جارية</span>
+                                        {% elif maintenance.status == 'scheduled' %}
+                                            <span class="badge bg-info">مجدولة</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">ملغاة</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ maintenance.total_cost|floatformat:3 }}</td>
+                                    <td>
+                                        <a href="{% url 'assets:maintenance_detail' maintenance.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ schedule.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ schedule.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if schedule.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong>
+                        {{ schedule.created_by.get_full_name|default:schedule.created_by.username }}
+                    </small>
                     {% else %}
-                    <p class="text-muted small">{% trans "لا توجد صيانات مسجلة" %}</p>
+                    <small class="text-muted d-block">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong> غير محدد
+                    </small>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_edit and schedule.is_active %}
+                        <a href="{% url 'assets:schedule_update' schedule.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل الجدول" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_add_maintenance %}
+                        <a href="{% url 'assets:maintenance_create' %}?schedule={{ schedule.pk }}" class="btn btn-outline-success">
+                            <i class="fas fa-plus"></i> {% trans "إضافة صيانة" %}
+                        </a>
+                        {% endif %}
+
+                        {% if maintenance_stats.total_count > 0 %}
+                        <a href="{% url 'assets:maintenance_list' %}?schedule={{ schedule.pk }}" class="btn btn-outline-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض الصيانات" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'assets:asset_detail' schedule.asset.pk %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-cubes"></i> {% trans "عرض الأصل" %}
+                        </a>
+
+                        {% if can_delete and schedule.is_active %}
+                        <button type="button" class="btn btn-outline-danger" onclick="confirmDelete()">
+                            <i class="fas fa-trash"></i> {% trans "حذف الجدول" %}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "التكرار" %}:</strong> {{ schedule.get_frequency_display }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "عدد الصيانات" %}:</strong> {{ maintenance_stats.total_count|default:0 }}
+                        </li>
+                        {% if days_until_next is not None %}
+                        <li class="mb-2">
+                            {% if days_until_next < 0 %}
+                                <i class="fas fa-exclamation-triangle text-danger"></i>
+                                الصيانة متأخرة منذ {{ days_until_next_abs }} يوم
+                            {% elif days_until_next == 0 %}
+                                <i class="fas fa-bell text-warning"></i>
+                                الصيانة مستحقة اليوم
+                            {% elif days_until_next <= schedule.alert_before_days %}
+                                <i class="fas fa-clock text-warning"></i>
+                                الصيانة القادمة بعد {{ days_until_next }} يوم
+                            {% else %}
+                                <i class="fas fa-check-circle text-success"></i>
+                                الصيانة القادمة بعد {{ days_until_next }} يوم
+                            {% endif %}
+                        </li>
+                        {% endif %}
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            {% if schedule.is_active %}
+                                الجدول نشط ويتم تنفيذ الصيانات تلقائياً
+                            {% else %}
+                                الجدول غير نشط ولا يتم تنفيذ الصيانات
+                            {% endif %}
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete() {
+    Swal.fire({
+        title: 'حذف جدول الصيانة',
+        html: `
+            <div class="text-start">
+                <p>هل أنت متأكد من حذف جدول الصيانة <strong>{{ schedule.schedule_number }}</strong>؟</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>تنبيه:</strong> سيتم حذف جميع البيانات المرتبطة بهذا الجدول.
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-trash me-2"></i>حذف',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "{% url 'assets:schedule_delete' schedule.pk %}";
+        }
+    });
+}
+</script>
 {% endblock %}

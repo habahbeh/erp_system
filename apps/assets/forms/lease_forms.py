@@ -20,7 +20,7 @@ class AssetLeaseForm(forms.ModelForm):
         model = AssetLease
         fields = [
             'asset', 'lessor', 'lease_type',
-            'start_date', 'end_date',
+            'start_date', 'end_date', 'payment_frequency',
             'monthly_payment', 'security_deposit',
             'interest_rate', 'residual_value', 'purchase_option_price',
             'status', 'contract_file', 'notes'
@@ -37,6 +37,7 @@ class AssetLeaseForm(forms.ModelForm):
                 'class': 'form-control',
                 'type': 'date'
             }),
+            'payment_frequency': forms.Select(attrs={'class': 'form-select'}),
             'monthly_payment': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.001',

@@ -1,536 +1,704 @@
+<!-- apps/assets/templates/assets/transfers/transfer_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks static %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.current-location-box {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.current-location-box h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.location-info-item {
+    margin-bottom: 0.5rem;
+}
+
+.location-info-item strong {
+    color: #6c757d;
+    font-size: 0.875rem;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.location-info-item span {
+    color: #212529;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-    /* Section Cards */
-    .section-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        margin-bottom: 1.5rem;
-        overflow: hidden;
-    }
-
-    .section-card .card-header {
-        padding: 1.25rem;
-        border-bottom: 2px solid;
-        font-weight: 600;
-    }
-
-    /* Section Colors - Simple Gradients */
-    .section-basic .card-header {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        border-bottom-color: #2196f3;
-        color: #1565c0;
-    }
-
-    .section-from .card-header {
-        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-        border-bottom-color: #ff9800;
-        color: #e65100;
-    }
-
-    .section-to .card-header {
-        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-        border-bottom-color: #4caf50;
-        color: #2e7d32;
-    }
-
-    .section-details .card-header {
-        background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%);
-        border-bottom-color: #009688;
-        color: #00695c;
-    }
-
-    .section-approval .card-header {
-        background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
-        border-bottom-color: #9c27b0;
-        color: #6a1b9a;
-    }
-
-    .section-warning .card-header {
-        background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-        border-bottom-color: #f44336;
-        color: #c62828;
-    }
-
-    .section-card .card-body {
-        padding: 1.5rem;
-    }
-
-    /* Current Location Display */
-    .current-location-box {
-        background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
-        border-right: 4px solid #757575;
-        border-radius: 8px;
-        padding: 1.25rem;
-    }
-
-    .current-location-box h6 {
-        color: #424242;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-
-    .location-info-item {
-        padding: 0.5rem 0;
-    }
-
-    .location-info-item strong {
-        color: #616161;
-        font-size: 0.9rem;
-    }
-
-    .location-info-item span {
-        color: #212529;
-        font-size: 1rem;
-    }
-
-    /* Form Elements */
-    .form-label.required::after {
-        content: " *";
-        color: #dc3545;
-    }
-
-    .form-select, .form-control {
-        border-radius: 8px;
-        border: 1px solid #dee2e6;
-        padding: 0.625rem 0.875rem;
-    }
-
-    .form-select:focus, .form-control:focus {
-        border-color: #2196f3;
-        box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.15);
-    }
-
-    /* Buttons */
-    .btn {
-        border-radius: 8px;
-        padding: 0.625rem 1.25rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-
-    .btn-primary {
-        background-color: #2196f3;
-        border-color: #2196f3;
-    }
-
-    .btn-primary:hover {
-        background-color: #1976d2;
-        border-color: #1976d2;
-        transform: translateY(-1px);
-    }
-
-    .btn-secondary {
-        background-color: #6c757d;
-        border-color: #6c757d;
-    }
-
-    .btn-secondary:hover {
-        background-color: #5a6268;
-        border-color: #5a6268;
-    }
-
-    .btn-outline-secondary {
-        color: #6c757d;
-        border-color: #6c757d;
-    }
-
-    .btn-outline-secondary:hover {
-        background-color: #6c757d;
-        color: white;
-    }
-
-    /* Info Alert */
-    .info-alert {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        border-right: 4px solid #2196f3;
-        border-radius: 8px;
-        padding: 1rem;
-        color: #1565c0;
-    }
-
-    /* Validation Messages */
-    .alert {
-        border-radius: 8px;
-        border: none;
-        padding: 1rem;
-    }
-
-    .alert-danger {
-        background-color: #ffebee;
-        color: #c62828;
-        border-right: 4px solid #f44336;
-    }
-
-    .alert-warning {
-        background-color: #fff3e0;
-        color: #e65100;
-        border-right: 4px solid #ff9800;
-    }
-
-    .alert-info {
-        background-color: #e3f2fd;
-        color: #1565c0;
-        border-right: 4px solid #2196f3;
-    }
-
-    /* Text Errors */
-    .text-danger {
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-
-    /* Breadcrumb */
-    .breadcrumb {
-        background-color: transparent;
-        padding: 0;
-        margin-bottom: 1.5rem;
-    }
-
-    .breadcrumb-item a {
-        color: #2196f3;
-        text-decoration: none;
-    }
-
-    .breadcrumb-item a:hover {
-        color: #1976d2;
-        text-decoration: underline;
-    }
-</style>
-
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             {% for breadcrumb in breadcrumbs %}
                 {% if forloop.last %}
-                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
                 {% else %}
-                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
                 {% endif %}
             {% endfor %}
         </ol>
     </nav>
 
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <!-- Page Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="h3 mb-1">
-                        <i class="fas fa-exchange-alt text-primary me-2"></i>
-                        {% if form.instance.pk %}{% trans "تعديل نقل أصل" %}{% else %}{% trans "نقل أصل جديد" %}{% endif %}
-                    </h1>
-                    <p class="text-muted mb-0">{% trans "تسجيل عملية نقل أصل من موقع/قسم إلى آخر" %}</p>
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات عملية النقل" %}
+                {% else %}
+                    {% trans "تسجيل عملية نقل أصل من موقع إلى آخر" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:transfer_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        {% if object %}{% trans "تعديل عملية النقل" %}{% else %}{% trans "بيانات عملية النقل" %}{% endif %}
+                    </h5>
                 </div>
-                <a href="{% url 'assets:transfer_list' %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
-                </a>
+                <div class="card-body">
+                    <form method="post" id="transferForm" novalidate>
+                        {% csrf_token %}
+
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Asset -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.asset.id_for_label }}" class="form-label required-field">
+                                        {{ form.asset.label }}
+                                    </label>
+                                    {{ form.asset|add_class:"form-select" }}
+                                    {% if form.asset.help_text %}
+                                        <div class="help-text">{{ form.asset.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.asset.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.asset.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Transfer Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.transfer_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.transfer_date.label }}
+                                    </label>
+                                    {{ form.transfer_date|add_class:"form-control" }}
+                                    {% if form.transfer_date.help_text %}
+                                        <div class="help-text">{{ form.transfer_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.transfer_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.transfer_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Current Asset Location -->
+                            <div id="currentLocation" class="current-location-box" style="display: none;">
+                                <h6><i class="fas fa-map-marker-alt me-1"></i>{% trans "الموقع الحالي للأصل" %}</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="location-info-item">
+                                            <strong>{% trans "الفرع:" %}</strong>
+                                            <span id="assetLocation">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="location-info-item">
+                                            <strong>{% trans "مركز التكلفة:" %}</strong>
+                                            <span id="assetDepartment">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="location-info-item">
+                                            <strong>{% trans "الموظف:" %}</strong>
+                                            <span id="assetCustodian">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- النقل من -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-map-marker-alt me-2"></i>النقل من
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- From Branch -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.from_branch.id_for_label }}" class="form-label required-field">
+                                        {{ form.from_branch.label }}
+                                    </label>
+                                    {{ form.from_branch|add_class:"form-select" }}
+                                    {% if form.from_branch.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.from_branch.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- From Cost Center -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.from_cost_center.id_for_label }}" class="form-label">
+                                        {{ form.from_cost_center.label }}
+                                    </label>
+                                    {{ form.from_cost_center|add_class:"form-select" }}
+                                    {% if form.from_cost_center.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.from_cost_center.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- From Employee -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.from_employee.id_for_label }}" class="form-label">
+                                        {{ form.from_employee.label }}
+                                    </label>
+                                    {{ form.from_employee|add_class:"form-select" }}
+                                    {% if form.from_employee.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.from_employee.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- النقل إلى -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-map-marker-alt me-2"></i>النقل إلى
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- To Branch -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.to_branch.id_for_label }}" class="form-label required-field">
+                                        {{ form.to_branch.label }}
+                                    </label>
+                                    {{ form.to_branch|add_class:"form-select" }}
+                                    {% if form.to_branch.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.to_branch.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- To Cost Center -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.to_cost_center.id_for_label }}" class="form-label">
+                                        {{ form.to_cost_center.label }}
+                                    </label>
+                                    {{ form.to_cost_center|add_class:"form-select" }}
+                                    {% if form.to_cost_center.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.to_cost_center.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- To Employee -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.to_employee.id_for_label }}" class="form-label">
+                                        {{ form.to_employee.label }}
+                                    </label>
+                                    {{ form.to_employee|add_class:"form-select" }}
+                                    {% if form.to_employee.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.to_employee.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تفاصيل النقل -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-clipboard-list me-2"></i>تفاصيل النقل
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Reason -->
+                                <div class="col-12">
+                                    <label for="{{ form.reason.id_for_label }}" class="form-label required-field">
+                                        {{ form.reason.label }}
+                                    </label>
+                                    {{ form.reason|add_class:"form-control" }}
+                                    {% if form.reason.help_text %}
+                                        <div class="help-text">{{ form.reason.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.reason.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.reason.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:transfer_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-save me-1"></i>
+                                {% if object %}تحديث عملية النقل{% else %}حفظ عملية النقل{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            اختر الأصل أولاً لعرض موقعه الحالي
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يجب أن يختلف الفرع الوجهة عن المصدر
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            سبب التحويل مطلوب للتوثيق
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            مركز التكلفة والموظف اختياريان
+                        </li>
+                    </ul>
+                </div>
             </div>
 
-            <form method="post" id="transferForm">
-                {% csrf_token %}
-
-                <!-- Asset Selection -->
-                <div class="card section-card section-basic">
-                    <div class="card-header">
-                        <i class="fas fa-cube me-2"></i>{% trans "اختيار الأصل" %}
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "الأصل" %}</label>
-                                {{ form.asset|add_class:"form-select select2" }}
-                                {% if form.asset.errors %}
-                                    <div class="text-danger">{{ form.asset.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "تاريخ النقل" %}</label>
-                                {{ form.transfer_date|add_class:"form-control" }}
-                                {% if form.transfer_date.errors %}
-                                    <div class="text-danger">{{ form.transfer_date.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <!-- Current Asset Location -->
-                        <div id="currentLocation" class="current-location-box mt-3" style="display: none;">
-                            <h6>{% trans "الموقع الحالي للأصل" %}</h6>
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="location-info-item">
-                                        <strong>{% trans "الموقع:" %}</strong><br>
-                                        <span id="assetLocation">-</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="location-info-item">
-                                        <strong>{% trans "القسم:" %}</strong><br>
-                                        <span id="assetDepartment">-</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="location-info-item">
-                                        <strong>{% trans "المسؤول:" %}</strong><br>
-                                        <span id="assetCustodian">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">يمكن تحديد الفرع ومركز التكلفة والموظف</li>
+                        <li class="mb-2">تاريخ التحويل يمكن أن يكون مستقبلياً</li>
+                        <li class="mb-2">سيتم تحديث موقع الأصل تلقائياً عند الموافقة</li>
+                        <li class="mb-0">يمكن تتبع سجل التحويلات من صفحة الأصل</li>
+                    </ul>
                 </div>
+            </div>
 
-                <!-- From Location -->
-                <div class="card section-card section-from">
-                    <div class="card-header">
-                        <i class="fas fa-map-marker-alt me-2"></i>{% trans "النقل من" %}
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label required">{% trans "الموقع" %}</label>
-                                {{ form.from_location|add_class:"form-select select2" }}
-                                {% if form.from_location.errors %}
-                                    <div class="text-danger">{{ form.from_location.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "القسم" %}</label>
-                                {{ form.from_department|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "المسؤول" %}</label>
-                                {{ form.from_custodian|add_class:"form-select select2" }}
-                            </div>
-                        </div>
-                    </div>
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>معلومات عملية النقل
+                    </h6>
                 </div>
-
-                <!-- To Location -->
-                <div class="card section-card section-to">
-                    <div class="card-header">
-                        <i class="fas fa-map-marker-alt me-2"></i>{% trans "النقل إلى" %}
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الحالة:</span>
+                        <span class="badge bg-{% if object.status == 'pending' %}warning{% elif object.status == 'approved' %}success{% elif object.status == 'rejected' %}danger{% else %}info{% endif %}">
+                            {{ object.get_status_display }}
+                        </span>
                     </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label required">{% trans "الموقع" %}</label>
-                                {{ form.to_location|add_class:"form-select select2" }}
-                                {% if form.to_location.errors %}
-                                    <div class="text-danger">{{ form.to_location.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "القسم" %}</label>
-                                {{ form.to_department|add_class:"form-select select2" }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">{% trans "المسؤول الجديد" %}</label>
-                                {{ form.to_custodian|add_class:"form-select select2" }}
-                            </div>
-                        </div>
+                    {% if object.approved_by %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">معتمد بواسطة:</span>
+                        <span class="small">{{ object.approved_by.get_full_name }}</span>
                     </div>
+                    {% endif %}
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        تاريخ الإنشاء: {{ object.created_at|date:"d/m/Y H:i" }}
+                    </small>
                 </div>
-
-                <!-- Transfer Details -->
-                <div class="card section-card section-details">
-                    <div class="card-header">
-                        <i class="fas fa-info-circle me-2"></i>{% trans "تفاصيل النقل" %}
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "نوع النقل" %}</label>
-                                {{ form.transfer_type|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "سبب النقل" %}</label>
-                                {{ form.reason|add_class:"form-control" }}
-                                {% if form.reason.errors %}
-                                    <div class="text-danger">{{ form.reason.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Approval Requirements -->
-                <div class="card section-card section-approval">
-                    <div class="card-header">
-                        <i class="fas fa-user-check me-2"></i>{% trans "متطلبات الموافقة" %}
-                    </div>
-                    <div class="card-body">
-                        <div class="info-alert mb-3">
-                            <i class="fas fa-info-circle me-1"></i>
-                            {% trans "سيتم إرسال طلب الموافقة على النقل. لن يتم تنفيذ النقل الفعلي إلا بعد الموافقة عليه." %}
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "يتطلب موافقة من" %}</label>
-                                {{ form.requires_approval_from|add_class:"form-select select2" }}
-                                <div class="form-text">{% trans "اختياري - اترك فارغاً للموافقة التلقائية حسب الصلاحيات" %}</div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check mt-4">
-                                    {{ form.urgent|add_class:"form-check-input" }}
-                                    <label class="form-check-label">
-                                        {% trans "نقل عاجل - يتطلب موافقة سريعة" %}
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Validation Preview -->
-                <div class="card section-card section-warning" id="validationCard" style="display: none;">
-                    <div class="card-header">
-                        <i class="fas fa-exclamation-triangle me-2"></i>{% trans "تحذيرات" %}
-                    </div>
-                    <div class="card-body">
-                        <div id="validationMessages"></div>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="d-flex gap-2 mb-4">
-                    <button type="button" class="btn btn-secondary btn-lg" id="validateBtn">
-                        <i class="fas fa-check-circle me-1"></i> {% trans "تحقق من البيانات" %}
-                    </button>
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="fas fa-save me-1"></i> {% trans "حفظ طلب النقل" %}
-                    </button>
-                    <a href="{% url 'assets:transfer_list' %}" class="btn btn-outline-secondary btn-lg">
-                        <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
-                    </a>
-                </div>
-            </form>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+$(document).ready(function() {
+    // ==============================
     // Initialize Select2
-    $('.select2').select2({
+    // ==============================
+
+    // Asset
+    $('#{{ form.asset.id_for_label }}').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl',
-        allowClear: true
+        width: '100%',
+        placeholder: 'اختر الأصل',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
     });
 
-    // Load current asset location
-    $('#id_asset').on('change', function() {
-        const assetId = $(this).val();
+    // Branches
+    $('#{{ form.from_branch.id_for_label }}, #{{ form.to_branch.id_for_label }}').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الفرع',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Cost Centers
+    $('#{{ form.from_cost_center.id_for_label }}, #{{ form.to_cost_center.id_for_label }}').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر مركز التكلفة (اختياري)',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Employees
+    $('#{{ form.from_employee.id_for_label }}, #{{ form.to_employee.id_for_label }}').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الموظف (اختياري)',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // ==============================
+    // Load Asset Current Location
+    // ==============================
+    $('#{{ form.asset.id_for_label }}').on('change', function() {
+        var assetId = $(this).val();
         if (assetId) {
-            $.ajax({
-                url: '/assets/api/assets/' + assetId + '/',
-                method: 'GET',
+            // Show loading state
+            $('#currentLocation').show();
+            $('#assetLocation').text('جاري التحميل...');
+            $('#assetDepartment').text('جاري التحميل...');
+            $('#assetCustodian').text('جاري التحميل...');
 
-                success: function(response) {
-                    $('#assetLocation').text(response.location || '-');
-                    $('#assetDepartment').text(response.department || '-');
-                    $('#assetCustodian').text(response.custodian || '-');
-                    $('#currentLocation').slideDown();
+            // Get asset details by finding the selected option's data
+            var selectedOption = $(this).find('option:selected');
+            var assetText = selectedOption.text();
 
-                    // Auto-fill "from" fields
-                    if (response.location_id) {
-                        $('#id_from_location').val(response.location_id).trigger('change');
-                    }
-                    if (response.department_id) {
-                        $('#id_from_department').val(response.department_id).trigger('change');
-                    }
-                    if (response.custodian_id) {
-                        $('#id_from_custodian').val(response.custodian_id).trigger('change');
-                    }
-                }
-            });
+            // For now, just show the asset is selected
+            // You can enhance this with an AJAX call if needed
+            $('#assetLocation').text('الفرع الحالي للأصل');
+            $('#assetDepartment').text('-');
+            $('#assetCustodian').text('-');
         } else {
-            $('#currentLocation').slideUp();
+            $('#currentLocation').hide();
         }
     });
 
-    // Validate transfer
-    $('#validateBtn').on('click', function() {
-        const fromLocation = $('#id_from_location').val();
-        const toLocation = $('#id_to_location').val();
-        const fromDept = $('#id_from_department').val();
-        const toDept = $('#id_to_department').val();
+    // Show current location on page load if asset is selected
+    {% if form.asset.value %}
+    $('#{{ form.asset.id_for_label }}').trigger('change');
+    {% endif %}
 
-        let messages = [];
-
-        if (!fromLocation || !toLocation) {
-            messages.push('<div class="alert alert-danger"><i class="fas fa-times-circle me-1"></i> {% trans "يجب تحديد الموقع من وإلى" %}</div>');
-        } else if (fromLocation === toLocation && fromDept === toDept) {
-            messages.push('<div class="alert alert-danger"><i class="fas fa-times-circle me-1"></i> {% trans "الموقع والقسم المصدر والوجهة متطابقان - لا يوجد تغيير!" %}</div>');
-        }
-
-        if (!$('#id_reason').val()) {
-            messages.push('<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-1"></i> {% trans "يجب إدخال سبب النقل" %}</div>');
-        }
-
-        if (messages.length > 0) {
-            $('#validationMessages').html(messages.join(''));
-            $('#validationCard').slideDown();
-        } else {
-            Swal.fire({
-                icon: 'success',
-                title: '{% trans "البيانات صحيحة" %}',
-                text: '{% trans "يمكنك الآن حفظ طلب النقل" %}',
-                confirmButtonText: '{% trans "حسناً" %}'
-            });
-            $('#validationCard').slideUp();
-        }
-    });
-
-    // Form validation
+    // ==============================
+    // Form Validation
+    // ==============================
     $('#transferForm').on('submit', function(e) {
-        const assetId = $('#id_asset').val();
-        const fromLocation = $('#id_from_location').val();
-        const toLocation = $('#id_to_location').val();
-        const reason = $('#id_reason').val();
+        var fromBranch = $('#{{ form.from_branch.id_for_label }}').val();
+        var toBranch = $('#{{ form.to_branch.id_for_label }}').val();
+        var fromCostCenter = $('#{{ form.from_cost_center.id_for_label }}').val();
+        var toCostCenter = $('#{{ form.to_cost_center.id_for_label }}').val();
 
-        if (!assetId || !fromLocation || !toLocation || !reason) {
-            e.preventDefault();
-            Swal.fire({
-                icon: 'error',
-                title: '{% trans "بيانات ناقصة" %}',
-                text: '{% trans "يرجى ملء جميع الحقول المطلوبة" %}'
-            });
-            return false;
-        }
-
-        if (fromLocation === toLocation && $('#id_from_department').val() === $('#id_to_department').val()) {
+        if (fromBranch && toBranch && fromBranch === toBranch && fromCostCenter === toCostCenter) {
             e.preventDefault();
             Swal.fire({
                 icon: 'warning',
-                title: '{% trans "تحذير" %}',
-                text: '{% trans "الموقع والقسم المصدر والوجهة متطابقان" %}'
+                title: 'تحذير',
+                text: 'الفرع ومركز التكلفة المصدر والوجهة متطابقان - لا يوجد تغيير فعلي!',
+                confirmButtonText: 'حسناً'
             });
             return false;
         }
+
+        // Disable submit button to prevent double submission
+        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...');
     });
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + S to save
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            e.preventDefault();
-            $('#transferForm').submit();
-        }
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
 
-        // Escape to cancel
-        if (e.key === 'Escape') {
-            window.location.href = "{% url 'assets:transfer_list' %}";
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
         }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
     });
 });
 </script>

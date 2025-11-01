@@ -45,6 +45,10 @@ from ..models import (
     PhysicalCountCycle, PhysicalCount, PhysicalCountLine,
     PhysicalCountAdjustment, Asset, AssetCategory, AssetCondition
 )
+from ..forms.physical_count_forms import (
+    PhysicalCountCycleForm, PhysicalCountForm,
+    PhysicalCountLineForm, PhysicalCountAdjustmentForm
+)
 from apps.core.models import Branch
 
 
@@ -153,28 +157,20 @@ class PhysicalCountCycleCreateView(LoginRequiredMixin, PermissionRequiredMixin, 
     model = PhysicalCountCycle
     template_name = 'assets/physical_count/cycle_form.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'name', 'cycle_type', 'start_date', 'end_date',
-        'planned_completion_date', 'branches', 'asset_categories',
-        'team_leader', 'team_members', 'description', 'notes'
-    ]
+    form_class = PhysicalCountCycleForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
         # القيم الافتراضية
         form.fields['start_date'].initial = date.today()
         form.fields['end_date'].initial = date.today() + timedelta(days=30)
         form.fields['planned_completion_date'].initial = date.today() + timedelta(days=30)
         form.fields['cycle_type'].initial = 'annual'
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'CheckboxSelectMultiple', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
         return form
 
     @transaction.atomic
@@ -316,28 +312,17 @@ class PhysicalCountCycleUpdateView(LoginRequiredMixin, PermissionRequiredMixin, 
     model = PhysicalCountCycle
     template_name = 'assets/physical_count/cycle_form.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'name', 'cycle_type', 'start_date', 'end_date',
-        'planned_completion_date', 'status', 'branches', 'asset_categories',
-        'team_leader', 'team_members', 'description', 'notes'
-    ]
+    form_class = PhysicalCountCycleForm
 
     def get_queryset(self):
         return PhysicalCountCycle.objects.filter(
             company=self.request.current_company
         ).exclude(status='completed')
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'CheckboxSelectMultiple', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -579,31 +564,17 @@ class PhysicalCountCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     model = PhysicalCount
     template_name = 'assets/physical_count/count_form.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'cycle', 'count_date', 'branch', 'location',
-        'responsible_team', 'supervisor', 'notes'
-    ]
+    form_class = PhysicalCountForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['cycle'].queryset = PhysicalCountCycle.objects.filter(
-            company=company,
-            status__in=['planning', 'in_progress']
-        ).order_by('-start_date')
-
         # القيم الافتراضية
         form.fields['count_date'].initial = date.today()
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'CheckboxSelectMultiple', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
         return form
 
     @transaction.atomic
@@ -798,33 +769,17 @@ class PhysicalCountUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
     model = PhysicalCount
     template_name = 'assets/physical_count/count_form.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'cycle', 'count_date', 'branch', 'location',
-        'responsible_team', 'supervisor', 'status', 'notes'
-    ]
+    form_class = PhysicalCountForm
 
     def get_queryset(self):
         return PhysicalCount.objects.filter(
             company=self.request.current_company
         ).exclude(status='approved')
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        company = self.request.current_company
-
-        form.fields['cycle'].queryset = PhysicalCountCycle.objects.filter(
-            company=company
-        ).order_by('-start_date')
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'CheckboxSelectMultiple', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -950,10 +905,7 @@ class PhysicalCountLineUpdateView(LoginRequiredMixin, PermissionRequiredMixin, C
     model = PhysicalCountLine
     template_name = 'assets/physical_count/line_update.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'is_found', 'is_counted', 'actual_location',
-        'actual_condition', 'actual_responsible', 'notes'
-    ]
+    form_class = PhysicalCountLineForm
 
     def get_queryset(self):
         return PhysicalCountLine.objects.filter(
@@ -961,17 +913,10 @@ class PhysicalCountLineUpdateView(LoginRequiredMixin, PermissionRequiredMixin, C
             physical_count__status__in=['draft', 'in_progress']
         ).select_related('asset', 'physical_count')
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     @transaction.atomic
     def form_valid(self, form):
@@ -1092,30 +1037,17 @@ class PhysicalCountAdjustmentCreateView(LoginRequiredMixin, PermissionRequiredMi
     model = PhysicalCountAdjustment
     template_name = 'assets/physical_count/adjustment_form.html'
     permission_required = 'assets.can_conduct_physical_count'
-    fields = [
-        'physical_count_line', 'adjustment_type',
-        'adjustment_date', 'reason', 'notes'
-    ]
+    form_class = PhysicalCountAdjustmentForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['company'] = self.request.current_company
+        return kwargs
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-
-        # فقط سطور الجرد التي تحتاج تسوية
-        form.fields['physical_count_line'].queryset = PhysicalCountLine.objects.filter(
-            physical_count__company=self.request.current_company,
-            requires_adjustment=True
-        ).select_related('asset', 'physical_count')
-
         # القيم الافتراضية
         form.fields['adjustment_date'].initial = date.today()
-
-        # إضافة classes
-        for field_name, field in form.fields.items():
-            if field.widget.__class__.__name__ not in ['CheckboxInput', 'Textarea']:
-                field.widget.attrs.update({'class': 'form-control'})
-            elif field.widget.__class__.__name__ == 'Textarea':
-                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
-
         return form
 
     @transaction.atomic

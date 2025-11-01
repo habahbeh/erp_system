@@ -1,119 +1,520 @@
 {% extends 'base/base.html' %}
 {% load i18n static %}
 
-{% block title %}{% trans "تأكيد الحذف" %}{% endblock %}
+{% block title %}{% trans "تأكيد حذف الأصل" %}{% endblock %}
 
 {% block extra_css %}
 {{ block.super }}
-<link rel="stylesheet" href="{% static 'assets/css/assets_common.css' %}">
+<style>
+    .delete-header {
+        background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0.5rem;
+    }
+
+    .delete-header h2 {
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+
+    .delete-header p {
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 0;
+    }
+
+    .info-table {
+        width: 100%;
+        margin-bottom: 0;
+    }
+
+    .info-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        padding: 0.75rem 1rem;
+        border: 1px solid #dee2e6;
+        width: 35%;
+        text-align: right;
+    }
+
+    .info-table td {
+        padding: 0.75rem 1rem;
+        border: 1px solid #dee2e6;
+        text-align: right;
+    }
+
+    .warning-box {
+        background-color: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .warning-box h5 {
+        color: #856404;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .warning-box ul {
+        color: #856404;
+        margin-bottom: 0;
+        padding-right: 1.5rem;
+    }
+
+    .warning-box ul li {
+        margin-bottom: 0.5rem;
+    }
+
+    .related-items {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .related-items h6 {
+        margin-bottom: 0.75rem;
+        font-weight: 600;
+    }
+
+    .related-item {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-start;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .action-buttons .btn {
+        min-width: 140px;
+    }
+
+    .danger-text {
+        color: #dc3545;
+        font-weight: 600;
+    }
+
+    .breadcrumb {
+        background-color: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb-item a {
+        color: #6c757d;
+        text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+        color: #495057;
+        text-decoration: underline;
+    }
+
+    .breadcrumb-item.active {
+        color: #495057;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Page Header -->
-    <div class="page-header mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h2 class="mb-1">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    {% trans "تأكيد حذف الأصل" %}
-                </h2>
-                <p class="text-white-50 mb-0">{% trans "تأكيد عملية الحذف النهائي" %}</p>
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول الثابتة" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'assets:asset_detail' object.pk %}">{{ object.name|truncatewords:3 }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "حذف" %}</li>
+        </ol>
+    </nav>
+
+    <!-- Delete Header -->
+    <div class="delete-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <i class="fas fa-exclamation-triangle fa-3x"></i>
+                </div>
+                <div>
+                    <h2>
+                        <i class="fas fa-trash-alt me-2"></i>
+                        {% trans "تأكيد حذف الأصل" %}
+                    </h2>
+                    <p>{% trans "هذا الإجراء لا يمكن التراجع عنه - يرجى التأكد قبل المتابعة" %}</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <!-- Asset Info Card -->
-            <div class="card content-card shadow-sm mb-4">
-                <div class="card-header card-header-basic">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Asset Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-info-circle me-2"></i>
                         {% trans "معلومات الأصل المراد حذفه" %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-danger border-danger mb-4">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
-                            <div>
-                                <h6 class="alert-heading mb-2">{% trans "تحذير هام" %}</h6>
-                                <p class="mb-0">{% trans "هل أنت متأكد من حذف الأصل" %}: <strong>{{ object.name }}</strong>؟</p>
-                            </div>
-                        </div>
-                    </div>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>{% trans "رقم الأصل" %}</th>
+                                <td><strong class="danger-text">{{ object.asset_number }}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "اسم الأصل" %}</th>
+                                <td><strong>{{ object.name }}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "اسم الأصل بالإنجليزية" %}</th>
+                                <td>{{ object.name_en|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الفئة" %}</th>
+                                <td>{{ object.category.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الموقع" %}</th>
+                                <td>{{ object.location|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "القيمة الأصلية" %}</th>
+                                <td><strong>{{ object.original_cost|floatformat:3 }} {% trans "د.ك" %}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "القيمة الدفترية الحالية" %}</th>
+                                <td><strong>{{ object.book_value|floatformat:3 }} {% trans "د.ك" %}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الإهلاك المتراكم" %}</th>
+                                <td>{{ object.accumulated_depreciation|floatformat:3 }} {% trans "د.ك" %}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الحالة" %}</th>
+                                <td>
+                                    <span class="badge bg-{{ object.status|default:'secondary' }}">
+                                        {{ object.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "تاريخ الاقتناء" %}</th>
+                                <td>{{ object.acquisition_date|date:"Y/m/d"|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الفرع" %}</th>
+                                <td>{{ object.branch.name }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                    <div class="info-section mb-4">
-                        <div class="info-row">
-                            <span class="info-label">{% trans "رقم الأصل" %}</span>
-                            <span class="info-value"><strong>{{ object.asset_number }}</strong></span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">{% trans "اسم الأصل" %}</span>
-                            <span class="info-value">{{ object.name }}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">{% trans "الفئة" %}</span>
-                            <span class="info-value">{{ object.category.name }}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">{% trans "القيمة الأصلية" %}</span>
-                            <span class="info-value">{{ object.original_cost|floatformat:3 }} {% trans "د.ك" %}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">{% trans "القيمة الدفترية" %}</span>
-                            <span class="info-value">{{ object.book_value|floatformat:3 }} {% trans "د.ك" %}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">{% trans "الحالة" %}</span>
-                            <span class="info-value">
-                                <span class="badge bg-{{ object.status|default:'secondary' }}">
-                                    {{ object.get_status_display }}
+            <!-- Warning Box -->
+            <div class="warning-box">
+                <h5>
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "تحذير: سيتم حذف البيانات التالية نهائياً" %}
+                </h5>
+                <ul>
+                    <li>{% trans "جميع سجلات الإهلاك المرتبطة بهذا الأصل" %}</li>
+                    <li>{% trans "جميع سجلات الصيانة والإصلاحات" %}</li>
+                    <li>{% trans "جميع المعاملات (بيع، استبعاد، إعادة تقييم)" %}</li>
+                    <li>{% trans "سجلات النقل بين المواقع والفروع" %}</li>
+                    <li>{% trans "المرفقات والمستندات المرتبطة" %}</li>
+                    <li>{% trans "سجلات التأمين والمطالبات" %}</li>
+                    <li>{% trans "سجلات الجرد الفعلي" %}</li>
+                    <li>{% trans "القيود المحاسبية المرتبطة (إن وجدت)" %}</li>
+                </ul>
+                <div class="mt-3 pt-3 border-top">
+                    <p class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>{% trans "ملاحظة:" %}</strong>
+                        {% trans "لن تتمكن من استعادة هذه البيانات بعد إتمام عملية الحذف" %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Related Items Preview -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-link me-2"></i>
+                        {% trans "البيانات المرتبطة" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="related-items">
+                        <h6>
+                            <i class="fas fa-chart-line me-2"></i>
+                            {% trans "سجلات الإهلاك" %}
+                        </h6>
+                        {% if object.depreciation_set.exists %}
+                            {% for dep in object.depreciation_set.all|slice:":5" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-calendar me-2"></i>
+                                    {{ dep.depreciation_date|date:"Y/m/d" }} - {{ dep.depreciation_amount|floatformat:3 }} {% trans "د.ك" %}
                                 </span>
-                            </span>
-                        </div>
+                                <span class="badge bg-secondary">{{ dep.get_status_display }}</span>
+                            </div>
+                            {% endfor %}
+                            {% if object.depreciation_set.count > 5 %}
+                            <div class="text-muted small text-center mt-2">
+                                {% trans "و" %} {{ object.depreciation_set.count|add:"-5" }} {% trans "سجل آخر" %}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-muted mb-0">{% trans "لا توجد سجلات إهلاك" %}</p>
+                        {% endif %}
                     </div>
 
-                    <div class="alert alert-warning border-warning">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        <strong>{% trans "تحذير: سيتم حذف جميع البيانات المرتبطة بهذا الأصل بما في ذلك:" %}</strong>
-                        <ul class="mt-2 mb-0">
-                            <li>{% trans "سجلات الإهلاك" %}</li>
-                            <li>{% trans "سجلات الصيانة" %}</li>
-                            <li>{% trans "سجلات المعاملات" %}</li>
-                            <li>{% trans "المرفقات والمستندات" %}</li>
-                            <li>{% trans "سجلات التقييمات" %}</li>
-                            <li>{% trans "سجلات التأمين" %}</li>
-                        </ul>
+                    <div class="related-items">
+                        <h6>
+                            <i class="fas fa-tools me-2"></i>
+                            {% trans "سجلات الصيانة" %}
+                        </h6>
+                        {% if object.maintenance_schedules.exists or object.maintenances.exists %}
+                            {% for maint in object.maintenance_schedules.all|slice:":3" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-wrench me-2"></i>
+                                    {{ maint.maintenance_type.name }} - {{ maint.next_maintenance_date|date:"Y/m/d" }}
+                                </span>
+                                <span class="badge bg-info">{% trans "صيانة دورية" %}</span>
+                            </div>
+                            {% endfor %}
+                            {% for req in object.maintenances.all|slice:":3" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-exclamation-circle me-2"></i>
+                                    {{ req.description|truncatewords:5 }}
+                                </span>
+                                <span class="badge bg-secondary">{{ req.get_status_display }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted mb-0">{% trans "لا توجد سجلات صيانة" %}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="related-items">
+                        <h6>
+                            <i class="fas fa-exchange-alt me-2"></i>
+                            {% trans "المعاملات والنقل" %}
+                        </h6>
+                        {% if object.assettransaction_set.exists or object.transfers.exists %}
+                            {% for trans in object.assettransaction_set.all|slice:":3" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-file-invoice me-2"></i>
+                                    {{ trans.get_transaction_type_display }} - {{ trans.transaction_date|date:"Y/m/d" }}
+                                </span>
+                                <span class="badge bg-primary">{{ trans.transaction_amount|floatformat:3 }} {% trans "د.ك" %}</span>
+                            </div>
+                            {% endfor %}
+                            {% for transfer in object.transfers.all|slice:":2" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-truck me-2"></i>
+                                    {% trans "نقل من" %}: {{ transfer.from_branch.name }} {% trans "إلى" %} {{ transfer.to_branch.name }} - {{ transfer.transfer_date|date:"Y/m/d" }}
+                                </span>
+                                <span class="badge bg-success">{{ transfer.get_status_display }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted mb-0">{% trans "لا توجد معاملات أو عمليات نقل" %}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="related-items mb-0">
+                        <h6>
+                            <i class="fas fa-shield-alt me-2"></i>
+                            {% trans "سجلات التأمين" %}
+                        </h6>
+                        {% if object.assetinsurance_set.exists %}
+                            {% for insurance in object.assetinsurance_set.all|slice:":3" %}
+                            <div class="related-item">
+                                <span>
+                                    <i class="fas fa-file-contract me-2"></i>
+                                    {{ insurance.insurance_company.name }} - {{ insurance.policy_number }}
+                                </span>
+                                <span class="badge bg-info">{{ insurance.coverage_amount|floatformat:3 }} {% trans "د.ك" %}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted mb-0">{% trans "لا توجد سجلات تأمين" %}</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
             <!-- Confirmation Form -->
-            <div class="card content-card shadow-sm">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        {% trans "تأكيد عملية الحذف" %}
+                    </h5>
+                </div>
                 <div class="card-body">
                     <form method="post" id="deleteForm">
                         {% csrf_token %}
 
-                        <div class="form-check mb-4">
+                        <div class="alert alert-danger d-flex align-items-start mb-4">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <h6 class="alert-heading mb-2">{% trans "تحذير نهائي" %}</h6>
+                                <p class="mb-0">
+                                    {% trans "أنت على وشك حذف الأصل" %} <strong class="danger-text">{{ object.name }}</strong>
+                                    ({{ object.asset_number }}) {% trans "وجميع البيانات المرتبطة به نهائياً." %}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-4 p-3 bg-light rounded">
                             <input class="form-check-input" type="checkbox" id="confirmDelete" required>
-                            <label class="form-check-label text-danger fw-bold" for="confirmDelete">
-                                {% trans "أنا متأكد من حذف هذا الأصل نهائياً" %}
+                            <label class="form-check-label danger-text" for="confirmDelete" style="font-size: 1.05rem;">
+                                <i class="fas fa-check-square me-2"></i>
+                                {% trans "أنا متأكد تماماً من حذف هذا الأصل وجميع البيانات المرتبطة به نهائياً" %}
                             </label>
                         </div>
 
                         <div class="action-buttons">
-                            <a href="{% url 'assets:asset_detail' object.pk %}" class="btn btn-secondary btn-cancel">
-                                <i class="fas fa-times me-2"></i>
-                                {% trans "إلغاء" %}
+                            <a href="{% url 'assets:asset_detail' object.pk %}" class="btn btn-outline-secondary" id="backBtn">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "العودة للتفاصيل" %}
+                            </a>
+                            <a href="{% url 'assets:asset_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-list me-2"></i>
+                                {% trans "العودة للقائمة" %}
                             </a>
                             <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
                                 <i class="fas fa-trash me-2"></i>
-                                {% trans "حذف نهائياً" %}
+                                {% trans "تأكيد الحذف النهائي" %}
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Help Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>
+                        {% trans "إرشادات الحذف" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "قبل الحذف" %}
+                        </h6>
+                        <ul class="small mb-0">
+                            <li>{% trans "تأكد من عدم وجود قيود محاسبية مرتبطة غير قابلة للحذف" %}</li>
+                            <li>{% trans "احفظ نسخة احتياطية من البيانات إذا لزم الأمر" %}</li>
+                            <li>{% trans "تحقق من عدم وجود معاملات قيد التنفيذ" %}</li>
+                            <li>{% trans "راجع جميع البيانات المرتبطة بالأصل" %}</li>
+                        </ul>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <h6 class="text-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "بدائل الحذف" %}
+                        </h6>
+                        <ul class="small mb-0">
+                            <li>{% trans "يمكنك إلغاء تفعيل الأصل بدلاً من حذفه" %}</li>
+                            <li>{% trans "استخدم عملية الاستبعاد أو البيع لتسجيل خروج الأصل رسمياً" %}</li>
+                            <li>{% trans "احتفظ بالسجلات لأغراض التدقيق والمراجعة" %}</li>
+                        </ul>
+                    </div>
+                    <hr>
+                    <div>
+                        <h6 class="text-success">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            {% trans "بعد الحذف" %}
+                        </h6>
+                        <ul class="small mb-0">
+                            <li>{% trans "سيتم تسجيل عملية الحذف في سجل النظام" %}</li>
+                            <li>{% trans "لن تظهر بيانات الأصل في التقارير المستقبلية" %}</li>
+                            <li>{% trans "قد تحتاج لإعادة حساب الإهلاك للأصول المرتبطة" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        {% trans "إحصائيات الحذف" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                        <span class="text-muted">{% trans "سجلات الإهلاك" %}</span>
+                        <span class="badge bg-primary">{{ object.depreciation_set.count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                        <span class="text-muted">{% trans "سجلات الصيانة" %}</span>
+                        <span class="badge bg-primary">{{ object.maintenance_schedules.count|add:object.maintenances.count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                        <span class="text-muted">{% trans "المعاملات" %}</span>
+                        <span class="badge bg-primary">{{ object.assettransaction_set.count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                        <span class="text-muted">{% trans "عمليات النقل" %}</span>
+                        <span class="badge bg-primary">{{ object.transfers.count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">{% trans "التأمينات" %}</span>
+                        <span class="badge bg-primary">{{ object.assetinsurance_set.count }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Support Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-headset me-2"></i>
+                        {% trans "بحاجة للمساعدة؟" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        {% trans "إذا كنت غير متأكد من عملية الحذف، يرجى التواصل مع فريق الدعم الفني أو مسؤول النظام." %}
+                    </p>
+                    <div class="d-grid">
+                        <a href="{% url 'core:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>
+                            {% trans "العودة للرئيسية" %}
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -123,26 +524,45 @@
 
 {% block extra_js %}
 {{ block.super }}
-<script src="{% static 'assets/js/assets_common.js' %}"></script>
 <script>
 $(document).ready(function() {
+    // Focus on back button for safety
+    $('#backBtn').focus();
+
     // Enable delete button only when checkbox is checked
     $('#confirmDelete').on('change', function() {
         $('#deleteBtn').prop('disabled', !this.checked);
     });
 
-    // Confirm deletion
+    // Confirm deletion with strong warning
     $('#deleteForm').on('submit', function(e) {
+        if (!$('#confirmDelete').is(':checked')) {
+            e.preventDefault();
+            alert('{% trans "يجب تأكيد عملية الحذف من خلال تحديد مربع التأكيد" %}');
+            return false;
+        }
+
         e.preventDefault();
 
-        showConfirm(
-            '{% trans "هل أنت متأكد تماماً من حذف هذا الأصل؟ لا يمكن التراجع عن هذا الإجراء!" %}',
-            function() {
-                showLoading('{% trans "جاري الحذف..." %}');
-                $('#deleteForm')[0].submit();
-            },
-            '{% trans "تأكيد الحذف النهائي" %}'
-        );
+        if (confirm('{% trans "تحذير نهائي: هل أنت متأكد تماماً من حذف هذا الأصل وجميع بياناته المرتبطة؟ لا يمكن التراجع عن هذا الإجراء!" %}')) {
+            if (confirm('{% trans "هذا هو التأكيد الأخير - سيتم حذف الأصل نهائياً الآن!" %}')) {
+                // Show loading state
+                $('#deleteBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}');
+                this.submit();
+            }
+        }
+    });
+
+    // Warn before leaving page
+    let formSubmitted = false;
+    $('#deleteForm').on('submit', function() {
+        formSubmitted = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if ($('#confirmDelete').is(':checked') && !formSubmitted) {
+            return '{% trans "هل أنت متأكد من مغادرة هذه الصفحة؟" %}';
+        }
     });
 });
 </script>

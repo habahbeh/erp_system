@@ -220,17 +220,19 @@ class AssetInsurance(DocumentBaseModel):
 
     def clean(self):
         """التحقق من صحة البيانات"""
-        if self.end_date < self.start_date:
+        if self.end_date and self.start_date and self.end_date < self.start_date:
             raise ValidationError({
                 'end_date': _('تاريخ النهاية يجب أن يكون بعد تاريخ البداية')
             })
 
-        if self.coverage_amount < self.asset.book_value:
+        if self.coverage_amount and self.asset and self.coverage_amount < self.asset.book_value:
             # تحذير فقط
             pass
 
     def is_active(self):
         """هل البوليصة نشطة"""
+        if not self.start_date or not self.end_date:
+            return False
         today = datetime.date.today()
         return (
             self.status == 'active' and
@@ -239,12 +241,16 @@ class AssetInsurance(DocumentBaseModel):
 
     def is_expiring_soon(self, days=30):
         """هل البوليصة قريبة من الانتهاء"""
+        if not self.end_date:
+            return False
         today = datetime.date.today()
         expiry_threshold = self.end_date - datetime.timedelta(days=days)
         return today >= expiry_threshold and self.status == 'active'
 
     def get_remaining_days(self):
         """الأيام المتبقية"""
+        if not self.end_date:
+            return 0
         today = datetime.date.today()
         if today > self.end_date:
             return 0
@@ -626,16 +632,23 @@ class InsuranceClaim(DocumentBaseModel):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.claim_number} - {self.insurance.asset.name}"
+        try:
+            if self.claim_number and self.insurance_id:
+                return f"{self.claim_number} - {self.insurance.asset.name}"
+            elif self.claim_number:
+                return self.claim_number
+        except Exception:
+            pass
+        return _('مطالبة جديدة')
 
     def clean(self):
         """التحقق من صحة البيانات"""
-        if self.claim_amount > self.insurance.coverage_amount:
+        if self.insurance_id and self.claim_amount and self.claim_amount > self.insurance.coverage_amount:
             raise ValidationError({
                 'claim_amount': _('مبلغ المطالبة يتجاوز حد التغطية')
             })
 
-        if self.approved_amount > self.claim_amount:
+        if self.approved_amount and self.claim_amount and self.approved_amount > self.claim_amount:
             raise ValidationError({
                 'approved_amount': _('المبلغ المعتمد لا يمكن أن يتجاوز مبلغ المطالبة')
             })
