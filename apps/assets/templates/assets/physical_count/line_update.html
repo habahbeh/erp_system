@@ -1,105 +1,557 @@
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
 
-{% block title %}{% trans "تحديث سطر الجرد" %}{% endblock %}
+{% block title %}تحديث سطر الجرد{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.asset-info-table td {
+    padding: 0.5rem;
+}
+
+.asset-info-table th {
+    padding: 0.5rem;
+    font-weight: 600;
+    width: 35%;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'assets:dashboard' %}">{% trans "لوحة التحكم" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'assets:count_list' %}">{% trans "الجرد الفعلي" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'assets:count_detail' object.physical_count.pk %}">{{ object.physical_count.count_number }}</a></li>
+            <li class="breadcrumb-item active">{% trans "جرد الأصل" %}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-clipboard-check me-2"></i>
+                {% trans "جرد الأصل" %}
+            </h1>
+            <p class="text-muted mb-0">
+                {% trans "تسجيل حالة الأصل الفعلية أثناء عملية الجرد" %}
+            </p>
+        </div>
+        <a href="{% url 'assets:count_detail' object.physical_count.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <!-- معلومات الأصل -->
+            <div class="card info-card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">
+                        <i class="fas fa-box me-2"></i>معلومات الأصل
+                    </h6>
+                    <table class="table table-sm asset-info-table mb-0">
+                        <tr>
+                            <th><i class="fas fa-tag me-1"></i> الأصل:</th>
+                            <td><strong>{{ object.asset.name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-barcode me-1"></i> رقم الأصل:</th>
+                            <td><code>{{ object.asset.asset_number }}</code></td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-layer-group me-1"></i> الفئة:</th>
+                            <td>{{ object.asset.category.name }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-building me-1"></i> الفرع:</th>
+                            <td>{{ object.asset.branch.name }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-edit"></i> {% trans "تحديث سطر الجرد" %}</h5>
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        {% trans "بيانات الجرد" %}
+                    </h5>
                 </div>
                 <div class="card-body">
-                    {% if count_line %}
-                    <div class="alert alert-info">
-                        <table class="table table-sm mb-0">
-                            <tr>
-                                <th width="30%">{% trans "الأصل" %}</th>
-                                <td>{{ count_line.asset.name }}</td>
-                            </tr>
-                            <tr>
-                                <th>{% trans "رقم الأصل" %}</th>
-                                <td>{{ count_line.asset.asset_number }}</td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <form method="post" enctype="multipart/form-data">
+                    <form method="post" enctype="multipart/form-data" id="countLineForm" novalidate>
                         {% csrf_token %}
 
-                        {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
-                        </div>
-                        {% endif %}
+                        <!-- حالة الوجود -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-search me-2"></i>حالة الوجود
+                            </h6>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.found.id_for_label }}" class="form-label">
-                                    {{ form.found.label }}
-                                </label>
-                                {% render_field form.found class="form-select" %}
-                                {% if form.found.errors %}
-                                <div class="text-danger">{{ form.found.errors }}</div>
+                            <div class="row g-3">
+                                <!-- Is Found -->
+                                <div class="col-md-12">
+                                    <label class="form-label required-field">
+                                        هل الأصل موجود؟
+                                    </label>
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="is_found" id="is_found_yes" value="true" {% if object.is_found %}checked{% endif %} required>
+                                            <label class="form-check-label" for="is_found_yes">
+                                                <i class="fas fa-check-circle text-success me-1"></i> نعم، موجود
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="is_found" id="is_found_no" value="false" {% if not object.is_found and object.is_counted %}checked{% endif %} required>
+                                            <label class="form-check-label" for="is_found_no">
+                                                <i class="fas fa-times-circle text-danger me-1"></i> لا، غير موجود
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        حدد إذا كان الأصل موجوداً في موقعه المتوقع أو في أي موقع آخر
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- المعلومات الفعلية -->
+                        <div class="mb-4" id="actualInfoSection">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الفعلية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Actual Location -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.actual_location.id_for_label }}" class="form-label required-field">
+                                        {{ form.actual_location.label }}
+                                    </label>
+                                    {{ form.actual_location|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        الموقع المتوقع: <strong>{{ object.expected_location }}</strong>
+                                    </div>
+                                    {% if form.actual_location.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.actual_location.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Actual Condition -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.actual_condition.id_for_label }}" class="form-label">
+                                        {{ form.actual_condition.label }}
+                                    </label>
+                                    {{ form.actual_condition|add_class:"form-select" }}
+                                    {% if object.expected_condition %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        الحالة المتوقعة: <strong>{{ object.expected_condition.name }}</strong>
+                                    </div>
+                                    {% endif %}
+                                    {% if form.actual_condition.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.actual_condition.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Actual Responsible -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.actual_responsible.id_for_label }}" class="form-label">
+                                        {{ form.actual_responsible.label }}
+                                    </label>
+                                    {{ form.actual_responsible|add_class:"form-select" }}
+                                    {% if object.expected_responsible %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        المسؤول المتوقع: <strong>{{ object.expected_responsible.get_full_name }}</strong>
+                                    </div>
+                                    {% endif %}
+                                    {% if form.actual_responsible.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.actual_responsible.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ملاحظات وصور -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات وصور
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Notes -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Photo Upload -->
+                                {% if form.photo %}
+                                <div class="col-md-12">
+                                    <label for="{{ form.photo.id_for_label }}" class="form-label">
+                                        <i class="fas fa-camera me-1"></i>
+                                        {{ form.photo.label }}
+                                    </label>
+                                    {{ form.photo|add_class:"form-control" }}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        يمكنك إرفاق صورة للأصل أثناء الجرد (اختياري)
+                                    </div>
+                                    {% if form.photo.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.photo.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
                             </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.actual_location.id_for_label }}" class="form-label">
-                                    {{ form.actual_location.label }}
-                                </label>
-                                {% render_field form.actual_location class="form-select" %}
-                                {% if form.actual_location.errors %}
-                                <div class="text-danger">{{ form.actual_location.errors }}</div>
-                                {% endif %}
-                            </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="{{ form.condition.id_for_label }}" class="form-label">
-                                {{ form.condition.label }}
-                            </label>
-                            {% render_field form.condition class="form-select" %}
-                            {% if form.condition.errors %}
-                            <div class="text-danger">{{ form.condition.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="{{ form.notes.id_for_label }}" class="form-label">
-                                {{ form.notes.label }}
-                            </label>
-                            {% render_field form.notes class="form-control" rows="3" %}
-                            {% if form.notes.errors %}
-                            <div class="text-danger">{{ form.notes.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="{{ form.photo.id_for_label }}" class="form-label">
-                                {{ form.photo.label }}
-                            </label>
-                            {% render_field form.photo class="form-control" %}
-                            {% if form.photo.errors %}
-                            <div class="text-danger">{{ form.photo.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="{% url 'assets:count_detail' count_line.count.pk %}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:count_detail' object.physical_count.pk %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
+                                <i class="fas fa-save me-1"></i>
+                                حفظ وتسجيل الجرد
                             </button>
                         </div>
                     </form>
-                    {% endif %}
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            تأكد من تحديد حالة وجود الأصل بدقة
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            سجل الموقع الفعلي حتى لو كان مطابقاً
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            أضف ملاحظات لأي فروقات ملحوظة
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-camera text-primary me-1"></i>
+                            التقط صورة للأصل إن أمكن
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Warning Card -->
+            <div class="card warning-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>تنبيه
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">إذا لم يكن الأصل موجوداً، سيتم إنشاء تسوية تلقائياً</li>
+                        <li class="mb-2">الفروقات في الموقع أو الحالة يجب توثيقها</li>
+                        <li class="mb-0">يمكن تعديل الجرد قبل اعتماد العملية</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Asset Status -->
+            {% if object.is_counted %}
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>حالة الجرد
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>تم الجرد:</strong> نعم
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>تاريخ الجرد:</strong> {{ object.counted_date|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if object.counted_by %}
+                    <small class="text-muted d-block">
+                        <strong>جرد بواسطة:</strong> {{ object.counted_by.get_full_name }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#id_actual_condition, #id_actual_responsible').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // ==============================
+    // Toggle Actual Info Section
+    // ==============================
+    function toggleActualInfo() {
+        const isFoundValue = $('input[name="is_found"]:checked').val();
+        if (isFoundValue === 'true') {
+            $('#actualInfoSection').show();
+            // Make actual_location required
+            $('#id_actual_location').prop('required', true);
+        } else {
+            $('#actualInfoSection').hide();
+            // Make actual_location not required
+            $('#id_actual_location').prop('required', false);
+            // Clear values when hidden
+            $('#id_actual_location').val('');
+        }
+    }
+
+    // Initial state
+    toggleActualInfo();
+
+    // On change
+    $('input[name="is_found"]').on('change', function() {
+        toggleActualInfo();
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('#countLineForm input, #countLineForm select, #countLineForm textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('#countLineForm').on('submit', function(e) {
+        // Validate is_found is selected
+        if (!$('input[name="is_found"]:checked').length) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى تحديد حالة وجود الأصل',
+                confirmButtonColor: '#dc3545'
+            });
+            return false;
+        }
+
+        // If found is yes, validate actual_location
+        const isFoundValue = $('input[name="is_found"]:checked').val();
+        if (isFoundValue === 'true' && !$('#id_actual_location').val().trim()) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إدخال الموقع الفعلي للأصل',
+                confirmButtonColor: '#dc3545'
+            });
+            return false;
+        }
+
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+});
+</script>
 {% endblock %}

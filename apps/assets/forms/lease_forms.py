@@ -166,17 +166,30 @@ class LeasePaymentForm(forms.ModelForm):
 
         if self.company:
             # فقط العقود النشطة
-            self.fields['lease'].queryset = AssetLease.objects.filter(
+            leases = AssetLease.objects.filter(
                 company=self.company,
-                status='active',
-                is_active=True
+                status='active'
             ).select_related('asset', 'lessor')
+
+            self.fields['lease'].queryset = leases
+
+            # إضافة label مخصص للعقود
+            self.fields['lease'].label_from_instance = lambda obj: f"{obj.lease_number} - {obj.asset.name} ({obj.get_lease_type_display()})"
+
+            # إضافة رسالة توضيحية إذا لم توجد عقود
+            if not leases.exists():
+                self.fields['lease'].help_text = "لا توجد عقود نشطة. يرجى إنشاء عقد إيجار أولاً."
+
+        # تحسين العلامات والنصوص
+        self.fields['lease'].empty_label = "اختر عقد الإيجار"
+        self.fields['payment_number'].help_text = "رقم القسط التسلسلي"
+        self.fields['amount'].help_text = "مبلغ الدفعة"
 
         # إذا كان lease محدد، ملء البيانات الافتراضية
         if self.instance.lease_id:
             lease = self.instance.lease
-            if not self.instance.payment_amount:
-                self.fields['payment_amount'].initial = lease.monthly_payment
+            if not self.instance.amount:
+                self.fields['amount'].initial = lease.monthly_payment
 
             # للإيجار التمويلي، حساب principal و interest
             if lease.lease_type == 'finance' and not self.instance.pk:

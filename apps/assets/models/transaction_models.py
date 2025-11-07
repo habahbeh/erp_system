@@ -860,6 +860,53 @@ class AssetLease(DocumentBaseModel):
         months += self.end_date.month - today.month
         return max(0, months)
 
+    @property
+    def is_expiring_soon(self):
+        """هل العقد قريب من الانتهاء؟ (خلال 90 يوم)"""
+        import datetime
+        today = datetime.date.today()
+
+        if self.status != 'active':
+            return False
+
+        days_remaining = (self.end_date - today).days
+        return 0 <= days_remaining <= 90
+
+    @property
+    def is_expired(self):
+        """هل انتهى العقد؟"""
+        import datetime
+        today = datetime.date.today()
+        return today > self.end_date
+
+    @property
+    def days_remaining(self):
+        """الأيام المتبقية من العقد"""
+        import datetime
+        today = datetime.date.today()
+
+        if today > self.end_date:
+            return 0
+
+        return (self.end_date - today).days
+
+    @property
+    def completion_percentage(self):
+        """نسبة إتمام العقد"""
+        import datetime
+        today = datetime.date.today()
+
+        if today >= self.end_date:
+            return 100
+
+        if today <= self.start_date:
+            return 0
+
+        total_days = (self.end_date - self.start_date).days
+        elapsed_days = (today - self.start_date).days
+
+        return min(100, int((elapsed_days / total_days) * 100))
+
     def get_paid_amount(self):
         """المبلغ المدفوع حتى الآن"""
         paid = self.payments.filter(
@@ -1174,6 +1221,20 @@ class LeasePayment(models.Model):
             return False
 
         return True
+
+    @property
+    def is_overdue(self):
+        """هل الدفعة متأخرة؟"""
+        from datetime import date
+        return not self.is_paid and self.payment_date < date.today()
+
+    @property
+    def days_overdue(self):
+        """عدد أيام التأخير"""
+        from datetime import date
+        if self.is_overdue:
+            return (date.today() - self.payment_date).days
+        return 0
 
     # ═══════════════════════════════════════════════════════════════
     # 💰 Accounting Methods - الطرق المحاسبية

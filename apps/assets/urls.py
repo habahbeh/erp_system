@@ -144,9 +144,14 @@ urlpatterns = [
     path('physical-count/create/', PhysicalCountCreateView.as_view(), name='count_create'),
     path('physical-count/<int:pk>/', PhysicalCountDetailView.as_view(), name='count_detail'),
     path('physical-count/<int:pk>/update/', PhysicalCountUpdateView.as_view(), name='count_update'),
+    path('physical-count/<int:pk>/print/', PhysicalCountPrintView.as_view(), name='count_print'),
+    path('physical-count/<int:pk>/export/', export_count_excel, name='count_export_excel'),
     path('ajax/counts/datatable/', count_datatable_ajax, name='count_datatable_ajax'),
     path('ajax/counts/<int:pk>/approve/', approve_physical_count, name='approve_physical_count'),
+    path('ajax/counts/<int:pk>/start/', StartCountView.as_view(), name='start_count'),
+    path('ajax/counts/<int:pk>/complete/', CompleteCountView.as_view(), name='complete_count'),
 
+    path('count-lines/<int:pk>/update/', PhysicalCountLineUpdateView.as_view(), name='count_line_update'),
     path('ajax/count-lines/<int:pk>/', count_line_ajax, name='count_line_ajax'),
     path('ajax/barcode-scan/', barcode_scan_ajax, name='barcode_scan_ajax'),
     path('ajax/upload-count-photo/', upload_count_photo, name='upload_count_photo'),
@@ -154,6 +159,7 @@ urlpatterns = [
     path('physical-count/adjustments/', PhysicalCountAdjustmentListView.as_view(), name='adjustment_list'),
     path('physical-count/adjustments/create/', PhysicalCountAdjustmentCreateView.as_view(), name='adjustment_create'),
     path('physical-count/adjustments/<int:pk>/', PhysicalCountAdjustmentDetailView.as_view(), name='adjustment_detail'),
+    path('physical-count/adjustments/<int:pk>/approve/', ApproveAdjustmentView.as_view(), name='approve_adjustment'),
     path('ajax/adjustments/datatable/', adjustment_datatable_ajax, name='adjustment_datatable_ajax'),
     path('ajax/adjustments/<int:pk>/post/', post_adjustment, name='post_adjustment'),
 
@@ -193,6 +199,8 @@ urlpatterns = [
 
     path('lease-payments/', LeasePaymentListView.as_view(), name='payment_list'),
     path('lease-payments/create/', LeasePaymentCreateView.as_view(), name='payment_create'),
+    path('lease-payments/<int:pk>/', LeasePaymentDetailView.as_view(), name='payment_detail'),
+    path('lease-payments/export/', lease_payment_export, name='payment_export'),
     path('ajax/payments/datatable/', payment_datatable_ajax, name='payment_datatable_ajax'),
     path('ajax/payments/<int:pk>/process/', process_lease_payment, name='process_lease_payment'),
 

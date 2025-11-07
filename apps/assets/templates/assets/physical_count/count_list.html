@@ -1,72 +1,156 @@
 {% extends 'base/base.html' %}
-{% load i18n %}
-{% load static %}
+{% load i18n static %}
 
-{% block title %}{% trans "سجلات الجرد" %}{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
+<!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
-    .stat-card {
-        transition: transform 0.2s;
-        border: none;
-        border-radius: 10px;
-    }
-    .stat-card:hover {
-        transform: translateY(-5px);
-    }
-    .filter-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-    .table thead th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-    }
-    .badge {
-        padding: 0.35em 0.65em;
-        font-weight: 500;
-    }
+/* إخفاء سهم Bootstrap وتفعيل Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="h3 mb-1">
-                <i class="fas fa-clipboard-check text-primary"></i>
-                {% trans "سجلات الجرد" %}
-            </h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
-                    <li class="breadcrumb-item active">{% trans "سجلات الجرد" %}</li>
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة وتتبع عمليات الجرد الفعلي للأصول" %}</p>
         </div>
+        {% if can_add %}
         <div>
-            {% if perms.assets.add_physicalcount %}
-            <a href="{% url 'assets:count_create' %}" class="btn btn-primary" data-bs-toggle="tooltip" title="{% trans 'إنشاء سجل جرد جديد' %}">
-                <i class="fas fa-plus me-2"></i>{% trans "عد جديد" %}
+            <a href="{% url 'assets:count_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة عملية جرد" %}
             </a>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4" id="statsCards">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card stat-card text-white bg-primary shadow-sm">
+            <div class="card stat-card bg-primary text-white shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "إجمالي السجلات" %}</h6>
-                            <h2 class="mb-0" id="totalCount">-</h2>
+                            <h6 class="card-title mb-1">{% trans "إجمالي العمليات" %}</h6>
+                            <h2 class="mb-0">{{ stats.total_count }}</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-clipboard-check fa-3x"></i>
@@ -75,28 +159,14 @@
                 </div>
             </div>
         </div>
+
         <div class="col-md-3">
-            <div class="card stat-card text-white bg-warning shadow-sm">
+            <div class="card stat-card bg-success text-white shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "قيد العد" %}</h6>
-                            <h2 class="mb-0" id="pendingCount">-</h2>
-                        </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-hourglass-half fa-3x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card stat-card text-white bg-success shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title mb-1">{% trans "موجود" %}</h6>
-                            <h2 class="mb-0" id="foundCount">-</h2>
+                            <h6 class="card-title mb-1">{% trans "الأصول المعدودة" %}</h6>
+                            <h2 class="mb-0">{{ stats.total_counted }}</h2>
                         </div>
                         <div class="text-white-50">
                             <i class="fas fa-check-circle fa-3x"></i>
@@ -105,16 +175,33 @@
                 </div>
             </div>
         </div>
+
         <div class="col-md-3">
-            <div class="card stat-card text-white bg-danger shadow-sm">
+            <div class="card stat-card bg-warning text-white shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1">{% trans "غير موجود" %}</h6>
-                            <h2 class="mb-0" id="notFoundCount">-</h2>
+                            <h6 class="card-title mb-1">{% trans "قيد التنفيذ" %}</h6>
+                            <h2 class="mb-0">{{ stats.in_progress_count }}</h2>
                         </div>
                         <div class="text-white-50">
-                            <i class="fas fa-times-circle fa-3x"></i>
+                            <i class="fas fa-hourglass-half fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "نسبة الإنجاز" %}</h6>
+                            <h2 class="mb-0">{{ stats.completion_rate }}%</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-chart-line fa-3x"></i>
                         </div>
                     </div>
                 </div>
@@ -123,46 +210,56 @@
     </div>
 
     <!-- Filters Card -->
-    <div class="card filter-card mb-4">
-        <div class="card-header bg-white">
-            <button class="btn btn-link text-decoration-none p-0 w-100 text-start" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-filter text-primary me-2"></i>{% trans "خيارات البحث والتصفية" %}
-                    </h5>
-                    <i class="fas fa-chevron-down"></i>
-                </div>
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
             </button>
         </div>
         <div class="collapse show" id="filtersCollapse">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">{% trans "الحالة" %}</label>
                         <select class="form-select" id="statusFilter">
-                            <option value="">{% trans "الكل" %}</option>
-                            <option value="pending">{% trans "قيد العد" %}</option>
-                            <option value="found">{% trans "موجود" %}</option>
-                            <option value="not_found">{% trans "غير موجود" %}</option>
-                            <option value="verified">{% trans "تم التحقق" %}</option>
+                            <option value="">{% trans "جميع الحالات" %}</option>
+                            {% for status_val, status_label in status_choices %}
+                            <option value="{{ status_val }}">{{ status_label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
+
                     <div class="col-md-2">
-                        <label class="form-label">{% trans "من تاريخ" %}</label>
-                        <input type="date" class="form-control" id="dateFromFilter">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
-                        <input type="date" class="form-control" id="dateToFilter">
-                    </div>
-                    <div class="col-md-3">
                         <label class="form-label">{% trans "الدورة" %}</label>
-                        <input type="text" class="form-control" id="cycleFilter" placeholder="{% trans 'اسم الدورة' %}">
+                        <select class="form-select" id="cycleFilter">
+                            <option value="">{% trans "جميع الدورات" %}</option>
+                            {% for cycle in active_cycles %}
+                            <option value="{{ cycle.id }}">{{ cycle.cycle_number }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
+
                     <div class="col-md-2">
-                        <label class="form-label d-block">&nbsp;</label>
-                        <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters">
-                            <i class="fas fa-redo me-1"></i>{% trans "إعادة تعيين" %}
+                        <label class="form-label">{% trans "الفرع" %}</label>
+                        <select class="form-select" id="branchFilter">
+                            <option value="">{% trans "جميع الفروع" %}</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch.id }}">{{ branch.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث في رقم العملية أو الموقع' %}">
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
                         </button>
                     </div>
                 </div>
@@ -170,94 +267,40 @@
         </div>
     </div>
 
-    <!-- Data Table Card -->
+    <!-- DataTable -->
     <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">
-                <i class="fas fa-list text-primary me-2"></i>{% trans "قائمة السجلات" %}
-            </h5>
-        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered" id="countsTable" style="width:100%">
-                    <thead>
+                <table class="table table-hover table-striped" id="countsTable" style="width: 100%">
+                    <thead class="table-dark">
                         <tr>
-                            <th>{% trans "الأصل" %}</th>
-                            <th>{% trans "الدورة" %}</th>
-                            <th>{% trans "التاريخ" %}</th>
-                            <th>{% trans "الموقع المتوقع" %}</th>
-                            <th>{% trans "الموقع الفعلي" %}</th>
+                            <th>{% trans "رقم العملية" %}</th>
+                            <th>{% trans "تاريخ الجرد" %}</th>
+                            <th>{% trans "الفرع" %}</th>
+                            <th>{% trans "الأصول المعدودة" %}</th>
+                            <th>{% trans "نسبة الإنجاز" %}</th>
+                            <th>{% trans "الفروقات" %}</th>
                             <th>{% trans "الحالة" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for count in object_list %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'assets:asset_detail' count.asset.pk %}" class="text-decoration-none">
-                                    <strong>{{ count.asset.name }}</strong>
-                                </a>
-                            </td>
-                            <td>{{ count.cycle.name|default:"-" }}</td>
-                            <td>{{ count.count_date|date:"Y-m-d" }}</td>
-                            <td>{{ count.expected_location.name|default:"-" }}</td>
-                            <td>
-                                {% if count.actual_location %}
-                                    {% if count.actual_location == count.expected_location %}
-                                        <span class="text-success">
-                                            <i class="fas fa-check-circle me-1"></i>{{ count.actual_location.name }}
-                                        </span>
-                                    {% else %}
-                                        <span class="text-danger">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ count.actual_location.name }}
-                                        </span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                {% if count.status == 'pending' %}
-                                    <span class="badge bg-warning">{% trans "قيد العد" %}</span>
-                                {% elif count.status == 'found' %}
-                                    <span class="badge bg-success">{% trans "موجود" %}</span>
-                                {% elif count.status == 'not_found' %}
-                                    <span class="badge bg-danger">{% trans "غير موجود" %}</span>
-                                {% elif count.status == 'verified' %}
-                                    <span class="badge bg-info">{% trans "تم التحقق" %}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group" role="group">
-                                    <a href="{% url 'assets:count_detail' count.pk %}"
-                                       class="btn btn-sm btn-info"
-                                       data-bs-toggle="tooltip"
-                                       title="{% trans 'عرض التفاصيل' %}">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    {% if perms.assets.change_physicalcount %}
-                                    <a href="{% url 'assets:count_update' count.pk %}"
-                                       class="btn btn-sm btn-primary"
-                                       data-bs-toggle="tooltip"
-                                       title="{% trans 'تعديل' %}">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    {% endif %}
-                                    {% if count.status == 'pending' and perms.assets.change_physicalcount %}
-                                    <a href="{% url 'assets:complete_count' count.pk %}"
-                                       class="btn btn-sm btn-success"
-                                       data-bs-toggle="tooltip"
-                                       title="{% trans 'إكمال العد' %}">
-                                        <i class="fas fa-check"></i>
-                                    </a>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <!-- DataTable will populate -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -265,110 +308,122 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    // Calculate Statistics
-    function calculateStats() {
-        var total = $('#countsTable tbody tr').not(':has(td[colspan])').length;
-        var pending = 0;
-        var found = 0;
-        var notFound = 0;
-
-        $('#countsTable tbody tr').each(function() {
-            var status = $(this).find('td:eq(5) .badge').text().trim();
-            if (status === 'قيد العد') pending++;
-            else if (status === 'موجود' || status === 'تم التحقق') found++;
-            else if (status === 'غير موجود') notFound++;
-        });
-
-        $('#totalCount').text(total);
-        $('#pendingCount').text(pending);
-        $('#foundCount').text(found);
-        $('#notFoundCount').text(notFound);
-    }
-
-    calculateStats();
-
-    // Initialize DataTable
-    var table = $('#countsTable').DataTable({
-        columnDefs: [
-            { orderable: false, targets: 6 } // Disable ordering on actions column
-        ],
+    // ==============================
+    // Initialize Select2
+    // ==============================
+    $('#statusFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        minimumResultsForSearch: -1,
         language: {
-            "sProcessing": "جارٍ التحميل...",
-            "sLengthMenu": "أظهر _MENU_ مدخلات",
-            "sZeroRecords": "لم يعثر على أية سجلات",
-            "sInfo": "إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل",
-            "sInfoEmpty": "يعرض 0 إلى 0 من أصل 0 سجل",
-            "sInfoFiltered": "(منتقاة من مجموع _MAX_ مُدخل)",
-            "sSearch": "ابحث:",
-            "oPaginate": {
-                "sFirst": "الأول",
-                "sPrevious": "السابق",
-                "sNext": "التالي",
-                "sLast": "الأخير"
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    $('#cycleFilter, #branchFilter').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'الكل',
+        allowClear: true,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // ==============================
+    // Initialize DataTable
+    // ==============================
+    var table = $('#countsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'assets:count_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.cycle = $('#cycleFilter').val();
+                d.branch = $('#branchFilter').val();
+                d.search_filter = $('#searchFilter').val();
             }
         },
-        order: [[2, 'desc']], // Order by count date
-        pageLength: 25,
-        responsive: true,
-        drawCallback: function() {
+        "columns": [
+            {"data": 0, "name": "count_number"},
+            {"data": 1, "name": "count_date"},
+            {"data": 2, "name": "branch"},
+            {"data": 3, "name": "assets_counted"},
+            {"data": 4, "name": "completion"},
+            {"data": 5, "name": "variances"},
+            {"data": 6, "name": "status"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[1, "desc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [4, 5, 6, 7] }
+        ],
+        "drawCallback": function(settings) {
             $('[data-bs-toggle="tooltip"]').tooltip();
-            calculateStats();
+            var info = table.page.info();
+            updateTableInfo(info);
         }
     });
 
-    // Custom Filters
-    $.fn.dataTable.ext.search.push(
-        function(settings, data, dataIndex) {
-            var statusFilter = $('#statusFilter').val();
-            var dateFrom = $('#dateFromFilter').val();
-            var dateTo = $('#dateToFilter').val();
-            var cycle = $('#cycleFilter').val().toLowerCase();
+    // ==============================
+    // Filter Events
+    // ==============================
+    $('#statusFilter, #cycleFilter, #branchFilter').on('change', function() {
+        table.ajax.reload();
+    });
 
-            var status = data[5]; // Status column
-            var countDate = data[2]; // Date column
-            var cycleName = data[1].toLowerCase(); // Cycle column
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500);
+    });
 
-            // Status filter
-            if (statusFilter) {
-                var statusText = '';
-                switch(statusFilter) {
-                    case 'pending': statusText = 'قيد العد'; break;
-                    case 'found': statusText = 'موجود'; break;
-                    case 'not_found': statusText = 'غير موجود'; break;
-                    case 'verified': statusText = 'تم التحقق'; break;
-                }
-                if (!status.includes(statusText)) return false;
-            }
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter, #cycleFilter, #branchFilter').val('').trigger('change');
+        $('#searchFilter').val('');
+        table.ajax.reload();
+    });
 
-            // Date filters
-            if (dateFrom && countDate < dateFrom) return false;
-            if (dateTo && countDate > dateTo) return false;
-
-            // Cycle filter
-            if (cycle && !cycleName.includes(cycle)) return false;
-
-            return true;
+    // ==============================
+    // Helper Functions
+    // ==============================
+    function updateTableInfo(info) {
+        var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' عملية';
+        if (info.recordsFiltered !== info.recordsTotal) {
+            infoText += ' (مفلتر من ' + info.recordsTotal + ')';
         }
-    );
+        $('#tableInfo').text(infoText);
+    }
 
-    // Filter change events
-    $('#statusFilter, #dateFromFilter, #dateToFilter, #cycleFilter').on('change keyup', function() {
-        table.draw();
-    });
-
-    // Reset filters
-    $('#resetFilters').on('click', function() {
-        $('#statusFilter').val('');
-        $('#dateFromFilter').val('');
-        $('#dateToFilter').val('');
-        $('#cycleFilter').val('');
-        table.draw();
-    });
+    window.changePageLength = function(length) {
+        table.page.len(parseInt(length)).draw();
+    };
 
     // Initialize tooltips
     $('[data-bs-toggle="tooltip"]').tooltip();

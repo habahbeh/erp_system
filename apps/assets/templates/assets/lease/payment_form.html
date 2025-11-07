@@ -1,85 +1,676 @@
+<!-- apps/assets/templates/assets/lease/payment_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.finance-lease-fields {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    border: 1px dashed #dee2e6;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-success text-white">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات دفعة الإيجار" %}
+                {% else %}
+                    {% trans "إضافة دفعة إيجار جديدة" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:payment_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <!-- Alert if no leases available -->
+            {% if not form.fields.lease.queryset.exists %}
+            <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+                <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">لا توجد عقود إيجار نشطة</h5>
+                    <p class="mb-2">لا يمكن إضافة دفعة إيجار بدون عقد نشط. يرجى إنشاء عقد إيجار أولاً.</p>
+                    <hr class="my-2">
+                    <a href="{% url 'assets:lease_create' %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-plus me-1"></i> إنشاء عقد إيجار جديد
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        {% if form.instance.pk %}{% trans "تعديل دفعة إيجار" %}{% else %}{% trans "دفعة إيجار جديدة" %}{% endif %}
+                        <i class="fas fa-money-bill-wave me-2"></i>
+                        {% if object %}{% trans "تعديل دفعة الإيجار" %}{% else %}{% trans "بيانات دفعة الإيجار" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" novalidate>
                         {% csrf_token %}
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "العقد" %}</label>
-                                {{ form.lease|add_class:"form-select select2" }}
-                                {% if form.lease.errors %}
-                                    <div class="text-danger small mt-1">{{ form.lease.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "تاريخ الدفع" %}</label>
-                                {{ form.payment_date }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "بداية الفترة" %}</label>
-                                {{ form.period_start|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "نهاية الفترة" %}</label>
-                                {{ form.period_end|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "المبلغ" %}</label>
-                                {{ form.amount|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">{% trans "طريقة الدفع" %}</label>
-                                {{ form.payment_method|add_class:"form-select" }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">{% trans "رقم المرجع" %}</label>
-                                {{ form.reference_number|add_class:"form-control" }}
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check mt-4">
-                                    {{ form.paid|add_class:"form-check-input" }}
-                                    <label class="form-check-label" for="{{ form.paid.id_for_label }}">
-                                        {% trans "مدفوع" %}
+
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Lease -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.lease.id_for_label }}" class="form-label required-field">
+                                        {{ form.lease.label }}
                                     </label>
+                                    {{ form.lease|add_class:"form-select" }}
+                                    {% if form.lease.help_text %}
+                                        <div class="help-text">{{ form.lease.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.lease.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.lease.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">{% trans "ملاحظات" %}</label>
-                                {{ form.notes|add_class:"form-control" }}
+
+                                <!-- Payment Number -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.payment_number.id_for_label }}" class="form-label required-field">
+                                        {{ form.payment_number.label }}
+                                    </label>
+                                    {{ form.payment_number|add_class:"form-control" }}
+                                    {% if form.payment_number.help_text %}
+                                        <div class="help-text">{{ form.payment_number.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.payment_number.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.payment_number.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Payment Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.payment_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.payment_date.label }}
+                                    </label>
+                                    {{ form.payment_date|add_class:"form-control" }}
+                                    {% if form.payment_date.help_text %}
+                                        <div class="help-text">{{ form.payment_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.payment_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.payment_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Amount -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.amount.id_for_label }}" class="form-label required-field">
+                                        {{ form.amount.label }}
+                                    </label>
+                                    {{ form.amount|add_class:"form-control" }}
+                                    {% if form.amount.help_text %}
+                                        <div class="help-text">{{ form.amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
-                            <a href="{% url 'assets:lease_detail' form.instance.lease.pk %}" class="btn btn-secondary">
-                                {% trans "إلغاء" %}
+                        <!-- معلومات الإيجار التمويلي -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-calculator me-2"></i>معلومات الإيجار التمويلي
+                            </h6>
+
+                            <div class="finance-lease-fields">
+                                <div class="row g-3">
+                                    <!-- Principal Amount -->
+                                    <div class="col-md-6">
+                                        <label for="{{ form.principal_amount.id_for_label }}" class="form-label">
+                                            {{ form.principal_amount.label }}
+                                        </label>
+                                        {{ form.principal_amount|add_class:"form-control" }}
+                                        {% if form.principal_amount.help_text %}
+                                            <div class="help-text">{{ form.principal_amount.help_text }}</div>
+                                        {% endif %}
+                                        {% if form.principal_amount.errors %}
+                                            <ul class="error-list">
+                                                {% for error in form.principal_amount.errors %}
+                                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Interest Amount -->
+                                    <div class="col-md-6">
+                                        <label for="{{ form.interest_amount.id_for_label }}" class="form-label">
+                                            {{ form.interest_amount.label }}
+                                        </label>
+                                        {{ form.interest_amount|add_class:"form-control" }}
+                                        {% if form.interest_amount.help_text %}
+                                            <div class="help-text">{{ form.interest_amount.help_text }}</div>
+                                        {% endif %}
+                                        {% if form.interest_amount.errors %}
+                                            <ul class="error-list">
+                                                {% for error in form.interest_amount.errors %}
+                                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    هذه الحقول للإيجار التمويلي فقط. يتم حسابها تلقائياً عند إنشاء العقد.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- حالة الدفع -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-check-circle me-2"></i>حالة الدفع
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Is Paid -->
+                                <div class="col-md-6">
+                                    <div class="form-check mt-2">
+                                        {{ form.is_paid|add_class:"form-check-input" }}
+                                        <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
+                                            {{ form.is_paid.label }}
+                                        </label>
+                                    </div>
+                                    {% if form.is_paid.help_text %}
+                                        <div class="help-text">{{ form.is_paid.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.is_paid.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.is_paid.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Paid Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.paid_date.id_for_label }}" class="form-label">
+                                        {{ form.paid_date.label }}
+                                    </label>
+                                    {{ form.paid_date|add_class:"form-control" }}
+                                    {% if form.paid_date.help_text %}
+                                        <div class="help-text">{{ form.paid_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.paid_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.paid_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ملاحظات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                            </h6>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:payment_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
+                            <div>
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2" {% if not form.fields.lease.queryset.exists %}disabled{% endif %}>
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة أخرى
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-success" {% if not form.fields.lease.queryset.exists %}disabled{% endif %}>
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث الدفعة{% else %}حفظ الدفعة{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- No Leases Warning -->
+            {% if not form.fields.lease.queryset.exists %}
+            <div class="card border-warning mb-3">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h6 class="card-title text-warning">تنبيه مهم</h6>
+                    <p class="small mb-3">لا يمكن إضافة دفعة إيجار بدون وجود عقد نشط.</p>
+                    <a href="{% url 'assets:lease_create' %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-plus me-1"></i> إنشاء عقد إيجار
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يتم إنشاء الدفعات تلقائياً عند إنشاء العقد
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            رقم القسط يجب أن يكون فريداً لكل عقد
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            حقول الإيجار التمويلي اختيارية
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            يمكن تحديد الدفعة كمدفوعة مع تاريخ الدفع
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">اختر العقد من القائمة المنسدلة</li>
+                        <li class="mb-2">تاريخ الدفع هو تاريخ الاستحقاق المتوقع</li>
+                        <li class="mb-2">المبلغ يجب أن يكون أكبر من صفر</li>
+                        <li class="mb-2">للإيجار التمويلي: حدد أصل المبلغ والفائدة</li>
+                        <li class="mb-0">ضع علامة "مدفوع" عند تسجيل الدفع الفعلي</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Lease Info Card (if lease is selected) -->
+            {% if form.instance.lease %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-contract me-2"></i>معلومات العقد
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <small class="text-muted">رقم العقد:</small>
+                        <br>
+                        <strong>{{ form.instance.lease.lease_number }}</strong>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">الأصل:</small>
+                        <br>
+                        <strong>{{ form.instance.lease.asset.name }}</strong>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">نوع العقد:</small>
+                        <br>
+                        <span class="badge bg-{{ form.instance.lease.lease_type|yesno:'info,primary' }}">
+                            {{ form.instance.lease.get_lease_type_display }}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">الدفعة الشهرية:</small>
+                        <br>
+                        <strong>{{ form.instance.lease.monthly_payment|floatformat:3 }}</strong>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        الفترة: {{ form.instance.lease.start_date|date:"Y/m/d" }} - {{ form.instance.lease.end_date|date:"Y/m/d" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Lease
+    $('#id_lease').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl'
+        width: '100%',
+        placeholder: 'اختر عقد الإيجار',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // ==============================
+    // Set Default Date to Today
+    // ==============================
+    {% if not object %}
+    if (!$('#id_payment_date').val()) {
+        var today = new Date().toISOString().split('T')[0];
+        $('#id_payment_date').val(today);
+    }
+    {% endif %}
+
+    // ==============================
+    // Handle Is Paid Checkbox
+    // ==============================
+    $('#id_is_paid').on('change', function() {
+        if ($(this).is(':checked')) {
+            if (!$('#id_paid_date').val()) {
+                var today = new Date().toISOString().split('T')[0];
+                $('#id_paid_date').val(today);
+            }
+            $('#id_paid_date').prop('disabled', false);
+        } else {
+            $('#id_paid_date').val('');
+            $('#id_paid_date').prop('disabled', true);
+        }
+    });
+
+    // Initialize paid date state
+    if ($('#id_is_paid').is(':checked')) {
+        $('#id_paid_date').prop('disabled', false);
+    } else {
+        $('#id_paid_date').prop('disabled', true);
+    }
+
+    // ==============================
+    // Handle Lease Selection
+    // ==============================
+    $('#id_lease').on('change', function() {
+        var leaseId = $(this).val();
+        if (leaseId) {
+            // Could fetch lease details via AJAX here
+            // For now, we'll just enable/disable finance lease fields
+            // based on manual input
+        }
+    });
+
+    // ==============================
+    // Calculate Total from Principal + Interest
+    // ==============================
+    $('#id_principal_amount, #id_interest_amount').on('input', function() {
+        var principal = parseFloat($('#id_principal_amount').val()) || 0;
+        var interest = parseFloat($('#id_interest_amount').val()) || 0;
+        var total = principal + interest;
+
+        if (total > 0 && !$('#id_amount').val()) {
+            $('#id_amount').val(total.toFixed(3));
+        }
+    });
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>

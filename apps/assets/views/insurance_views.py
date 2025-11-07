@@ -607,7 +607,7 @@ class AssetInsuranceDetailView(LoginRequiredMixin, PermissionRequiredMixin, Comp
 
         # التحذيرات
         warnings = []
-        if self.object.is_expiring_soon():
+        if self.object.is_expiring_soon:
             warnings.append({
                 'type': 'warning',
                 'icon': 'fa-exclamation-triangle',

@@ -397,7 +397,7 @@ class AssetLeaseDetailView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
                 'message': f'يوجد {overdue_payments.count()} دفعات متأخرة'
             })
 
-        if self.object.is_expiring_soon():
+        if self.object.is_expiring_soon:
             warnings.append({
                 'type': 'warning',
                 'icon': 'fa-clock',
@@ -1105,6 +1105,24 @@ class LeasePaymentCreateView(LoginRequiredMixin, PermissionRequiredMixin, Compan
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['payment_date'].initial = date.today()
+
+        # إذا تم تمرير lease_id من الـ query string، حدده مسبقاً
+        lease_id = self.request.GET.get('lease')
+        if lease_id:
+            try:
+                lease = AssetLease.objects.get(pk=lease_id, company=self.request.current_company)
+                form.fields['lease'].initial = lease
+                # حساب رقم القسط التالي
+                last_payment = LeasePayment.objects.filter(lease=lease).order_by('-payment_number').first()
+                if last_payment:
+                    form.fields['payment_number'].initial = last_payment.payment_number + 1
+                else:
+                    form.fields['payment_number'].initial = 1
+                # تعيين المبلغ من العقد
+                form.fields['amount'].initial = lease.monthly_payment
+            except AssetLease.DoesNotExist:
+                pass
+
         return form
 
     @transaction.atomic
@@ -1336,7 +1354,7 @@ def lease_datatable_ajax(request):
 
             # التحذيرات
             warnings = []
-            if lease.is_expiring_soon():
+            if lease.is_expiring_soon:
                 days_left = (lease.end_date - date.today()).days
                 warnings.append(f'<small class="text-warning"><i class="fas fa-clock"></i> {days_left} يوم</small>')
 
@@ -1689,3 +1707,205 @@ def export_lease_list_excel(request):
         print(traceback.format_exc())
         messages.error(request, f'خطأ في التصدير: {str(e)}')
         return redirect('assets:lease_list')
+
+@login_required
+@permission_required('assets.view_assetlease', raise_exception=True)
+def lease_payment_export(request):
+    """تصدير دفعات الإيجار إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from datetime import datetime
+    from io import BytesIO
+
+    try:
+        company = request.current_company
+        
+        # الحصول على معايير الفلترة
+        is_paid = request.GET.get('is_paid', '')
+        lease = request.GET.get('lease', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        
+        # بناء الاستعلام
+        queryset = LeasePayment.objects.filter(
+            lease__company=company
+        ).select_related('lease', 'lease__asset', 'journal_entry')
+        
+        # تطبيق الفلاتر
+        if is_paid:
+            queryset = queryset.filter(is_paid=(is_paid == '1'))
+        
+        if lease:
+            queryset = queryset.filter(lease_id=lease)
+        
+        if date_from:
+            queryset = queryset.filter(payment_date__gte=date_from)
+        
+        if date_to:
+            queryset = queryset.filter(payment_date__lte=date_to)
+        
+        queryset = queryset.order_by('payment_date', 'lease', 'payment_number')
+        
+        # إنشاء ملف Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "دفعات الإيجار"
+        
+        # تنسيق الرأس
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # إضافة عنوان التقرير
+        ws.merge_cells('A1:J1')
+        title_cell = ws['A1']
+        title_cell.value = f"تقرير دفعات الإيجار - {company.name}"
+        title_cell.font = Font(bold=True, size=16, color='366092')
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        
+        # إضافة تاريخ التقرير
+        ws.merge_cells('A2:J2')
+        date_cell = ws['A2']
+        date_cell.value = f"تاريخ التقرير: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        date_cell.font = Font(size=10)
+        date_cell.alignment = Alignment(horizontal='center')
+        
+        # الرؤوس
+        headers = [
+            'رقم القسط',
+            'رقم العقد',
+            'الأصل',
+            'تاريخ الاستحقاق',
+            'المبلغ',
+            'أصل المبلغ',
+            'الفائدة',
+            'الحالة',
+            'تاريخ الدفع',
+            'رقم القيد'
+        ]
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=4, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+        
+        # البيانات
+        row_num = 5
+        total_amount = 0
+        total_paid = 0
+        total_unpaid = 0
+        
+        for payment in queryset:
+            ws.cell(row=row_num, column=1, value=payment.payment_number)
+            ws.cell(row=row_num, column=2, value=payment.lease.lease_number)
+            ws.cell(row=row_num, column=3, value=payment.lease.asset.name)
+            ws.cell(row=row_num, column=4, value=payment.payment_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row_num, column=5, value=float(payment.amount))
+            ws.cell(row=row_num, column=6, value=float(payment.principal_amount) if payment.principal_amount else 0)
+            ws.cell(row=row_num, column=7, value=float(payment.interest_amount) if payment.interest_amount else 0)
+            ws.cell(row=row_num, column=8, value='مدفوع' if payment.is_paid else 'معلق')
+            ws.cell(row=row_num, column=9, value=payment.paid_date.strftime('%Y-%m-%d') if payment.paid_date else '-')
+            ws.cell(row=row_num, column=10, value=payment.journal_entry.entry_number if payment.journal_entry else '-')
+            
+            # تنسيق الأرقام
+            ws.cell(row=row_num, column=5).number_format = '#,##0.000'
+            ws.cell(row=row_num, column=6).number_format = '#,##0.000'
+            ws.cell(row=row_num, column=7).number_format = '#,##0.000'
+            
+            # تلوين الصف حسب الحالة
+            if payment.is_paid:
+                fill_color = 'E8F5E9'  # أخضر فاتح
+            elif payment.is_overdue:
+                fill_color = 'FFEBEE'  # أحمر فاتح
+            else:
+                fill_color = 'FFF9C4'  # أصفر فاتح
+            
+            for col in range(1, 11):
+                ws.cell(row=row_num, column=col).fill = PatternFill(
+                    start_color=fill_color,
+                    end_color=fill_color,
+                    fill_type='solid'
+                )
+                ws.cell(row=row_num, column=col).alignment = Alignment(horizontal='center', vertical='center')
+                ws.cell(row=row_num, column=col).border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+            
+            total_amount += payment.amount
+            if payment.is_paid:
+                total_paid += payment.amount
+            else:
+                total_unpaid += payment.amount
+            
+            row_num += 1
+        
+        # إضافة الإجماليات
+        row_num += 1
+        ws.merge_cells(f'A{row_num}:D{row_num}')
+        total_cell = ws[f'A{row_num}']
+        total_cell.value = 'الإجمالي'
+        total_cell.font = Font(bold=True, size=12)
+        total_cell.alignment = Alignment(horizontal='center', vertical='center')
+        total_cell.fill = PatternFill(start_color='E0E0E0', end_color='E0E0E0', fill_type='solid')
+        
+        ws.cell(row=row_num, column=5, value=float(total_amount))
+        ws.cell(row=row_num, column=5).font = Font(bold=True)
+        ws.cell(row=row_num, column=5).number_format = '#,##0.000'
+        ws.cell(row=row_num, column=5).fill = PatternFill(start_color='E0E0E0', end_color='E0E0E0', fill_type='solid')
+        
+        # إحصائيات
+        row_num += 2
+        ws.cell(row=row_num, column=1, value='إحصائيات:').font = Font(bold=True, size=12)
+        row_num += 1
+        ws.cell(row=row_num, column=1, value='عدد الدفعات:')
+        ws.cell(row=row_num, column=2, value=queryset.count())
+        row_num += 1
+        ws.cell(row=row_num, column=1, value='إجمالي المدفوع:')
+        ws.cell(row=row_num, column=2, value=float(total_paid))
+        ws.cell(row=row_num, column=2).number_format = '#,##0.000'
+        row_num += 1
+        ws.cell(row=row_num, column=1, value='إجمالي المتبقي:')
+        ws.cell(row=row_num, column=2, value=float(total_unpaid))
+        ws.cell(row=row_num, column=2).number_format = '#,##0.000'
+        
+        # تعديل عرض الأعمدة
+        column_widths = {
+            'A': 12,  # رقم القسط
+            'B': 18,  # رقم العقد
+            'C': 25,  # الأصل
+            'D': 18,  # تاريخ الاستحقاق
+            'E': 15,  # المبلغ
+            'F': 15,  # أصل المبلغ
+            'G': 15,  # الفائدة
+            'H': 12,  # الحالة
+            'I': 18,  # تاريخ الدفع
+            'J': 15   # رقم القيد
+        }
+        
+        for col, width in column_widths.items():
+            ws.column_dimensions[col].width = width
+        
+        # حفظ
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        filename = f"lease_payments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+    
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'خطأ في التصدير: {str(e)}')
+        return redirect('assets:payment_list')

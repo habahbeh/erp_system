@@ -150,6 +150,10 @@ __all__ = [
     'PhysicalCountCreateView',
     'PhysicalCountDetailView',
     'PhysicalCountUpdateView',
+    'PhysicalCountPrintView',
+    'export_count_excel',
+    'StartCountView',
+    'CompleteCountView',
     'approve_physical_count',
     'count_datatable_ajax',
     'PhysicalCountLineUpdateView',
@@ -159,6 +163,7 @@ __all__ = [
     'PhysicalCountAdjustmentListView',
     'PhysicalCountAdjustmentCreateView',
     'PhysicalCountAdjustmentDetailView',
+    'ApproveAdjustmentView',
     'post_adjustment',
     'adjustment_datatable_ajax',
 
@@ -200,6 +205,7 @@ __all__ = [
     'lease_payment_schedule_ajax',
     'bulk_process_payments',
     'export_lease_list_excel',
+    'lease_payment_export',
 
     # Workflow
     'ApprovalWorkflowListView',

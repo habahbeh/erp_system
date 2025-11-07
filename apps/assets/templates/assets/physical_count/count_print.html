@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير جرد فعلي - {{ count.count_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+            background: white;
+        }
+
+        .print-container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .report-header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #333;
+            padding-bottom: 20px;
+        }
+
+        .company-name {
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .report-title {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .report-number {
+            font-size: 14pt;
+            color: #666;
+        }
+
+        /* Info Section */
+        .info-section {
+            margin: 20px 0;
+            display: table;
+            width: 100%;
+        }
+
+        .info-row {
+            display: table-row;
+        }
+
+        .info-label {
+            display: table-cell;
+            font-weight: bold;
+            padding: 8px;
+            width: 25%;
+            border: 1px solid #ddd;
+            background-color: #f5f5f5;
+        }
+
+        .info-value {
+            display: table-cell;
+            padding: 8px;
+            width: 25%;
+            border: 1px solid #ddd;
+        }
+
+        /* Statistics */
+        .statistics {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+
+        .stat-box {
+            flex: 1;
+            padding: 15px;
+            margin: 0 5px;
+            border: 2px solid #333;
+            border-radius: 5px;
+        }
+
+        .stat-value {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 11pt;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10pt;
+        }
+
+        .data-table thead {
+            background-color: #333;
+            color: white;
+        }
+
+        .data-table th,
+        .data-table td {
+            border: 1px solid #333;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .data-table th {
+            font-weight: bold;
+        }
+
+        .data-table tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .badge-found {
+            background-color: #28a745;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9pt;
+        }
+
+        .badge-missing {
+            background-color: #dc3545;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9pt;
+        }
+
+        .badge-variance {
+            background-color: #ffc107;
+            color: #000;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9pt;
+        }
+
+        /* Footer */
+        .report-footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #333;
+        }
+
+        .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 60px;
+        }
+
+        .signature-box {
+            text-align: center;
+            width: 30%;
+        }
+
+        .signature-line {
+            border-top: 2px solid #000;
+            margin-top: 40px;
+            padding-top: 10px;
+        }
+
+        /* Print specific */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .page-break {
+                page-break-after: always;
+            }
+        }
+
+        /* Print button */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14pt;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .print-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">
+        <i class="fas fa-print"></i> طباعة
+    </button>
+
+    <div class="print-container">
+        <!-- Header -->
+        <div class="report-header">
+            <div class="company-name">{{ company_name }}</div>
+            <div class="report-title">تقرير جرد فعلي للأصول الثابتة</div>
+            <div class="report-number">رقم الجرد: {{ count.count_number }}</div>
+            <div class="report-number" style="font-size: 11pt; margin-top: 5px;">
+                التاريخ: {{ count.count_date|date:"Y/m/d" }}
+            </div>
+        </div>
+
+        <!-- Basic Information -->
+        <div class="info-section">
+            <div class="info-row">
+                <div class="info-label">الفرع</div>
+                <div class="info-value">
+                    {% if count.branch %}
+                        {{ count.branch.name }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+                <div class="info-label">الموقع</div>
+                <div class="info-value">{{ count.location|default:"-" }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">المشرف</div>
+                <div class="info-value">
+                    {% if count.supervisor %}
+                        {{ count.supervisor.get_full_name|default:count.supervisor.username }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+                <div class="info-label">الحالة</div>
+                <div class="info-value">{{ count.get_status_display }}</div>
+            </div>
+            {% if count.cycle %}
+            <div class="info-row">
+                <div class="info-label">الدورة</div>
+                <div class="info-value" colspan="3">{{ count.cycle.name }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Statistics -->
+        <div class="statistics">
+            <div class="stat-box">
+                <div class="stat-value">{{ count.total_assets }}</div>
+                <div class="stat-label">إجمالي الأصول</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ count.counted_assets }}</div>
+                <div class="stat-label">الأصول المجردة</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ count.found_assets }}</div>
+                <div class="stat-label">الأصول الموجودة</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ count.missing_assets }}</div>
+                <div class="stat-label">الأصول المفقودة</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ count.variance_count }}</div>
+                <div class="stat-label">الفروقات</div>
+            </div>
+        </div>
+
+        <!-- Assets Table -->
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">#</th>
+                    <th style="width: 12%;">رقم الأصل</th>
+                    <th style="width: 25%;">اسم الأصل</th>
+                    <th style="width: 15%;">الموقع المتوقع</th>
+                    <th style="width: 15%;">الموقع الفعلي</th>
+                    <th style="width: 10%;">الحالة</th>
+                    <th style="width: 10%;">جرد؟</th>
+                    <th style="width: 8%;">فروقات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                <tr>
+                    <td>{{ line.line_number }}</td>
+                    <td><strong>{{ line.asset.asset_number }}</strong></td>
+                    <td style="text-align: right;">{{ line.asset.name }}</td>
+                    <td style="text-align: right;">{{ line.expected_location|default:"-" }}</td>
+                    <td style="text-align: right;">
+                        {% if line.is_counted %}
+                            {{ line.actual_location|default:"-" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.is_counted %}
+                            {% if line.is_found %}
+                                <span class="badge-found">✓ موجود</span>
+                            {% else %}
+                                <span class="badge-missing">✗ مفقود</span>
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.is_counted %}
+                            <span class="badge-found">✓</span>
+                        {% else %}
+                            <span class="badge-missing">✗</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.has_location_variance or line.has_condition_variance or not line.is_found %}
+                            <span class="badge-variance">نعم</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if count.notes %}
+        <!-- Notes -->
+        <div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+            <strong>ملاحظات:</strong><br>
+            {{ count.notes }}
+        </div>
+        {% endif %}
+
+        <!-- Footer with Signatures -->
+        <div class="report-footer">
+            <div style="margin-bottom: 20px;">
+                <strong>تاريخ الطباعة:</strong> {{ print_date|date:"Y/m/d - H:i" }}
+            </div>
+
+            <div class="signatures">
+                <div class="signature-box">
+                    <strong>المشرف</strong>
+                    <div class="signature-line">
+                        {% if count.supervisor %}
+                            {{ count.supervisor.get_full_name|default:count.supervisor.username }}
+                        {% else %}
+                            &nbsp;
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="signature-box">
+                    <strong>مدير الأصول</strong>
+                    <div class="signature-line">
+                        &nbsp;
+                    </div>
+                </div>
+
+                {% if count.approved_by %}
+                <div class="signature-box">
+                    <strong>المعتمد</strong>
+                    <div class="signature-line">
+                        {{ count.approved_by.get_full_name|default:count.approved_by.username }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

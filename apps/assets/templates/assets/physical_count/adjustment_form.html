@@ -1,143 +1,559 @@
+<!-- apps/assets/templates/assets/physical_count/adjustment_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static widget_tweaks %}
 
-{% block title %}
-{% if object %}{% trans "تعديل قيد التسوية" %}{% else %}{% trans "إنشاء قيد تسوية" %}{% endif %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+#affectedAssets {
+    max-height: 400px;
+    overflow-y: auto;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-9">
-            <div class="card">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات قيد التسوية" %}
+                {% else %}
+                    {% trans "إضافة قيد تسوية جديد للفروقات المكتشفة" %}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'assets:adjustment_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-balance-scale"></i>
-                        {% if object %}{% trans "تعديل قيد التسوية" %}{% else %}{% trans "إنشاء قيد تسوية جديد" %}{% endif %}
+                        <i class="fas fa-edit me-2"></i>
+                        {% if object %}{% trans "تعديل قيد التسوية" %}{% else %}{% trans "بيانات قيد التسوية" %}{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" novalidate>
                         {% csrf_token %}
 
-                        {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
-                        </div>
-                        {% endif %}
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
 
-                        <div class="mb-3">
-                            <label for="{{ form.cycle.id_for_label }}" class="form-label">
-                                {{ form.cycle.label }} <span class="text-danger">*</span>
-                            </label>
-                            {% render_field form.cycle class="form-select" %}
-                            {% if form.cycle.errors %}
-                            <div class="text-danger">{{ form.cycle.errors }}</div>
-                            {% endif %}
-                        </div>
+                            <div class="row g-3">
+                                <!-- Physical Count Line -->
+                                <div class="col-md-12">
+                                    <label for="{{ form.physical_count_line.id_for_label }}" class="form-label required-field">
+                                        {{ form.physical_count_line.label }}
+                                    </label>
+                                    {{ form.physical_count_line|add_class:"form-select" }}
+                                    {% if form.physical_count_line.help_text %}
+                                        <div class="help-text">{{ form.physical_count_line.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.physical_count_line.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.physical_count_line.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.adjustment_date.id_for_label }}" class="form-label">
-                                    {{ form.adjustment_date.label }} <span class="text-danger">*</span>
-                                </label>
-                                {% render_field form.adjustment_date class="form-control" type="date" %}
-                                {% if form.adjustment_date.errors %}
-                                <div class="text-danger">{{ form.adjustment_date.errors }}</div>
+                                    <!-- Info alert for empty dropdown -->
+                                    <div class="alert alert-info alert-dismissible fade show mt-2" role="alert" id="emptyLinesAlert" style="display: none;">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>لا توجد سطور جرد متاحة للتسوية!</strong>
+                                        <br>
+                                        <small>
+                                            لإنشاء تسوية، يجب أولاً:
+                                            <ol class="mb-0 mt-2 pe-3">
+                                                <li>الذهاب إلى صفحة الجرد الفعلي</li>
+                                                <li>إجراء عملية الجرد وتسجيل الأصول</li>
+                                                <li>تحديد الأصول المفقودة أو التالفة</li>
+                                                <li>العودة هنا لإنشاء قيد التسوية</li>
+                                            </ol>
+                                            <a href="{% url 'assets:count_list' %}" class="alert-link">اذهب إلى قائمة الجرد الفعلي</a>
+                                        </small>
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                </div>
+
+                                <!-- Adjustment Date -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.adjustment_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.adjustment_date.label }}
+                                    </label>
+                                    {{ form.adjustment_date|add_class:"form-control" }}
+                                    {% if form.adjustment_date.help_text %}
+                                        <div class="help-text">{{ form.adjustment_date.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.adjustment_date.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.adjustment_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Adjustment Type -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.adjustment_type.id_for_label }}" class="form-label required-field">
+                                        {{ form.adjustment_type.label }}
+                                    </label>
+                                    {{ form.adjustment_type|add_class:"form-select" }}
+                                    {% if form.adjustment_type.help_text %}
+                                        <div class="help-text">{{ form.adjustment_type.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.adjustment_type.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.adjustment_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Amount -->
+                                {% if form.amount %}
+                                <div class="col-md-6">
+                                    <label for="{{ form.amount.id_for_label }}" class="form-label">
+                                        {{ form.amount.label }}
+                                    </label>
+                                    {{ form.amount|add_class:"form-control" }}
+                                    {% if form.amount.help_text %}
+                                        <div class="help-text">{{ form.amount.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.amount.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.amount.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
                             </div>
+                        </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.adjustment_type.id_for_label }}" class="form-label">
-                                    {{ form.adjustment_type.label }} <span class="text-danger">*</span>
-                                </label>
-                                {% render_field form.adjustment_type class="form-select" %}
-                                {% if form.adjustment_type.errors %}
-                                <div class="text-danger">{{ form.adjustment_type.errors }}</div>
-                                {% endif %}
+                        <!-- التفاصيل -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-file-alt me-2"></i>التفاصيل
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Reason -->
+                                <div class="col-12">
+                                    <label for="{{ form.reason.id_for_label }}" class="form-label required-field">
+                                        {{ form.reason.label }}
+                                    </label>
+                                    {{ form.reason|add_class:"form-control" }}
+                                    {% if form.reason.help_text %}
+                                        <div class="help-text">{{ form.reason.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.reason.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.reason.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "الأصول المتأثرة" %}</label>
-                            <div id="affectedAssets" class="border rounded p-3 bg-light">
-                                <p class="text-muted">{% trans "اختر دورة الجرد لعرض الفروقات" %}</p>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="{{ form.reason.id_for_label }}" class="form-label">
-                                {{ form.reason.label }} <span class="text-danger">*</span>
-                            </label>
-                            {% render_field form.reason class="form-control" rows="3" %}
-                            {% if form.reason.errors %}
-                            <div class="text-danger">{{ form.reason.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="{{ form.notes.id_for_label }}" class="form-label">
-                                {{ form.notes.label }}
-                            </label>
-                            {% render_field form.notes class="form-control" rows="2" %}
-                            {% if form.notes.errors %}
-                            <div class="text-danger">{{ form.notes.errors }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="{% url 'assets:adjustment_list' %}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:adjustment_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> {% trans "حفظ" %}
-                            </button>
+                            <div>
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة أخرى
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث التسوية{% else %}حفظ التسوية{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Help Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            اختر سطر الجرد الذي يحتوي على الفرق
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            حدد نوع التسوية المناسب للموقف
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            اكتب سبب واضح للتسوية
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            سيتم إنشاء قيد محاسبي تلقائياً عند الاعتماد
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">أنواع التسويات المتاحة:</li>
+                        <ul class="mb-2">
+                            <li>فقد - للأصول المفقودة</li>
+                            <li>تلف - للأصول التالفة</li>
+                            <li>إعدام - للأصول المستهلكة</li>
+                            <li>تصحيح - لتصحيح البيانات</li>
+                        </ul>
+                        <li class="mb-2">تاريخ التسوية يجب أن يكون اليوم أو بعده</li>
+                        <li class="mb-0">التسوية تؤثر على القيمة الدفترية للأصل</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Asset Info (if editing) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info me-2"></i>معلومات التسوية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>رقم التسوية:</strong> {{ object.adjustment_number }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>الحالة:</strong>
+                        {% if object.status == 'draft' %}
+                            <span class="badge bg-secondary">مسودة</span>
+                        {% elif object.status == 'approved' %}
+                            <span class="badge bg-success">معتمدة</span>
+                        {% elif object.status == 'posted' %}
+                            <span class="badge bg-info">مرحلة</span>
+                        {% endif %}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>تاريخ الإنشاء:</strong> {{ object.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if object.created_by %}
+                    <small class="text-muted d-block">
+                        <strong>أنشأ بواسطة:</strong> {{ object.created_by.get_full_name }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
-    $('#id_cycle').change(function() {
-        var cycleId = $(this).val();
-        if (cycleId) {
-            $.ajax({
-                url: '/assets/api/cycle/' + cycleId + '/variances/',
-                success: function(data) {
-                    var html = '<table class="table table-sm">';
-                    html += '<thead><tr>';
-                    html += '<th>{% trans "الأصل" %}</th>';
-                    html += '<th>{% trans "الحالة" %}</th>';
-                    html += '<th>{% trans "الموقع" %}</th>';
-                    html += '</tr></thead><tbody>';
+    // ==============================
+    // Initialize Select2
+    // ==============================
 
-                    if (data.variances && data.variances.length > 0) {
-                        data.variances.forEach(function(item) {
-                            html += '<tr>';
-                            html += '<td>' + item.asset_name + '</td>';
-                            html += '<td><span class="badge bg-' + (item.found ? 'success' : 'danger') + '">';
-                            html += item.found ? '{% trans "موجود" %}' : '{% trans "مفقود" %}';
-                            html += '</span></td>';
-                            html += '<td>' + (item.location_variance ? '<span class="text-warning">فرق</span>' : '-') + '</td>';
-                            html += '</tr>';
-                        });
-                    } else {
-                        html += '<tr><td colspan="3" class="text-center">{% trans "لا توجد فروقات" %}</td></tr>';
-                    }
-
-                    html += '</tbody></table>';
-                    $('#affectedAssets').html(html);
-                }
-            });
+    // Physical Count Line
+    $('#id_physical_count_line').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر سطر الجرد',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
         }
     });
 
-    var today = new Date().toISOString().split('T')[0];
-    $('#id_adjustment_date').val(today);
+    // Check if dropdown is empty and show alert
+    var optionsCount = $('#id_physical_count_line option').length;
+    // Subtract 1 for the empty/placeholder option
+    if (optionsCount <= 1) {
+        $('#emptyLinesAlert').show();
+        // Disable submit buttons when no lines available
+        $('button[type="submit"]').prop('disabled', true).addClass('disabled');
+    }
+
+    // Adjustment Type
+    $('#id_adjustment_type').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر نوع التسوية',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Set Default Date to Today
+    // ==============================
+    {% if not object %}
+    if (!$('#id_adjustment_date').val()) {
+        var today = new Date().toISOString().split('T')[0];
+        $('#id_adjustment_date').val(today);
+    }
+    {% endif %}
+
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
 });
 </script>
 {% endblock %}

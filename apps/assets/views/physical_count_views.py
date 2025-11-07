@@ -702,7 +702,7 @@ class PhysicalCountDetailView(LoginRequiredMixin, PermissionRequiredMixin, Compa
 
         if self.object.status == 'approved' and self.object.approved_by:
             timeline.append({
-                'date': self.object.approved_at,
+                'date': self.object.approved_date,
                 'user': self.object.approved_by,
                 'action': 'اعتماد العملية',
                 'icon': 'fa-check-circle',
@@ -818,6 +818,228 @@ class PhysicalCountUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Compa
         return context
 
 
+class PhysicalCountPrintView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """طباعة تقرير الجرد"""
+
+    model = PhysicalCount
+    template_name = 'assets/physical_count/count_print.html'
+    context_object_name = 'count'
+    permission_required = 'assets.can_conduct_physical_count'
+
+    def get_queryset(self):
+        return PhysicalCount.objects.filter(
+            company=self.request.current_company
+        ).select_related('cycle', 'branch', 'supervisor', 'approved_by', 'created_by')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # سطور الجرد
+        lines = self.object.lines.select_related(
+            'asset', 'asset__category', 'expected_condition',
+            'actual_condition', 'counted_by'
+        ).order_by('line_number')
+
+        context.update({
+            'lines': lines,
+            'company_name': self.request.current_company.name,
+            'print_date': timezone.now(),
+        })
+        return context
+
+
+@login_required
+@permission_required_with_message('assets.can_conduct_physical_count')
+@require_http_methods(["GET"])
+def export_count_excel(request, pk):
+    """تصدير تقرير الجرد إلى Excel"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from django.http import HttpResponse
+
+    try:
+        # جلب البيانات
+        count = get_object_or_404(
+            PhysicalCount.objects.select_related(
+                'cycle', 'branch', 'supervisor', 'approved_by', 'created_by'
+            ),
+            pk=pk,
+            company=request.current_company
+        )
+
+        lines = count.lines.select_related(
+            'asset', 'asset__category', 'expected_condition',
+            'actual_condition', 'counted_by'
+        ).order_by('line_number')
+
+        # إنشاء Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "تقرير الجرد"
+
+        # تنسيقات
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=16)
+        section_font = Font(bold=True, size=14)
+        center_align = Alignment(horizontal="center", vertical="center")
+        right_align = Alignment(horizontal="right", vertical="center")
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # العنوان
+        ws.merge_cells('A1:H1')
+        ws['A1'] = f"{request.current_company.name}"
+        ws['A1'].font = title_font
+        ws['A1'].alignment = center_align
+
+        ws.merge_cells('A2:H2')
+        ws['A2'] = "تقرير جرد فعلي للأصول الثابتة"
+        ws['A2'].font = section_font
+        ws['A2'].alignment = center_align
+
+        ws.merge_cells('A3:H3')
+        ws['A3'] = f"رقم الجرد: {count.count_number}"
+        ws['A3'].font = Font(bold=True, size=12)
+        ws['A3'].alignment = center_align
+
+        # معلومات أساسية
+        row = 5
+        info_data = [
+            ['الفرع:', count.branch.name if count.branch else '-', 'التاريخ:', count.count_date.strftime('%Y/%m/%d')],
+            ['المشرف:', count.supervisor.get_full_name() if count.supervisor else '-', 'الحالة:', count.get_status_display()],
+            ['الموقع:', count.location or '-', 'الدورة:', count.cycle.name if count.cycle else '-'],
+        ]
+
+        for info_row in info_data:
+            ws[f'A{row}'] = info_row[0]
+            ws[f'A{row}'].font = Font(bold=True)
+            ws[f'B{row}'] = info_row[1]
+            ws[f'D{row}'] = info_row[2]
+            ws[f'D{row}'].font = Font(bold=True)
+            ws[f'E{row}'] = info_row[3]
+            row += 1
+
+        # إحصائيات
+        row += 1
+        ws.merge_cells(f'A{row}:H{row}')
+        ws[f'A{row}'] = "الإحصائيات"
+        ws[f'A{row}'].font = section_font
+        ws[f'A{row}'].alignment = center_align
+        ws[f'A{row}'].fill = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")
+
+        row += 1
+        stats_headers = ['إجمالي الأصول', 'الأصول المجردة', 'الأصول الموجودة', 'الأصول المفقودة', 'الفروقات']
+        stats_values = [count.total_assets, count.counted_assets, count.found_assets, count.missing_assets, count.variance_count]
+
+        for col, (header, value) in enumerate(zip(stats_headers, stats_values), start=1):
+            cell = ws.cell(row=row, column=col)
+            cell.value = header
+            cell.font = Font(bold=True)
+            cell.alignment = center_align
+            cell.border = border
+
+            cell_value = ws.cell(row=row+1, column=col)
+            cell_value.value = value
+            cell_value.font = Font(bold=True, size=14)
+            cell_value.alignment = center_align
+            cell_value.border = border
+
+        # جدول الأصول
+        row += 3
+        ws.merge_cells(f'A{row}:H{row}')
+        ws[f'A{row}'] = "تفاصيل الأصول"
+        ws[f'A{row}'].font = section_font
+        ws[f'A{row}'].alignment = center_align
+        ws[f'A{row}'].fill = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")
+
+        row += 1
+        headers = ['#', 'رقم الأصل', 'اسم الأصل', 'الفئة', 'الموقع المتوقع', 'الموقع الفعلي', 'الحالة', 'فروقات']
+
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=row, column=col)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+
+        # البيانات
+        row += 1
+        for line in lines:
+            ws.cell(row=row, column=1, value=line.line_number).alignment = center_align
+            ws.cell(row=row, column=2, value=line.asset.asset_number).alignment = center_align
+            ws.cell(row=row, column=3, value=line.asset.name).alignment = right_align
+            ws.cell(row=row, column=4, value=line.asset.category.name if line.asset.category else '-').alignment = right_align
+            ws.cell(row=row, column=5, value=line.expected_location or '-').alignment = right_align
+            ws.cell(row=row, column=6, value=line.actual_location if line.is_counted else '-').alignment = right_align
+
+            # الحالة
+            if line.is_counted:
+                status = 'موجود ✓' if line.is_found else 'مفقود ✗'
+                status_fill = PatternFill(start_color="C6EFCE" if line.is_found else "FFC7CE",
+                                        end_color="C6EFCE" if line.is_found else "FFC7CE",
+                                        fill_type="solid")
+            else:
+                status = 'لم يجرد'
+                status_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+
+            status_cell = ws.cell(row=row, column=7, value=status)
+            status_cell.alignment = center_align
+            status_cell.fill = status_fill
+
+            # الفروقات
+            variances = []
+            if not line.is_found:
+                variances.append('مفقود')
+            if line.has_location_variance:
+                variances.append('موقع')
+            if line.has_condition_variance:
+                variances.append('حالة')
+
+            variance_text = ', '.join(variances) if variances else '-'
+            ws.cell(row=row, column=8, value=variance_text).alignment = center_align
+
+            # Borders
+            for col in range(1, 9):
+                ws.cell(row=row, column=col).border = border
+
+            row += 1
+
+        # ضبط عرض الأعمدة
+        ws.column_dimensions['A'].width = 8
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 20
+        ws.column_dimensions['E'].width = 20
+        ws.column_dimensions['F'].width = 20
+        ws.column_dimensions['G'].width = 15
+        ws.column_dimensions['H'].width = 15
+
+        # تجميد العنوان
+        ws.freeze_panes = f'A{row-len(lines)}'
+
+        # إعداد الاستجابة
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="physical_count_{count.count_number}.xlsx"'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        messages.error(request, f'❌ خطأ في تصدير التقرير: {str(e)}')
+        return redirect('assets:count_detail', pk=pk)
+
+
 class StartCountView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):
     """بدء عملية الجرد - جديد"""
 
@@ -910,7 +1132,7 @@ class PhysicalCountLineUpdateView(LoginRequiredMixin, PermissionRequiredMixin, C
     def get_queryset(self):
         return PhysicalCountLine.objects.filter(
             physical_count__company=self.request.current_company,
-            physical_count__status__in=['draft', 'in_progress']
+            physical_count__status__in=['draft', 'in_progress', 'completed']
         ).select_related('asset', 'physical_count')
 
     def get_form_kwargs(self):
@@ -921,6 +1143,15 @@ class PhysicalCountLineUpdateView(LoginRequiredMixin, PermissionRequiredMixin, C
     @transaction.atomic
     def form_valid(self, form):
         try:
+            # Check if count is approved (cannot edit)
+            if form.instance.physical_count.status == 'approved':
+                messages.error(self.request, '❌ لا يمكن تعديل سطور جرد معتمد')
+                return redirect('assets:count_detail', pk=form.instance.physical_count.pk)
+
+            # Handle the is_found radio button value
+            is_found_value = self.request.POST.get('is_found', 'false')
+            form.instance.is_found = (is_found_value == 'true')
+
             form.instance.is_counted = True
             form.instance.counted_date = timezone.now()
             form.instance.counted_by = self.request.user
@@ -1015,13 +1246,27 @@ class PhysicalCountAdjustmentListView(LoginRequiredMixin, PermissionRequiredMixi
             total_loss=Coalesce(Sum('loss_amount'), Decimal('0')),
         )
 
+        # الفروع
+        from apps.core.models import Branch
+        branches = Branch.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        )
+
         context.update({
             'title': _('تسويات الجرد'),
             'can_add': self.request.user.has_perm('assets.can_conduct_physical_count'),
             'can_export': self.request.user.has_perm('assets.can_conduct_physical_count'),
             'status_choices': PhysicalCountAdjustment.STATUS_CHOICES,
             'adjustment_types': PhysicalCountAdjustment.ADJUSTMENT_TYPES,
-            'stats': stats,
+            'branches': branches,
+            'stats': {
+                'total_adjustments': stats['total_count'],
+                'draft_count': stats['draft_count'],
+                'approved_count': stats['approved_count'],
+                'posted_count': stats['posted_count'],
+                'cancelled_count': stats['cancelled_count'],
+            },
             'breadcrumbs': [
                 {'title': _('الأصول الثابتة'), 'url': reverse('assets:dashboard')},
                 {'title': _('تسويات الجرد'), 'url': ''},
@@ -1107,6 +1352,7 @@ class PhysicalCountAdjustmentDetailView(LoginRequiredMixin, PermissionRequiredMi
         ).select_related(
             'physical_count_line', 'physical_count_line__asset',
             'physical_count_line__asset__category',
+            'physical_count_line__physical_count',
             'approved_by', 'journal_entry', 'created_by'
         )
 
@@ -1126,7 +1372,7 @@ class PhysicalCountAdjustmentDetailView(LoginRequiredMixin, PermissionRequiredMi
 
         if self.object.status in ['approved', 'posted'] and self.object.approved_by:
             timeline.append({
-                'date': self.object.approved_at,
+                'date': self.object.approved_date,
                 'user': self.object.approved_by,
                 'action': 'اعتماد التسوية',
                 'icon': 'fa-check-circle',
@@ -1163,6 +1409,38 @@ class ApproveAdjustmentView(LoginRequiredMixin, PermissionRequiredMixin, Company
     template_name = 'assets/physical_count/approve_adjustment.html'
     permission_required = 'assets.can_conduct_physical_count'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        adjustment_id = self.kwargs.get('pk')
+
+        adjustment = get_object_or_404(
+            PhysicalCountAdjustment.objects.select_related(
+                'physical_count_line',
+                'physical_count_line__asset',
+                'physical_count_line__physical_count',
+                'physical_count_line__physical_count__cycle',
+                'approved_by'
+            ),
+            pk=adjustment_id,
+            company=self.request.current_company
+        )
+
+        # Get affected assets (if any additional details needed)
+        affected_assets = []
+        if adjustment.physical_count_line:
+            affected_assets = [{
+                'name': adjustment.physical_count_line.asset.name,
+                'asset_number': adjustment.physical_count_line.asset.asset_number,
+                'found': adjustment.physical_count_line.is_found,
+                'adjustment_impact': adjustment.get_adjustment_type_display()
+            }]
+
+        context.update({
+            'adjustment': adjustment,
+            'affected_assets': affected_assets,
+        })
+        return context
+
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         try:
@@ -1179,7 +1457,7 @@ class ApproveAdjustmentView(LoginRequiredMixin, PermissionRequiredMixin, Company
             # اعتماد التسوية
             adjustment.status = 'approved'
             adjustment.approved_by = request.user
-            adjustment.approved_at = timezone.now()
+            adjustment.approved_date = timezone.now()
             if approval_notes:
                 adjustment.notes = f"{adjustment.notes}\nملاحظات: {approval_notes}" if adjustment.notes else f"ملاحظات: {approval_notes}"
             adjustment.save()
@@ -1291,11 +1569,19 @@ def count_line_ajax(request, pk):
             PhysicalCountLine,
             pk=pk,
             physical_count__company=request.current_company,
-            physical_count__status__in=['draft', 'in_progress']
+            physical_count__status__in=['draft', 'in_progress', 'completed']
         )
 
+        # Check if count is approved (cannot edit)
+        if line.physical_count.status == 'approved':
+            return JsonResponse({
+                'success': False,
+                'message': 'لا يمكن تعديل سطور جرد معتمد'
+            }, status=400)
+
         # تحديث البيانات
-        line.is_found = request.POST.get('is_found') == '1'
+        is_found_value = request.POST.get('is_found', 'false')
+        line.is_found = (is_found_value == 'true' or is_found_value == '1')
         line.is_counted = True
         line.actual_location = request.POST.get('actual_location', '')
         line.notes = request.POST.get('notes', '')
@@ -1537,6 +1823,8 @@ def count_datatable_ajax(request):
 
         # الفلاتر
         status = request.GET.get('status', '')
+        cycle = request.GET.get('cycle', '')
+        branch = request.GET.get('branch', '')
 
         # Query
         queryset = PhysicalCount.objects.filter(
@@ -1546,6 +1834,12 @@ def count_datatable_ajax(request):
         # تطبيق الفلاتر
         if status:
             queryset = queryset.filter(status=status)
+
+        if cycle:
+            queryset = queryset.filter(cycle_id=cycle)
+
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
 
         # البحث
         if search_value:
@@ -1831,6 +2125,7 @@ def adjustment_datatable_ajax(request):
         # الفلاتر
         status = request.GET.get('status', '')
         adjustment_type = request.GET.get('adjustment_type', '')
+        branch = request.GET.get('branch', '')
 
         # Query
         queryset = PhysicalCountAdjustment.objects.filter(
@@ -1838,6 +2133,7 @@ def adjustment_datatable_ajax(request):
         ).select_related(
             'physical_count_line__asset',
             'physical_count_line__asset__category',
+            'branch',
             'journal_entry',
             'approved_by'
         )
@@ -1848,6 +2144,9 @@ def adjustment_datatable_ajax(request):
 
         if adjustment_type:
             queryset = queryset.filter(adjustment_type=adjustment_type)
+
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
 
         # البحث
         if search_value:
@@ -1923,14 +2222,23 @@ def adjustment_datatable_ajax(request):
 
             actions_html = '<div class="btn-group" role="group">' + ' '.join(actions) + '</div>' if actions else '-'
 
+            # الأصل
+            asset_html = '-'
+            if adj.physical_count_line and adj.physical_count_line.asset:
+                asset_html = f'''<div>
+                    <strong><a href="{reverse("assets:asset_detail", args=[adj.physical_count_line.asset.pk])}">{adj.physical_count_line.asset.asset_number}</a></strong>
+                    <br><small class="text-muted">{adj.physical_count_line.asset.name}</small>
+                </div>'''
+
+            # الفرع
+            branch_name = adj.branch.name if adj.branch else '-'
+
             data.append([
                 f'<a href="{reverse("assets:adjustment_detail", args=[adj.pk])}">{adj.adjustment_number}</a>',
                 adj.adjustment_date.strftime('%Y-%m-%d'),
+                asset_html,
                 f'{type_icon} {type_display}',
-                f'''<div>
-                    <strong><a href="{reverse("assets:asset_detail", args=[adj.physical_count_line.asset.pk])}">{adj.physical_count_line.asset.asset_number}</a></strong>
-                    <br><small class="text-muted">{adj.physical_count_line.asset.name}</small>
-                </div>''',
+                branch_name,
                 f'<div class="text-end"><strong class="text-danger">{adj.loss_amount:,.2f}</strong></div>',
                 status_badge,
                 actions_html

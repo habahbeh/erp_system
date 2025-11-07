@@ -179,22 +179,10 @@ class PhysicalCountLineForm(forms.ModelForm):
     class Meta:
         model = PhysicalCountLine
         fields = [
-            'asset',
-            'is_found', 'is_counted',
             'actual_location', 'actual_condition', 'actual_responsible',
             'notes'
         ]
         widgets = {
-            'asset': forms.Select(attrs={
-                'class': 'form-select',
-                'disabled': True  # للقراءة فقط - الأصل معرّف مسبقاً
-            }),
-            'is_found': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            }),
-            'is_counted': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            }),
             'actual_location': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'الموقع الفعلي للأصل'
@@ -203,7 +191,7 @@ class PhysicalCountLineForm(forms.ModelForm):
             'actual_responsible': forms.Select(attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={
                 'class': 'form-control',
-                'rows': 2,
+                'rows': 3,
                 'placeholder': 'ملاحظات عن الأصل'
             }),
         }
@@ -220,13 +208,6 @@ class PhysicalCountLineForm(forms.ModelForm):
                 company=self.company,
                 is_active=True
             )
-
-        # إذا كان سطر جديد، ملء البيانات المتوقعة من الأصل
-        if self.instance.asset_id and not self.instance.pk:
-            asset = self.instance.asset
-            self.fields['actual_location'].initial = asset.physical_location
-            self.fields['actual_condition'].initial = asset.condition
-            self.fields['actual_responsible'].initial = asset.responsible_employee
 
 
 class BarcodeCountForm(forms.Form):

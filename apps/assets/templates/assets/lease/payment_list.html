@@ -1,79 +1,533 @@
+{# apps/assets/templates/assets/lease/payment_list.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- SweetAlert2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0"><i class="fas fa-money-bill-wave text-success"></i> {% trans "دفعات الإيجار" %}</h5>
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{% trans "دفعات الإيجار" %}</h1>
+            <p class="text-muted mb-1">{% trans "إدارة ومتابعة دفعات عقود الإيجار" %}</p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-primary fs-6">
+                    <i class="fas fa-list"></i> {{ stats.total_count }} {% trans "دفعة" %}
+                </span>
+                <span class="badge bg-success fs-6">
+                    <i class="fas fa-check-circle"></i> {{ stats.paid_count }} {% trans "مدفوع" %}
+                </span>
+                <span class="badge bg-warning text-dark fs-6">
+                    <i class="fas fa-clock"></i> {{ stats.unpaid_count }} {% trans "غير مدفوع" %}
+                </span>
+                {% if stats.overdue_count > 0 %}
+                <span class="badge bg-danger fs-6">
+                    <i class="fas fa-exclamation-triangle"></i> {{ stats.overdue_count }} {% trans "متأخر" %}
+                </span>
+                {% endif %}
+            </div>
         </div>
-        <div class="card-body">
-            <!-- Filter Section -->
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <select class="form-select" id="statusFilter">
-                        <option value="">{% trans "كل الحالات" %}</option>
-                        <option value="paid">{% trans "مدفوع" %}</option>
-                        <option value="pending">{% trans "معلق" %}</option>
-                    </select>
+        <div class="d-flex gap-2">
+            {% if can_pay %}
+            <a href="{% url 'assets:payment_create' %}" class="btn btn-success">
+                <i class="fas fa-plus"></i> {% trans "إضافة دفعة" %}
+            </a>
+            {% endif %}
+            {% if can_export %}
+            <button type="button" class="btn btn-outline-primary" onclick="exportPayments()">
+                <i class="fas fa-file-excel"></i> {% trans "تصدير" %}
+            </button>
+            {% endif %}
+            <a href="{% url 'assets:lease_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "عقود الإيجار" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- قائمة الدفعات -->
+        <div class="col-lg-8">
+            <!-- الفلترة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-filter"></i> {% trans "تصفية النتائج" %}
+                    </h6>
                 </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="leaseFilter">
-                        <option value="">{% trans "كل العقود" %}</option>
-                        {% for lease in leases %}
-                        <option value="{{ lease.pk }}">{{ lease.lease_number }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="card-body">
+                    <form method="get" id="filterForm">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">{% trans "الحالة" %}</label>
+                                <select class="form-select form-select-sm" name="is_paid" id="statusFilter">
+                                    <option value="">{% trans "كل الحالات" %}</option>
+                                    <option value="1" {% if request.GET.is_paid == '1' %}selected{% endif %}>{% trans "مدفوع" %}</option>
+                                    <option value="0" {% if request.GET.is_paid == '0' %}selected{% endif %}>{% trans "غير مدفوع" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">{% trans "العقد" %}</label>
+                                <select class="form-select form-select-sm" name="lease" id="leaseFilter">
+                                    <option value="">{% trans "كل العقود" %}</option>
+                                    {% for lease in active_leases %}
+                                    <option value="{{ lease.pk }}" {% if request.GET.lease == lease.pk|stringformat:"s" %}selected{% endif %}>
+                                        {{ lease.lease_number }} - {{ lease.asset.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">{% trans "من تاريخ" %}</label>
+                                <input type="date" class="form-control form-control-sm" name="date_from" value="{{ request.GET.date_from }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">{% trans "إلى تاريخ" %}</label>
+                                <input type="date" class="form-control form-control-sm" name="date_to" value="{{ request.GET.date_to }}">
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-search"></i> {% trans "بحث" %}
+                            </button>
+                            <a href="{% url 'assets:payment_list' %}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-redo"></i> {% trans "إعادة تعيين" %}
+                            </a>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>{% trans "العقد" %}</th>
-                            <th>{% trans "التاريخ" %}</th>
-                            <th>{% trans "الفترة" %}</th>
-                            <th class="text-end">{% trans "المبلغ" %}</th>
-                            <th>{% trans "طريقة الدفع" %}</th>
-                            <th>{% trans "الحالة" %}</th>
-                            <th class="text-center">{% trans "الإجراءات" %}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for payment in object_list %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'assets:lease_detail' payment.lease.pk %}">
-                                    {{ payment.lease.lease_number }}
-                                </a>
-                            </td>
-                            <td>{{ payment.payment_date|date:"Y-m-d" }}</td>
-                            <td>{{ payment.period_start|date:"Y-m-d" }} - {{ payment.period_end|date:"Y-m-d" }}</td>
-                            <td class="text-end">{{ payment.amount|floatformat:3 }}</td>
-                            <td>{{ payment.get_payment_method_display }}</td>
-                            <td>
-                                {% if payment.paid %}
-                                    <span class="badge bg-success">{% trans "مدفوع" %}</span>
-                                {% else %}
-                                    <span class="badge bg-warning">{% trans "معلق" %}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <a href="{% url 'assets:payment_list' payment.pk %}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center text-muted">{% trans "لا توجد دفعات" %}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <!-- الجدول -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list"></i> {% trans "قائمة الدفعات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "رقم الدفعة" %}</th>
+                                    <th>{% trans "العقد" %}</th>
+                                    <th>{% trans "تاريخ الاستحقاق" %}</th>
+                                    <th class="text-end">{% trans "المبلغ" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in object_list %}
+                                <tr {% if payment.is_overdue %}class="table-danger"{% endif %}>
+                                    <td>
+                                        <strong>#{{ payment.payment_number }}</strong>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'assets:lease_detail' payment.lease.pk %}" class="text-decoration-none">
+                                            {{ payment.lease.lease_number }}
+                                        </a>
+                                        <br>
+                                        <small class="text-muted">{{ payment.lease.asset.name }}</small>
+                                    </td>
+                                    <td>
+                                        {{ payment.payment_date|date:"Y/m/d" }}
+                                        {% if payment.is_overdue and not payment.is_paid %}
+                                        <br>
+                                        <small class="text-danger">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            متأخر {{ payment.days_overdue }} يوم
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>{{ payment.amount|floatformat:3 }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if payment.is_paid %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle"></i> {% trans "مدفوع" %}
+                                            </span>
+                                            {% if payment.paid_date %}
+                                            <br>
+                                            <small class="text-muted">{{ payment.paid_date|date:"Y/m/d" }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            {% if payment.is_overdue %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-exclamation-triangle"></i> {% trans "متأخر" %}
+                                            </span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-clock"></i> {% trans "معلق" %}
+                                            </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
+                                            {% if not payment.is_paid and can_pay %}
+                                            <button type="button" class="btn btn-success"
+                                                    onclick="processPayment({{ payment.pk }}, '{{ payment.lease.lease_number }}', {{ payment.payment_number }})">
+                                                <i class="fas fa-money-bill"></i>
+                                            </button>
+                                            {% endif %}
+                                            <a href="{% url 'assets:payment_detail' payment.pk %}" class="btn btn-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                        {% trans "لا توجد دفعات" %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if is_paginated %}
+                    <nav aria-label="Page navigation" class="mt-3">
+                        <ul class="pagination justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.is_paid %}is_paid={{ request.GET.is_paid }}&{% endif %}{% if request.GET.lease %}lease={{ request.GET.lease }}&{% endif %}{% if request.GET.date_from %}date_from={{ request.GET.date_from }}&{% endif %}{% if request.GET.date_to %}date_to={{ request.GET.date_to }}&{% endif %}page=1">{% trans "الأولى" %}</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.is_paid %}is_paid={{ request.GET.is_paid }}&{% endif %}{% if request.GET.lease %}lease={{ request.GET.lease }}&{% endif %}{% if request.GET.date_from %}date_from={{ request.GET.date_from }}&{% endif %}{% if request.GET.date_to %}date_to={{ request.GET.date_to }}&{% endif %}page={{ page_obj.previous_page_number }}">{% trans "السابقة" %}</a>
+                            </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.is_paid %}is_paid={{ request.GET.is_paid }}&{% endif %}{% if request.GET.lease %}lease={{ request.GET.lease }}&{% endif %}{% if request.GET.date_from %}date_from={{ request.GET.date_from }}&{% endif %}{% if request.GET.date_to %}date_to={{ request.GET.date_to }}&{% endif %}page={{ page_obj.next_page_number }}">{% trans "التالية" %}</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.is_paid %}is_paid={{ request.GET.is_paid }}&{% endif %}{% if request.GET.lease %}lease={{ request.GET.lease }}&{% endif %}{% if request.GET.date_from %}date_from={{ request.GET.date_from }}&{% endif %}{% if request.GET.date_to %}date_to={{ request.GET.date_to }}&{% endif %}page={{ page_obj.paginator.num_pages }}">{% trans "الأخيرة" %}</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- الإحصائيات -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الدفعات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ stats.total_count }}</h3>
+                                <small class="text-muted">{% trans "إجمالي الدفعات" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ stats.paid_count }}</h3>
+                                <small class="text-muted">{% trans "دفعات مدفوعة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <h3 class="text-warning mb-0">{{ stats.unpaid_count }}</h3>
+                                <small class="text-muted">{% trans "غير مدفوع" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <h3 class="text-danger mb-0">{{ stats.overdue_count }}</h3>
+                                <small class="text-muted">{% trans "متأخر" %}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                <span class="small text-muted">{% trans "إجمالي المدفوع" %}</span>
+                                <strong class="text-success">{{ stats.total_paid|floatformat:3 }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                <span class="small text-muted">{% trans "إجمالي المتبقي" %}</span>
+                                <strong class="text-warning">{{ stats.total_unpaid|floatformat:3 }}</strong>
+                            </div>
+                        </div>
+                        {% if stats.total_overdue > 0 %}
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-danger bg-opacity-10 rounded">
+                                <span class="small text-danger">{% trans "إجمالي المتأخر" %}</span>
+                                <strong class="text-danger">{{ stats.total_overdue|floatformat:3 }}</strong>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_pay %}
+                        <a href="{% url 'assets:payment_create' %}" class="btn btn-outline-success">
+                            <i class="fas fa-plus"></i> {% trans "إضافة دفعة جديدة" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'assets:lease_list' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-contract"></i> {% trans "عقود الإيجار" %}
+                        </a>
+
+                        <button type="button" class="btn btn-outline-warning" onclick="showOverduePayments()">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "الدفعات المتأخرة" %}
+                        </button>
+
+                        <button type="button" class="btn btn-outline-info" onclick="showDueSoonPayments()">
+                            <i class="fas fa-clock"></i> {% trans "دفعات مستحقة قريباً" %}
+                        </button>
+
+                        {% if can_export %}
+                        <button type="button" class="btn btn-outline-secondary" onclick="exportPayments()">
+                            <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "عدد العقود النشطة" %}:</strong> {{ active_leases.count }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            <strong>{% trans "دفعات مستحقة خلال 30 يوم" %}:</strong> {{ stats.due_soon_count }}
+                        </li>
+                        {% if stats.overdue_count > 0 %}
+                        <li class="mb-2">
+                            <i class="fas fa-exclamation-triangle text-danger"></i>
+                            <strong class="text-danger">{% trans "تنبيه" %}:</strong>
+                            يوجد {{ stats.overdue_count }} دفعات متأخرة
+                        </li>
+                        {% endif %}
+                        <li class="mb-0">
+                            <i class="fas fa-calendar text-info"></i>
+                            يمكنك تصفية الدفعات حسب الحالة والعقد والتاريخ
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function processPayment(paymentId, leaseNumber, paymentNumber) {
+    Swal.fire({
+        title: `معالجة الدفعة رقم ${paymentNumber}`,
+        html: `
+            <div class="text-start">
+                <p><strong>العقد:</strong> ${leaseNumber}</p>
+                <div class="form-group mt-3">
+                    <label for="paidDate" class="form-label">تاريخ الدفع:</label>
+                    <input type="date" id="paidDate" class="form-control"
+                           value="${new Date().toISOString().split('T')[0]}" required>
+                </div>
+                <div class="form-group mt-3">
+                    <label for="paymentNotes" class="form-label">ملاحظات (اختياري):</label>
+                    <textarea id="paymentNotes" class="form-control" rows="3"
+                              placeholder="أدخل أي ملاحظات حول الدفعة..."></textarea>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-check me-2"></i>تأكيد الدفع',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        preConfirm: () => {
+            const paidDate = document.getElementById('paidDate').value;
+            if (!paidDate) {
+                Swal.showValidationMessage('يجب تحديد تاريخ الدفع');
+                return false;
+            }
+            return {
+                paid_date: paidDate,
+                notes: document.getElementById('paymentNotes').value
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url 'assets:process_lease_payment' 0 %}`.replace('0', paymentId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: new URLSearchParams(result.value)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم بنجاح!',
+                        text: data.message,
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ!',
+                        text: data.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ!',
+                    text: 'حدث خطأ أثناء معالجة الدفعة',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+
+function showPaymentDetails(paymentId) {
+    // الانتقال إلى صفحة تفاصيل الدفعة
+    window.location.href = `/assets/lease-payments/${paymentId}/`;
+}
+
+function showOverduePayments() {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('overdue', '1');
+    currentUrl.searchParams.delete('is_paid');
+    window.location.href = currentUrl.toString();
+}
+
+function showDueSoonPayments() {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('due_soon', '1');
+    currentUrl.searchParams.delete('is_paid');
+    window.location.href = currentUrl.toString();
+}
+
+function exportPayments() {
+    // جمع معاملات الفلترة
+    const params = new URLSearchParams();
+
+    const isPaid = document.getElementById('statusFilter').value;
+    const lease = document.getElementById('leaseFilter').value;
+    const dateFrom = document.querySelector('input[name="date_from"]').value;
+    const dateTo = document.querySelector('input[name="date_to"]').value;
+
+    if (isPaid) params.append('is_paid', isPaid);
+    if (lease) params.append('lease', lease);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+
+    // إنشاء الرابط والتصدير
+    const exportUrl = '{% url "assets:payment_export" %}' + (params.toString() ? '?' + params.toString() : '');
+
+    // عرض رسالة تحميل
+    Swal.fire({
+        title: 'جاري التصدير...',
+        html: 'يرجى الانتظار حتى يتم تجهيز ملف Excel',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    // فتح رابط التحميل
+    window.location.href = exportUrl;
+
+    // إغلاق رسالة التحميل بعد ثانيتين
+    setTimeout(() => {
+        Swal.close();
+        Swal.fire({
+            icon: 'success',
+            title: 'تم التصدير بنجاح',
+            text: 'تم تحميل ملف Excel',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }, 2000);
+}
+
+// Auto-submit filter form on select change
+document.querySelectorAll('#filterForm select').forEach(select => {
+    select.addEventListener('change', () => {
+        document.getElementById('filterForm').submit();
+    });
+});
+</script>
 {% endblock %}

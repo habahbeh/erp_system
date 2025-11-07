@@ -1,298 +1,592 @@
+{# apps/assets/templates/assets/physical_count/count_detail.html #}
 {% extends 'base/base.html' %}
-{% load i18n %}
-{% load static %}
+{% load i18n static %}
 
-{% block title %}{% trans "تفاصيل سجل الجرد" %}{% endblock %}
-
-{% block extra_css %}
-<style>
-    .info-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        transition: transform 0.2s;
-    }
-    .info-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    }
-    .gradient-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 10px 10px 0 0;
-    }
-    .location-box {
-        padding: 20px;
-        border-radius: 10px;
-        background: #f8f9fa;
-        border-left: 4px solid;
-    }
-    .location-expected {
-        border-left-color: #0dcaf0;
-    }
-    .location-actual {
-        border-left-color: #198754;
-    }
-    .location-mismatch {
-        border-left-color: #dc3545;
-    }
-    .stat-item {
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        color: white;
-        text-align: center;
-    }
-</style>
-{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h2 class="h3 mb-1">
-                <i class="fas fa-clipboard-check text-primary"></i>
-                {% trans "تفاصيل سجل الجرد" %}
-            </h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:count_list' %}">{% trans "سجلات الجرد" %}</a></li>
-                    <li class="breadcrumb-item active">{% trans "التفاصيل" %}</li>
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">{% trans "عملية جرد" %} {{ count.count_number }}</h1>
+            <p class="text-muted mb-1">
+                {{ count.branch.name }}
+                {% if count.cycle %} - {{ count.cycle.cycle_number }}{% endif %}
+            </p>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="badge bg-secondary fs-6">
+                    <i class="fas fa-calendar"></i> {{ count.count_date|date:"Y/m/d" }}
+                </span>
+                {% if count.cycle %}
+                    <span class="badge bg-info fs-6">
+                        <i class="fas fa-sync"></i> {% trans "دورة جرد" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-warning text-dark fs-6">
+                        <i class="fas fa-exclamation-triangle"></i> {% trans "جرد طارئ" %}
+                    </span>
+                {% endif %}
+                {% if count.status == 'draft' %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-file"></i> {% trans "مسودة" %}
+                    </span>
+                {% elif count.status == 'in_progress' %}
+                    <span class="badge bg-primary fs-6">
+                        <i class="fas fa-spinner"></i> {% trans "جاري التنفيذ" %}
+                    </span>
+                {% elif count.status == 'completed' %}
+                    <span class="badge bg-warning fs-6">
+                        <i class="fas fa-check"></i> {% trans "مكتمل" %}
+                    </span>
+                {% elif count.status == 'approved' %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-double"></i> {% trans "معتمد" %}
+                    </span>
+                {% elif count.status == 'cancelled' %}
+                    <span class="badge bg-danger fs-6">
+                        <i class="fas fa-ban"></i> {% trans "ملغي" %}
+                    </span>
+                {% endif %}
+            </div>
         </div>
-        <div>
-            {% if perms.assets.change_physicalcount %}
-            <a href="{% url 'assets:count_update' count.pk %}"
-               class="btn btn-warning me-2"
-               data-bs-toggle="tooltip"
-               title="{% trans 'تعديل السجل' %}">
-                <i class="fas fa-edit me-2"></i>{% trans "تعديل" %}
+        <div class="d-flex gap-2">
+            {% if can_edit %}
+            <a href="{% url 'assets:count_update' count.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
             {% endif %}
+            {% if can_start %}
+            <button type="button" class="btn btn-primary" onclick="startCount({{ count.pk }})">
+                <i class="fas fa-play"></i> {% trans "بدء العد" %}
+            </button>
+            {% endif %}
+            {% if can_complete %}
+            <button type="button" class="btn btn-success" onclick="completeCount({{ count.pk }})">
+                <i class="fas fa-check"></i> {% trans "إكمال العد" %}
+            </button>
+            {% endif %}
+            {% if can_approve %}
+            <button type="button" class="btn btn-success" onclick="approveCount({{ count.pk }})">
+                <i class="fas fa-check-double"></i> {% trans "اعتماد" %}
+            </button>
+            {% endif %}
+            {% comment %}
+            {% if can_delete %}
+            <a href="{% url 'assets:count_delete' count.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            {% endcomment %}
             <a href="{% url 'assets:count_list' %}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>{% trans "رجوع" %}
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <!-- Main Content -->
+        <!-- معلومات العملية -->
         <div class="col-lg-8">
-            <!-- Count Information -->
-            <div class="card info-card mb-4">
-                <div class="card-header gradient-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-info-circle me-2"></i>{% trans "معلومات العد" %}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p class="mb-2">
-                                <strong><i class="fas fa-cube text-primary me-2"></i>{% trans "الأصل:" %}</strong>
-                                <a href="{% url 'assets:asset_detail' count.asset.pk %}" class="text-decoration-none">
-                                    {{ count.asset.name }}
-                                </a>
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p class="mb-2">
-                                <strong><i class="fas fa-calendar text-primary me-2"></i>{% trans "تاريخ العد:" %}</strong>
-                                {{ count.count_date|date:"Y-m-d" }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p class="mb-2">
-                                <strong><i class="fas fa-clipboard-list text-primary me-2"></i>{% trans "الدورة:" %}</strong>
-                                {% if count.cycle %}
-                                    <a href="{% url 'assets:cycle_detail' count.cycle.pk %}" class="text-decoration-none">
-                                        {{ count.cycle.name }}
-                                    </a>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p class="mb-2">
-                                <strong><i class="fas fa-user text-primary me-2"></i>{% trans "العداد:" %}</strong>
-                                {{ count.counted_by|default:"-" }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p class="mb-0">
-                                <strong><i class="fas fa-flag text-primary me-2"></i>{% trans "الحالة:" %}</strong>
-                                {% if count.status == 'pending' %}
-                                    <span class="badge bg-warning">{% trans "قيد العد" %}</span>
-                                {% elif count.status == 'found' %}
-                                    <span class="badge bg-success">{% trans "موجود" %}</span>
-                                {% elif count.status == 'not_found' %}
-                                    <span class="badge bg-danger">{% trans "غير موجود" %}</span>
-                                {% elif count.status == 'verified' %}
-                                    <span class="badge bg-info">{% trans "تم التحقق" %}</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Location Information -->
-            <div class="card info-card mb-4">
-                <div class="card-header" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                    <h5 class="mb-0 text-white">
-                        <i class="fas fa-map-marker-alt me-2"></i>{% trans "معلومات الموقع" %}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <div class="location-box location-expected">
-                                <h6 class="text-muted mb-3">
-                                    <i class="fas fa-crosshairs me-2"></i>{% trans "الموقع المتوقع" %}
-                                </h6>
-                                <p class="mb-2">
-                                    <strong>{% trans "الموقع:" %}</strong>
-                                    {{ count.expected_location.name|default:"-" }}
-                                </p>
-                                <p class="mb-0">
-                                    <strong>{% trans "القسم:" %}</strong>
-                                    {{ count.expected_department.name|default:"-" }}
-                                </p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <div class="location-box {% if count.actual_location == count.expected_location %}location-actual{% else %}location-mismatch{% endif %}">
-                                <h6 class="text-muted mb-3">
-                                    <i class="fas fa-map-pin me-2"></i>{% trans "الموقع الفعلي" %}
-                                </h6>
-                                <p class="mb-2">
-                                    <strong>{% trans "الموقع:" %}</strong>
-                                    {% if count.actual_location %}
-                                        {% if count.actual_location == count.expected_location %}
-                                            <span class="text-success">
-                                                <i class="fas fa-check-circle me-1"></i>{{ count.actual_location.name }}
-                                            </span>
-                                        {% else %}
-                                            <span class="text-danger">
-                                                <i class="fas fa-exclamation-circle me-1"></i>{{ count.actual_location.name }}
-                                            </span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </p>
-                                <p class="mb-0">
-                                    <strong>{% trans "القسم:" %}</strong>
-                                    {{ count.actual_department.name|default:"-" }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {% if count.actual_location and count.actual_location != count.expected_location %}
-                    <div class="alert alert-warning d-flex align-items-center mt-3">
-                        <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
-                        <div>
-                            <strong>{% trans "تنبيه:" %}</strong>
-                            {% trans "الموقع الفعلي لا يطابق الموقع المتوقع!" %}
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Notes -->
-            {% if count.notes %}
-            <div class="card info-card">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0">
-                        <i class="fas fa-sticky-note text-primary me-2"></i>{% trans "ملاحظات" %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات عملية الجرد" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info mb-0">
-                        <p class="mb-0">{{ count.notes }}</p>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "رقم العملية" %}</h6>
+                            <p class="mb-0 fs-5"><strong>{{ count.count_number }}</strong></p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "تاريخ الجرد" %}</h6>
+                            <p class="mb-0">{{ count.count_date|date:"l، j F Y" }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الفرع" %}</h6>
+                            <p class="mb-0">{{ count.branch.name }}</p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "الموقع" %}</h6>
+                            <p class="mb-0">{{ count.location|default:"غير محدد" }}</p>
+                        </div>
+
+                        {% if count.cycle %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "دورة الجرد" %}</h6>
+                            <p class="mb-0">
+                                <a href="{% url 'assets:cycle_detail' count.cycle.pk %}" class="text-decoration-none">
+                                    {{ count.cycle.cycle_number }} - {{ count.cycle.name }}
+                                </a>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "المشرف" %}</h6>
+                            <p class="mb-0">{{ count.supervisor.get_full_name|default:"غير محدد" }}</p>
+                        </div>
+
+                        <div class="col-md-12">
+                            <h6 class="text-muted mb-1">{% trans "فريق العمل" %}</h6>
+                            <p class="mb-0">
+                                {% for member in count.responsible_team.all %}
+                                    <span class="badge bg-info me-1">{{ member.get_full_name }}</span>
+                                {% empty %}
+                                    غير محدد
+                                {% endfor %}
+                            </p>
+                        </div>
+
+                        {% if count.notes %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "ملاحظات" %}</h6>
+                            <p class="mb-0">{{ count.notes }}</p>
+                        </div>
+                        {% endif %}
                     </div>
+                </div>
+            </div>
+
+            <!-- إحصائيات الجرد -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> {% trans "إحصائيات الجرد" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center mb-4">
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-primary mb-0">{{ count.total_assets }}</h3>
+                                <small class="text-muted">{% trans "إجمالي الأصول" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-success mb-0">{{ count.counted_assets }}</h3>
+                                <small class="text-muted">{% trans "معدودة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-info mb-0">{{ count.found_assets }}</h3>
+                                <small class="text-muted">{% trans "موجودة" %}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border rounded p-3">
+                                <h3 class="text-danger mb-0">{{ count.missing_assets }}</h3>
+                                <small class="text-muted">{% trans "مفقودة" %}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">{% trans "نسبة الإنجاز" %}</span>
+                            <span class="text-primary"><strong>{{ completion_pct }}%</strong></span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar bg-success" role="progressbar"
+                                 style="width: {{ completion_pct }}%"
+                                 aria-valuenow="{{ completion_pct }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                {{ completion_pct }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Variances -->
+                    {% if variance_stats.location > 0 or variance_stats.condition > 0 or variance_stats.missing > 0 %}
+                    <div class="alert alert-warning mt-3">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "الفروقات المكتشفة" %}
+                        </h6>
+                        <ul class="mb-0">
+                            {% if variance_stats.location > 0 %}
+                            <li>فروقات الموقع: <strong>{{ variance_stats.location }}</strong></li>
+                            {% endif %}
+                            {% if variance_stats.condition > 0 %}
+                            <li>فروقات الحالة: <strong>{{ variance_stats.condition }}</strong></li>
+                            {% endif %}
+                            {% if variance_stats.responsible > 0 %}
+                            <li>فروقات المسؤول: <strong>{{ variance_stats.responsible }}</strong></li>
+                            {% endif %}
+                            {% if variance_stats.missing > 0 %}
+                            <li>أصول مفقودة: <strong class="text-danger">{{ variance_stats.missing }}</strong></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% comment %}
+                    <div class="text-center mt-4">
+                        <a href="{% url 'assets:count_lines' count.pk %}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض تفاصيل الجرد" %}
+                        </a>
+                    </div>
+                    {% endcomment %}
+                </div>
+            </div>
+
+            <!-- سطور الجرد -->
+            {% if lines %}
+            <!-- تنبيه لبدء الجرد -->
+            {% if count.status == 'in_progress' and count.counted_assets == 0 %}
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>ابدأ بجرد الأصول!</strong>
+                <br>
+                <small>
+                    لإجراء الجرد، انقر على زر "تعديل" <i class="fas fa-edit"></i> بجانب كل أصل لتسجيل:
+                    <ul class="mb-0 mt-2">
+                        <li>هل الأصل موجود أم مفقود</li>
+                        <li>الموقع الفعلي للأصل</li>
+                        <li>الحالة الفعلية للأصل</li>
+                        <li>المسؤول الفعلي عن الأصل</li>
+                    </ul>
+                </small>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-th-list"></i> {% trans "سطور الجرد" %}
+                    </h6>
+                    <span class="badge bg-light text-dark">
+                        {{ count.counted_assets }} / {{ count.total_assets }} تم جردها
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <th>{% trans "الموقع المتوقع" %}</th>
+                                    <th>{% trans "الموقع الفعلي" %}</th>
+                                    <th class="text-center">{% trans "الحالة" %}</th>
+                                    <th class="text-center">{% trans "موجود" %}</th>
+                                    <th class="text-center">{% trans "تم الجرد" %}</th>
+                                    {% if can_edit %}
+                                    <th class="text-center">{% trans "الإجراءات" %}</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in lines %}
+                                <tr {% if line.is_counted %}class="table-success"{% endif %}>
+                                    <td>{{ line.line_number }}</td>
+                                    <td>
+                                        <a href="{% url 'assets:asset_detail' line.asset.pk %}" class="text-decoration-none">
+                                            {{ line.asset.name }}
+                                        </a>
+                                        <br>
+                                        <small class="text-muted">{{ line.asset.asset_number }}</small>
+                                    </td>
+                                    <td>{{ line.expected_location }}</td>
+                                    <td>
+                                        {% if line.actual_location %}
+                                            {% if line.has_location_variance %}
+                                                <span class="text-danger">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                    {{ line.actual_location }}
+                                                </span>
+                                            {% else %}
+                                                <span class="text-success">
+                                                    <i class="fas fa-check"></i>
+                                                    {{ line.actual_location }}
+                                                </span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if line.is_counted %}
+                                            {% if line.has_condition_variance %}
+                                                <span class="badge bg-warning">تغيرت</span>
+                                            {% else %}
+                                                <span class="badge bg-success">طبيعية</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if line.is_counted %}
+                                            {% if line.is_found %}
+                                                <i class="fas fa-check-circle text-success fa-lg"></i>
+                                            {% else %}
+                                                <i class="fas fa-times-circle text-danger fa-lg"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if line.is_counted %}
+                                            <i class="fas fa-check-circle text-success"></i>
+                                            <br>
+                                            <small class="text-muted">{{ line.counted_date|date:"d/m H:i" }}</small>
+                                        {% else %}
+                                            <span class="badge bg-secondary">لم يُجرد</span>
+                                        {% endif %}
+                                    </td>
+                                    {% if can_edit %}
+                                    <td class="text-center">
+                                        <button type="button"
+                                                class="btn btn-sm btn-primary quick-count-btn"
+                                                data-line-id="{{ line.pk }}"
+                                                data-asset-name="{{ line.asset.name }}"
+                                                data-asset-number="{{ line.asset.asset_number }}"
+                                                data-expected-location="{{ line.expected_location }}"
+                                                data-is-found="{{ line.is_found|yesno:'true,false' }}"
+                                                data-actual-location="{{ line.actual_location|default:'' }}"
+                                                data-bs-toggle="tooltip"
+                                                title="{% if line.is_counted %}تحديث الجرد{% else %}جرد الأصل{% endif %}">
+                                            <i class="fas fa-clipboard-check"></i>
+                                        </button>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% comment %}
+                    {% if count.total_assets > 10 %}
+                    <div class="text-center mt-3">
+                        <a href="{% url 'assets:count_lines' count.pk %}" class="btn btn-sm btn-outline-primary">
+                            {% trans "عرض جميع السطور" %} ({{ count.total_assets }})
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% endcomment %}
                 </div>
             </div>
             {% endif %}
         </div>
 
-        <!-- Sidebar -->
+        <!-- الشريط الجانبي -->
         <div class="col-lg-4">
-            <!-- Asset Summary -->
-            <div class="card info-card mb-4">
-                <div class="card-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                    <h6 class="mb-0 text-white">
-                        <i class="fas fa-cube me-2"></i>{% trans "ملخص الأصل" %}
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
                     </h6>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <small class="text-muted">{% trans "رمز الأصل" %}</small>
-                        <h5 class="mb-0">{{ count.asset.code }}</h5>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted">{% trans "الفئة" %}</small>
-                        <h6 class="mb-0">{{ count.asset.category.name }}</h6>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted">{% trans "الحالة" %}</small>
-                        <h6 class="mb-0">{{ count.asset.condition.name|default:"-" }}</h6>
-                    </div>
-                    <div class="mb-0">
-                        <small class="text-muted">{% trans "القيمة الدفترية" %}</small>
-                        <h5 class="mb-0 text-primary">{{ count.asset.book_value|floatformat:3 }}</h5>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ count.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ count.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if count.created_by %}
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "أنشأ بواسطة" %}:</strong>
+                        {{ count.created_by.get_full_name|default:count.created_by.username }}
+                    </small>
+                    {% endif %}
+                    {% if count.approved_by %}
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "اعتمد بواسطة" %}:</strong>
+                        {{ count.approved_by.get_full_name|default:count.approved_by.username }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <strong>{% trans "تاريخ الاعتماد" %}:</strong> {{ count.approved_date|date:"d/m/Y H:i" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- إجراءات سريعة -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt"></i> {% trans "إجراءات سريعة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if can_edit %}
+                        <a href="{% url 'assets:count_update' count.pk %}" class="btn btn-outline-warning">
+                            <i class="fas fa-edit"></i> {% trans "تعديل العملية" %}
+                        </a>
+                        {% endif %}
+
+                        {% comment %}
+                        {% if lines %}
+                        <a href="{% url 'assets:count_lines' count.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-list"></i> {% trans "عرض سطور الجرد" %}
+                        </a>
+                        {% endif %}
+                        {% endcomment %}
+
+                        {% if count.variance_count > 0 %}
+                        <a href="{% url 'assets:adjustment_create' %}?count={{ count.pk }}" class="btn btn-outline-danger">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "معالجة الفروقات" %}
+                        </a>
+                        {% endif %}
+
+                        <a href="#" class="btn btn-outline-info" onclick="printCount()">
+                            <i class="fas fa-print"></i> {% trans "طباعة التقرير" %}
+                        </a>
+
+                        <a href="#" class="btn btn-outline-success" onclick="exportCount()">
+                            <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                        </a>
+
+                        {% if count.cycle %}
+                        <a href="{% url 'assets:cycle_detail' count.cycle.pk %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-sync"></i> {% trans "عرض الدورة" %}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Status Card -->
-            <div class="card info-card">
-                <div class="card-header" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <h6 class="mb-0 text-white">
-                        <i class="fas fa-info-circle me-2"></i>{% trans "حالة العد" %}
+            <!-- معلومات إضافية -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb text-warning"></i> {% trans "معلومات إضافية" %}
                     </h6>
                 </div>
-                <div class="card-body text-center p-0">
-                    {% if count.status == 'pending' %}
-                        <div class="stat-item" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                            <i class="fas fa-hourglass-half fa-3x mb-3"></i>
-                            <h4>{% trans "قيد العد" %}</h4>
-                            <p class="mb-0">{% trans "لم يكتمل بعد" %}</p>
-                        </div>
-                    {% elif count.status == 'found' %}
-                        <div class="stat-item" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                            <i class="fas fa-check-circle fa-3x mb-3"></i>
-                            <h4>{% trans "موجود" %}</h4>
-                            <p class="mb-0">{% trans "تم العثور على الأصل" %}</p>
-                        </div>
-                    {% elif count.status == 'not_found' %}
-                        <div class="stat-item" style="background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);">
-                            <i class="fas fa-times-circle fa-3x mb-3"></i>
-                            <h4>{% trans "غير موجود" %}</h4>
-                            <p class="mb-0">{% trans "لم يتم العثور على الأصل" %}</p>
-                        </div>
-                    {% elif count.status == 'verified' %}
-                        <div class="stat-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                            <i class="fas fa-check-double fa-3x mb-3"></i>
-                            <h4>{% trans "تم التحقق" %}</h4>
-                            <p class="mb-0">{% trans "العد موثق ومعتمد" %}</p>
-                        </div>
-                    {% endif %}
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "إجمالي الأصول" %}:</strong> {{ count.total_assets }}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "نسبة الإنجاز" %}:</strong> {{ completion_pct }}%
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i>
+                            <strong>{% trans "الأصول الموجودة" %}:</strong> {{ found_pct }}%
+                        </li>
+                        {% if count.variance_count > 0 %}
+                        <li class="mb-2">
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            <strong>{% trans "الفروقات" %}:</strong> {{ count.variance_count }}
+                        </li>
+                        {% endif %}
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            {% if count.status == 'approved' %}
+                                هذه العملية معتمدة ولا يمكن التعديل عليها
+                            {% elif count.status == 'completed' %}
+                                هذه العملية مكتملة وتحتاج اعتماد
+                            {% elif count.status == 'in_progress' %}
+                                جاري تنفيذ عملية الجرد
+                            {% else %}
+                                يمكن البدء بتنفيذ عملية الجرد
+                            {% endif %}
+                        </li>
+                    </ul>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Count Modal -->
+<div class="modal fade" id="quickCountModal" tabindex="-1" aria-labelledby="quickCountModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="quickCountModalLabel">
+                    <i class="fas fa-clipboard-check me-2"></i>جرد سريع
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickCountForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="line_id" name="line_id">
+
+                    <!-- معلومات الأصل -->
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="fas fa-box me-2"></i>معلومات الأصل</h6>
+                        <p class="mb-1"><strong>الأصل:</strong> <span id="modal_asset_name"></span></p>
+                        <p class="mb-0"><strong>رقم الأصل:</strong> <code id="modal_asset_number"></code></p>
+                    </div>
+
+                    <!-- حالة الوجود -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-search me-1"></i>هل الأصل موجود؟ <span class="text-danger">*</span>
+                        </label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="is_found" id="modal_found_yes" value="true" required>
+                            <label class="btn btn-outline-success" for="modal_found_yes">
+                                <i class="fas fa-check-circle me-1"></i>نعم، موجود
+                            </label>
+
+                            <input type="radio" class="btn-check" name="is_found" id="modal_found_no" value="false" required>
+                            <label class="btn btn-outline-danger" for="modal_found_no">
+                                <i class="fas fa-times-circle me-1"></i>لا، غير موجود
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- الموقع الفعلي -->
+                    <div class="mb-3" id="modal_location_section">
+                        <label for="modal_actual_location" class="form-label fw-bold">
+                            <i class="fas fa-map-marker-alt me-1"></i>الموقع الفعلي <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="modal_actual_location" name="actual_location">
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>الموقع المتوقع: <strong id="modal_expected_location"></strong>
+                        </div>
+                    </div>
+
+                    <!-- ملاحظات -->
+                    <div class="mb-3">
+                        <label for="modal_notes" class="form-label fw-bold">
+                            <i class="fas fa-sticky-note me-1"></i>ملاحظات
+                        </label>
+                        <textarea class="form-control" id="modal_notes" name="notes" rows="2" placeholder="أي ملاحظات إضافية..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-primary" id="saveQuickCount">
+                    <i class="fas fa-save me-1"></i>حفظ وانتقل للتالي
+                </button>
             </div>
         </div>
     </div>
@@ -302,8 +596,348 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Initialize tooltips
-    $('[data-bs-toggle="tooltip"]').tooltip();
+    var quickCountModal = new bootstrap.Modal(document.getElementById('quickCountModal'));
+    var currentLineButton = null;
+    var uncountedLines = [];
+
+    // Collect all uncounted lines
+    function updateUncountedLines() {
+        uncountedLines = [];
+        $('.quick-count-btn').each(function() {
+            var $row = $(this).closest('tr');
+            if (!$row.hasClass('table-success')) {
+                uncountedLines.push($(this));
+            }
+        });
+    }
+
+    // Open quick count modal
+    $('.quick-count-btn').on('click', function() {
+        currentLineButton = $(this);
+        var lineId = $(this).data('line-id');
+        var assetName = $(this).data('asset-name');
+        var assetNumber = $(this).data('asset-number');
+        var expectedLocation = $(this).data('expected-location');
+        var isFound = $(this).data('is-found');
+        var actualLocation = $(this).data('actual-location');
+
+        // Fill modal
+        $('#line_id').val(lineId);
+        $('#modal_asset_name').text(assetName);
+        $('#modal_asset_number').text(assetNumber);
+        $('#modal_expected_location').text(expectedLocation);
+        $('#modal_actual_location').val(actualLocation || expectedLocation);
+        $('#modal_notes').val('');
+
+        // Set is_found
+        if (isFound === 'true') {
+            $('#modal_found_yes').prop('checked', true);
+            $('#modal_location_section').show();
+        } else if (isFound === 'false') {
+            $('#modal_found_no').prop('checked', true);
+            $('#modal_location_section').hide();
+        } else {
+            $('input[name="is_found"]').prop('checked', false);
+        }
+
+        quickCountModal.show();
+    });
+
+    // Toggle location section
+    $('input[name="is_found"]').on('change', function() {
+        if ($(this).val() === 'true') {
+            $('#modal_location_section').show();
+            $('#modal_actual_location').prop('required', true);
+        } else {
+            $('#modal_location_section').hide();
+            $('#modal_actual_location').prop('required', false);
+        }
+    });
+
+    // Save quick count
+    $('#saveQuickCount').on('click', function() {
+        var lineId = $('#line_id').val();
+        var isFound = $('input[name="is_found"]:checked').val();
+        var actualLocation = $('#modal_actual_location').val();
+        var notes = $('#modal_notes').val();
+
+        // Validation
+        if (!isFound) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى تحديد حالة وجود الأصل',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
+
+        if (isFound === 'true' && !actualLocation.trim()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إدخال الموقع الفعلي للأصل',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
+
+        // Show loading
+        $('#saveQuickCount').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+
+        // AJAX call
+        $.ajax({
+            url: '/assets/ajax/count-lines/' + lineId + '/',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            data: {
+                is_found: isFound,
+                actual_location: actualLocation,
+                notes: notes
+            },
+            success: function(response) {
+                // Update UI
+                currentLineButton.closest('tr').addClass('table-success');
+
+                // Update uncounted lines
+                updateUncountedLines();
+
+                // Check if there are more uncounted lines
+                if (uncountedLines.length > 0) {
+                    // Open next uncounted line
+                    setTimeout(function() {
+                        uncountedLines[0].click();
+                    }, 300);
+                } else {
+                    // All done
+                    quickCountModal.hide();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الجرد بنجاح',
+                        text: 'تم جرد جميع الأصول بنجاح',
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        location.reload();
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                var errorMessage = 'حدث خطأ أثناء حفظ البيانات';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: errorMessage,
+                    confirmButtonColor: '#dc3545'
+                });
+            },
+            complete: function() {
+                $('#saveQuickCount').prop('disabled', false).html(
+                    '<i class="fas fa-save me-1"></i>حفظ وانتقل للتالي'
+                );
+            }
+        });
+    });
+
+    // Initialize uncounted lines on page load
+    updateUncountedLines();
 });
+
+function startCount(countId) {
+    Swal.fire({
+        title: 'بدء عملية الجرد',
+        text: 'هل أنت متأكد من بدء عملية الجرد؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-play me-2"></i>بدء',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: 'جاري بدء عملية الجرد...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Make AJAX call
+            $.ajax({
+                url: '{% url "assets:start_count" count.pk %}',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم بدء عملية الجرد',
+                        text: 'تم بدء عملية الجرد بنجاح',
+                        confirmButtonColor: '#0d6efd'
+                    }).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function(xhr, status, error) {
+                    let errorMessage = 'حدث خطأ أثناء بدء عملية الجرد';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: errorMessage,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        }
+    });
+}
+
+function completeCount(countId) {
+    Swal.fire({
+        title: 'إكمال عملية الجرد',
+        html: `
+            <div class="text-start">
+                <p>هل أنت متأكد من إكمال عملية الجرد؟</p>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    سيتم مراجعة جميع السطور وتحديد الفروقات
+                </div>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-check me-2"></i>إكمال',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: 'جاري إكمال عملية الجرد...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Make AJAX call
+            $.ajax({
+                url: '{% url "assets:complete_count" count.pk %}',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم إكمال عملية الجرد',
+                        text: 'تم إكمال عملية الجرد بنجاح',
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function(xhr, status, error) {
+                    let errorMessage = 'حدث خطأ أثناء إكمال عملية الجرد';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: errorMessage,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        }
+    });
+}
+
+function approveCount(countId) {
+    Swal.fire({
+        title: 'اعتماد عملية الجرد',
+        html: `
+            <div class="text-start">
+                <p>هل أنت متأكد من اعتماد عملية الجرد؟</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>تنبيه:</strong> بعد الاعتماد لن تتمكن من التعديل على العملية
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-check-double me-2"></i>اعتماد',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: 'جاري اعتماد عملية الجرد...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Make AJAX call
+            $.ajax({
+                url: '{% url "assets:approve_physical_count" count.pk %}',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم اعتماد عملية الجرد',
+                        text: 'تم اعتماد عملية الجرد بنجاح',
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function(xhr, status, error) {
+                    let errorMessage = 'حدث خطأ أثناء اعتماد عملية الجرد';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: errorMessage,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        }
+    });
+}
+
+function printCount() {
+    // Open print page in new window
+    window.open('{% url "assets:count_print" count.pk %}', '_blank');
+}
+
+function exportCount() {
+    // Download Excel file
+    window.location.href = '{% url "assets:count_export_excel" count.pk %}';
+}
 </script>
 {% endblock %}

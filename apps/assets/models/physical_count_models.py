@@ -595,23 +595,34 @@ class PhysicalCountLine(models.Model):
             self.line_number = (max_line or 0) + 1
 
         # تحديد الفروقات
-        if self.is_counted and self.is_found:
-            self.has_location_variance = (
-                self.expected_location.strip().lower() != self.actual_location.strip().lower()
-            )
-            self.has_condition_variance = (
-                self.expected_condition != self.actual_condition
-            )
-            self.has_responsible_variance = (
-                self.expected_responsible != self.actual_responsible
-            )
+        if self.is_counted:
+            if self.is_found:
+                # الأصل موجود - تحديد الفروقات
+                self.has_location_variance = (
+                    self.expected_location.strip().lower() != self.actual_location.strip().lower()
+                    if self.actual_location else False
+                )
+                self.has_condition_variance = (
+                    self.expected_condition != self.actual_condition
+                    if self.actual_condition else False
+                )
+                self.has_responsible_variance = (
+                    self.expected_responsible != self.actual_responsible
+                    if self.actual_responsible else False
+                )
 
-            # إذا كانت الحالة سيئة أو مفقود، يحتاج تسوية
-            if not self.is_found or (
-                self.actual_condition and
-                self.actual_condition.name.lower() in ['تالف', 'معطل', 'damaged', 'broken']
-            ):
+                # يحتاج تسوية إذا كانت الحالة سيئة
+                if (self.actual_condition and
+                    self.actual_condition.name.lower() in ['تالف', 'معطل', 'damaged', 'broken']):
+                    self.requires_adjustment = True
+                else:
+                    self.requires_adjustment = False
+            else:
+                # الأصل غير موجود - يحتاج تسوية
                 self.requires_adjustment = True
+                self.has_location_variance = False
+                self.has_condition_variance = False
+                self.has_responsible_variance = False
 
         super().save(*args, **kwargs)
 
@@ -756,11 +767,19 @@ class PhysicalCountAdjustment(DocumentBaseModel):
                 self.adjustment_number = sequence.get_next_number()
 
         # حفظ المبالغ من الأصل
-        asset = self.physical_count_line.asset
-        self.asset_original_cost = asset.original_cost
-        self.accumulated_depreciation = asset.accumulated_depreciation
-        self.book_value = asset.book_value
-        self.loss_amount = self.book_value
+        if self.physical_count_line and self.physical_count_line.asset:
+            asset = self.physical_count_line.asset
+            self.asset_original_cost = asset.original_cost
+            self.accumulated_depreciation = asset.accumulated_depreciation
+            self.book_value = asset.book_value
+
+            # حساب مبلغ الخسارة بناءً على نوع التسوية
+            if self.adjustment_type in ['loss', 'damage', 'write_off']:
+                # خسارة كاملة = القيمة الدفترية
+                self.loss_amount = self.book_value
+            else:
+                # لا توجد خسارة للأنواع الأخرى
+                self.loss_amount = 0
 
         super().save(*args, **kwargs)
 
@@ -834,7 +853,7 @@ class PhysicalCountAdjustment(DocumentBaseModel):
         if self.loss_amount > 0:
             loss_account = asset.category.loss_on_disposal_account
             if not loss_account:
-                loss_account = asset.category.loss_on_disposal_account
+                raise ValidationError(_('حساب خسارة البيع/الاستبعاد غير معرّف لفئة الأصل'))
 
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
@@ -850,6 +869,9 @@ class PhysicalCountAdjustment(DocumentBaseModel):
 
         # 3. حساب الأصل (دائن)
         asset_account = asset.category.asset_account
+        if not asset_account:
+            raise ValidationError(_('حساب الأصول غير معرّف لفئة الأصل'))
+
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
             line_number=line_number,

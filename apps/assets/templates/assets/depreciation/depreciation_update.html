@@ -1,0 +1,389 @@
+{# apps/assets/templates/assets/depreciation/depreciation_update.html #}
+{% extends 'base/base.html' %}
+{% load i18n widget_tweaks static %}
+
+{% block title %}{% trans "تعديل سجل الإهلاك" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.warning-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.info-table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.info-table th {
+    width: 40%;
+    font-weight: 600;
+    color: #495057;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.info-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.info-table tr:last-child th,
+.info-table tr:last-child td {
+    border-bottom: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{% trans "تعديل سجل الإهلاك" %}</h1>
+            <p class="text-muted mb-0">{% trans "تعديل بيانات سجل الإهلاك غير المرحّل" %}</p>
+        </div>
+        <a href="{% url 'assets:depreciation_detail' depreciation.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <!-- معلومات السجل الحالية -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "معلومات السجل الحالية" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <th>{% trans "الأصل" %}</th>
+                            <td>
+                                <a href="{% url 'assets:asset_detail' depreciation.asset.pk %}" class="text-decoration-none">
+                                    {{ depreciation.asset.name }} <span class="text-muted">({{ depreciation.asset.asset_number }})</span>
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "تاريخ الإهلاك الحالي" %}</th>
+                            <td>{{ depreciation.depreciation_date|date:"l، j F Y" }}</td>
+                        </tr>
+                        {% if depreciation.fiscal_year %}
+                        <tr>
+                            <th>{% trans "السنة المالية" %}</th>
+                            <td>{{ depreciation.fiscal_year }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if depreciation.period %}
+                        <tr>
+                            <th>{% trans "الفترة المحاسبية" %}</th>
+                            <td>{{ depreciation.period }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "قيمة الإهلاك" %}</th>
+                            <td class="fw-bold text-primary">{{ depreciation.depreciation_amount|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الإهلاك المتراكم قبل" %}</th>
+                            <td>{{ depreciation.accumulated_depreciation_before|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الإهلاك المتراكم بعد" %}</th>
+                            <td>{{ depreciation.accumulated_depreciation_after|floatformat:3 }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "القيمة الدفترية بعد" %}</th>
+                            <td>{{ depreciation.book_value_after|floatformat:3 }}</td>
+                        </tr>
+                        {% if depreciation.units_used_in_period %}
+                        <tr>
+                            <th>{% trans "الوحدات المستخدمة" %}</th>
+                            <td>{{ depreciation.units_used_in_period|floatformat:0 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "الحالة" %}</th>
+                            <td>
+                                {% if depreciation.is_posted %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle me-1"></i>{% trans "مرحّل" %}
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>{% trans "غير مرحّل" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- نموذج التعديل -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>{% trans "البيانات القابلة للتعديل" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="updateForm" novalidate>
+                        {% csrf_token %}
+
+                        <!-- معلومات قابلة للتعديل -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-calendar me-2"></i>تاريخ وملاحظات
+                            </h6>
+
+                            <div class="row g-3">
+                                <!-- Depreciation Date -->
+                                <div class="col-md-6">
+                                    <label for="depreciation_date" class="form-label required-field">
+                                        {% trans "تاريخ الإهلاك" %}
+                                    </label>
+                                    <input type="date"
+                                           class="form-control"
+                                           id="depreciation_date"
+                                           name="depreciation_date"
+                                           value="{{ depreciation.depreciation_date|date:'Y-m-d' }}"
+                                           required>
+                                    <div class="help-text">{% trans "تاريخ تسجيل الإهلاك" %}</div>
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="col-12">
+                                    <label for="notes" class="form-label">
+                                        {% trans "الملاحظات" %}
+                                    </label>
+                                    <textarea class="form-control"
+                                              id="notes"
+                                              name="notes"
+                                              rows="4">{{ depreciation.notes|default:'' }}</textarea>
+                                    <div class="help-text">{% trans "أي ملاحظات إضافية حول سجل الإهلاك" %}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'assets:depreciation_detail' depreciation.pk %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> {% trans "حفظ التعديلات" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <!-- Warning Card -->
+            <div class="card warning-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>ملاحظة هامة
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-warning me-1"></i>
+                            يمكن تعديل التاريخ والملاحظات فقط
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-times text-danger me-1"></i>
+                            لا يمكن تعديل قيمة الإهلاك
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-times text-danger me-1"></i>
+                            لا يمكن تعديل البيانات المحاسبية
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Info Card -->
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            التاريخ يجب أن يكون صحيحاً
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            الملاحظات اختيارية
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            لا يمكن تعديل سجل مرحّل
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>معلومات السجل
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">تاريخ الإنشاء:</span>
+                        <span class="small">{{ depreciation.created_at|date:"d/m/Y" }}</span>
+                    </div>
+                    {% if depreciation.created_by %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">أنشئ بواسطة:</span>
+                        <span class="small">{{ depreciation.created_by.get_full_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if depreciation.journal_entry %}
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">القيد المحاسبي:</span>
+                        <a href="{% url 'accounting:journal_entry_detail' depreciation.journal_entry.pk %}" class="badge bg-info text-decoration-none">
+                            {{ depreciation.journal_entry.entry_number }}
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if depreciation.reversal_entry %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">القيد العكسي:</span>
+                        <a href="{% url 'accounting:journal_entry_detail' depreciation.reversal_entry.pk %}" class="badge bg-danger text-decoration-none">
+                            {{ depreciation.reversal_entry.entry_number }}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Form submission confirmation
+    $('#updateForm').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+
+        Swal.fire({
+            title: '{% trans "تأكيد التعديل" %}',
+            text: '{% trans "هل أنت متأكد من حفظ التعديلات؟" %}',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "نعم، احفظ" %}',
+            cancelButtonText: '{% trans "إلغاء" %}',
+            confirmButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+
+    // Form change tracking
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+    });
+});
+</script>
+{% endblock %}

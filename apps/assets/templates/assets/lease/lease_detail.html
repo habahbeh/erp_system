@@ -6,6 +6,11 @@
     <div class="d-flex justify-content-between mb-4">
         <h2><i class="fas fa-file-contract text-info"></i> {% trans "عقد رقم" %} {{ lease.lease_number }}</h2>
         <div>
+            {% if lease.status == 'active' and lease.asset %}
+            <a href="{% url 'assets:transfer_create' %}?asset={{ lease.asset.pk }}" class="btn btn-primary">
+                <i class="fas fa-exchange-alt"></i> {% trans "تحويل الأصل" %}
+            </a>
+            {% endif %}
             <a href="{% url 'assets:lease_update' lease.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> {% trans "تعديل" %}
             </a>
@@ -40,30 +45,29 @@
                             <p><strong>{% trans "نهاية العقد:" %}</strong> {{ lease.end_date|date:"Y-m-d" }}</p>
                         </div>
                         <div class="col-md-6">
-                            <p><strong>{% trans "القيمة الشهرية:" %}</strong> {{ lease.monthly_payment|floatformat:3 }}</p>
-                            <p><strong>{% trans "التأمين:" %}</strong> {{ lease.security_deposit|floatformat:3|default:"0.000" }}</p>
-                            <p><strong>{% trans "تاريخ الدفع:" %}</strong> {{ lease.payment_day }}</p>
+                            <p><strong>{% trans "نوع الإيجار:" %}</strong> {{ lease.get_lease_type_display }}</p>
+                            <p><strong>{% trans "القيمة الشهرية:" %}</strong> {{ lease.monthly_payment|floatformat:3 }} {% trans "د.ك" %}</p>
+                            <p><strong>{% trans "التأمين:" %}</strong> {{ lease.security_deposit|floatformat:3|default:"0.000" }} {% trans "د.ك" %}</p>
+                            <p><strong>{% trans "دورية الدفع:" %}</strong> {{ lease.get_payment_frequency_display }}</p>
                             <p><strong>{% trans "الحالة:" %}</strong>
                                 {% if lease.status == 'active' %}
                                     <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
-                                {% elif lease.status == 'expired' %}
-                                    <span class="badge bg-danger fs-6">{% trans "منتهي" %}</span>
+                                {% elif lease.status == 'completed' %}
+                                    <span class="badge bg-primary fs-6">{% trans "مكتمل" %}</span>
                                 {% elif lease.status == 'terminated' %}
+                                    <span class="badge bg-danger fs-6">{% trans "منهي" %}</span>
+                                {% elif lease.status == 'cancelled' %}
                                     <span class="badge bg-secondary fs-6">{% trans "ملغي" %}</span>
+                                {% else %}
+                                    <span class="badge bg-warning fs-6">{% trans "مسودة" %}</span>
                                 {% endif %}
                             </p>
-                            {% if lease.termination_date %}
-                            <p><strong>{% trans "تاريخ الإنهاء:" %}</strong> {{ lease.termination_date|date:"Y-m-d" }}</p>
-                            {% endif %}
                         </div>
                     </div>
-                    {% if lease.terms %}
-                    <hr>
-                    <p><strong>{% trans "شروط العقد:" %}</strong></p>
-                    <p>{{ lease.terms|linebreaks }}</p>
-                    {% endif %}
                     {% if lease.notes %}
-                    <p class="mb-0"><strong>{% trans "ملاحظات:" %}</strong> {{ lease.notes }}</p>
+                    <hr>
+                    <p><strong>{% trans "ملاحظات:" %}</strong></p>
+                    <p class="mb-0">{{ lease.notes|linebreaks }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -74,7 +78,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-money-bill-wave"></i> {% trans "الدفعات" %}</h5>
                         {% if lease.status == 'active' %}
-                        <a href="{% url 'assets:payment_create' lease.pk %}" class="btn btn-sm btn-light">
+                        <a href="{% url 'assets:payment_create' %}?lease={{ lease.pk }}" class="btn btn-sm btn-light">
                             <i class="fas fa-plus"></i> {% trans "دفعة جديدة" %}
                         </a>
                         {% endif %}
@@ -83,37 +87,62 @@
                 <div class="card-body">
                     {% if lease.payments.all %}
                     <div class="table-responsive">
-                        <table class="table table-sm">
+                        <table class="table table-sm table-hover">
                             <thead>
                                 <tr>
-                                    <th>{% trans "التاريخ" %}</th>
-                                    <th>{% trans "الفترة" %}</th>
+                                    <th>#</th>
+                                    <th>{% trans "تاريخ الاستحقاق" %}</th>
                                     <th class="text-end">{% trans "المبلغ" %}</th>
-                                    <th>{% trans "طريقة الدفع" %}</th>
+                                    {% if lease.lease_type == 'finance' %}
+                                    <th class="text-end">{% trans "الأصل" %}</th>
+                                    <th class="text-end">{% trans "الفائدة" %}</th>
+                                    {% endif %}
+                                    <th>{% trans "تاريخ الدفع" %}</th>
                                     <th>{% trans "الحالة" %}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for payment in lease.payments.all %}
                                 <tr>
+                                    <td>{{ payment.payment_number }}</td>
                                     <td>{{ payment.payment_date|date:"Y-m-d" }}</td>
-                                    <td>{{ payment.period_start|date:"Y-m-d" }} - {{ payment.period_end|date:"Y-m-d" }}</td>
                                     <td class="text-end">{{ payment.amount|floatformat:3 }}</td>
-                                    <td>{{ payment.get_payment_method_display }}</td>
+                                    {% if lease.lease_type == 'finance' %}
+                                    <td class="text-end">{{ payment.principal_amount|floatformat:3 }}</td>
+                                    <td class="text-end">{{ payment.interest_amount|floatformat:3 }}</td>
+                                    {% endif %}
                                     <td>
-                                        {% if payment.paid %}
+                                        {% if payment.paid_date %}
+                                            {{ payment.paid_date|date:"Y-m-d" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if payment.is_paid %}
                                             <span class="badge bg-success">{% trans "مدفوع" %}</span>
                                         {% else %}
-                                            <span class="badge bg-warning">{% trans "معلق" %}</span>
+                                            <span class="badge bg-warning text-dark">{% trans "معلق" %}</span>
                                         {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
+                            <tfoot>
+                                <tr class="table-light fw-bold">
+                                    <td colspan="{% if lease.lease_type == 'finance' %}2{% else %}2{% endif %}">{% trans "الإجمالي" %}</td>
+                                    <td class="text-end">{{ lease.total_payments|floatformat:3 }} {% trans "د.ك" %}</td>
+                                    {% if lease.lease_type == 'finance' %}
+                                    <td colspan="3"></td>
+                                    {% else %}
+                                    <td colspan="2"></td>
+                                    {% endif %}
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                     {% else %}
-                    <p class="text-muted mb-0">{% trans "لا توجد دفعات" %}</p>
+                    <p class="text-muted mb-0">{% trans "لا توجد دفعات - سيتم إنشاؤها تلقائياً عند تفعيل العقد" %}</p>
                     {% endif %}
                 </div>
             </div>
@@ -121,26 +150,60 @@
 
         <div class="col-md-4">
             <div class="card shadow-sm mb-3">
-                <div class="card-header bg-light">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-cube"></i> {% trans "معلومات الأصل" %}</h6>
+                    <a href="{% url 'assets:asset_detail' lease.asset.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i>
+                    </a>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "الرمز:" %}</strong> {{ lease.asset.code }}</p>
+                    <p><strong>{% trans "رقم الأصل:" %}</strong> {{ lease.asset.asset_number }}</p>
                     <p><strong>{% trans "الفئة:" %}</strong> {{ lease.asset.category.name }}</p>
-                    <p class="mb-0"><strong>{% trans "الموقع:" %}</strong> {{ lease.asset.location.name }}</p>
+                    <p><strong>{% trans "القيمة الأصلية:" %}</strong> {{ lease.asset.original_cost|floatformat:3 }} {% trans "د.ك" %}</p>
+                    <p><strong>{% trans "الحالة:" %}</strong> {{ lease.asset.get_status_display }}</p>
+
+                    {% if lease.status == 'active' %}
+                    <hr>
+                    <div class="d-grid">
+                        <a href="{% url 'assets:transfer_create' %}?asset={{ lease.asset.pk }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-exchange-alt me-1"></i> {% trans "تحويل الأصل" %}
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-3">
                 <div class="card-header bg-light">
                     <h6 class="mb-0"><i class="fas fa-chart-line"></i> {% trans "إحصائيات" %}</h6>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "إجمالي المدفوعات:" %}</strong> {{ lease.total_paid|floatformat:3|default:"0.000" }}</p>
-                    <p><strong>{% trans "المتبقي:" %}</strong> {{ lease.remaining_amount|floatformat:3|default:"0.000" }}</p>
+                    <p><strong>{% trans "مدة العقد:" %}</strong> {{ lease.contract_duration_months }} {% trans "شهر" %}</p>
+                    <p><strong>{% trans "إجمالي الأقساط:" %}</strong> {{ lease.total_payments|floatformat:3 }} {% trans "د.ك" %}</p>
+                    <p><strong>{% trans "المدفوع:" %}</strong> {{ lease.get_paid_amount|floatformat:3 }} {% trans "د.ك" %}</p>
+                    <p><strong>{% trans "المتبقي:" %}</strong> {{ lease.get_remaining_amount|floatformat:3 }} {% trans "د.ك" %}</p>
                     <p class="mb-0"><strong>{% trans "عدد الدفعات:" %}</strong> {{ lease.payments.count }}</p>
                 </div>
             </div>
+
+            {% if lease.interest_rate or lease.residual_value or lease.purchase_option_price %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-percent"></i> {% trans "معلومات الإيجار التمويلي" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% if lease.interest_rate %}
+                    <p><strong>{% trans "معدل الفائدة:" %}</strong> {{ lease.interest_rate }}%</p>
+                    {% endif %}
+                    {% if lease.residual_value %}
+                    <p><strong>{% trans "القيمة المتبقية:" %}</strong> {{ lease.residual_value|floatformat:3 }} {% trans "د.ك" %}</p>
+                    {% endif %}
+                    {% if lease.purchase_option_price %}
+                    <p class="mb-0"><strong>{% trans "سعر خيار الشراء:" %}</strong> {{ lease.purchase_option_price|floatformat:3 }} {% trans "د.ك" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

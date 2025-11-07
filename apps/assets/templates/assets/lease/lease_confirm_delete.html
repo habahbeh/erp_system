@@ -1,0 +1,167 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "تأكيد الحذف" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="mb-1">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "تأكيد حذف عقد الإيجار" %}
+                </h2>
+                <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف النهائي" %}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <!-- Lease Info Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "معلومات العقد المراد حذفه" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger border-danger mb-4">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <h6 class="alert-heading mb-2">{% trans "تحذير هام" %}</h6>
+                                <p class="mb-0">{% trans "هل أنت متأكد من حذف عقد الإيجار" %}: <strong>{{ object.lease_number }}</strong>؟</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 40%;">{% trans "رقم العقد" %}</th>
+                                    <td><strong>{{ object.lease_number }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "الأصل" %}</th>
+                                    <td>
+                                        {{ object.asset.asset_number }} - {{ object.asset.name }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "المؤجر" %}</th>
+                                    <td>{{ object.lessor.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "نوع الإيجار" %}</th>
+                                    <td>{{ object.get_lease_type_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "مدة العقد" %}</th>
+                                    <td>{{ object.start_date|date:"Y-m-d" }} - {{ object.end_date|date:"Y-m-d" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "القيمة الشهرية" %}</th>
+                                    <td><strong>{{ object.monthly_payment|floatformat:3 }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <td>
+                                        <span class="badge bg-{{ object.status }}">
+                                            {{ object.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-warning border-warning">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>{% trans "تحذير: سيتم حذف جميع البيانات المرتبطة بهذا العقد بما في ذلك:" %}</strong>
+                        <ul class="mt-2 mb-0">
+                            <li>{% trans "جميع دفعات الإيجار" %} ({{ object.payments.count }} {% trans "دفعة" %})</li>
+                            <li>{% trans "القيود المحاسبية المرتبطة" %}</li>
+                            <li>{% trans "سجلات التجديد والإنهاء" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Confirmation Form -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger fw-bold" for="confirmDelete">
+                                {% trans "أنا متأكد من حذف هذا العقد نهائياً" %}
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between gap-2">
+                            <a href="{% url 'assets:lease_detail' object.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائياً" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // Enable delete button only when checkbox is checked
+    $('#confirmDelete').on('change', function() {
+        $('#deleteBtn').prop('disabled', !this.checked);
+    });
+
+    // Confirm deletion
+    $('#deleteForm').on('submit', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            title: '{% trans "هل أنت متأكد تماماً؟" %}',
+            text: '{% trans "لا يمكن التراجع عن هذا الإجراء!" %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: '{% trans "نعم، احذف نهائياً" %}',
+            cancelButtonText: '{% trans "إلغاء" %}'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: '{% trans "جاري الحذف..." %}',
+                    text: '{% trans "الرجاء الانتظار" %}',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                $('#deleteForm')[0].submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,499 +1,613 @@
+<!-- apps/assets/templates/assets/physical_count/count_form.html -->
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
-{% load static %}
+{% load i18n static widget_tweaks %}
 
-{% block title %}
-    {% if form.instance.pk %}{% trans "تعديل سجل عد" %}{% else %}{% trans "سجل عد جديد" %}{% endif %}
-{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
-    .required::after {
-        content: " *";
-        color: #dc3545;
-        font-weight: bold;
-    }
-    .form-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-    .section-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: 10px 10px 0 0;
-        margin: -1.5rem -1.5rem 1.5rem -1.5rem;
-    }
-    .form-section {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 8px;
-        margin-bottom: 1.5rem;
-    }
-    .form-section h6 {
-        color: #495057;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        border-bottom: 2px solid #dee2e6;
-        padding-bottom: 0.5rem;
-    }
-    .form-control.is-invalid,
-    .form-select.is-invalid {
-        border-color: #dc3545;
-        padding-right: calc(1.5em + 0.75rem);
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: left calc(0.375em + 0.1875rem) center;
-        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-    }
-    .form-control.is-valid,
-    .form-select.is-valid {
-        border-color: #198754;
-        padding-right: calc(1.5em + 0.75rem);
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: left calc(0.375em + 0.1875rem) center;
-        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-    }
-    .invalid-feedback,
-    .valid-feedback {
-        display: block;
-        margin-top: 0.25rem;
-        font-size: 0.875em;
-    }
-    .invalid-feedback {
-        color: #dc3545;
-    }
-    .valid-feedback {
-        color: #198754;
-    }
-    .select2-container--bootstrap-5.select2-container--focus .select2-selection,
-    .select2-container--bootstrap-5.select2-container--open .select2-selection {
-        border-color: #86b7fe;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-    .select2-container--bootstrap-5 .select2-selection--single.is-invalid {
-        border-color: #dc3545 !important;
-    }
-    .select2-container--bootstrap-5 .select2-selection--single.is-valid {
-        border-color: #198754 !important;
-    }
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================
+   إصلاح Select2 RTL - السهم والنص
+======================================== */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+/* السهم - تثبيته في أقصى اليمين */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+/* النص - بعيد عن السهم */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Select2 Multiple */
+.select2-container--bootstrap-5 .select2-selection--multiple {
+    background-image: none !important;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+    float: right;
+    margin-right: 0;
+    margin-left: 5px;
+}
+
+/* placeholder */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+
+/* القائمة المنسدلة */
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-search--dropdown {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    text-align: right;
+    direction: rtl;
+    width: 100%;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+.info-card {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.guide-card {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="h3 mb-1">
-                <i class="fas fa-clipboard-check text-primary"></i>
-                {% if form.instance.pk %}{% trans "تعديل سجل عد" %}{% else %}{% trans "سجل عد جديد" %}{% endif %}
-            </h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:asset_list' %}">{% trans "الأصول" %}</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'assets:count_list' %}">{% trans "سجلات الجرد" %}</a></li>
-                    <li class="breadcrumb-item active">
-                        {% if form.instance.pk %}{% trans "تعديل" %}{% else %}{% trans "جديد" %}{% endif %}
-                    </li>
-                </ol>
-            </nav>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    {% trans "تحديث بيانات عملية الجرد" %}
+                {% else %}
+                    {% trans "إضافة عملية جرد جديدة" %}
+                {% endif %}
+            </p>
         </div>
+        <a href="{% url 'assets:count_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+        </a>
     </div>
 
-    <!-- Form Card -->
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card form-card">
-                <div class="card-body" style="padding: 2rem;">
-                    <div class="section-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-edit me-2"></i>
-                            {% if form.instance.pk %}{% trans "تعديل بيانات سجل العد" %}{% else %}{% trans "إدخال بيانات سجل العد" %}{% endif %}
-                        </h5>
-                    </div>
-
-                    {% if form.errors %}
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>{% trans "خطأ!" %}</strong> {% trans "يرجى تصحيح الأخطاء التالية:" %}
-                        <ul class="mb-0 mt-2">
-                            {% for field, errors in form.errors.items %}
-                                {% for error in errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            {% endfor %}
-                        </ul>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    {% endif %}
-
-                    <form method="post" id="countForm" novalidate>
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-9">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        {% if object %}{% trans "تعديل عملية الجرد" %}{% else %}{% trans "بيانات عملية الجرد" %}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
                         {% csrf_token %}
 
-                        <!-- Basic Information -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-info-circle me-2 text-primary"></i>{% trans "المعلومات الأساسية" %}</h6>
+                        <!-- المعلومات الأساسية -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>المعلومات الأساسية
+                            </h6>
+
                             <div class="row g-3">
+                                <!-- Cycle -->
                                 <div class="col-md-6">
-                                    <label class="form-label">{% trans "دورة الجرد" %}</label>
-                                    {{ form.cycle|add_class:"form-select select2" }}
+                                    <label for="{{ form.cycle.id_for_label }}" class="form-label">
+                                        {{ form.cycle.label }}
+                                    </label>
+                                    {{ form.cycle|add_class:"form-select" }}
+                                    {% if form.cycle.help_text %}
+                                        <div class="help-text">{{ form.cycle.help_text }}</div>
+                                    {% endif %}
                                     {% if form.cycle.errors %}
-                                        <div class="text-danger small mt-1">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.cycle.errors.0 }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.cycle.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
-                                    <small class="form-text text-muted">{% trans "اختياري - ربط بدورة جرد معينة أو جرد طارئ" %}</small>
                                 </div>
+
+                                <!-- Count Date -->
                                 <div class="col-md-6">
-                                    <label class="form-label required">{% trans "تاريخ الجرد" %}</label>
+                                    <label for="{{ form.count_date.id_for_label }}" class="form-label required-field">
+                                        {{ form.count_date.label }}
+                                    </label>
                                     {{ form.count_date|add_class:"form-control" }}
+                                    {% if form.count_date.help_text %}
+                                        <div class="help-text">{{ form.count_date.help_text }}</div>
+                                    {% endif %}
                                     {% if form.count_date.errors %}
-                                        <div class="text-danger small mt-1">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.count_date.errors.0 }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.count_date.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
+
+                                <!-- Branch -->
                                 <div class="col-md-6">
-                                    <label class="form-label required">{% trans "الفرع" %}</label>
-                                    {{ form.branch|add_class:"form-select select2" }}
+                                    <label for="{{ form.branch.id_for_label }}" class="form-label required-field">
+                                        {{ form.branch.label }}
+                                    </label>
+                                    {{ form.branch|add_class:"form-select" }}
+                                    {% if form.branch.help_text %}
+                                        <div class="help-text">{{ form.branch.help_text }}</div>
+                                    {% endif %}
                                     {% if form.branch.errors %}
-                                        <div class="text-danger small mt-1">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.branch.errors.0 }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.branch.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
+
+                                <!-- Location -->
                                 <div class="col-md-6">
-                                    <label class="form-label">{% trans "الموقع المحدد" %}</label>
+                                    <label for="{{ form.location.id_for_label }}" class="form-label">
+                                        {{ form.location.label }}
+                                    </label>
                                     {{ form.location|add_class:"form-control" }}
-                                    <small class="form-text text-muted">{% trans "مثل: المستودع الرئيسي، الطابق الثالث" %}</small>
+                                    {% if form.location.help_text %}
+                                        <div class="help-text">{{ form.location.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.location.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.location.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Team Information -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-users me-2 text-success"></i>{% trans "الفريق المسؤول" %}</h6>
+                        <!-- الفريق المسؤول -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-users me-2"></i>الفريق المسؤول
+                            </h6>
+
                             <div class="row g-3">
+                                <!-- Responsible Team -->
                                 <div class="col-md-12">
-                                    <label class="form-label required">{% trans "أعضاء الفريق" %}</label>
-                                    {{ form.responsible_team|add_class:"form-select select2" }}
+                                    <label for="{{ form.responsible_team.id_for_label }}" class="form-label">
+                                        {{ form.responsible_team.label }}
+                                    </label>
+                                    {{ form.responsible_team|add_class:"form-select" }}
+                                    {% if form.responsible_team.help_text %}
+                                        <div class="help-text">{{ form.responsible_team.help_text }}</div>
+                                    {% endif %}
                                     {% if form.responsible_team.errors %}
-                                        <div class="text-danger small mt-1">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.responsible_team.errors.0 }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.responsible_team.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
-                                    <small class="form-text text-muted">{% trans "يمكن اختيار أكثر من موظف" %}</small>
                                 </div>
+
+                                <!-- Supervisor -->
                                 <div class="col-md-6">
-                                    <label class="form-label">{% trans "المشرف" %}</label>
-                                    {{ form.supervisor|add_class:"form-select select2" }}
-                                    <small class="form-text text-muted">{% trans "اختياري" %}</small>
+                                    <label for="{{ form.supervisor.id_for_label }}" class="form-label">
+                                        {{ form.supervisor.label }}
+                                    </label>
+                                    {{ form.supervisor|add_class:"form-select" }}
+                                    {% if form.supervisor.help_text %}
+                                        <div class="help-text">{{ form.supervisor.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.supervisor.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.supervisor.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
+
+                                <!-- Status -->
                                 <div class="col-md-6">
-                                    <label class="form-label required">{% trans "الحالة" %}</label>
+                                    <label for="{{ form.status.id_for_label }}" class="form-label">
+                                        {{ form.status.label }}
+                                    </label>
                                     {{ form.status|add_class:"form-select" }}
+                                    {% if form.status.help_text %}
+                                        <div class="help-text">{{ form.status.help_text }}</div>
+                                    {% endif %}
                                     {% if form.status.errors %}
-                                        <div class="text-danger small mt-1">
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ form.status.errors.0 }}
-                                        </div>
+                                        <ul class="error-list">
+                                            {% for error in form.status.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Notes -->
-                        <div class="form-section">
-                            <h6><i class="fas fa-sticky-note me-2 text-warning"></i>{% trans "ملاحظات" %}</h6>
-                            <div class="row g-3">
+                        <!-- ملاحظات -->
+                        <div class="mb-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-sticky-note me-2"></i>ملاحظات
+                            </h6>
+
+                            <div class="row">
                                 <div class="col-12">
-                                    <label class="form-label">{% trans "ملاحظات" %}</label>
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        {{ form.notes.label }}
+                                    </label>
                                     {{ form.notes|add_class:"form-control" }}
-                                    <small class="form-text text-muted">{% trans "أي ملاحظات إضافية حول عملية الجرد" %}</small>
+                                    {% if form.notes.help_text %}
+                                        <div class="help-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.notes.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.notes.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Action Buttons -->
+                        <!-- Form Actions -->
                         <div class="d-flex justify-content-between align-items-center pt-3 border-top">
-                            <a href="{% url 'assets:count_list' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-2"></i>{% trans "إلغاء" %}
+                            <a href="{% url 'assets:count_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
                             </a>
                             <div>
-                                <button type="reset" class="btn btn-outline-warning me-2">
-                                    <i class="fas fa-redo me-2"></i>{% trans "إعادة تعيين" %}
+                                {% if not object %}
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> حفظ وإضافة أخرى
                                 </button>
+                                {% endif %}
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save me-2"></i>{% trans "حفظ" %}
+                                    <i class="fas fa-save me-1"></i>
+                                    {% if object %}تحديث العملية{% else %}حفظ العملية{% endif %}
                                 </button>
                             </div>
                         </div>
                     </form>
                 </div>
             </div>
+        </div>
 
+        <!-- Sidebar -->
+        <div class="col-lg-3">
             <!-- Help Card -->
-            <div class="card mt-3" style="border-left: 4px solid #17a2b8;">
+            <div class="card info-card mb-3">
                 <div class="card-body">
-                    <h6 class="text-info"><i class="fas fa-info-circle me-2"></i>{% trans "إرشادات" %}</h6>
-                    <ul class="mb-0 small">
-                        <li>{% trans "الحقول المميزة بـ (*) إلزامية" %}</li>
-                        <li>{% trans "يمكن ربط السجل بدورة جرد معينة أو تركه مستقلاً" %}</li>
-                        <li>{% trans "إذا كان الموقع الفعلي مختلف عن المتوقع، سيتم إنشاء تسوية تلقائياً" %}</li>
-                        <li>{% trans "استخدم الحالة 'موجود' إذا كان الأصل في الموقع الصحيح" %}</li>
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح
+                    </h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يمكن ربط العملية بدورة جرد أو تركها مستقلة
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            تحديد الفرع مطلوب لتحديد الأصول
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-1"></i>
+                            يمكن اختيار أكثر من عضو للفريق
+                        </li>
+                        <li class="mb-0">
+                            <i class="fas fa-info-circle text-primary me-1"></i>
+                            بعد الحفظ سيتم إنشاء سطور الجرد تلقائياً
+                        </li>
                     </ul>
                 </div>
             </div>
+
+            <!-- Guidelines Card -->
+            <div class="card guide-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>إرشادات
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li class="mb-2">تاريخ الجرد يجب أن يكون اليوم أو قبله</li>
+                        <li class="mb-2">الموقع المحدد اختياري لتفصيل أكثر</li>
+                        <li class="mb-2">المشرف اختياري ولكن يُنصح بتحديده</li>
+                        <li class="mb-0">سيتم إنشاء سطر لكل أصل في الفرع المحدد</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats Card (Only for Edit) -->
+            {% if object %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">إجمالي الأصول:</span>
+                        <span class="badge bg-primary">{{ object.total_assets }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الأصول المعدودة:</span>
+                        <span class="badge bg-success">{{ object.counted_assets }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">الفروقات:</span>
+                        <span class="badge bg-{{ object.variance_count|yesno:'danger,success' }}">{{ object.variance_count }}</span>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        آخر تحديث: {{ object.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
 $(document).ready(function() {
-    // Initialize Select2 for single select fields
-    $('.select2').not('#id_responsible_team').select2({
+    // ==============================
+    // Initialize Select2
+    // ==============================
+
+    // Cycle
+    $('#id_cycle').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl',
-        language: 'ar',
+        width: '100%',
+        placeholder: 'اختر دورة الجرد (اختياري)',
         allowClear: true,
-        placeholder: '{% trans "اختر..." %}',
-        width: '100%'
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
     });
 
-    // Initialize Select2 for responsible_team (multiple select)
+    // Branch
+    $('#id_branch').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الفرع',
+        allowClear: false,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Responsible Team (Multiple)
     $('#id_responsible_team').select2({
         theme: 'bootstrap-5',
-        dir: 'rtl',
-        language: 'ar',
-        multiple: true,
-        placeholder: '{% trans "اختر أعضاء الفريق..." %}',
         width: '100%',
-        closeOnSelect: false
+        placeholder: 'اختر أعضاء الفريق',
+        allowClear: true,
+        dir: "rtl",
+        multiple: true,
+        closeOnSelect: false,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
     });
 
-    // Date field default to today
+    // Supervisor
+    $('#id_supervisor').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر المشرف (اختياري)',
+        allowClear: true,
+        dir: "rtl",
+        language: {
+            noResults: function() { return "لا توجد نتائج"; },
+            searching: function() { return "جاري البحث..."; }
+        }
+    });
+
+    // Status
+    $('#id_status').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'اختر الحالة',
+        allowClear: false,
+        dir: "rtl",
+        minimumResultsForSearch: -1,
+        language: {
+            noResults: function() { return "لا توجد نتائج"; }
+        }
+    });
+
+    // ==============================
+    // Set Default Date to Today
+    // ==============================
+    {% if not object %}
     if (!$('#id_count_date').val()) {
         var today = new Date().toISOString().split('T')[0];
         $('#id_count_date').val(today);
     }
+    {% endif %}
 
-    // Validation function
-    function validateField(field, fieldName, isRequired = false) {
-        var value = $(field).val();
-        var $field = $(field);
-        var $feedback = $field.parent().find('.invalid-feedback');
+    // ==============================
+    // Form Change Tracking
+    // ==============================
+    var formChanged = false;
 
-        // Remove existing feedback
-        if (!$feedback.length) {
-            $feedback = $('<div class="invalid-feedback"></div>');
-            $field.after($feedback);
-        }
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
 
-        // For multiple select (responsible_team)
-        if ($field.is('select[multiple]')) {
-            value = $field.val() && $field.val().length > 0 ? $field.val() : null;
-        }
-
-        if (isRequired && !value) {
-            $field.removeClass('is-valid').addClass('is-invalid');
-            $feedback.html('<i class="fas fa-exclamation-circle me-1"></i>' + fieldName + ' {% trans "مطلوب" %}');
-
-            // For Select2 fields
-            if ($field.hasClass('select2')) {
-                $field.next('.select2-container').find('.select2-selection').addClass('is-invalid');
-            }
-            return false;
-        } else if (value) {
-            $field.removeClass('is-invalid').addClass('is-valid');
-            $feedback.remove();
-
-            // For Select2 fields
-            if ($field.hasClass('select2')) {
-                $field.next('.select2-container').find('.select2-selection').removeClass('is-invalid').addClass('is-valid');
-            }
-            return true;
-        } else {
-            $field.removeClass('is-invalid is-valid');
-            $feedback.remove();
-
-            // For Select2 fields
-            if ($field.hasClass('select2')) {
-                $field.next('.select2-container').find('.select2-selection').removeClass('is-invalid is-valid');
-            }
-            return true;
-        }
-    }
-
-    // Real-time validation
-    $('#id_count_date').on('blur change', function() {
-        validateField(this, '{% trans "تاريخ الجرد" %}', true);
-
-        // Check if date is in the future
-        var selectedDate = new Date($(this).val());
-        var today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (selectedDate > today) {
-            $(this).removeClass('is-valid').addClass('is-invalid');
-            var $feedback = $(this).parent().find('.invalid-feedback');
-            if (!$feedback.length) {
-                $feedback = $('<div class="invalid-feedback"></div>');
-                $(this).after($feedback);
-            }
-            $feedback.html('<i class="fas fa-exclamation-circle me-1"></i>{% trans "لا يمكن اختيار تاريخ في المستقبل" %}');
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
         }
     });
 
-    $('#id_branch').on('change', function() {
-        validateField(this, '{% trans "الفرع" %}', true);
-    });
-
-    $('#id_responsible_team').on('change', function() {
-        validateField(this, '{% trans "أعضاء الفريق" %}', true);
-    });
-
-    $('#id_status').on('change', function() {
-        validateField(this, '{% trans "الحالة" %}', true);
-    });
-
-    // Optional fields validation
-    $('#id_cycle, #id_location, #id_supervisor, #id_notes').on('change blur', function() {
-        var fieldName = $(this).parent().find('label').text().replace('*', '').trim();
-        validateField(this, fieldName, false);
-    });
-
-    // Form submission validation
-    $('#countForm').on('submit', function(e) {
-        e.preventDefault();
-
-        var isValid = true;
-        var errors = [];
-
-        // Validate required fields
-        if (!validateField('#id_count_date', '{% trans "تاريخ الجرد" %}', true)) {
-            isValid = false;
-            errors.push('{% trans "تاريخ الجرد" %}');
-        }
-        if (!validateField('#id_branch', '{% trans "الفرع" %}', true)) {
-            isValid = false;
-            errors.push('{% trans "الفرع" %}');
-        }
-        if (!validateField('#id_responsible_team', '{% trans "أعضاء الفريق" %}', true)) {
-            isValid = false;
-            errors.push('{% trans "أعضاء الفريق" %}');
-        }
-        if (!validateField('#id_status', '{% trans "الحالة" %}', true)) {
-            isValid = false;
-            errors.push('{% trans "الحالة" %}');
-        }
-
-        // Check date is not in future
-        var selectedDate = new Date($('#id_count_date').val());
-        var today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (selectedDate > today) {
-            isValid = false;
-            errors.push('{% trans "تاريخ الجرد (لا يمكن أن يكون في المستقبل)" %}');
-        }
-
-        if (!isValid) {
-            Swal.fire({
-                icon: 'error',
-                title: '{% trans "خطأ في البيانات" %}',
-                html: '<p>{% trans "يرجى تصحيح الأخطاء التالية:" %}</p><ul class="text-start">' +
-                      errors.map(function(err) { return '<li>' + err + '</li>'; }).join('') +
-                      '</ul>',
-                confirmButtonText: '{% trans "حسناً" %}',
-                confirmButtonColor: '#dc3545'
-            });
-
-            // Scroll to first error
-            $('html, body').animate({
-                scrollTop: $('.is-invalid:first').offset().top - 100
-            }, 500);
-
-            return false;
-        }
-
-        // Submit the form with confirmation
-        Swal.fire({
-            icon: 'success',
-            title: '{% trans "جاري الحفظ..." %}',
-            showConfirmButton: false,
-            timer: 500,
-            timerProgressBar: true
-        });
-        setTimeout(() => {
-            this.submit();
-        }, 500);
-    });
-
-    // Reset button handler
-    $('button[type="reset"]').on('click', function(e) {
-        e.preventDefault();
-
-        Swal.fire({
-            icon: 'question',
-            title: '{% trans "إعادة تعيين النموذج؟" %}',
-            text: '{% trans "سيتم مسح جميع البيانات المدخلة" %}',
-            showCancelButton: true,
-            confirmButtonText: '{% trans "نعم، إعادة تعيين" %}',
-            cancelButtonText: '{% trans "إلغاء" %}',
-            confirmButtonColor: '#ffc107',
-            cancelButtonColor: '#6c757d'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('#countForm')[0].reset();
-                $('.select2').val(null).trigger('change');
-                $('.is-valid, .is-invalid').removeClass('is-valid is-invalid');
-                $('.invalid-feedback, .valid-feedback').remove();
-
-                // Set date to today again
-                var today = new Date().toISOString().split('T')[0];
-                $('#id_count_date').val(today);
-            }
-        });
-    });
-
-    // Cancel button confirmation
-    $('a[href="{% url "assets:count_list" %}"]').on('click', function(e) {
-        // Check if form has been modified
-        var formModified = false;
-        $('#countForm').find('input, select, textarea').each(function() {
-            if ($(this).val() && $(this).attr('id') !== 'id_count_date') {
-                formModified = true;
-                return false;
-            }
-        });
-
-        if (formModified) {
-            e.preventDefault();
-            var href = $(this).attr('href');
-
-            Swal.fire({
-                icon: 'warning',
-                title: '{% trans "تنبيه" %}',
-                text: '{% trans "هناك تغييرات غير محفوظة. هل تريد المغادرة؟" %}',
-                showCancelButton: true,
-                confirmButtonText: '{% trans "نعم، المغادرة" %}',
-                cancelButtonText: '{% trans "البقاء" %}',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = href;
-                }
-            });
-        }
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
     });
 });
 </script>
