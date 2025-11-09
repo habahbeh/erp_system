@@ -1,0 +1,1018 @@
+{# apps/purchases/templates/purchases/invoices/invoice_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* ============================================ */
+/* ORACLE FORMS 6i/10g CLASSIC LOOK           */
+/* ============================================ */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #C0C0C0;
+    font-family: 'Tahoma', 'Arial', sans-serif;
+    font-size: 11px;
+}
+
+/* Remove Bootstrap Card Styles */
+.oracle-form-container {
+    background-color: #C0C0C0;
+    padding: 0;
+    margin: 0;
+}
+
+/* ============================================ */
+/* TOOLBAR - Classic Oracle Style              */
+/* ============================================ */
+.oracle-toolbar {
+    background: linear-gradient(to bottom, #F0F0F0 0%, #E0E0E0 100%);
+    border: 1px solid #A0A0A0;
+    border-bottom: 2px solid #808080;
+    padding: 4px 8px;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    flex-wrap: wrap;
+    box-shadow: inset 0 1px 0 #FFFFFF, 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.oracle-toolbar-btn {
+    background: linear-gradient(to bottom, #F8F8F8 0%, #E0E0E0 100%);
+    border: 1px solid #999;
+    border-radius: 2px;
+    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #000;
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 #FFF, 0 1px 1px rgba(0,0,0,0.1);
+    transition: all 0.1s;
+}
+
+.oracle-toolbar-btn:hover {
+    background: linear-gradient(to bottom, #FFF 0%, #E8E8E8 100%);
+    border-color: #666;
+}
+
+.oracle-toolbar-btn:active {
+    background: linear-gradient(to bottom, #D0D0D0 0%, #E0E0E0 100%);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+    transform: translateY(1px);
+}
+
+.oracle-toolbar-btn.btn-save { color: #006600; font-weight: bold; }
+.oracle-toolbar-btn.btn-cancel { color: #CC0000; font-weight: bold; }
+.oracle-toolbar-btn.btn-print { color: #000080; }
+
+.oracle-toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background-color: #999;
+    margin: 0 4px;
+}
+
+/* ============================================ */
+/* FORM WINDOW - Classic Oracle Canvas         */
+/* ============================================ */
+.oracle-form-window {
+    background-color: #D4D0C8;
+    border: 2px solid;
+    border-color: #FFFFFF #808080 #808080 #FFFFFF;
+    padding: 0;
+    margin: 8px;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+/* ============================================ */
+/* HEADER SECTION - Single Row Layout          */
+/* ============================================ */
+.oracle-header-section {
+    background-color: #F5F5DC;
+    border-bottom: 2px solid #808080;
+    padding: 12px;
+}
+
+.oracle-header-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px 12px;
+    align-items: center;
+}
+
+/* Field Label - Classic Oracle */
+.oracle-field-label {
+    font-size: 11px;
+    font-weight: normal;
+    color: #000;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.oracle-field-label.required::after {
+    content: " *";
+    color: #CC0000;
+}
+
+/* Input Fields - Sunken 3D Effect */
+.oracle-input,
+.oracle-select {
+    background-color: #FFFFFF;
+    border: 2px solid;
+    border-color: #808080 #FFFFFF #FFFFFF #808080;
+    padding: 2px 4px;
+    font-size: 11px;
+    font-family: 'Tahoma', 'Arial', sans-serif;
+    width: 100%;
+    height: 22px;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.oracle-input:focus,
+.oracle-select:focus {
+    outline: none;
+    background-color: #FFFACD;
+    border-color: #4A90E2 #4A90E2 #4A90E2 #4A90E2;
+}
+
+.oracle-input:read-only {
+    background-color: #E8E8E8;
+    color: #666;
+}
+
+.oracle-select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 4px center;
+    padding-left: 20px;
+}
+
+/* ============================================ */
+/* GRID SECTION - Classic Oracle Table/Grid    */
+/* ============================================ */
+.oracle-grid-section {
+    background-color: #FFFFFF;
+    border-top: 1px solid #C0C0C0;
+    padding: 0;
+}
+
+.oracle-grid-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.oracle-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 1400px;
+}
+
+.oracle-grid thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.oracle-grid thead th {
+    background: linear-gradient(to bottom, #E0E0E0 0%, #C0C0C0 100%);
+    border: 1px solid #808080;
+    border-bottom: 2px solid #404040;
+    padding: 4px 6px;
+    font-weight: bold;
+    font-size: 11px;
+    color: #000;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.oracle-grid tbody tr {
+    background-color: #FFFFFF;
+}
+
+.oracle-grid tbody tr:nth-child(even) {
+    background-color: #F9F9F9;
+}
+
+.oracle-grid tbody tr:hover {
+    background-color: #E8F4FF;
+}
+
+.oracle-grid tbody td {
+    border: 1px solid #D0D0D0;
+    padding: 2px 4px;
+    vertical-align: middle;
+}
+
+.oracle-grid tbody td input,
+.oracle-grid tbody td select {
+    border: 1px solid #999;
+    padding: 2px 4px;
+    font-size: 11px;
+    width: 100%;
+    height: 20px;
+    background-color: #FFF;
+}
+
+.oracle-grid tbody td input:focus,
+.oracle-grid tbody td select:focus {
+    background-color: #FFFACD;
+    border-color: #4A90E2;
+    outline: none;
+}
+
+.oracle-grid tbody td.text-end {
+    text-align: left;
+}
+
+.oracle-grid tbody td.text-center {
+    text-align: center;
+}
+
+.oracle-grid-row-number {
+    background-color: #E0E0E0;
+    text-align: center;
+    font-weight: bold;
+    color: #404040;
+    width: 40px;
+}
+
+.oracle-grid-delete-btn {
+    background-color: #CC0000;
+    color: #FFF;
+    border: 1px solid #990000;
+    padding: 2px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.oracle-grid-delete-btn:hover {
+    background-color: #FF0000;
+}
+
+/* ============================================ */
+/* SUMMARY SECTION - Classic Oracle            */
+/* ============================================ */
+.oracle-summary-section {
+    background-color: #FFFFCC;
+    border-top: 2px solid #808080;
+    padding: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 40px;
+}
+
+.oracle-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.oracle-summary-label {
+    font-weight: bold;
+    color: #000;
+    font-size: 11px;
+}
+
+.oracle-summary-value {
+    background-color: #FFFFFF;
+    border: 2px solid;
+    border-color: #808080 #FFFFFF #FFFFFF #808080;
+    padding: 3px 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 100px;
+    text-align: left;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ============================================ */
+/* ADDITIONAL FIELDS SECTION                    */
+/* ============================================ */
+.oracle-additional-section {
+    background-color: #F0F0F0;
+    border-top: 1px solid #C0C0C0;
+    padding: 12px;
+}
+
+.oracle-additional-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px 12px;
+}
+
+.oracle-textarea {
+    background-color: #FFFFFF;
+    border: 2px solid;
+    border-color: #808080 #FFFFFF #FFFFFF #808080;
+    padding: 4px;
+    font-size: 11px;
+    font-family: 'Tahoma', 'Arial', sans-serif;
+    width: 100%;
+    resize: vertical;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.oracle-textarea:focus {
+    outline: none;
+    background-color: #FFFACD;
+    border-color: #4A90E2;
+}
+
+/* ============================================ */
+/* STATUS BAR - Classic Oracle                  */
+/* ============================================ */
+.oracle-status-bar {
+    background: linear-gradient(to bottom, #E0E0E0 0%, #D0D0D0 100%);
+    border-top: 1px solid #808080;
+    padding: 4px 8px;
+    font-size: 10px;
+    color: #333;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* ============================================ */
+/* COLUMN WIDTHS                                */
+/* ============================================ */
+.col-row-num { width: 40px; }
+.col-item { width: 200px; }
+.col-variant { width: 120px; }
+.col-description { width: 250px; }
+.col-quantity { width: 90px; }
+.col-unit { width: 80px; }
+.col-price { width: 100px; }
+.col-discount-pct { width: 70px; }
+.col-discount-amt { width: 90px; }
+.col-tax-rate { width: 70px; }
+.col-tax-included { width: 60px; }
+.col-total { width: 110px; }
+.col-delete { width: 60px; }
+
+/* ============================================ */
+/* HIDE DELETE CHECKBOX                         */
+/* ============================================ */
+input[name$="-DELETE"] {
+    display: none;
+}
+
+/* ============================================ */
+/* SELECT2 CUSTOM FOR ORACLE LOOK               */
+/* ============================================ */
+.select2-container--bootstrap-5 .select2-selection--single {
+    border: 2px solid;
+    border-color: #808080 #FFFFFF #FFFFFF #808080 !important;
+    min-height: 22px !important;
+    height: 22px !important;
+    padding: 0 4px !important;
+    background-color: #FFF !important;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    line-height: 18px !important;
+    padding-left: 20px !important;
+    font-size: 11px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    height: 20px !important;
+    right: 2px !important;
+}
+
+/* ============================================ */
+/* ERROR MESSAGES - Oracle Style                */
+/* ============================================ */
+.oracle-error-msg {
+    background-color: #FFE0E0;
+    border: 1px solid #CC0000;
+    color: #CC0000;
+    padding: 4px 8px;
+    font-size: 10px;
+    margin-top: 2px;
+    border-radius: 2px;
+}
+
+/* ============================================ */
+/* RESPONSIVE ADJUSTMENTS                       */
+/* ============================================ */
+@media (max-width: 1200px) {
+    .oracle-header-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .oracle-additional-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================ */
+/* PRINT STYLES                                 */
+/* ============================================ */
+@media print {
+    .oracle-toolbar,
+    .oracle-status-bar,
+    .oracle-grid-delete-btn {
+        display: none !important;
+    }
+}
+
+/* Hide default breadcrumb for clean Oracle look */
+.breadcrumb {
+    display: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="oracle-form-container">
+    <form method="post" id="invoiceForm" novalidate>
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <!-- ============================================ -->
+        <!-- TOOLBAR SECTION                              -->
+        <!-- ============================================ -->
+        <div class="oracle-toolbar">
+            <button type="submit" class="oracle-toolbar-btn btn-save">
+                <i class="fas fa-save"></i>
+                <span>حفظ (Ctrl+S)</span>
+            </button>
+            <a href="{% url 'purchases:invoice_list' %}" class="oracle-toolbar-btn btn-cancel">
+                <i class="fas fa-times"></i>
+                <span>إلغاء (Esc)</span>
+            </a>
+            <div class="oracle-toolbar-separator"></div>
+            <button type="button" class="oracle-toolbar-btn btn-print" onclick="window.print()">
+                <i class="fas fa-print"></i>
+                <span>طباعة (Ctrl+P)</span>
+            </button>
+            <button type="button" class="oracle-toolbar-btn" id="btn-search">
+                <i class="fas fa-search"></i>
+                <span>بحث (Ctrl+F)</span>
+            </button>
+            <div class="oracle-toolbar-separator"></div>
+            <button type="button" class="oracle-toolbar-btn" id="btn-new" onclick="window.location.href='{% url 'purchases:invoice_create' %}'">
+                <i class="fas fa-file"></i>
+                <span>جديد (Ctrl+N)</span>
+            </button>
+            <button type="button" class="oracle-toolbar-btn" id="btn-delete">
+                <i class="fas fa-trash"></i>
+                <span>حذف (Ctrl+D)</span>
+            </button>
+            <div class="oracle-toolbar-separator"></div>
+            <button type="button" class="oracle-toolbar-btn" id="btn-add-line">
+                <i class="fas fa-plus"></i>
+                <span>إضافة سطر (F9)</span>
+            </button>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- MAIN FORM WINDOW                             -->
+        <!-- ============================================ -->
+        <div class="oracle-form-window">
+
+            <!-- ============================================ -->
+            <!-- HEADER SECTION - Single Row                  -->
+            <!-- ============================================ -->
+            <div class="oracle-header-section">
+                <div class="oracle-header-grid">
+                    <!-- Date -->
+                    <div>
+                        <label class="oracle-field-label required">التاريخ:</label>
+                        {{ form.date|add_class:"oracle-input" }}
+                        {% if form.date.errors %}
+                            <div class="oracle-error-msg">{{ form.date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Invoice Number -->
+                    <div>
+                        <label class="oracle-field-label">رقم الفاتورة:</label>
+                        <input type="text" class="oracle-input" value="{% if object %}{{ object.number }}{% else %}تلقائي{% endif %}" readonly>
+                    </div>
+
+                    <!-- Supplier -->
+                    <div>
+                        <label class="oracle-field-label required">المورد:</label>
+                        {{ form.supplier|add_class:"oracle-select select2" }}
+                        {% if form.supplier.errors %}
+                            <div class="oracle-error-msg">{{ form.supplier.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Warehouse -->
+                    <div>
+                        <label class="oracle-field-label required">المستودع:</label>
+                        {{ form.warehouse|add_class:"oracle-select select2" }}
+                        {% if form.warehouse.errors %}
+                            <div class="oracle-error-msg">{{ form.warehouse.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Currency -->
+                    <div>
+                        <label class="oracle-field-label required">العملة:</label>
+                        {{ form.currency|add_class:"oracle-select" }}
+                        {% if form.currency.errors %}
+                            <div class="oracle-error-msg">{{ form.currency.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Payment Method -->
+                    <div>
+                        <label class="oracle-field-label required">طريقة الدفع:</label>
+                        {{ form.payment_method|add_class:"oracle-select" }}
+                        {% if form.payment_method.errors %}
+                            <div class="oracle-error-msg">{{ form.payment_method.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Receipt Number -->
+                    <div>
+                        <label class="oracle-field-label required">رقم الإيصال:</label>
+                        {{ form.receipt_number|add_class:"oracle-input" }}
+                        {% if form.receipt_number.errors %}
+                            <div class="oracle-error-msg">{{ form.receipt_number.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Receipt Date -->
+                    <div>
+                        <label class="oracle-field-label">تاريخ الإيصال:</label>
+                        {{ form.receipt_date|add_class:"oracle-input" }}
+                        {% if form.receipt_date.errors %}
+                            <div class="oracle-error-msg">{{ form.receipt_date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- GRID SECTION - Items                         -->
+            <!-- ============================================ -->
+            <div class="oracle-grid-section">
+                <div class="oracle-grid-wrapper">
+                    <table class="oracle-grid" id="items-table">
+                        <thead>
+                            <tr>
+                                <th class="col-row-num">#</th>
+                                <th class="col-item">المادة</th>
+                                <th class="col-variant">المتغير</th>
+                                <th class="col-description">البيان</th>
+                                <th class="col-quantity">الكمية</th>
+                                <th class="col-unit">الوحدة</th>
+                                <th class="col-price">السعر</th>
+                                <th class="col-discount-pct">خصم%</th>
+                                <th class="col-discount-amt">مبلغ الخصم</th>
+                                <th class="col-tax-rate">ضريبة%</th>
+                                <th class="col-tax-included">شامل</th>
+                                <th class="col-total">الإجمالي</th>
+                                <th class="col-delete">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-tbody">
+                            {% for item_form in formset %}
+                            <tr class="oracle-grid-row" data-form-index="{{ forloop.counter0 }}">
+                                <td class="oracle-grid-row-number row-number">{{ forloop.counter }}</td>
+                                <td>
+                                    {{ item_form.id }}
+                                    {{ item_form.item.as_widget }}
+                                </td>
+                                <td>{{ item_form.item_variant.as_widget }}</td>
+                                <td>{{ item_form.description.as_widget }}</td>
+                                <td>{{ item_form.quantity.as_widget }}</td>
+                                <td>{{ item_form.unit.as_widget }}</td>
+                                <td>{{ item_form.unit_price.as_widget }}</td>
+                                <td>{{ item_form.discount_percentage.as_widget }}</td>
+                                <td>{{ item_form.discount_amount.as_widget }}</td>
+                                <td>{{ item_form.tax_rate.as_widget }}</td>
+                                <td class="text-center">{{ item_form.tax_included.as_widget }}</td>
+                                <td class="text-end item-total">0.000</td>
+                                <td class="text-center">
+                                    {{ item_form.DELETE }}
+                                    <button type="button" class="oracle-grid-delete-btn delete-row-btn">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- SUMMARY SECTION - Totals                     -->
+            <!-- ============================================ -->
+            <div class="oracle-summary-section">
+                <div class="oracle-summary-item">
+                    <span class="oracle-summary-label">المجموع الفرعي:</span>
+                    <span class="oracle-summary-value" id="summary-subtotal">0.000</span>
+                </div>
+                <div class="oracle-summary-item">
+                    <span class="oracle-summary-label">الخصم:</span>
+                    <span class="oracle-summary-value" id="summary-discount">0.000</span>
+                </div>
+                <div class="oracle-summary-item">
+                    <span class="oracle-summary-label">الضريبة:</span>
+                    <span class="oracle-summary-value" id="summary-tax">0.000</span>
+                </div>
+                <div class="oracle-summary-item">
+                    <span class="oracle-summary-label">الإجمالي:</span>
+                    <span class="oracle-summary-value" id="summary-total" style="background-color: #FFFF99; font-size: 14px;">0.000</span>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- ADDITIONAL FIELDS SECTION                    -->
+            <!-- ============================================ -->
+            <div class="oracle-additional-section">
+                <div class="oracle-additional-grid">
+                    <!-- Supplier Invoice Number -->
+                    <div>
+                        <label class="oracle-field-label">رقم فاتورة المورد:</label>
+                        {{ form.supplier_invoice_number|add_class:"oracle-input" }}
+                    </div>
+
+                    <!-- Supplier Invoice Date -->
+                    <div>
+                        <label class="oracle-field-label">تاريخ فاتورة المورد:</label>
+                        {{ form.supplier_invoice_date|add_class:"oracle-input" }}
+                    </div>
+
+                    <!-- Invoice Type -->
+                    <div>
+                        <label class="oracle-field-label">نوع الفاتورة:</label>
+                        {{ form.invoice_type|add_class:"oracle-select" }}
+                    </div>
+
+                    <!-- Discount Type -->
+                    <div>
+                        <label class="oracle-field-label">نوع الخصم:</label>
+                        {{ form.discount_type|add_class:"oracle-select" }}
+                    </div>
+
+                    <!-- Discount Value -->
+                    <div>
+                        <label class="oracle-field-label">قيمة الخصم:</label>
+                        {{ form.discount_value|add_class:"oracle-input" }}
+                    </div>
+
+                    <!-- Discount Account -->
+                    <div>
+                        <label class="oracle-field-label">حساب الخصم:</label>
+                        {{ form.discount_account|add_class:"oracle-select select2" }}
+                    </div>
+
+                    <!-- Supplier Account -->
+                    <div>
+                        <label class="oracle-field-label">حساب المورد:</label>
+                        {{ form.supplier_account|add_class:"oracle-select select2" }}
+                    </div>
+
+                    <!-- Reference -->
+                    <div>
+                        <label class="oracle-field-label">المرجع:</label>
+                        {{ form.reference|add_class:"oracle-input" }}
+                    </div>
+
+                    <!-- Notes - Full Width -->
+                    <div style="grid-column: 1 / -1;">
+                        <label class="oracle-field-label">ملاحظات:</label>
+                        {{ form.notes|add_class:"oracle-textarea" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- STATUS BAR                                   -->
+        <!-- ============================================ -->
+        <div class="oracle-status-bar">
+            <span>{% if object %}تعديل فاتورة: {{ object.number }}{% else %}فاتورة جديدة{% endif %}</span>
+            <span>المستخدم: {{ request.user.get_full_name }}</span>
+            <span>التاريخ: {% now "Y-m-d H:i" %}</span>
+        </div>
+    </form>
+</div>
+
+<!-- Empty Form Template (Hidden) -->
+<table style="display:none;" id="empty-form-template">
+    <tr class="oracle-grid-row">
+        <td class="oracle-grid-row-number row-number">__ROWNUM__</td>
+        <td>{{ formset.empty_form.item.as_widget }}</td>
+        <td>{{ formset.empty_form.item_variant.as_widget }}</td>
+        <td>{{ formset.empty_form.description.as_widget }}</td>
+        <td>{{ formset.empty_form.quantity.as_widget }}</td>
+        <td>{{ formset.empty_form.unit.as_widget }}</td>
+        <td>{{ formset.empty_form.unit_price.as_widget }}</td>
+        <td>{{ formset.empty_form.discount_percentage.as_widget }}</td>
+        <td>{{ formset.empty_form.discount_amount.as_widget }}</td>
+        <td>{{ formset.empty_form.tax_rate.as_widget }}</td>
+        <td class="text-center">{{ formset.empty_form.tax_included.as_widget }}</td>
+        <td class="text-end item-total">0.000</td>
+        <td class="text-center">
+            {{ formset.empty_form.DELETE }}
+            <button type="button" class="oracle-grid-delete-btn delete-row-btn">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    </tr>
+</table>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // ============================================
+    // Initialize Select2
+    // ============================================
+    function initSelect2() {
+        $('.select2').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
+            }
+        });
+
+        $('.item-select').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر المادة',
+            allowClear: true
+        });
+    }
+
+    initSelect2();
+
+    // ============================================
+    // Keyboard Shortcuts - Oracle Style
+    // ============================================
+    $(document).on('keydown', function(e) {
+        // Ctrl+S - Save
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#invoiceForm').submit();
+        }
+        // Esc - Cancel
+        if (e.key === 'Escape') {
+            if (confirm('هل تريد إلغاء التغييرات والعودة؟')) {
+                window.location.href = '{% url "purchases:invoice_list" %}';
+            }
+        }
+        // F9 - Add Line
+        if (e.key === 'F9') {
+            e.preventDefault();
+            $('#btn-add-line').click();
+        }
+        // Ctrl+N - New
+        if (e.ctrlKey && e.key === 'n') {
+            e.preventDefault();
+            window.location.href = '{% url "purchases:invoice_create" %}';
+        }
+    });
+
+    // ============================================
+    // Tab Navigation in Grid (Oracle-like)
+    // ============================================
+    $(document).on('keydown', '.oracle-grid input, .oracle-grid select', function(e) {
+        if (e.key === 'Tab') {
+            // Let default Tab behavior work
+            return;
+        }
+
+        // Enter key - Move to next row same column
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var currentCell = $(this).closest('td');
+            var currentRow = currentCell.closest('tr');
+            var cellIndex = currentCell.index();
+            var nextRow = currentRow.next('tr');
+
+            if (nextRow.length) {
+                var nextCell = nextRow.find('td').eq(cellIndex);
+                var nextInput = nextCell.find('input, select').first();
+                if (nextInput.length) {
+                    nextInput.focus();
+                }
+            } else {
+                // Add new row if at last row
+                $('#btn-add-line').click();
+            }
+        }
+    });
+
+    // ============================================
+    // Add New Row
+    // ============================================
+    var formIdx = {{ formset.total_form_count }};
+
+    $('#btn-add-line').click(function() {
+        var template = $('#empty-form-template tbody').html();
+        var newRow = template.replace(/__prefix__/g, formIdx);
+        newRow = newRow.replace(/__ROWNUM__/g, formIdx + 1);
+
+        $('#items-tbody').append(newRow);
+        $('#id_lines-TOTAL_FORMS').val(formIdx + 1);
+        formIdx++;
+
+        initSelect2();
+        updateRowNumbers();
+        calculateTotals();
+    });
+
+    // ============================================
+    // Delete Row
+    // ============================================
+    $(document).on('click', '.delete-row-btn', function() {
+        var row = $(this).closest('tr');
+        var deleteCheckbox = row.find('input[name$="-DELETE"]');
+
+        if (deleteCheckbox.length) {
+            deleteCheckbox.prop('checked', true);
+            row.hide();
+        } else {
+            row.remove();
+        }
+
+        updateRowNumbers();
+        calculateTotals();
+    });
+
+    // ============================================
+    // Calculate Item Total
+    // ============================================
+    function calculateItemTotal(row) {
+        var quantity = parseFloat(row.find('.quantity-input').val()) || 0;
+        var unitPrice = parseFloat(row.find('.price-input').val()) || 0;
+        var discountPct = parseFloat(row.find('.discount-pct-input').val()) || 0;
+        var discountAmt = parseFloat(row.find('.discount-amount-input').val()) || 0;
+        var taxRate = parseFloat(row.find('.tax-rate-input').val()) || 0;
+        var taxIncluded = row.find('.tax-included-check').is(':checked');
+
+        // Calculate subtotal
+        var subtotal = quantity * unitPrice;
+
+        // Apply discount percentage
+        if (discountPct > 0) {
+            discountAmt = subtotal * (discountPct / 100);
+            row.find('.discount-amount-input').val(discountAmt.toFixed(3));
+        }
+
+        // Subtract discount
+        var afterDiscount = subtotal - discountAmt;
+
+        // Calculate tax
+        var taxAmount = 0;
+        var total = 0;
+
+        if (taxIncluded) {
+            // Tax is included in price
+            total = afterDiscount;
+            taxAmount = total - (total / (1 + (taxRate / 100)));
+        } else {
+            // Tax is added to price
+            taxAmount = afterDiscount * (taxRate / 100);
+            total = afterDiscount + taxAmount;
+        }
+
+        row.find('.item-total').text(total.toFixed(3));
+        return { subtotal, discountAmt, taxAmount, total };
+    }
+
+    // ============================================
+    // Calculate All Totals
+    // ============================================
+    function calculateTotals() {
+        var grandTotal = 0;
+        var totalDiscount = 0;
+        var totalTax = 0;
+        var totalSubtotal = 0;
+
+        $('#items-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                var result = calculateItemTotal($(this));
+                grandTotal += result.total;
+                totalDiscount += result.discountAmt;
+                totalTax += result.taxAmount;
+                totalSubtotal += result.subtotal;
+            }
+        });
+
+        $('#summary-subtotal').text(totalSubtotal.toFixed(3));
+        $('#summary-discount').text(totalDiscount.toFixed(3));
+        $('#summary-tax').text(totalTax.toFixed(3));
+        $('#summary-total').text(grandTotal.toFixed(3));
+    }
+
+    // ============================================
+    // Update Row Numbers
+    // ============================================
+    function updateRowNumbers() {
+        var rowNum = 1;
+        $('#items-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                $(this).find('.row-number').text(rowNum++);
+            }
+        });
+    }
+
+    // ============================================
+    // Event Handlers - Real-time Calculation
+    // ============================================
+    $(document).on('input change', '.quantity-input, .price-input, .discount-pct-input, .discount-amount-input, .tax-rate-input', function() {
+        calculateTotals();
+    });
+
+    $(document).on('change', '.tax-included-check', function() {
+        calculateTotals();
+    });
+
+    // Initial calculation
+    calculateTotals();
+
+    // ============================================
+    // Form Validation
+    // ============================================
+    $('#invoiceForm').on('submit', function(e) {
+        var validRows = $('#items-tbody tr:visible').filter(function() {
+            return !$(this).find('input[name$="-DELETE"]').is(':checked');
+        }).length;
+
+        if (validRows === 0) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يجب إضافة سطر واحد على الأقل',
+                confirmButtonText: 'حسناً'
+            });
+            return false;
+        }
+
+        $('.oracle-toolbar-btn.btn-save').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...'
+        );
+    });
+
+    // ============================================
+    // Prevent Accidental Navigation
+    // ============================================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+    });
+
+    // ============================================
+    // F4 for Dropdown (Oracle behavior)
+    // ============================================
+    $(document).on('keydown', 'select', function(e) {
+        if (e.key === 'F4') {
+            e.preventDefault();
+            $(this).focus().click();
+        }
+    });
+});
+</script>
+{% endblock %}

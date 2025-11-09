@@ -1,0 +1,353 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.info-card {
+    border-right: 4px solid #0d6efd;
+}
+
+.table-section {
+    margin-top: 1.5rem;
+}
+
+.action-button {
+    margin: 0 0.25rem;
+}
+
+.status-badge-lg {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.score-display {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.financial-summary {
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.summary-row:last-child {
+    border-bottom: none;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تفاصيل عرض السعر" %}</p>
+        </div>
+        <div>
+            {% if quotation.status in 'draft,received' %}
+                <a href="{% url 'purchases:evaluate_quotation' quotation.pk %}" class="btn btn-primary action-button">
+                    <i class="fas fa-star"></i> {% trans "تقييم العرض" %}
+                </a>
+                <a href="{% url 'purchases:quotation_update' quotation.pk %}" class="btn btn-warning action-button">
+                    <i class="fas fa-edit"></i> {% trans "تعديل" %}
+                </a>
+                {% if quotation.status == 'draft' %}
+                <a href="{% url 'purchases:quotation_delete' quotation.pk %}" class="btn btn-danger action-button">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </a>
+                {% endif %}
+            {% elif quotation.status == 'evaluated' %}
+                <a href="{% url 'purchases:award_quotation' quotation.pk %}" class="btn btn-success action-button">
+                    <i class="fas fa-trophy"></i> {% trans "اعتماد العرض" %}
+                </a>
+                <a href="{% url 'purchases:reject_quotation' quotation.pk %}" class="btn btn-danger action-button">
+                    <i class="fas fa-times-circle"></i> {% trans "رفض العرض" %}
+                </a>
+            {% elif quotation.status == 'awarded' %}
+                <a href="{% url 'purchases:convert_quotation_to_order' quotation.pk %}" class="btn btn-success action-button">
+                    <i class="fas fa-file-invoice"></i> {% trans "تحويل لأمر شراء" %}
+                </a>
+            {% endif %}
+            <a href="{% url 'purchases:quotation_list' %}" class="btn btn-secondary action-button">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Quotation Information Card -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card info-card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات عرض السعر" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "رقم العرض" %}</label>
+                                <p class="fw-bold">{{ quotation.number }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "طلب عرض السعر" %}</label>
+                                <p class="fw-bold">
+                                    <a href="{% url 'purchases:rfq_detail' quotation.rfq.pk %}">{{ quotation.rfq.number }}</a>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "المورد" %}</label>
+                                <p class="fw-bold">{{ quotation.supplier.name }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "التاريخ" %}</label>
+                                <p class="fw-bold">{{ quotation.date|date:"Y-m-d" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "تاريخ الصلاحية" %}</label>
+                                <p class="fw-bold">
+                                    {% if quotation.validity_date %}
+                                        {{ quotation.validity_date|date:"Y-m-d" }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "الحالة" %}</label>
+                                <div>
+                                    {% if quotation.status == 'draft' %}
+                                        <span class="badge status-badge-lg bg-secondary">{% trans "مسودة" %}</span>
+                                    {% elif quotation.status == 'received' %}
+                                        <span class="badge status-badge-lg bg-info">{% trans "مستلم" %}</span>
+                                    {% elif quotation.status == 'evaluated' %}
+                                        <span class="badge status-badge-lg bg-warning text-dark">{% trans "تم التقييم" %}</span>
+                                    {% elif quotation.status == 'awarded' %}
+                                        <span class="badge status-badge-lg bg-success">{% trans "فائز" %}</span>
+                                    {% elif quotation.status == 'rejected' %}
+                                        <span class="badge status-badge-lg bg-danger">{% trans "مرفوض" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "شروط الدفع" %}</label>
+                                <p>{{ quotation.payment_terms|default:"-" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">{% trans "شروط التسليم" %}</label>
+                                <p>{{ quotation.delivery_terms|default:"-" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-0">
+                                <label class="form-label text-muted">{% trans "الضمان" %}</label>
+                                <p>{{ quotation.warranty|default:"-" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score Card -->
+        <div class="col-md-4">
+            <div class="card shadow-sm" style="border-right: 4px solid #17a2b8;">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-star"></i> {% trans "التقييم" %}
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    {% if quotation.score %}
+                        <div class="score-display text-primary mb-3">
+                            {{ quotation.score }}/100
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar {% if quotation.score >= 80 %}bg-success{% elif quotation.score >= 60 %}bg-warning{% else %}bg-danger{% endif %}"
+                                 role="progressbar"
+                                 style="width: {{ quotation.score }}%;"
+                                 aria-valuenow="{{ quotation.score }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                {{ quotation.score }}%
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">{% trans "لم يتم التقييم بعد" %}</p>
+                    {% endif %}
+
+                    {% if quotation.evaluation_notes %}
+                        <hr>
+                        <div class="text-start">
+                            <label class="form-label text-muted small">{% trans "ملاحظات التقييم" %}</label>
+                            <p class="small">{{ quotation.evaluation_notes }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if quotation.notes %}
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sticky-note"></i> {% trans "ملاحظات" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ quotation.notes|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Items Section -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-boxes"></i> {% trans "تفاصيل الأصناف" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "العلامة التجارية" %}</th>
+                                    <th>{% trans "بلد المنشأ" %}</th>
+                                    <th class="text-end">{% trans "الكمية" %}</th>
+                                    <th class="text-end">{% trans "سعر الوحدة" %}</th>
+                                    <th class="text-end">{% trans "الخصم" %}</th>
+                                    <th class="text-end">{% trans "الإجمالي" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in quotation.items.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ item.item.name }}</td>
+                                    <td>{{ item.brand|default:"-" }}</td>
+                                    <td>{{ item.country_of_origin|default:"-" }}</td>
+                                    <td class="text-end">{{ item.quantity|floatformat:2 }}</td>
+                                    <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
+                                    <td class="text-end">{{ item.discount_amount|floatformat:3 }}</td>
+                                    <td class="text-end fw-bold">{{ item.total_amount|floatformat:3 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">{% trans "لا توجد أصناف" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Summary -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calculator"></i> {% trans "الملخص المالي" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row justify-content-end">
+                        <div class="col-md-6">
+                            <div class="financial-summary">
+                                <div class="summary-row">
+                                    <span>{% trans "المجموع الفرعي" %}</span>
+                                    <span class="fw-bold">{{ quotation.subtotal_amount|floatformat:3 }}</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>{% trans "الخصم" %}</span>
+                                    <span class="fw-bold text-danger">{{ quotation.discount_amount|floatformat:3 }}</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>{% trans "الضريبة" %}</span>
+                                    <span class="fw-bold">{{ quotation.tax_amount|floatformat:3 }}</span>
+                                </div>
+                                <div class="summary-row text-primary">
+                                    <span>{% trans "الإجمالي النهائي" %}</span>
+                                    <span>{{ quotation.total_amount|floatformat:3 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Confirmation for action buttons
+    $('a[href*="delete"], a[href*="reject"]').on('click', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد من تنفيذ هذا الإجراء؟" %}')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -27,6 +27,7 @@ urlpatterns = [
     path('', include('apps.core.urls')),
     path('accounting/', include('apps.accounting.urls')),
     path('assets/', include('apps.assets.urls')),
+    path('purchases/', include('apps.purchases.urls')),
 
 ]
 

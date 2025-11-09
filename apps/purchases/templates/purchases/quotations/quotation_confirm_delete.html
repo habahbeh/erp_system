@@ -1,0 +1,144 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "حذف عرض السعر" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.warning-box {
+    border-right: 4px solid #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'purchases:quotation_list' %}">{% trans "عروض الأسعار" %}</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'purchases:quotation_detail' object.pk %}">{{ object.number }}</a>
+            </li>
+            <li class="breadcrumb-item active">{% trans "حذف" %}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-exclamation-triangle text-danger"></i> {% trans "تأكيد حذف عرض السعر" %}
+        </h1>
+        <p class="text-muted mb-0">{% trans "هذا الإجراء لا يمكن التراجع عنه" %}</p>
+    </div>
+
+    <!-- Delete Confirmation Card -->
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trash"></i> {% trans "حذف عرض السعر" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="warning-box p-3 mb-4 rounded">
+                        <h5 class="mb-2">
+                            <i class="fas fa-exclamation-circle"></i> {% trans "تحذير" %}
+                        </h5>
+                        <p class="mb-0">
+                            {% trans "هل أنت متأكد من أنك تريد حذف عرض السعر هذا؟ سيتم حذف جميع البيانات المرتبطة به بشكل دائم." %}
+                        </p>
+                    </div>
+
+                    <!-- Quotation Details -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">{% trans "تفاصيل عرض السعر:" %}</h6>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th style="width: 30%;">{% trans "رقم العرض" %}</th>
+                                <td>{{ object.number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "طلب عرض السعر" %}</th>
+                                <td>
+                                    <a href="{% url 'purchases:rfq_detail' object.rfq.pk %}">{{ object.rfq.number }}</a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "المورد" %}</th>
+                                <td>{{ object.supplier.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "التاريخ" %}</th>
+                                <td>{{ object.date|date:"Y-m-d" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الإجمالي" %}</th>
+                                <td class="fw-bold">{{ object.total_amount|floatformat:3 }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "عدد الأصناف" %}</th>
+                                <td>{{ object.items.count }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "الحالة" %}</th>
+                                <td>
+                                    {% if object.status == 'draft' %}
+                                        <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                                    {% elif object.status == 'received' %}
+                                        <span class="badge bg-info">{% trans "مستلم" %}</span>
+                                    {% elif object.status == 'evaluated' %}
+                                        <span class="badge bg-warning text-dark">{% trans "تم التقييم" %}</span>
+                                    {% elif object.status == 'awarded' %}
+                                        <span class="badge bg-success">{% trans "فائز" %}</span>
+                                    {% elif object.status == 'rejected' %}
+                                        <span class="badge bg-danger">{% trans "مرفوض" %}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if object.score %}
+                            <tr>
+                                <th>{% trans "التقييم" %}</th>
+                                <td>
+                                    <span class="badge bg-info">{{ object.score }}/100</span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+
+                    <!-- Delete Form -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between gap-2">
+                            <a href="{% url 'purchases:quotation_detail' object.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-right"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> {% trans "تأكيد الحذف" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('form').on('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد تماماً من حذف عرض السعر؟" %}')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,318 @@
+{# apps/purchases/templates/purchases/requests/request_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-file-alt text-primary"></i>
+            {% trans "طلب شراء رقم" %} {{ request_obj.number }}
+        </h2>
+        <div>
+            {% if can_edit %}
+            <a href="{% url 'purchases:request_update' request_obj.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+
+            {% if can_submit %}
+            <a href="{% url 'purchases:submit_request' request_obj.pk %}" class="btn btn-info">
+                <i class="fas fa-paper-plane"></i> {% trans "تقديم الطلب" %}
+            </a>
+            {% endif %}
+
+            {% if can_approve %}
+            <a href="{% url 'purchases:approve_request' request_obj.pk %}" class="btn btn-success">
+                <i class="fas fa-check-circle"></i> {% trans "اعتماد" %}
+            </a>
+            {% endif %}
+
+            {% if can_reject %}
+            <a href="{% url 'purchases:reject_request' request_obj.pk %}" class="btn btn-danger">
+                <i class="fas fa-times-circle"></i> {% trans "رفض" %}
+            </a>
+            {% endif %}
+
+            {% if can_create_order %}
+            <a href="{% url 'purchases:create_order_from_request' request_obj.pk %}" class="btn btn-primary">
+                <i class="fas fa-shopping-cart"></i> {% trans "إنشاء أمر شراء" %}
+            </a>
+            {% endif %}
+
+            {% if can_delete %}
+            <a href="{% url 'purchases:request_delete' request_obj.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+
+            <a href="{% url 'purchases:request_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Request Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الطلب" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم الطلب:" %}</strong> {{ request_obj.number }}</p>
+                            <p><strong>{% trans "التاريخ:" %}</strong> {{ request_obj.date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "طلب بواسطة:" %}</strong> {{ request_obj.requested_by.get_full_name }}</p>
+                            <p><strong>{% trans "القسم:" %}</strong> {{ request_obj.department|default:"-" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>{% trans "التاريخ المطلوب:" %}</strong>
+                                {% if request_obj.required_date %}
+                                    {{ request_obj.required_date|date:"Y-m-d" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                            <p><strong>{% trans "الفرع:" %}</strong> {{ request_obj.branch.name }}</p>
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                {% if request_obj.status == 'draft' %}
+                                    <span class="badge bg-secondary fs-6">{% trans "مسودة" %}</span>
+                                {% elif request_obj.status == 'submitted' %}
+                                    <span class="badge bg-warning fs-6">{% trans "مقدم" %}</span>
+                                {% elif request_obj.status == 'approved' %}
+                                    <span class="badge bg-success fs-6">{% trans "معتمد" %}</span>
+                                {% elif request_obj.status == 'rejected' %}
+                                    <span class="badge bg-danger fs-6">{% trans "مرفوض" %}</span>
+                                {% elif request_obj.status == 'ordered' %}
+                                    <span class="badge bg-dark fs-6">{% trans "تم الطلب" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    {% if request_obj.purpose %}
+                    <hr>
+                    <p><strong>{% trans "الغرض:" %}</strong></p>
+                    <p class="mb-0">{{ request_obj.purpose|linebreaks }}</p>
+                    {% endif %}
+
+                    {% if request_obj.notes %}
+                    <hr>
+                    <p><strong>{% trans "ملاحظات:" %}</strong></p>
+                    <p class="mb-0">{{ request_obj.notes|linebreaks }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Request Items Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "أصناف الطلب" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "البيان" %}</th>
+                                    <th class="text-center">{% trans "الكمية" %}</th>
+                                    <th class="text-center">{% trans "الوحدة" %}</th>
+                                    <th>{% trans "السبب" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in request_obj.lines.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        {{ line.item.name }}
+                                        {% if line.item_variant %}
+                                            <br><small class="text-muted">{{ line.item_variant.name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ line.description|default:"-" }}</td>
+                                    <td class="text-center">{{ line.quantity|floatformat:3 }}</td>
+                                    <td class="text-center">{{ line.unit.symbol }}</td>
+                                    <td>{{ line.reason|default:"-" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Related Orders -->
+            {% if related_orders %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-shopping-cart"></i> {% trans "أوامر الشراء المرتبطة" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "رقم الأمر" %}</th>
+                                    <th>{% trans "التاريخ" %}</th>
+                                    <th>{% trans "المورد" %}</th>
+                                    <th>{% trans "الإجمالي" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in related_orders %}
+                                <tr>
+                                    <td>{{ order.number }}</td>
+                                    <td>{{ order.date|date:"Y-m-d" }}</td>
+                                    <td>{{ order.supplier.name }}</td>
+                                    <td>{{ order.total_with_tax|floatformat:3 }}</td>
+                                    <td>
+                                        {% if order.status == 'draft' %}
+                                            <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                                        {% elif order.status == 'pending_approval' %}
+                                            <span class="badge bg-warning">{% trans "بانتظار الموافقة" %}</span>
+                                        {% elif order.status == 'approved' %}
+                                            <span class="badge bg-success">{% trans "معتمد" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-info">{{ order.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'purchases:order_detail' order.pk %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> {% trans "عرض" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Summary Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "ملخص الطلب" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "عدد الأصناف:" %}</span>
+                        <strong>{{ request_obj.lines.count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الحالة:" %}</span>
+                        <span>
+                            {% if request_obj.status == 'draft' %}
+                                <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                            {% elif request_obj.status == 'submitted' %}
+                                <span class="badge bg-warning">{% trans "مقدم" %}</span>
+                            {% elif request_obj.status == 'approved' %}
+                                <span class="badge bg-success">{% trans "معتمد" %}</span>
+                            {% elif request_obj.status == 'rejected' %}
+                                <span class="badge bg-danger">{% trans "مرفوض" %}</span>
+                            {% elif request_obj.status == 'ordered' %}
+                                <span class="badge bg-dark">{% trans "تم الطلب" %}</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-user me-1"></i>
+                        طلب بواسطة: {{ request_obj.requested_by.get_full_name }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        تاريخ الطلب: {{ request_obj.date|date:"Y-m-d" }}
+                    </small>
+                    {% if request_obj.required_date %}
+                    <small class="text-muted d-block">
+                        <i class="fas fa-clock me-1"></i>
+                        مطلوب في: {{ request_obj.required_date|date:"Y-m-d" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-cog"></i> {% trans "الإجراءات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i> {% trans "طباعة" %}
+                        </button>
+
+                        {% if can_edit %}
+                        <a href="{% url 'purchases:request_update' request_obj.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit me-1"></i> {% trans "تعديل" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_submit %}
+                        <a href="{% url 'purchases:submit_request' request_obj.pk %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i> {% trans "تقديم الطلب" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_approve %}
+                        <a href="{% url 'purchases:approve_request' request_obj.pk %}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-check-circle me-1"></i> {% trans "اعتماد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_reject %}
+                        <a href="{% url 'purchases:reject_request' request_obj.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-times-circle me-1"></i> {% trans "رفض" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_create_order %}
+                        <a href="{% url 'purchases:create_order_from_request' request_obj.pk %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-shopping-cart me-1"></i> {% trans "إنشاء أمر شراء" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_delete %}
+                        <a href="{% url 'purchases:request_delete' request_obj.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash me-1"></i> {% trans "حذف" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

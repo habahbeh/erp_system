@@ -1328,6 +1328,12 @@ class Item(BaseModel):
         ordering = ['name']
         unique_together = [['code', 'company'], ['barcode', 'company']]
 
+    def __str__(self):
+        """عرض اسم المادة"""
+        if self.code:
+            return f"{self.code} - {self.name}"
+        return self.name
+
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_code()

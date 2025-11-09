@@ -1,0 +1,410 @@
+{# apps/purchases/templates/purchases/orders/order_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-file-invoice text-primary"></i>
+            {% trans "أمر شراء رقم" %} {{ order.number }}
+        </h2>
+        <div>
+            {% if can_edit %}
+            <a href="{% url 'purchases:order_update' order.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+
+            {% if order.status == 'draft' %}
+            <a href="{% url 'purchases:submit_for_approval' order.pk %}" class="btn btn-info">
+                <i class="fas fa-paper-plane"></i> {% trans "إرسال للاعتماد" %}
+            </a>
+            {% endif %}
+
+            {% if can_approve %}
+            <a href="{% url 'purchases:approve_order' order.pk %}" class="btn btn-success">
+                <i class="fas fa-check-circle"></i> {% trans "اعتماد" %}
+            </a>
+            {% endif %}
+
+            {% if can_reject %}
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                <i class="fas fa-times-circle"></i> {% trans "رفض" %}
+            </button>
+            {% endif %}
+
+            {% if can_send %}
+            <a href="{% url 'purchases:send_to_supplier' order.pk %}" class="btn btn-info">
+                <i class="fas fa-paper-plane"></i> {% trans "إرسال للمورد" %}
+            </a>
+            {% endif %}
+
+            {% if can_convert %}
+            <a href="{% url 'purchases:convert_to_invoice' order.pk %}" class="btn btn-primary">
+                <i class="fas fa-exchange-alt"></i> {% trans "تحويل لفاتورة" %}
+            </a>
+            {% endif %}
+
+            {% if order.status not in 'completed,cancelled' %}
+            <a href="{% url 'purchases:cancel_order' order.pk %}" class="btn btn-secondary">
+                <i class="fas fa-ban"></i> {% trans "إلغاء الأمر" %}
+            </a>
+            {% endif %}
+
+            {% if can_delete %}
+            <a href="{% url 'purchases:order_delete' order.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+
+            <a href="{% url 'purchases:order_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Order Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الأمر" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم الأمر:" %}</strong> {{ order.number }}</p>
+                            <p><strong>{% trans "التاريخ:" %}</strong> {{ order.date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "المورد:" %}</strong> {{ order.supplier.name }}</p>
+                            <p><strong>{% trans "العملة:" %}</strong> {{ order.currency.code }}</p>
+                            {% if order.purchase_request %}
+                            <p><strong>{% trans "طلب الشراء:" %}</strong>
+                                <a href="{% url 'purchases:request_detail' order.purchase_request.pk %}">
+                                    {{ order.purchase_request.number }}
+                                </a>
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>{% trans "تاريخ التسليم المتوقع:" %}</strong>
+                                {% if order.expected_delivery_date %}
+                                    {{ order.expected_delivery_date|date:"Y-m-d" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                            <p><strong>{% trans "الفرع:" %}</strong> {{ order.branch.name }}</p>
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                {% if order.status == 'draft' %}
+                                    <span class="badge bg-secondary fs-6">{% trans "مسودة" %}</span>
+                                {% elif order.status == 'pending_approval' %}
+                                    <span class="badge bg-warning fs-6">{% trans "بانتظار الموافقة" %}</span>
+                                {% elif order.status == 'approved' %}
+                                    <span class="badge bg-success fs-6">{% trans "معتمد" %}</span>
+                                {% elif order.status == 'rejected' %}
+                                    <span class="badge bg-danger fs-6">{% trans "مرفوض" %}</span>
+                                {% elif order.status == 'sent' %}
+                                    <span class="badge bg-info fs-6">{% trans "مرسل" %}</span>
+                                {% elif order.status == 'partial' %}
+                                    <span class="badge bg-primary fs-6">{% trans "استلام جزئي" %}</span>
+                                {% elif order.status == 'completed' %}
+                                    <span class="badge bg-dark fs-6">{% trans "مكتمل" %}</span>
+                                {% elif order.status == 'cancelled' %}
+                                    <span class="badge bg-danger fs-6">{% trans "ملغي" %}</span>
+                                {% endif %}
+                            </p>
+                            {% if order.approved_by %}
+                            <p><strong>{% trans "اعتمد بواسطة:" %}</strong> {{ order.approved_by.get_full_name }}</p>
+                            <p><strong>{% trans "تاريخ الاعتماد:" %}</strong> {{ order.approved_date|date:"Y-m-d H:i" }}</p>
+                            {% endif %}
+                            {% if order.rejected_by %}
+                            <p><strong>{% trans "رفض بواسطة:" %}</strong> {{ order.rejected_by.get_full_name }}</p>
+                            <p><strong>{% trans "تاريخ الرفض:" %}</strong> {{ order.rejected_date|date:"Y-m-d H:i" }}</p>
+                            {% if order.rejection_reason %}
+                            <p><strong>{% trans "سبب الرفض:" %}</strong> {{ order.rejection_reason }}</p>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if order.notes %}
+                    <hr>
+                    <p><strong>{% trans "ملاحظات:" %}</strong></p>
+                    <p class="mb-0">{{ order.notes|linebreaks }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Order Items Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "أصناف الأمر" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "البيان" %}</th>
+                                    <th class="text-center">{% trans "الكمية" %}</th>
+                                    <th class="text-center">{% trans "الوحدة" %}</th>
+                                    <th class="text-end">{% trans "سعر الوحدة" %}</th>
+                                    <th class="text-end">{% trans "الخصم" %}</th>
+                                    <th class="text-end">{% trans "الضريبة" %}</th>
+                                    <th class="text-end">{% trans "الإجمالي" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in order.lines.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        {{ line.item.name }}
+                                        {% if line.item_variant %}
+                                            <br><small class="text-muted">{{ line.item_variant.name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ line.description|default:"-" }}</td>
+                                    <td class="text-center">{{ line.quantity|floatformat:3 }}</td>
+                                    <td class="text-center">{{ line.unit.symbol }}</td>
+                                    <td class="text-end">{{ line.unit_price|floatformat:3 }}</td>
+                                    <td class="text-end">
+                                        {{ line.discount_amount|floatformat:3 }}
+                                        {% if line.discount_percentage %}
+                                            <br><small class="text-muted">({{ line.discount_percentage }}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {{ line.tax_amount|floatformat:3 }}
+                                        {% if line.tax_rate %}
+                                            <br><small class="text-muted">({{ line.tax_rate }}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ line.total_amount|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "المجموع الفرعي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ order.subtotal|floatformat:3 }}</strong></td>
+                                </tr>
+                                {% if order.discount_amount > 0 %}
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "الخصم الإجمالي:" %}</strong></td>
+                                    <td class="text-end text-danger"><strong>{{ order.discount_amount|floatformat:3 }}</strong></td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "إجمالي الضريبة:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ order.tax_amount|floatformat:3 }}</strong></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td colspan="8" class="text-end"><strong>{% trans "الإجمالي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ order.total_with_tax|floatformat:3 }} {{ order.currency.code }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoice Status -->
+            {% if order.is_invoiced %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-invoice"></i> {% trans "حالة الفاتورة" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم تحويل هذا الأمر إلى فاتورة مشتريات" %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Summary Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-calculator"></i> {% trans "ملخص الأمر" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "عدد الأصناف:" %}</span>
+                        <strong>{{ order.lines.count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "المجموع الفرعي:" %}</span>
+                        <span>{{ order.subtotal|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الخصم:" %}</span>
+                        <span class="text-danger">{{ order.discount_amount|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الضريبة:" %}</span>
+                        <span>{{ order.tax_amount|floatformat:3 }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <strong>{% trans "الإجمالي:" %}</strong>
+                        <strong class="text-primary">{{ order.total_with_tax|floatformat:3 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الحالة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الحالة:" %}</strong>
+                        {% if order.status == 'draft' %}
+                            <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                        {% elif order.status == 'pending_approval' %}
+                            <span class="badge bg-warning">{% trans "بانتظار الموافقة" %}</span>
+                        {% elif order.status == 'approved' %}
+                            <span class="badge bg-success">{% trans "معتمد" %}</span>
+                        {% elif order.status == 'rejected' %}
+                            <span class="badge bg-danger">{% trans "مرفوض" %}</span>
+                        {% elif order.status == 'sent' %}
+                            <span class="badge bg-info">{% trans "مرسل" %}</span>
+                        {% elif order.status == 'partial' %}
+                            <span class="badge bg-primary">{% trans "استلام جزئي" %}</span>
+                        {% elif order.status == 'completed' %}
+                            <span class="badge bg-dark">{% trans "مكتمل" %}</span>
+                        {% elif order.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% trans "ملغي" %}</span>
+                        {% endif %}
+                    </p>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-user me-1"></i>
+                        أنشئ بواسطة: {{ order.created_by.get_full_name }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        تاريخ الإنشاء: {{ order.created_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% if order.updated_at != order.created_at %}
+                    <small class="text-muted d-block">
+                        <i class="fas fa-edit me-1"></i>
+                        آخر تحديث: {{ order.updated_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-cog"></i> {% trans "الإجراءات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i> {% trans "طباعة" %}
+                        </button>
+
+                        {% if can_edit %}
+                        <a href="{% url 'purchases:order_update' order.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit me-1"></i> {% trans "تعديل" %}
+                        </a>
+                        {% endif %}
+
+                        {% if order.status == 'draft' %}
+                        <a href="{% url 'purchases:submit_for_approval' order.pk %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i> {% trans "إرسال للاعتماد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_approve %}
+                        <a href="{% url 'purchases:approve_order' order.pk %}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-check-circle me-1"></i> {% trans "اعتماد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_reject %}
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                            <i class="fas fa-times-circle me-1"></i> {% trans "رفض" %}
+                        </button>
+                        {% endif %}
+
+                        {% if can_send %}
+                        <a href="{% url 'purchases:send_to_supplier' order.pk %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i> {% trans "إرسال للمورد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_convert %}
+                        <a href="{% url 'purchases:convert_to_invoice' order.pk %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-exchange-alt me-1"></i> {% trans "تحويل لفاتورة" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_delete %}
+                        <a href="{% url 'purchases:order_delete' order.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash me-1"></i> {% trans "حذف" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+{% if can_reject %}
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'purchases:reject_order' order.pk %}">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="rejectModalLabel">{% trans "رفض أمر الشراء" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="rejection_reason" class="form-label">{% trans "سبب الرفض" %}</label>
+                        <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "إلغاء" %}</button>
+                    <button type="submit" class="btn btn-danger">{% trans "رفض الأمر" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

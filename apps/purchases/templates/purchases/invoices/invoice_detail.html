@@ -1,0 +1,320 @@
+{# apps/purchases/templates/purchases/invoices/invoice_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-file-invoice text-primary"></i>
+            {% trans "فاتورة رقم" %} {{ invoice.number }}
+        </h2>
+        <div>
+            {% if can_edit and not invoice.is_posted %}
+            <a href="{% url 'purchases:invoice_update' invoice.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            
+            {% if can_post and not invoice.is_posted %}
+            <a href="{% url 'purchases:post_invoice' invoice.pk %}" class="btn btn-success">
+                <i class="fas fa-check-circle"></i> {% trans "ترحيل" %}
+            </a>
+            {% endif %}
+
+            {% if can_unpost and invoice.is_posted %}
+            <a href="{% url 'purchases:unpost_invoice' invoice.pk %}" class="btn btn-warning">
+                <i class="fas fa-undo"></i> {% trans "إلغاء الترحيل" %}
+            </a>
+            {% endif %}
+            
+            {% if can_delete and not invoice.is_posted %}
+            <a href="{% url 'purchases:invoice_delete' invoice.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            
+            <a href="{% url 'purchases:invoice_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Invoice Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الفاتورة" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم الفاتورة:" %}</strong> {{ invoice.number }}</p>
+                            <p><strong>{% trans "نوع الفاتورة:" %}</strong> {{ invoice.get_invoice_type_display }}</p>
+                            <p><strong>{% trans "التاريخ:" %}</strong> {{ invoice.date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "المورد:" %}</strong> {{ invoice.supplier.name }}</p>
+                            <p><strong>{% trans "المستودع:" %}</strong> {{ invoice.warehouse.name }}</p>
+                            <p><strong>{% trans "طريقة الدفع:" %}</strong> {{ invoice.payment_method.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>{% trans "تاريخ الاستلام:" %}</strong> {{ invoice.receipt_date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "رقم الإيصال:" %}</strong> {{ invoice.receipt_number }}</p>
+                            {% if invoice.supplier_invoice_number %}
+                            <p><strong>{% trans "رقم فاتورة المورد:" %}</strong> {{ invoice.supplier_invoice_number }}</p>
+                            {% endif %}
+                            {% if invoice.supplier_invoice_date %}
+                            <p><strong>{% trans "تاريخ فاتورة المورد:" %}</strong> {{ invoice.supplier_invoice_date|date:"Y-m-d" }}</p>
+                            {% endif %}
+                            <p><strong>{% trans "العملة:" %}</strong> {{ invoice.currency.code }}</p>
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                {% if invoice.is_posted %}
+                                    <span class="badge bg-success fs-6">{% trans "مرحلة" %}</span>
+                                {% else %}
+                                    <span class="badge bg-warning fs-6">{% trans "مسودة" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if invoice.notes %}
+                    <hr>
+                    <p><strong>{% trans "ملاحظات:" %}</strong></p>
+                    <p class="mb-0">{{ invoice.notes|linebreaks }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Invoice Items Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "أصناف الفاتورة" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "البيان" %}</th>
+                                    <th class="text-center">{% trans "الكمية" %}</th>
+                                    <th class="text-center">{% trans "الوحدة" %}</th>
+                                    <th class="text-end">{% trans "سعر الوحدة" %}</th>
+                                    <th class="text-end">{% trans "الخصم" %}</th>
+                                    <th class="text-end">{% trans "الضريبة" %}</th>
+                                    <th class="text-end">{% trans "الإجمالي" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in invoice.items.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        {{ item.item.name }}
+                                        {% if item.item_variant %}
+                                            <br><small class="text-muted">{{ item.item_variant.name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.description|default:"-" }}</td>
+                                    <td class="text-center">{{ item.quantity|floatformat:3 }}</td>
+                                    <td class="text-center">{{ item.unit.symbol }}</td>
+                                    <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
+                                    <td class="text-end">
+                                        {{ item.discount_amount|floatformat:3 }}
+                                        {% if item.discount_percentage %}
+                                            <br><small class="text-muted">({{ item.discount_percentage }}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {{ item.tax_amount|floatformat:3 }}
+                                        {% if item.tax_rate %}
+                                            <br><small class="text-muted">({{ item.tax_rate }}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ item.total_amount|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "المجموع الفرعي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.subtotal|floatformat:3 }}</strong></td>
+                                </tr>
+                                {% if invoice.discount_amount > 0 %}
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "الخصم الإجمالي:" %}</strong></td>
+                                    <td class="text-end text-danger"><strong>{{ invoice.discount_amount|floatformat:3 }}</strong></td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "إجمالي الضريبة:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.tax_amount|floatformat:3 }}</strong></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td colspan="8" class="text-end"><strong>{% trans "الإجمالي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.total_amount|floatformat:3 }} {{ invoice.currency.code }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accounting Entry -->
+            {% if invoice.is_posted and invoice.journal_entry %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-book"></i> {% trans "القيد المحاسبي" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "رقم القيد:" %}</strong> 
+                        <a href="{% url 'accounting:journal_entry_detail' invoice.journal_entry.pk %}">
+                            {{ invoice.journal_entry.entry_number }}
+                        </a>
+                    </p>
+                    <p><strong>{% trans "التاريخ:" %}</strong> {{ invoice.journal_entry.date|date:"Y-m-d" }}</p>
+                    <p class="mb-0"><strong>{% trans "البيان:" %}</strong> {{ invoice.journal_entry.description }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Summary Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-calculator"></i> {% trans "ملخص الفاتورة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "عدد الأصناف:" %}</span>
+                        <strong>{{ invoice.items.count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "إجمالي الكمية:" %}</span>
+                        <strong>{{ invoice.total_quantity|floatformat:3 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "المجموع الفرعي:" %}</span>
+                        <span>{{ invoice.subtotal|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الخصم:" %}</span>
+                        <span class="text-danger">{{ invoice.discount_amount|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الضريبة:" %}</span>
+                        <span>{{ invoice.tax_amount|floatformat:3 }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <strong>{% trans "الإجمالي:" %}</strong>
+                        <strong class="text-primary">{{ invoice.total_amount|floatformat:3 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الحالة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الحالة:" %}</strong>
+                        {% if invoice.is_posted %}
+                            <span class="badge bg-success">{% trans "مرحلة" %}</span>
+                        {% else %}
+                            <span class="badge bg-warning">{% trans "مسودة" %}</span>
+                        {% endif %}
+                    </p>
+                    {% if invoice.is_posted %}
+                    <p><strong>{% trans "تاريخ الترحيل:" %}</strong> {{ invoice.posted_at|date:"Y-m-d H:i" }}</p>
+                    <p><strong>{% trans "تم الترحيل بواسطة:" %}</strong> {{ invoice.posted_by.get_full_name }}</p>
+                    {% endif %}
+                    {% if invoice.stock_in %}
+                    <p><strong>{% trans "رقم إذن الإدخال:" %}</strong>
+                        <a href="{% url 'inventory:stock_in_detail' invoice.stock_in.pk %}">
+                            {{ invoice.stock_in.number }}
+                        </a>
+                    </p>
+                    {% endif %}
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-user me-1"></i>
+                        أنشئ بواسطة: {{ invoice.created_by.get_full_name }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        تاريخ الإنشاء: {{ invoice.created_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% if invoice.updated_at != invoice.created_at %}
+                    <small class="text-muted d-block">
+                        <i class="fas fa-edit me-1"></i>
+                        آخر تحديث: {{ invoice.updated_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-cog"></i> {% trans "الإجراءات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i> {% trans "طباعة" %}
+                        </button>
+                        
+                        {% if can_edit and not invoice.is_posted %}
+                        <a href="{% url 'purchases:invoice_update' invoice.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit me-1"></i> {% trans "تعديل" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if can_post and not invoice.is_posted %}
+                        <a href="{% url 'purchases:post_invoice' invoice.pk %}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-check-circle me-1"></i> {% trans "ترحيل" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_unpost and invoice.is_posted %}
+                        <a href="{% url 'purchases:unpost_invoice' invoice.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-undo me-1"></i> {% trans "إلغاء الترحيل" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if can_delete and not invoice.is_posted %}
+                        <a href="{% url 'purchases:invoice_delete' invoice.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash me-1"></i> {% trans "حذف" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

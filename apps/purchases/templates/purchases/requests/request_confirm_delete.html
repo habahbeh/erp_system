@@ -1,0 +1,96 @@
+{# apps/purchases/templates/purchases/requests/request_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "حذف طلب شراء" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">{% trans "الرئيسية" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'purchases:request_list' %}">{% trans "طلبات الشراء" %}</a></li>
+            <li class="breadcrumb-item active">{% trans "حذف طلب" %}</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "تأكيد حذف طلب الشراء" %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>{% trans "تحذير:" %}</strong>
+                        {% trans "هذا الإجراء لا يمكن التراجع عنه!" %}
+                    </div>
+
+                    <h5 class="mb-3">{% trans "هل أنت متأكد من حذف طلب الشراء التالي؟" %}</h5>
+
+                    <!-- Request Info -->
+                    <div class="card bg-light mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "رقم الطلب:" %}</strong> {{ object.number }}</p>
+                                    <p><strong>{% trans "التاريخ:" %}</strong> {{ object.date|date:"Y-m-d" }}</p>
+                                    <p><strong>{% trans "طلب بواسطة:" %}</strong> {{ object.requested_by.get_full_name }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "القسم:" %}</strong> {{ object.department|default:"-" }}</p>
+                                    <p><strong>{% trans "التاريخ المطلوب:" %}</strong>
+                                        {% if object.required_date %}
+                                            {{ object.required_date|date:"Y-m-d" }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </p>
+                                    <p><strong>{% trans "الحالة:" %}</strong>
+                                        {% if object.status == 'draft' %}
+                                            <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">{{ object.get_status_display }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <hr>
+                            <p class="mb-0"><strong>{% trans "عدد الأصناف:" %}</strong> {{ object.lines.count }}</p>
+                            {% if object.purpose %}
+                            <p class="mb-0"><strong>{% trans "الغرض:" %}</strong> {{ object.purpose|truncatewords:20 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if object.status != 'draft' %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-ban me-2"></i>
+                        <strong>{% trans "خطأ:" %}</strong>
+                        {% trans "لا يمكن حذف طلب الشراء إلا في حالة مسودة." %}
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'purchases:request_detail' object.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-1"></i> {% trans "نعم، احذف الطلب" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

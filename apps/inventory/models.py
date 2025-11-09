@@ -285,8 +285,21 @@ class StockIn(StockDocument):
         inventory_accounts = defaultdict(lambda: {'debit': 0, 'items': []})
 
         for line in self.lines.all():
+            # Skip lines without items
+            if not line.item:
+                continue
+
             # حساب المخزون من المادة
-            inventory_account = line.item.inventory_account
+            inventory_account = line.item.inventory_account if hasattr(line.item, 'inventory_account') else None
+
+            # إذا لم يكن للمادة حساب مخزون، استخدم الحساب الافتراضي
+            if not inventory_account:
+                from apps.accounting.models import Account
+                try:
+                    inventory_account = Account.objects.get(company=self.company, code='120000')
+                except Account.DoesNotExist:
+                    continue
+
             if inventory_account:
                 inventory_accounts[inventory_account]['debit'] += line.total_cost
                 inventory_accounts[inventory_account]['items'].append(line.item.name)
@@ -308,13 +321,23 @@ class StockIn(StockDocument):
         # الطرف الدائن (حسب المصدر)
         if self.source_type == 'purchase' and self.supplier:
             # حساب المورد (دائن)
-            try:
-                from apps.core.models import Account
-                supplier_account = Account.objects.get(
-                    company=self.company,
-                    code='210100'  # مثال: حساب الموردين
-                )
+            from apps.accounting.models import Account
 
+            # محاولة الحصول على حساب المورد
+            supplier_account = None
+            if hasattr(self.supplier, 'supplier_account') and self.supplier.supplier_account:
+                supplier_account = self.supplier.supplier_account
+            else:
+                # استخدام حساب الموردين الافتراضي
+                try:
+                    supplier_account = Account.objects.get(
+                        company=self.company,
+                        code='210000'
+                    )
+                except Account.DoesNotExist:
+                    pass
+
+            if supplier_account:
                 JournalEntryLine.objects.create(
                     journal_entry=journal_entry,
                     line_number=line_number,
@@ -327,8 +350,6 @@ class StockIn(StockDocument):
                     partner_type='supplier',
                     partner_id=self.supplier.pk
                 )
-            except:
-                pass
 
         # ترحيل القيد
         journal_entry.post(user=user)
@@ -436,15 +457,15 @@ class StockOut(StockDocument):
         related_name='stock_outs'
     )
 
-    # فاتورة المبيعات المرتبطة
-    sales_invoice = models.ForeignKey(
-        'sales.SalesInvoice',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('فاتورة المبيعات'),
-        related_name='stock_outs'
-    )
+    # فاتورة المبيعات المرتبطة (معطل مؤقتاً - تطبيق المبيعات غير مفعل)
+    # sales_invoice = models.ForeignKey(
+    #     'sales.SalesInvoice',
+    #     on_delete=models.SET_NULL,
+    #     null=True,
+    #     blank=True,
+    #     verbose_name=_('فاتورة المبيعات'),
+    #     related_name='stock_outs'
+    # )
 
     # القيد المحاسبي
     journal_entry = models.ForeignKey(
@@ -616,18 +637,22 @@ class StockOut(StockDocument):
         inventory_accounts = defaultdict(lambda: {'credit': 0})
 
         for line in self.lines.all():
+            # Skip lines without items
+            if not line.item:
+                continue
+
             # حساب تكلفة البضاعة المباعة أو المصروف
             if self.destination_type == 'sales':
-                cost_account = line.item.cost_of_goods_account
+                cost_account = line.item.cost_of_goods_account if hasattr(line.item, 'cost_of_goods_account') else None
             else:
-                cost_account = line.item.inventory_account
+                cost_account = line.item.inventory_account if hasattr(line.item, 'inventory_account') else None
 
             if cost_account:
                 cost_accounts[cost_account]['debit'] += line.total_cost
                 cost_accounts[cost_account]['items'].append(line.item.name)
 
             # حساب المخزون (دائن)
-            inventory_account = line.item.inventory_account
+            inventory_account = line.item.inventory_account if hasattr(line.item, 'inventory_account') else None
             if inventory_account:
                 inventory_accounts[inventory_account]['credit'] += line.total_cost
 
@@ -1447,7 +1472,7 @@ class StockCount(BaseModel):
         User,
         on_delete=models.PROTECT,
         verbose_name=_('المشرف'),
-        related_name='supervised_counts'
+        related_name='inventory_supervised_counts'
     )
 
     # الحالة

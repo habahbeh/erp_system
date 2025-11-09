@@ -6,10 +6,12 @@
 
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError, PermissionDenied
 from decimal import Decimal
-from apps.core.models import BaseModel, DocumentBaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod
-from apps.accounting.models import Account, Currency, JournalEntry
+from apps.core.models import BaseModel, DocumentBaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod, Currency, ItemVariant
+from apps.accounting.models import Account, JournalEntry
 
 class PurchaseInvoice(DocumentBaseModel):
     """فواتير المشتريات"""
@@ -218,6 +220,17 @@ class PurchaseInvoice(DocumentBaseModel):
         verbose_name=_('الفاتورة الأصلية')
     )
 
+    # ربط بمحضر الاستلام (3-way matching)
+    goods_receipt = models.ForeignKey(
+        'GoodsReceipt',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('محضر الاستلام'),
+        related_name='invoices',
+        help_text=_('مطابقة ثلاثية: أمر الشراء ← محضر الاستلام ← الفاتورة')
+    )
+
     notes = models.TextField(
         _('ملاحظات'),
         blank=True
@@ -274,7 +287,7 @@ class PurchaseInvoice(DocumentBaseModel):
 
     @transaction.atomic
     def post(self, user=None):
-        """ترحيل الفاتورة وإنشاء سند إدخال وقيد محاسبي"""
+        """ترحيل الفاتورة وإنشاء قيد محاسبي (مع المطابقة الثلاثية)"""
         from django.utils import timezone
         from apps.inventory.models import StockIn, StockDocumentLine
         from apps.accounting.models import JournalEntry, JournalEntryLine, FiscalYear, AccountingPeriod
@@ -285,34 +298,74 @@ class PurchaseInvoice(DocumentBaseModel):
         if not self.lines.exists():
             raise ValidationError(_('لا توجد سطور في الفاتورة'))
 
-        # 1. إنشاء سند الإدخال
-        stock_in = StockIn.objects.create(
-            company=self.company,
-            branch=self.branch,
-            date=self.date,
-            warehouse=self.warehouse,
-            source_type='purchase',
-            supplier=self.supplier,
-            purchase_invoice=self,
-            reference=self.number,
-            notes=f"إدخال لفاتورة مشتريات {self.number}",
-            created_by=user or self.created_by
-        )
+        # ==================== المطابقة الثلاثية (3-Way Matching) ====================
+        # إذا كان هناك محضر استلام، نستخدم سند الإدخال الموجود
+        # إذا لم يكن هناك محضر استلام، نُنشئ سند إدخال جديد (للتوافق مع العمليات القديمة)
 
-        # 2. نسخ سطور الفاتورة لسند الإدخال
-        for invoice_line in self.lines.all():
-            StockDocumentLine.objects.create(
-                stock_in=stock_in,
-                item=invoice_line.item,
-                item_variant=invoice_line.item_variant,
-                quantity=invoice_line.quantity,
-                unit_cost=invoice_line.unit_price,
-                batch_number=invoice_line.batch_number,
-                expiry_date=invoice_line.expiry_date
+        if self.goods_receipt:
+            # التحقق من أن محضر الاستلام مؤكد ومرحل
+            if not self.goods_receipt.is_posted:
+                raise ValidationError(_('يجب ترحيل محضر الاستلام قبل ترحيل الفاتورة'))
+
+            # التحقق من المطابقة بين كميات الفاتورة ومحضر الاستلام
+            for invoice_line in self.lines.all():
+                gr_line = self.goods_receipt.lines.filter(
+                    item=invoice_line.item,
+                    item_variant=invoice_line.item_variant
+                ).first()
+
+                if not gr_line:
+                    raise ValidationError(
+                        _('المادة %(item)s غير موجودة في محضر الاستلام') % {'item': invoice_line.item.name}
+                    )
+
+                if invoice_line.quantity > gr_line.received_quantity:
+                    raise ValidationError(
+                        _('كمية الفاتورة (%(invoice_qty)s) للمادة %(item)s تتجاوز الكمية المستلمة (%(received_qty)s)') % {
+                            'invoice_qty': invoice_line.quantity,
+                            'item': invoice_line.item.name,
+                            'received_qty': gr_line.received_quantity
+                        }
+                    )
+
+            # استخدام سند الإدخال من محضر الاستلام
+            stock_in = self.goods_receipt.stock_in
+
+            # تحديث حالة محضر الاستلام
+            self.goods_receipt.status = 'invoiced'
+            self.goods_receipt.invoice = self
+            self.goods_receipt.save()
+
+        else:
+            # الطريقة القديمة: إنشاء سند إدخال جديد
+            # 1. إنشاء سند الإدخال
+            stock_in = StockIn.objects.create(
+                company=self.company,
+                branch=self.branch,
+                date=self.date,
+                warehouse=self.warehouse,
+                source_type='purchase',
+                supplier=self.supplier,
+                purchase_invoice=self,
+                reference=self.number,
+                notes=f"إدخال لفاتورة مشتريات {self.number}",
+                created_by=user or self.created_by
             )
 
-        # 3. ترحيل سند الإدخال (يحدث المخزون تلقائياً)
-        stock_in.post(user=user)
+            # 2. نسخ سطور الفاتورة لسند الإدخال
+            for invoice_line in self.lines.all():
+                StockDocumentLine.objects.create(
+                    stock_in=stock_in,
+                    item=invoice_line.item,
+                    item_variant=invoice_line.item_variant,
+                    quantity=invoice_line.quantity,
+                    unit_cost=invoice_line.unit_price,
+                    batch_number=invoice_line.batch_number,
+                    expiry_date=invoice_line.expiry_date
+                )
+
+            # 3. ترحيل سند الإدخال (يحدث المخزون تلقائياً)
+            stock_in.post(user=user)
 
         # 4. إنشاء القيد المحاسبي
         try:
@@ -356,9 +409,17 @@ class PurchaseInvoice(DocumentBaseModel):
         inventory_accounts = defaultdict(lambda: {'debit': 0, 'items': []})
 
         for line in self.lines.all():
-            inventory_account = line.item.inventory_account or Account.objects.get(
-                company=self.company, code='120000'
-            )
+            # Get inventory account from item or use default
+            if hasattr(line.item, 'inventory_account') and line.item.inventory_account:
+                inventory_account = line.item.inventory_account
+            else:
+                # Use expense_account from line if exists, otherwise default
+                if line.expense_account:
+                    inventory_account = line.expense_account
+                else:
+                    inventory_account = get_default_account(
+                        self.company, '120000', 'المخزون', fallback_required=True
+                    )
             inventory_accounts[inventory_account]['debit'] += line.subtotal
             inventory_accounts[inventory_account]['items'].append(line.item.name)
 
@@ -377,10 +438,10 @@ class PurchaseInvoice(DocumentBaseModel):
 
         # سطر الضريبة (مدين - قابلة للخصم)
         if self.tax_amount > 0:
-            try:
-                tax_account = Account.objects.get(
-                    company=self.company, code='120400'  # حساب الضريبة القابلة للخصم
-                )
+            tax_account = get_default_account(
+                self.company, '120400', 'ضريبة المشتريات القابلة للخصم', fallback_required=False
+            )
+            if tax_account:
                 JournalEntryLine.objects.create(
                     journal_entry=journal_entry,
                     line_number=line_number,
@@ -392,28 +453,39 @@ class PurchaseInvoice(DocumentBaseModel):
                     reference=self.number
                 )
                 line_number += 1
-            except Account.DoesNotExist:
-                pass
 
         # سطر خصم المشتريات (دائن - إذا وجد)
         if self.discount_amount > 0 and not self.discount_affects_cost:
-            discount_account = self.discount_account or Account.objects.get(
-                company=self.company, code='530000'
-            )
-            JournalEntryLine.objects.create(
-                journal_entry=journal_entry,
-                line_number=line_number,
-                account=discount_account,
-                description=f"خصم مشتريات",
-                debit_amount=0,
-                credit_amount=self.discount_amount,
-                currency=self.currency,
-                reference=self.number
-            )
-            line_number += 1
+            if self.discount_account:
+                discount_account = self.discount_account
+            else:
+                discount_account = get_default_account(
+                    self.company, '530000', 'خصم مشتريات', fallback_required=False
+                )
+
+            if discount_account:
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=discount_account,
+                    description=f"خصم مشتريات",
+                    debit_amount=0,
+                    credit_amount=self.discount_amount,
+                    currency=self.currency,
+                    reference=self.number
+                )
+                line_number += 1
 
         # سطر المورد (دائن)
-        supplier_account = self.supplier_account or self.supplier.get_account()
+        if self.supplier_account:
+            supplier_account = self.supplier_account
+        elif hasattr(self.supplier, 'supplier_account') and self.supplier.supplier_account:
+            supplier_account = self.supplier.supplier_account
+        else:
+            # Fallback to a default suppliers account
+            supplier_account = get_default_account(
+                self.company, '210000', 'الموردون', fallback_required=True
+            )
 
         JournalEntryLine.objects.create(
             journal_entry=journal_entry,
@@ -444,16 +516,24 @@ class PurchaseInvoice(DocumentBaseModel):
         if not self.is_posted:
             raise ValidationError(_('الفاتورة غير مرحلة'))
 
-        # إلغاء سند الإدخال
-        from apps.inventory.models import StockIn
-        stock_in = StockIn.objects.filter(
-            purchase_invoice=self,
-            company=self.company
-        ).first()
+        # إذا كانت الفاتورة مرتبطة بمحضر استلام، لا نحذف سند الإدخال
+        # لأنه تابع لمحضر الاستلام وليس للفاتورة
+        if self.goods_receipt:
+            # إعادة حالة محضر الاستلام إلى "مؤكد"
+            self.goods_receipt.status = 'confirmed'
+            self.goods_receipt.invoice = None
+            self.goods_receipt.save()
+        else:
+            # إلغاء سند الإدخال (الطريقة القديمة)
+            from apps.inventory.models import StockIn
+            stock_in = StockIn.objects.filter(
+                purchase_invoice=self,
+                company=self.company
+            ).first()
 
-        if stock_in:
-            stock_in.unpost()
-            stock_in.delete()
+            if stock_in:
+                stock_in.unpost()
+                stock_in.delete()
 
         # إلغاء القيد المحاسبي
         if self.journal_entry:
@@ -482,7 +562,9 @@ class PurchaseInvoiceItem(models.Model):
     item = models.ForeignKey(
         Item,
         on_delete=models.PROTECT,
-        verbose_name=_('المادة')
+        verbose_name=_('المادة'),
+        null=True,
+        blank=True
     )
 
     item_variant = models.ForeignKey(
@@ -623,14 +705,22 @@ class PurchaseInvoiceItem(models.Model):
         """التحقق من صحة البيانات"""
         super().clean()
 
+        # تنظيف item_variant - إذا كان فارغاً اجعله None
+        if self.item_variant_id == '' or self.item_variant_id is None:
+            self.item_variant = None
+
+        # تخطي التحقق إذا لم يتم تحديد مادة
+        if not self.item:
+            return
+
         # إذا كان المادة له متغيرات، يجب تحديد متغير
-        if self.item and self.item.has_variants and not self.item_variant:
+        if self.item.has_variants and not self.item_variant:
             raise ValidationError({
                 'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
             })
 
         # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
-        if self.item and not self.item.has_variants and self.item_variant:
+        if not self.item.has_variants and self.item_variant:
             raise ValidationError({
                 'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
             })
@@ -949,6 +1039,7 @@ class PurchaseOrder(BaseModel):
         from apps.purchases.models import PurchaseInvoice, PurchaseInvoiceItem
 
         # إنشاء الفاتورة
+        from django.utils import timezone
         invoice = PurchaseInvoice.objects.create(
             company=self.company,
             branch=self.branch,
@@ -961,8 +1052,9 @@ class PurchaseOrder(BaseModel):
                 is_active=True
             ).first(),
             receipt_number=f"PO-{self.number}",
+            receipt_date=timezone.now().date(),
             reference=self.number,
-            description=f"تحويل من أمر شراء {self.number}",
+            notes=f"تحويل من أمر شراء {self.number}",
             created_by=user or self.created_by
         )
 
@@ -1212,3 +1304,1431 @@ class PurchaseRequestItem(models.Model):
     class Meta:
         verbose_name = _('سطر طلب شراء')
         verbose_name_plural = _('سطور طلبات الشراء')
+
+
+class PurchaseQuotationRequest(BaseModel):
+    """طلب عروض أسعار - Request for Quotation (RFQ)"""
+
+    number = models.CharField(
+        _('رقم طلب العرض'),
+        max_length=50,
+        editable=False
+    )
+
+    date = models.DateField(
+        _('التاريخ')
+    )
+
+    # الموضوع والوصف
+    subject = models.CharField(
+        _('الموضوع'),
+        max_length=200
+    )
+
+    description = models.TextField(
+        _('الوصف'),
+        blank=True,
+        help_text=_('وصف تفصيلي للأصناف المطلوبة')
+    )
+
+    # ربط بطلب الشراء (اختياري)
+    purchase_request = models.ForeignKey(
+        PurchaseRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('طلب الشراء'),
+        related_name='quotation_requests'
+    )
+
+    # التواريخ المهمة
+    submission_deadline = models.DateField(
+        _('آخر موعد لتقديم العروض'),
+        help_text=_('آخر موعد لاستلام عروض الأسعار من الموردين')
+    )
+
+    required_delivery_date = models.DateField(
+        _('تاريخ التسليم المطلوب'),
+        null=True,
+        blank=True
+    )
+
+    # شروط العرض
+    payment_terms = models.TextField(
+        _('شروط الدفع'),
+        blank=True,
+        help_text=_('مثال: دفعة مقدمة 30%، الباقي عند التسليم')
+    )
+
+    delivery_terms = models.TextField(
+        _('شروط التسليم'),
+        blank=True,
+        help_text=_('مثال: التسليم في المستودع الرئيسي')
+    )
+
+    warranty_required = models.BooleanField(
+        _('ضمان مطلوب'),
+        default=False
+    )
+
+    warranty_period_months = models.IntegerField(
+        _('مدة الضمان (بالأشهر)'),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )
+
+    # الحالة
+    status = models.CharField(
+        _('الحالة'),
+        max_length=20,
+        choices=[
+            ('draft', _('مسودة')),
+            ('sent', _('مرسل للموردين')),
+            ('receiving', _('استقبال العروض')),
+            ('evaluating', _('تقييم العروض')),
+            ('awarded', _('تم الترسية')),
+            ('cancelled', _('ملغي')),
+        ],
+        default='draft'
+    )
+
+    # العرض الفائز
+    awarded_quotation = models.ForeignKey(
+        'PurchaseQuotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('العرض الفائز'),
+        related_name='won_requests'
+    )
+
+    award_date = models.DateField(
+        _('تاريخ الترسية'),
+        null=True,
+        blank=True
+    )
+
+    award_reason = models.TextField(
+        _('سبب الترسية'),
+        blank=True,
+        help_text=_('لماذا تم اختيار هذا العرض')
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('طلب عرض أسعار')
+        verbose_name_plural = _('طلبات عروض الأسعار')
+        unique_together = [['company', 'number']]
+        ordering = ['-date', '-number']
+
+    def save(self, *args, **kwargs):
+        """توليد الرقم"""
+        if not self.number:
+            year = self.date.strftime('%Y')
+            last_rfq = PurchaseQuotationRequest.objects.filter(
+                company=self.company,
+                number__startswith=f"RFQ/{year}/"
+            ).order_by('-number').first()
+
+            if last_rfq:
+                last_number = int(last_rfq.number.split('/')[-1])
+                new_number = last_number + 1
+            else:
+                new_number = 1
+
+            self.number = f"RFQ/{year}/{new_number:06d}"
+
+        super().save(*args, **kwargs)
+
+    @transaction.atomic
+    def send_to_suppliers(self, supplier_ids, user=None):
+        """إرسال طلب العرض للموردين المحددين"""
+        if self.status != 'draft':
+            raise ValidationError(_('يمكن إرسال طلبات العروض في حالة مسودة فقط'))
+
+        if not supplier_ids:
+            raise ValidationError(_('يجب تحديد مورد واحد على الأقل'))
+
+        # إنشاء عروض أسعار فارغة للموردين
+        for supplier_id in supplier_ids:
+            supplier = BusinessPartner.objects.get(id=supplier_id)
+            PurchaseQuotation.objects.create(
+                company=self.company,
+                quotation_request=self,
+                supplier=supplier,
+                date=self.date,
+                valid_until=self.submission_deadline,
+                status='sent',
+                created_by=user or self.created_by
+            )
+
+        self.status = 'sent'
+        self.save()
+
+    def __str__(self):
+        return f"{self.number} - {self.subject}"
+
+
+class PurchaseQuotationRequestItem(models.Model):
+    """أصناف طلب عرض الأسعار"""
+
+    quotation_request = models.ForeignKey(
+        PurchaseQuotationRequest,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name=_('طلب العرض')
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        verbose_name=_('المادة'),
+        null=True,
+        blank=True
+    )
+
+    item_description = models.TextField(
+        _('وصف المادة'),
+        help_text=_('للمواد غير الموجودة في النظام')
+    )
+
+    specifications = models.TextField(
+        _('المواصفات المطلوبة'),
+        blank=True,
+        help_text=_('المواصفات الفنية التفصيلية')
+    )
+
+    quantity = models.DecimalField(
+        _('الكمية المطلوبة'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+
+    unit = models.CharField(
+        _('الوحدة'),
+        max_length=50,
+        blank=True
+    )
+
+    estimated_price = models.DecimalField(
+        _('السعر التقديري'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('للمرجعية فقط')
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('صنف طلب عرض أسعار')
+        verbose_name_plural = _('أصناف طلبات عروض الأسعار')
+
+
+class PurchaseQuotation(BaseModel):
+    """عرض سعر من مورد - Quotation"""
+
+    number = models.CharField(
+        _('رقم العرض'),
+        max_length=50,
+        editable=False
+    )
+
+    # ربط بطلب العرض
+    quotation_request = models.ForeignKey(
+        PurchaseQuotationRequest,
+        on_delete=models.PROTECT,
+        verbose_name=_('طلب العرض'),
+        related_name='quotations'
+    )
+
+    # المورد
+    supplier = models.ForeignKey(
+        BusinessPartner,
+        on_delete=models.PROTECT,
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
+        verbose_name=_('المورد'),
+        related_name='quotations'
+    )
+
+    # التواريخ
+    date = models.DateField(
+        _('تاريخ العرض')
+    )
+
+    valid_until = models.DateField(
+        _('صالح حتى'),
+        help_text=_('آخر موعد لصلاحية هذا العرض')
+    )
+
+    # رقم عرض المورد
+    supplier_quotation_number = models.CharField(
+        _('رقم عرض المورد'),
+        max_length=50,
+        blank=True
+    )
+
+    # العملة
+    currency = models.ForeignKey(
+        Currency,
+        on_delete=models.PROTECT,
+        verbose_name=_('العملة')
+    )
+
+    # شروط العرض
+    payment_terms = models.TextField(
+        _('شروط الدفع'),
+        blank=True
+    )
+
+    delivery_terms = models.TextField(
+        _('شروط التسليم'),
+        blank=True
+    )
+
+    delivery_period_days = models.IntegerField(
+        _('مدة التسليم (بالأيام)'),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )
+
+    warranty_period_months = models.IntegerField(
+        _('مدة الضمان (بالأشهر)'),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )
+
+    # المبالغ
+    subtotal = models.DecimalField(
+        _('المجموع الفرعي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    discount_amount = models.DecimalField(
+        _('الخصم'),
+        max_digits=15,
+        decimal_places=3,
+        default=0
+    )
+
+    tax_amount = models.DecimalField(
+        _('الضريبة'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    total_amount = models.DecimalField(
+        _('الإجمالي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    # التقييم
+    score = models.DecimalField(
+        _('التقييم'),
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text=_('التقييم من 100')
+    )
+
+    evaluation_notes = models.TextField(
+        _('ملاحظات التقييم'),
+        blank=True
+    )
+
+    # الحالة
+    status = models.CharField(
+        _('الحالة'),
+        max_length=20,
+        choices=[
+            ('draft', _('مسودة')),
+            ('sent', _('مرسل')),
+            ('received', _('مستلم')),
+            ('under_evaluation', _('تحت التقييم')),
+            ('accepted', _('مقبول')),
+            ('rejected', _('مرفوض')),
+            ('awarded', _('فائز')),
+        ],
+        default='draft'
+    )
+
+    is_awarded = models.BooleanField(
+        _('فائز'),
+        default=False
+    )
+
+    rejection_reason = models.TextField(
+        _('سبب الرفض'),
+        blank=True
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    # المرفقات
+    attachment = models.FileField(
+        _('المرفقات'),
+        upload_to='quotations/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text=_('ملف PDF لعرض السعر من المورد')
+    )
+
+    class Meta:
+        verbose_name = _('عرض سعر')
+        verbose_name_plural = _('عروض الأسعار')
+        unique_together = [['company', 'number']]
+        ordering = ['-date', '-number']
+
+    def save(self, *args, **kwargs):
+        """توليد الرقم وحساب المجاميع"""
+        if not self.number:
+            year = self.date.strftime('%Y')
+            last_quote = PurchaseQuotation.objects.filter(
+                company=self.company,
+                number__startswith=f"QT/{year}/"
+            ).order_by('-number').first()
+
+            if last_quote:
+                last_number = int(last_quote.number.split('/')[-1])
+                new_number = last_number + 1
+            else:
+                new_number = 1
+
+            self.number = f"QT/{year}/{new_number:06d}"
+
+        super().save(*args, **kwargs)
+
+    def calculate_totals(self):
+        """حساب المجاميع"""
+        self.subtotal = sum(line.total for line in self.lines.all())
+        self.total_amount = self.subtotal - self.discount_amount + self.tax_amount
+        self.save()
+
+    @transaction.atomic
+    def mark_as_awarded(self, user=None):
+        """تحديد هذا العرض كفائز"""
+        if self.status not in ['received', 'under_evaluation']:
+            raise ValidationError(_('لا يمكن ترسية إلا العروض المستلمة أو تحت التقييم'))
+
+        # إلغاء أي عرض فائز سابق لنفس الطلب
+        PurchaseQuotation.objects.filter(
+            quotation_request=self.quotation_request,
+            is_awarded=True
+        ).update(is_awarded=False, status='rejected')
+
+        # تحديد هذا العرض كفائز
+        self.is_awarded = True
+        self.status = 'awarded'
+        self.save()
+
+        # تحديث طلب العرض
+        self.quotation_request.awarded_quotation = self
+        self.quotation_request.award_date = date.today()
+        self.quotation_request.status = 'awarded'
+        self.quotation_request.save()
+
+    @transaction.atomic
+    def convert_to_purchase_order(self, user=None):
+        """تحويل لأمر شراء"""
+        from django.utils import timezone
+
+        if not self.is_awarded:
+            raise ValidationError(_('يمكن تحويل العروض الفائزة فقط'))
+
+        # إنشاء أمر الشراء
+        order = PurchaseOrder.objects.create(
+            company=self.company,
+            date=timezone.now().date(),
+            supplier=self.supplier,
+            warehouse=Warehouse.objects.filter(
+                company=self.company,
+                is_active=True
+            ).first(),
+            currency=self.currency,
+            requested_by=user or self.created_by,
+            status='draft',
+            notes=f"تحويل من عرض سعر {self.number}",
+            created_by=user or self.created_by
+        )
+
+        # نسخ السطور
+        for line in self.lines.all():
+            if line.item:
+                PurchaseOrderItem.objects.create(
+                    order=order,
+                    item=line.item,
+                    description=line.description,
+                    quantity=line.quantity,
+                    unit_price=line.unit_price
+                )
+
+        order.calculate_total()
+        return order
+
+    def __str__(self):
+        return f"{self.number} - {self.supplier.name}"
+
+
+class PurchaseQuotationItem(models.Model):
+    """سطور عرض السعر"""
+
+    quotation = models.ForeignKey(
+        PurchaseQuotation,
+        on_delete=models.CASCADE,
+        related_name='lines',
+        verbose_name=_('عرض السعر')
+    )
+
+    # ربط بصنف طلب العرض
+    rfq_item = models.ForeignKey(
+        PurchaseQuotationRequestItem,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('صنف طلب العرض'),
+        related_name='quotation_lines'
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        verbose_name=_('المادة'),
+        null=True,
+        blank=True
+    )
+
+    description = models.TextField(
+        _('الوصف'),
+        blank=True
+    )
+
+    # الكمية والسعر
+    quantity = models.DecimalField(
+        _('الكمية'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+
+    unit = models.CharField(
+        _('الوحدة'),
+        max_length=50,
+        blank=True
+    )
+
+    unit_price = models.DecimalField(
+        _('سعر الوحدة'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(0)]
+    )
+
+    discount_percentage = models.DecimalField(
+        _('خصم %'),
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+
+    tax_rate = models.DecimalField(
+        _('نسبة الضريبة %'),
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+
+    total = models.DecimalField(
+        _('الإجمالي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    # معلومات إضافية
+    brand = models.CharField(
+        _('العلامة التجارية'),
+        max_length=100,
+        blank=True
+    )
+
+    country_of_origin = models.CharField(
+        _('بلد المنشأ'),
+        max_length=100,
+        blank=True
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('سطر عرض سعر')
+        verbose_name_plural = _('سطور عروض الأسعار')
+
+    def save(self, *args, **kwargs):
+        """حساب الإجمالي"""
+        gross = self.quantity * self.unit_price
+        discount = gross * (self.discount_percentage / 100)
+        self.total = gross - discount
+        super().save(*args, **kwargs)
+
+        # تحديث إجمالي عرض السعر
+        if self.quotation:
+            self.quotation.calculate_totals()
+
+
+# ================== Purchase Contracts (العقود طويلة الأجل) ==================
+
+class PurchaseContract(BaseModel):
+    """عقد شراء طويل الأجل - Long-term Purchase Contract"""
+
+    number = models.CharField(
+        _('رقم العقد'),
+        max_length=50,
+        editable=False
+    )
+
+    supplier = models.ForeignKey(
+        'core.BusinessPartner',
+        on_delete=models.PROTECT,
+        verbose_name=_('المورد'),
+        related_name='purchase_contracts',
+        limit_choices_to={'is_supplier': True}
+    )
+
+    contract_date = models.DateField(
+        _('تاريخ العقد'),
+        default=timezone.now
+    )
+
+    start_date = models.DateField(
+        _('تاريخ البدء')
+    )
+
+    end_date = models.DateField(
+        _('تاريخ الانتهاء')
+    )
+
+    contract_value = models.DecimalField(
+        _('قيمة العقد'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text=_('إجمالي قيمة العقد المتوقعة')
+    )
+
+    currency = models.ForeignKey(
+        'core.Currency',
+        on_delete=models.PROTECT,
+        verbose_name=_('العملة')
+    )
+
+    # شروط العقد
+    payment_terms = models.TextField(
+        _('شروط الدفع'),
+        blank=True
+    )
+
+    delivery_terms = models.TextField(
+        _('شروط التسليم'),
+        blank=True
+    )
+
+    quality_standards = models.TextField(
+        _('معايير الجودة'),
+        blank=True,
+        help_text=_('المواصفات والمعايير المطلوبة')
+    )
+
+    penalty_terms = models.TextField(
+        _('شروط الغرامات'),
+        blank=True,
+        help_text=_('غرامات التأخير أو عدم الالتزام')
+    )
+
+    termination_terms = models.TextField(
+        _('شروط الإنهاء'),
+        blank=True,
+        help_text=_('شروط وإجراءات إنهاء العقد')
+    )
+
+    renewal_terms = models.TextField(
+        _('شروط التجديد'),
+        blank=True
+    )
+
+    # الحالة
+    STATUS_CHOICES = [
+        ('draft', _('مسودة')),
+        ('active', _('نشط')),
+        ('suspended', _('معلق')),
+        ('completed', _('مكتمل')),
+        ('terminated', _('منهي')),
+        ('expired', _('منتهي الصلاحية')),
+    ]
+
+    status = models.CharField(
+        _('الحالة'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft'
+    )
+
+    # الموافقات
+    approved = models.BooleanField(
+        _('معتمد'),
+        default=False
+    )
+
+    approved_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('معتمد من'),
+        related_name='approved_contracts'
+    )
+
+    approved_at = models.DateTimeField(
+        _('تاريخ الاعتماد'),
+        null=True,
+        blank=True
+    )
+
+    # معلومات تنفيذ العقد
+    total_ordered = models.DecimalField(
+        _('إجمالي المطلوب'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False,
+        help_text=_('إجمالي قيمة أوامر الشراء المرتبطة')
+    )
+
+    total_received = models.DecimalField(
+        _('إجمالي المستلم'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False,
+        help_text=_('إجمالي قيمة المواد المستلمة')
+    )
+
+    total_invoiced = models.DecimalField(
+        _('إجمالي المفوتر'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False,
+        help_text=_('إجمالي قيمة الفواتير المرتبطة')
+    )
+
+    # المرفقات
+    attachment = models.FileField(
+        _('المرفقات'),
+        upload_to='contracts/',
+        blank=True,
+        null=True,
+        help_text=_('نسخة ممسوحة من العقد الموقع')
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('عقد شراء')
+        verbose_name_plural = _('عقود الشراء')
+        ordering = ['-contract_date', '-created_at']
+        permissions = [
+            ('approve_purchasecontract', _('يمكنه اعتماد عقود الشراء')),
+        ]
+
+    def __str__(self):
+        return f"{self.number} - {self.supplier.name}"
+
+    def save(self, *args, **kwargs):
+        """Generate contract number if new"""
+        if not self.number:
+            from apps.core.models import NumberingSequence
+            self.number = NumberingSequence.get_next_number(
+                self.company,
+                'purchase_contract',
+                self.contract_date
+            )
+        super().save(*args, **kwargs)
+
+    def activate(self, user=None):
+        """تفعيل العقد"""
+        if self.status != 'draft':
+            raise ValueError(_('يمكن تفعيل العقود في حالة المسودة فقط'))
+
+        if not self.approved:
+            raise ValueError(_('يجب اعتماد العقد قبل التفعيل'))
+
+        self.status = 'active'
+        self.save()
+
+        # تسجيل في السجل
+        from apps.core.models import AuditLog
+        AuditLog.log_action(
+            user=user,
+            company=self.company,
+            action='UPDATE',
+            model_name='PurchaseContract',
+            object_id=self.id,
+            description=f'تفعيل العقد {self.number}'
+        )
+
+    def suspend(self, reason='', user=None):
+        """تعليق العقد"""
+        if self.status not in ['active']:
+            raise ValueError(_('يمكن تعليق العقود النشطة فقط'))
+
+        self.status = 'suspended'
+        if reason:
+            self.notes = f"{self.notes}\n\nسبب التعليق: {reason}"
+        self.save()
+
+        # تسجيل في السجل
+        from apps.core.models import AuditLog
+        AuditLog.log_action(
+            user=user,
+            company=self.company,
+            action='UPDATE',
+            model_name='PurchaseContract',
+            object_id=self.id,
+            description=f'تعليق العقد {self.number}: {reason}'
+        )
+
+    def terminate(self, reason='', user=None):
+        """إنهاء العقد"""
+        if self.status not in ['active', 'suspended']:
+            raise ValueError(_('يمكن إنهاء العقود النشطة أو المعلقة فقط'))
+
+        self.status = 'terminated'
+        if reason:
+            self.notes = f"{self.notes}\n\nسبب الإنهاء: {reason}"
+        self.save()
+
+        # تسجيل في السجل
+        from apps.core.models import AuditLog
+        AuditLog.log_action(
+            user=user,
+            company=self.company,
+            action='UPDATE',
+            model_name='PurchaseContract',
+            object_id=self.id,
+            description=f'إنهاء العقد {self.number}: {reason}'
+        )
+
+    def check_expiry(self):
+        """فحص انتهاء صلاحية العقد"""
+        from datetime import date
+        if self.status == 'active' and self.end_date < date.today():
+            self.status = 'expired'
+            self.save()
+            return True
+        return False
+
+    def get_utilization_percentage(self):
+        """حساب نسبة استخدام العقد"""
+        if self.contract_value > 0:
+            return (self.total_ordered / self.contract_value) * 100
+        return 0
+
+    def get_remaining_value(self):
+        """حساب القيمة المتبقية"""
+        return self.contract_value - self.total_ordered
+
+    def update_totals(self):
+        """تحديث الإجماليات من أوامر الشراء والفواتير"""
+        # حساب من أوامر الشراء المرتبطة
+        orders = self.purchase_orders.filter(status__in=['approved', 'sent', 'partial', 'completed'])
+        self.total_ordered = sum(order.total_amount for order in orders)
+
+        # حساب من الفواتير المرتبطة
+        invoices = self.purchase_invoices.filter(is_posted=True)
+        self.total_invoiced = sum(invoice.grand_total for invoice in invoices)
+
+        self.save()
+
+
+class PurchaseContractItem(models.Model):
+    """سطور العقد - Contract Line Items"""
+
+    contract = models.ForeignKey(
+        PurchaseContract,
+        on_delete=models.CASCADE,
+        verbose_name=_('العقد'),
+        related_name='items'
+    )
+
+    item = models.ForeignKey(
+        'core.Item',
+        on_delete=models.PROTECT,
+        verbose_name=_('الصنف'),
+        null=True,
+        blank=True
+    )
+
+    item_description = models.CharField(
+        _('وصف الصنف'),
+        max_length=500
+    )
+
+    specifications = models.TextField(
+        _('المواصفات'),
+        blank=True
+    )
+
+    unit = models.ForeignKey(
+        'core.UnitOfMeasure',
+        on_delete=models.PROTECT,
+        verbose_name=_('الوحدة')
+    )
+
+    # الكمية والسعر
+    contracted_quantity = models.DecimalField(
+        _('الكمية المتعاقد عليها'),
+        max_digits=15,
+        decimal_places=3,
+        help_text=_('إجمالي الكمية خلال فترة العقد')
+    )
+
+    unit_price = models.DecimalField(
+        _('سعر الوحدة'),
+        max_digits=15,
+        decimal_places=3
+    )
+
+    # حدود الطلب
+    min_order_quantity = models.DecimalField(
+        _('الحد الأدنى للطلب'),
+        max_digits=15,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('أقل كمية يمكن طلبها في المرة الواحدة')
+    )
+
+    max_order_quantity = models.DecimalField(
+        _('الحد الأقصى للطلب'),
+        max_digits=15,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('أقصى كمية يمكن طلبها في المرة الواحدة')
+    )
+
+    # معلومات التنفيذ
+    ordered_quantity = models.DecimalField(
+        _('الكمية المطلوبة'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    received_quantity = models.DecimalField(
+        _('الكمية المستلمة'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    # الخصم
+    discount_percentage = models.DecimalField(
+        _('نسبة الخصم'),
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+
+    total = models.DecimalField(
+        _('الإجمالي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('سطر عقد')
+        verbose_name_plural = _('سطور العقود')
+
+    def __str__(self):
+        return f"{self.contract.number} - {self.item_description}"
+
+    def save(self, *args, **kwargs):
+        """حساب الإجمالي"""
+        gross = self.contracted_quantity * self.unit_price
+        discount = gross * (self.discount_percentage / 100)
+        self.total = gross - discount
+        super().save(*args, **kwargs)
+
+        # تحديث قيمة العقد
+        if self.contract:
+            contract_value = sum(item.total for item in self.contract.items.all())
+            self.contract.contract_value = contract_value
+            self.contract.save()
+
+    def get_remaining_quantity(self):
+        """حساب الكمية المتبقية"""
+        return self.contracted_quantity - self.ordered_quantity
+
+    def get_utilization_percentage(self):
+        """حساب نسبة الاستخدام"""
+        if self.contracted_quantity > 0:
+            return (self.ordered_quantity / self.contracted_quantity) * 100
+        return 0
+
+
+# ================== Goods Receipt (استلام البضاعة) ==================
+
+class GoodsReceipt(DocumentBaseModel):
+    """استلام البضاعة - Goods Receipt Note (GRN)
+
+    يُنشأ عند استلام البضاعة من المورد، قبل فاتورة المورد.
+    يُستخدم لتحديث المخزون ومطابقته مع أمر الشراء والفاتورة لاحقاً.
+    """
+
+    number = models.CharField(
+        _('رقم محضر الاستلام'),
+        max_length=50,
+        editable=False
+    )
+
+    date = models.DateField(
+        _('تاريخ الاستلام')
+    )
+
+    # ربط بأمر الشراء
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.PROTECT,
+        verbose_name=_('أمر الشراء'),
+        related_name='goods_receipts'
+    )
+
+    supplier = models.ForeignKey(
+        BusinessPartner,
+        on_delete=models.PROTECT,
+        limit_choices_to={'partner_type__in': ['supplier', 'both']},
+        verbose_name=_('المورد'),
+        related_name='goods_receipts'
+    )
+
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.PROTECT,
+        verbose_name=_('المستودع المستلم')
+    )
+
+    # معلومات التسليم
+    delivery_note_number = models.CharField(
+        _('رقم إيصال التسليم من المورد'),
+        max_length=50,
+        blank=True,
+        help_text=_('رقم مستند التسليم الذي أرسله المورد')
+    )
+
+    delivery_date = models.DateField(
+        _('تاريخ التسليم الفعلي'),
+        null=True,
+        blank=True
+    )
+
+    received_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        verbose_name=_('استلمها'),
+        related_name='goods_receipts_received',
+        help_text=_('موظف المستودع الذي استلم البضاعة')
+    )
+
+    # جودة الاستلام
+    quality_check_status = models.CharField(
+        _('حالة الفحص'),
+        max_length=20,
+        choices=[
+            ('pending', _('بانتظار الفحص')),
+            ('passed', _('مطابق')),
+            ('partial', _('مطابق جزئياً')),
+            ('failed', _('مرفوض')),
+        ],
+        default='pending'
+    )
+
+    quality_notes = models.TextField(
+        _('ملاحظات الفحص'),
+        blank=True
+    )
+
+    # الحالة
+    status = models.CharField(
+        _('الحالة'),
+        max_length=20,
+        choices=[
+            ('draft', _('مسودة')),
+            ('confirmed', _('مؤكد')),
+            ('invoiced', _('تم إصدار فاتورة')),
+            ('cancelled', _('ملغي')),
+        ],
+        default='draft'
+    )
+
+    # ربط بالفاتورة (يُملأ لاحقاً)
+    invoice = models.ForeignKey(
+        'PurchaseInvoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('الفاتورة المرتبطة'),
+        related_name='goods_receipts'
+    )
+
+    # تم الترحيل إلى المخزون
+    is_posted = models.BooleanField(
+        _('مرحل للمخزون'),
+        default=False
+    )
+
+    # سند الإدخال
+    stock_in = models.ForeignKey(
+        'inventory.StockIn',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('سند الإدخال'),
+        related_name='goods_receipts'
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('محضر استلام بضاعة')
+        verbose_name_plural = _('محاضر استلام البضائع')
+        unique_together = [['company', 'number']]
+        ordering = ['-date', '-number']
+        permissions = [
+            ('confirm_goods_receipt', _('يمكنه تأكيد استلام البضاعة')),
+        ]
+
+    def __str__(self):
+        return f"{self.number} - {self.supplier.name}"
+
+    def save(self, *args, **kwargs):
+        """توليد الرقم"""
+        if not self.number:
+            from apps.core.models import NumberingSequence
+            self.number = NumberingSequence.get_next_number(
+                self.company,
+                'goods_receipt',
+                self.date
+            )
+        super().save(*args, **kwargs)
+
+    @transaction.atomic
+    def post(self, user=None):
+        """ترحيل الاستلام للمخزون"""
+        from apps.inventory.models import StockIn, StockDocumentLine
+
+        if self.is_posted:
+            raise ValidationError(_('محضر الاستلام مرحل مسبقاً'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في محضر الاستلام'))
+
+        if self.status != 'confirmed':
+            raise ValidationError(_('يجب تأكيد محضر الاستلام قبل الترحيل'))
+
+        # إنشاء سند الإدخال
+        stock_in = StockIn.objects.create(
+            company=self.company,
+            branch=self.branch,
+            date=self.date,
+            warehouse=self.warehouse,
+            source_type='purchase',
+            supplier=self.supplier,
+            reference=self.number,
+            notes=f"استلام من أمر شراء {self.purchase_order.number}",
+            created_by=user or self.created_by
+        )
+
+        # نسخ سطور الاستلام لسند الإدخال
+        for gr_line in self.lines.all():
+            StockDocumentLine.objects.create(
+                stock_in=stock_in,
+                item=gr_line.item,
+                item_variant=gr_line.item_variant,
+                quantity=gr_line.received_quantity,
+                unit_cost=gr_line.unit_price,
+                batch_number=gr_line.batch_number,
+                expiry_date=gr_line.expiry_date
+            )
+
+        # ترحيل سند الإدخال (يحدث المخزون)
+        stock_in.post(user=user)
+
+        # تحديث محضر الاستلام
+        self.stock_in = stock_in
+        self.is_posted = True
+        self.save()
+
+        # تحديث أمر الشراء
+        self.purchase_order.mark_as_received()
+
+        return stock_in
+
+    @transaction.atomic
+    def unpost(self):
+        """إلغاء ترحيل الاستلام"""
+        if not self.is_posted:
+            raise ValidationError(_('محضر الاستلام غير مرحل'))
+
+        if self.invoice:
+            raise ValidationError(_('لا يمكن إلغاء ترحيل محضر استلام مرتبط بفاتورة'))
+
+        # إلغاء سند الإدخال
+        if self.stock_in:
+            self.stock_in.unpost()
+            self.stock_in.delete()
+            self.stock_in = None
+
+        self.is_posted = False
+        self.save()
+
+    @transaction.atomic
+    def confirm(self, user=None):
+        """تأكيد محضر الاستلام"""
+        if self.status != 'draft':
+            raise ValidationError(_('يمكن تأكيد المحاضر في حالة المسودة فقط'))
+
+        if not self.lines.exists():
+            raise ValidationError(_('لا توجد سطور في محضر الاستلام'))
+
+        self.status = 'confirmed'
+        self.save()
+
+        # التسجيل في السجل
+        from apps.core.models import AuditLog
+        AuditLog.log_action(
+            user=user,
+            company=self.company,
+            action='UPDATE',
+            model_name='GoodsReceipt',
+            object_id=self.id,
+            description=f'تأكيد محضر استلام {self.number}'
+        )
+
+
+class GoodsReceiptLine(models.Model):
+    """سطور محضر استلام البضاعة"""
+
+    goods_receipt = models.ForeignKey(
+        GoodsReceipt,
+        on_delete=models.CASCADE,
+        related_name='lines',
+        verbose_name=_('محضر الاستلام')
+    )
+
+    # ربط بسطر أمر الشراء
+    purchase_order_line = models.ForeignKey(
+        PurchaseOrderItem,
+        on_delete=models.PROTECT,
+        verbose_name=_('سطر أمر الشراء'),
+        related_name='goods_receipt_lines'
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        verbose_name=_('المادة')
+    )
+
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير'),
+        related_name='goods_receipt_lines'
+    )
+
+    # الكميات
+    ordered_quantity = models.DecimalField(
+        _('الكمية المطلوبة'),
+        max_digits=12,
+        decimal_places=3,
+        editable=False,
+        help_text=_('من أمر الشراء')
+    )
+
+    received_quantity = models.DecimalField(
+        _('الكمية المستلمة'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+
+    rejected_quantity = models.DecimalField(
+        _('الكمية المرفوضة'),
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+
+    unit_price = models.DecimalField(
+        _('السعر'),
+        max_digits=12,
+        decimal_places=3,
+        editable=False,
+        help_text=_('من أمر الشراء')
+    )
+
+    # معلومات الدفعة
+    batch_number = models.CharField(
+        _('رقم الدفعة'),
+        max_length=50,
+        blank=True
+    )
+
+    expiry_date = models.DateField(
+        _('تاريخ الانتهاء'),
+        null=True,
+        blank=True
+    )
+
+    # الجودة
+    quality_status = models.CharField(
+        _('حالة الجودة'),
+        max_length=20,
+        choices=[
+            ('accepted', _('مقبول')),
+            ('rejected', _('مرفوض')),
+            ('partial', _('مقبول جزئياً')),
+        ],
+        default='accepted'
+    )
+
+    quality_notes = models.TextField(
+        _('ملاحظات الجودة'),
+        blank=True
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('سطر محضر استلام')
+        verbose_name_plural = _('سطور محاضر الاستلام')
+
+    def __str__(self):
+        return f"{self.goods_receipt.number} - {self.item.name}"
+
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # التحقق من الكمية
+        if hasattr(self, 'purchase_order_line'):
+            # لا يمكن استلام أكثر من المطلوب
+            total_received = self.purchase_order_line.goods_receipt_lines.exclude(
+                pk=self.pk
+            ).aggregate(
+                total=Sum('received_quantity')
+            )['total'] or Decimal('0')
+
+            new_total = total_received + self.received_quantity
+
+            if new_total > self.purchase_order_line.quantity:
+                raise ValidationError({
+                    'received_quantity': _(
+                        'الكمية المستلمة الإجمالية (%(total)s) تتجاوز الكمية المطلوبة (%(ordered)s)'
+                    ) % {
+                        'total': new_total,
+                        'ordered': self.purchase_order_line.quantity
+                    }
+                })
+
+    def save(self, *args, **kwargs):
+        """نسخ البيانات من أمر الشراء"""
+        if self.purchase_order_line:
+            self.item = self.purchase_order_line.item
+            self.ordered_quantity = self.purchase_order_line.quantity
+            self.unit_price = self.purchase_order_line.unit_price
+
+        super().save(*args, **kwargs)
+
+
+# Helper Functions for Account Management
+def get_default_account(company, code, account_name, fallback_required=True):
+    """
+    Helper function to get account by code with proper error handling.
+
+    Args:
+        company: Company instance
+        code: Account code
+        account_name: Account name (for error messages)
+        fallback_required: If True, raises error if account not found
+
+    Returns:
+        Account instance or None
+    """
+    try:
+        return Account.objects.get(company=company, code=code)
+    except Account.DoesNotExist:
+        if fallback_required:
+            raise ValidationError(
+                _('الحساب المطلوب غير موجود: %(code)s - %(name)s. يرجى إنشاء الحساب أولاً.') % {
+                    'code': code,
+                    'name': account_name
+                }
+            )
+        return None
+    except Account.MultipleObjectsReturned:
+        # Return first one if multiple exist
+        return Account.objects.filter(company=company, code=code).first()

@@ -1,0 +1,331 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.badge-status {
+    font-size: 0.875rem;
+    padding: 0.35em 0.65em;
+}
+
+.score-badge {
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة عروض الأسعار المستلمة من الموردين" %}</p>
+        </div>
+        {% if can_add %}
+        <a href="{% url 'purchases:quotation_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "عرض سعر جديد" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "الإجمالي" %}</h6>
+                    <h3 class="mb-0">{{ stats.total_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-secondary shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "مسودة" %}</h6>
+                    <h3 class="mb-0">{{ stats.draft_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-info shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "مستلم" %}</h6>
+                    <h3 class="mb-0">{{ stats.received_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "تم التقييم" %}</h6>
+                    <h3 class="mb-0">{{ stats.evaluated_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "فائز" %}</h6>
+                    <h3 class="mb-0">{{ stats.awarded_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-danger shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{% trans "مرفوض" %}</h6>
+                    <h3 class="mb-0">{{ stats.rejected_count|default:0 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والتصفية" %}
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "طلب عرض السعر" %}</label>
+                        <select name="rfq" class="form-select select2">
+                            <option value="">{% trans "جميع الطلبات" %}</option>
+                            {% for rfq in rfqs %}
+                                <option value="{{ rfq.id }}" {% if request.GET.rfq == rfq.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ rfq.number }} - {{ rfq.subject|truncatewords:3 }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "المورد" %}</label>
+                        <select name="supplier" class="form-select select2">
+                            <option value="">{% trans "جميع الموردين" %}</option>
+                            {% for supplier in suppliers %}
+                                <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ supplier.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select name="status" class="form-select">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>{% trans "مسودة" %}</option>
+                            <option value="received" {% if request.GET.status == 'received' %}selected{% endif %}>{% trans "مستلم" %}</option>
+                            <option value="evaluated" {% if request.GET.status == 'evaluated' %}selected{% endif %}>{% trans "تم التقييم" %}</option>
+                            <option value="awarded" {% if request.GET.status == 'awarded' %}selected{% endif %}>{% trans "فائز" %}</option>
+                            <option value="rejected" {% if request.GET.status == 'rejected' %}selected{% endif %}>{% trans "مرفوض" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "بحث" %}</label>
+                        <input type="text" name="search" class="form-control" placeholder="{% trans 'رقم العرض أو المورد...' %}" value="{{ request.GET.search }}">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                    <a href="{% url 'purchases:quotation_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> {% trans "إعادة تعيين" %}
+                    </a>
+                    <a href="{% url 'purchases:export_quotations_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quotations Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم العرض" %}</th>
+                            <th>{% trans "طلب عرض السعر" %}</th>
+                            <th>{% trans "المورد" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th class="text-end">{% trans "الإجمالي" %}</th>
+                            <th class="text-center">{% trans "التقييم" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for quotation in quotations %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'purchases:quotation_detail' quotation.pk %}" class="fw-bold text-decoration-none">
+                                    {{ quotation.number }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{% url 'purchases:rfq_detail' quotation.rfq.pk %}" class="text-decoration-none">
+                                    {{ quotation.rfq.number }}
+                                </a>
+                            </td>
+                            <td>{{ quotation.supplier.name }}</td>
+                            <td>{{ quotation.date|date:"Y-m-d" }}</td>
+                            <td class="text-end">{{ quotation.total_amount|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% if quotation.score %}
+                                    <span class="badge score-badge bg-info">{{ quotation.score }}/100</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if quotation.status == 'draft' %}
+                                    <span class="badge badge-status bg-secondary">{% trans "مسودة" %}</span>
+                                {% elif quotation.status == 'received' %}
+                                    <span class="badge badge-status bg-info">{% trans "مستلم" %}</span>
+                                {% elif quotation.status == 'evaluated' %}
+                                    <span class="badge badge-status bg-warning text-dark">{% trans "تم التقييم" %}</span>
+                                {% elif quotation.status == 'awarded' %}
+                                    <span class="badge badge-status bg-success">{% trans "فائز" %}</span>
+                                {% elif quotation.status == 'rejected' %}
+                                    <span class="badge badge-status bg-danger">{% trans "مرفوض" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'purchases:quotation_detail' quotation.pk %}" class="btn btn-info" title="{% trans 'عرض' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit and quotation.status in 'draft,received' %}
+                                    <a href="{% url 'purchases:quotation_update' quotation.pk %}" class="btn btn-warning" title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if can_delete and quotation.status == 'draft' %}
+                                    <a href="{% url 'purchases:quotation_delete' quotation.pk %}" class="btn btn-danger" title="{% trans 'حذف' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                {% trans "لا توجد عروض أسعار" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "الأولى" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "السابقة" %}</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "التالية" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "الأخيرة" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar'
+    });
+});
+</script>
+{% endblock %}
