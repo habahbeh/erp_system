@@ -1,0 +1,459 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+
+    .performance-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: bold;
+    }
+
+    .performance-excellent {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .performance-good {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+    }
+
+    .performance-average {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-chart-line text-success"></i> {{ title }}
+        </h1>
+        <p class="text-muted">تحليل شامل لأداء الموردين وإحصائيات التعامل</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <button onclick="printReport()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-danger">
+                <i class="fas fa-file-pdf"></i> تصدير PDF
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> الفلاتر
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد الموردين</h6>
+                    <h3 class="text-primary mb-0">{{ total_stats.total_suppliers }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي المشتريات</h6>
+                    <h3 class="text-success mb-0">{{ total_stats.total_purchases|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-invoice fa-2x text-info mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد الفواتير</h6>
+                    <h3 class="text-info mb-0">{{ total_stats.total_invoices }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <i class="fas fa-clipboard-list fa-2x text-warning mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد الأوامر</h6>
+                    <h3 class="text-warning mb-0">{{ total_stats.total_orders }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">أفضل مورد (حسب المبلغ)</h6>
+                    {% if suppliers %}
+                    <h5 class="mb-0">{{ suppliers.0.supplier__name }}</h5>
+                    <p class="text-success mb-0">{{ suppliers.0.total_purchases|floatformat:0 }} د.أ</p>
+                    {% else %}
+                    <p class="text-muted mb-0">-</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">أكثر مورد نشاطاً (حسب الفواتير)</h6>
+                    {% if suppliers %}
+                    {% with max_invoices=suppliers|dictsort:"invoice_count"|last %}
+                    <h5 class="mb-0">{{ max_invoices.supplier__name }}</h5>
+                    <p class="text-info mb-0">{{ max_invoices.invoice_count }} فاتورة</p>
+                    {% endwith %}
+                    {% else %}
+                    <p class="text-muted mb-0">-</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">متوسط قيمة الفاتورة</h6>
+                    <h5 class="mb-0">{{ total_stats.avg_invoice_value|floatformat:0 }} د.أ</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Performance Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-success bg-opacity-10">
+            <h5 class="mb-0 text-success">
+                <i class="fas fa-chart-bar"></i> تفاصيل أداء الموردين
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="suppliersTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رمز المورد</th>
+                            <th>اسم المورد</th>
+                            <th>الهاتف</th>
+                            <th>البريد الإلكتروني</th>
+                            <th class="text-center">عدد الفواتير</th>
+                            <th class="text-center">عدد الأوامر</th>
+                            <th class="text-center">محاضر الاستلام</th>
+                            <th class="text-end">إجمالي المشتريات</th>
+                            <th class="text-end">متوسط الفاتورة</th>
+                            <th class="text-end">التخفيضات</th>
+                            <th class="text-center">التقييم</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for supplier in suppliers %}
+                        <tr>
+                            <td><strong>{{ supplier.supplier__code|default:"-" }}</strong></td>
+                            <td>{{ supplier.supplier__name }}</td>
+                            <td>{{ supplier.supplier__phone|default:"-" }}</td>
+                            <td>{{ supplier.supplier__email|default:"-" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-info">{{ supplier.invoice_count }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ supplier.order_count }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">{{ supplier.receipt_count }}</span>
+                            </td>
+                            <td class="text-end"><strong>{{ supplier.total_purchases|floatformat:3 }}</strong></td>
+                            <td class="text-end">{{ supplier.avg_invoice_value|floatformat:3 }}</td>
+                            <td class="text-end text-success">{{ supplier.total_discounts|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% if supplier.invoice_count >= 10 and supplier.total_purchases >= 10000 %}
+                                    <span class="badge bg-success">ممتاز</span>
+                                {% elif supplier.invoice_count >= 5 and supplier.total_purchases >= 5000 %}
+                                    <span class="badge bg-primary">جيد</span>
+                                {% else %}
+                                    <span class="badge bg-warning">متوسط</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد بيانات موردين للفترة المحددة
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card shadow-sm mt-4 no-print">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-chart-pie"></i> أعلى 10 موردين (حسب المبلغ)</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="suppliersChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted small">
+        <p class="mb-1">
+            <i class="fas fa-building"></i> {{ user.company.name }}
+        </p>
+        <p class="mb-0">
+            تم إنشاء هذا التقرير بواسطة: {{ user.get_full_name }}
+            في {{ today|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    function exportToExcel() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_supplier_performance_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function exportToPDF() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_supplier_performance_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function printReport() {
+        window.print();
+    }
+
+    $(document).ready(function() {
+        // Check if table has data rows
+        var tableRows = $('#suppliersTable tbody tr').length;
+        var hasColspan = $('#suppliersTable tbody tr td[colspan]').length > 0;
+
+        if (tableRows > 0 && !hasColspan) {
+            // تهيئة DataTable
+            const table = $('#suppliersTable').DataTable({
+                pageLength: 50,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                },
+                dom: 'Blfrtip',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'تقرير أداء الموردين',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-danger btn-sm',
+                        title: 'تقرير أداء الموردين',
+                        orientation: 'landscape',
+                        pageSize: 'A4',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> طباعة',
+                        className: 'btn btn-primary btn-sm',
+                        title: 'تقرير أداء الموردين',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ],
+                responsive: true,
+                order: [[7, 'desc']],
+                columnDefs: [
+                    { targets: [7, 8, 9], className: 'text-end' }
+                ]
+            });
+        }
+
+        // Suppliers Chart
+        var ctx = document.getElementById('suppliersChart');
+        if (ctx) {
+            ctx = ctx.getContext('2d');
+
+            var suppliers = {{ suppliers|slice:":10"|safe }};
+            var labels = [];
+            var data = [];
+
+            {% for supplier in suppliers|slice:":10" %}
+            labels.push('{{ supplier.supplier__name|safe }}');
+            data.push(parseFloat('{{ supplier.total_purchases }}'));
+            {% endfor %}
+
+            var suppliersChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'إجمالي المشتريات (د.أ)',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)',
+                            'rgba(199, 199, 199, 0.6)',
+                            'rgba(83, 102, 255, 0.6)',
+                            'rgba(255, 99, 255, 0.6)',
+                            'rgba(99, 255, 132, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)',
+                            'rgba(199, 199, 199, 1)',
+                            'rgba(83, 102, 255, 1)',
+                            'rgba(255, 99, 255, 1)',
+                            'rgba(99, 255, 132, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'المبلغ (د.أ)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

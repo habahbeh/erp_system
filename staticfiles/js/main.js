@@ -366,7 +366,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initCompanySwitcher();
     initFormEnhancements();
     initDeleteConfirmation();
-    initArabicNumbers(); // تحويل الأرقام إلى العربية
 
     // Make fontController global
     window.fontController = fontController;
@@ -379,10 +378,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================
 window.ERPUtils = {
     formatNumber: function(num) {
-        return num.toLocaleString('ar-EG');
+        return num.toLocaleString('en-US');
     },
     formatCurrency: function(amount, currency = 'JOD') {
-        return new Intl.NumberFormat('ar-JO', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: currency
         }).format(amount);
@@ -424,41 +423,5 @@ window.ERPUtils = {
         });
     }
 };
-
-// ============================================
-// 10. Auto Convert Numbers to Arabic
-// ============================================
-function initArabicNumbers() {
-    // تحويل الأرقام عند تحميل الصفحة
-    const contentArea = document.querySelector('.main-content') || document.body;
-
-    // تحويل الأرقام الموجودة
-    if (contentArea) {
-        window.ERPUtils.convertNumbersInElement(contentArea);
-    }
-
-    // مراقبة التغييرات الديناميكية
-    if (contentArea && typeof MutationObserver !== 'undefined') {
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        window.ERPUtils.convertNumbersInElement(node);
-                    } else if (node.nodeType === Node.TEXT_NODE && /\d/.test(node.nodeValue)) {
-                        node.nodeValue = window.ERPUtils.toArabicNumbers(node.nodeValue);
-                    }
-                });
-            });
-        });
-
-        observer.observe(contentArea, {
-            childList: true,
-            subtree: true,
-            characterData: false
-        });
-    }
-
-    console.log('✅ Arabic numbers converter initialized');
-}
 
 console.log('✅ main.js loaded successfully');

@@ -1,0 +1,474 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-boxes text-warning"></i> {{ title }}
+        </h1>
+        <p class="text-muted">تقرير شامل بمشتريات المواد والكميات</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <button onclick="printReport()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-danger">
+                <i class="fas fa-file-pdf"></i> تصدير PDF
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> الفلاتر
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">المادة</label>
+                        <select name="item" class="form-select">
+                            <option value="">جميع المواد</option>
+                            {% for item in items %}
+                            <option value="{{ item.id }}" {% if selected_item == item.id|stringformat:"s" %}selected{% endif %}>
+                                {{ item.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">الفئة</label>
+                        <select name="category" class="form-select">
+                            <option value="">جميع الفئات</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"s" %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <i class="fas fa-cube fa-2x text-primary mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد المواد</h6>
+                    <h3 class="text-primary mb-0">{{ stats.total_items }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <i class="fas fa-layer-group fa-2x text-success mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي الكميات</h6>
+                    <h3 class="text-success mb-0">{{ stats.total_quantity|floatformat:0 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x text-warning mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي القيمة</h6>
+                    <h3 class="text-warning mb-0">{{ stats.total_amount|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <i class="fas fa-tags fa-2x text-info mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد الفئات</h6>
+                    <h3 class="text-info mb-0">{{ stats.total_categories }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items by Category -->
+    {% if by_category %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-pie"></i> المشتريات حسب الفئة
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>الفئة</th>
+                                    <th class="text-center">عدد المواد</th>
+                                    <th class="text-center">الكمية</th>
+                                    <th class="text-end">القيمة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in by_category %}
+                                <tr>
+                                    <td><strong>{{ item.item__category__name }}</strong></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary">{{ item.item_count }}</span>
+                                    </td>
+                                    <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                                    <td class="text-end">{{ item.total_amount|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Items -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-warning bg-opacity-10">
+            <h5 class="mb-0 text-warning">
+                <i class="fas fa-list"></i> تفاصيل مشتريات المواد (أعلى 50)
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="itemsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رمز المادة</th>
+                            <th>اسم المادة</th>
+                            <th class="text-center">الوحدة</th>
+                            <th class="text-center">الكمية المشتراة</th>
+                            <th class="text-end">متوسط السعر</th>
+                            <th class="text-end">إجمالي القيمة</th>
+                            <th class="text-center">عدد الفواتير</th>
+                            <th class="text-center">عدد الموردين</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_item %}
+                        <tr>
+                            <td><strong>{{ item.item__code|default:"-" }}</strong></td>
+                            <td>{{ item.item__name }}</td>
+                            <td class="text-center">{{ item.unit__code|default:"-" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-success">{{ item.quantity|floatformat:2 }}</span>
+                            </td>
+                            <td class="text-end">{{ item.avg_price|floatformat:3 }}</td>
+                            <td class="text-end"><strong>{{ item.total_amount|floatformat:3 }}</strong></td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ item.invoice_count }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info">{{ item.supplier_count }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد مواد مطابقة للفلاتر المحددة
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 10 Items Chart -->
+    <div class="card shadow-sm mt-4 no-print">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> أعلى 10 مواد (حسب القيمة)</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="topItemsChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted small">
+        <p class="mb-1">
+            <i class="fas fa-building"></i> {{ user.company.name }}
+        </p>
+        <p class="mb-0">
+            تم إنشاء هذا التقرير بواسطة: {{ user.get_full_name }}
+            في {{ today|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    function exportToExcel() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_items_purchases_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function exportToPDF() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_items_purchases_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function printReport() {
+        window.print();
+    }
+
+    $(document).ready(function() {
+        // Check if table has data rows
+        var tableRows = $('#itemsTable tbody tr').length;
+        var hasColspan = $('#itemsTable tbody tr td[colspan]').length > 0;
+
+        if (tableRows > 0 && !hasColspan) {
+            // تهيئة DataTable
+            const table = $('#itemsTable').DataTable({
+                pageLength: 50,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                },
+                dom: 'Blfrtip',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'تقرير مشتريات المواد',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-danger btn-sm',
+                        title: 'تقرير مشتريات المواد',
+                        orientation: 'landscape',
+                        pageSize: 'A4',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> طباعة',
+                        className: 'btn btn-primary btn-sm',
+                        title: 'تقرير مشتريات المواد',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ],
+                responsive: true,
+                order: [[5, 'desc']],
+                columnDefs: [
+                    { targets: [4, 5], className: 'text-end' }
+                ]
+            });
+        }
+
+        // Category Chart
+        var ctxCategory = document.getElementById('categoryChart');
+        if (ctxCategory) {
+            ctxCategory = ctxCategory.getContext('2d');
+
+            var categoryLabels = [];
+            var categoryData = [];
+
+            {% for item in by_category|slice:":10" %}
+            categoryLabels.push('{{ item.item__category__name|safe }}');
+            categoryData.push(parseFloat('{{ item.total_amount }}'));
+            {% endfor %}
+
+            var categoryChart = new Chart(ctxCategory, {
+                type: 'pie',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{
+                        data: categoryData,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)',
+                            'rgba(199, 199, 199, 0.6)',
+                            'rgba(83, 102, 255, 0.6)',
+                            'rgba(255, 99, 255, 0.6)',
+                            'rgba(99, 255, 132, 0.6)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Top Items Chart
+        var ctxTopItems = document.getElementById('topItemsChart');
+        if (ctxTopItems) {
+            ctxTopItems = ctxTopItems.getContext('2d');
+
+            var itemLabels = [];
+            var itemData = [];
+
+            {% for item in by_item|slice:":10" %}
+            itemLabels.push('{{ item.item__name|safe }}');
+            itemData.push(parseFloat('{{ item.total_amount }}'));
+            {% endfor %}
+
+            var topItemsChart = new Chart(ctxTopItems, {
+                type: 'bar',
+                data: {
+                    labels: itemLabels,
+                    datasets: [{
+                        label: 'إجمالي القيمة (د.أ)',
+                        data: itemData,
+                        backgroundColor: 'rgba(255, 193, 7, 0.6)',
+                        borderColor: 'rgba(255, 193, 7, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'المبلغ (د.أ)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

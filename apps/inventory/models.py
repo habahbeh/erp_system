@@ -1714,7 +1714,7 @@ class ItemStock(BaseModel):
     class Meta:
         verbose_name = _('رصيد مادة')
         verbose_name_plural = _('أرصدة المواد')
-        unique_together = [['item', 'warehouse', 'company']]
+        unique_together = [['item', 'item_variant', 'warehouse', 'company']]
         indexes = [
             models.Index(fields=['item', 'warehouse']),
             models.Index(fields=['item', 'item_variant', 'warehouse']),

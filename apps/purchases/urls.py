@@ -5,10 +5,27 @@ URL Configuration for Purchases App
 
 from django.urls import path
 from .views import *
+from .views.dashboard import PurchaseDashboardView, dashboard_stats_api, monthly_chart_api, top_suppliers_api
+from .views.report_views import (
+    reports_list, purchases_summary_report, supplier_performance_report,
+    purchase_orders_report, items_purchases_report, contracts_report,
+    export_purchases_summary_excel, export_purchases_summary_pdf,
+    export_supplier_performance_excel, export_supplier_performance_pdf,
+    export_purchase_orders_excel, export_purchase_orders_pdf,
+    export_items_purchases_excel, export_items_purchases_pdf,
+    export_contracts_excel, export_contracts_pdf
+)
 
 app_name = 'purchases'
 
 urlpatterns = [
+    # ==================== Dashboard ====================
+    path('dashboard/', PurchaseDashboardView.as_view(), name='dashboard'),
+    path('api/dashboard/stats/', dashboard_stats_api, name='dashboard_stats_api'),
+    path('api/dashboard/monthly-chart/', monthly_chart_api, name='monthly_chart_api'),
+    path('api/dashboard/top-suppliers/', top_suppliers_api, name='top_suppliers_api'),
+
+
     # ==================== Purchase Invoices ====================
     path('invoices/', PurchaseInvoiceListView.as_view(), name='invoice_list'),
     path('invoices/create/', PurchaseInvoiceCreateView.as_view(), name='invoice_create'),
@@ -120,4 +137,24 @@ urlpatterns = [
     path('contracts/<int:pk>/approve/', contract_approve, name='contract_approve'),
     path('contracts/<int:pk>/change-status/', contract_change_status, name='contract_change_status'),
     path('contracts/check-expiry/', contract_check_expiry, name='contract_check_expiry'),
+
+    # ==================== Reports ====================
+    path('reports/', reports_list, name='reports_list'),
+    path('reports/purchases-summary/', purchases_summary_report, name='purchases_summary_report'),
+    path('reports/supplier-performance/', supplier_performance_report, name='supplier_performance_report'),
+    path('reports/purchase-orders/', purchase_orders_report, name='purchase_orders_report'),
+    path('reports/items-purchases/', items_purchases_report, name='items_purchases_report'),
+    path('reports/contracts/', contracts_report, name='contracts_report'),
+
+    # Report Exports
+    path('reports/purchases-summary/export/excel/', export_purchases_summary_excel, name='export_purchases_summary_excel'),
+    path('reports/purchases-summary/export/pdf/', export_purchases_summary_pdf, name='export_purchases_summary_pdf'),
+    path('reports/supplier-performance/export/excel/', export_supplier_performance_excel, name='export_supplier_performance_excel'),
+    path('reports/supplier-performance/export/pdf/', export_supplier_performance_pdf, name='export_supplier_performance_pdf'),
+    path('reports/purchase-orders/export/excel/', export_purchase_orders_excel, name='export_purchase_orders_excel'),
+    path('reports/purchase-orders/export/pdf/', export_purchase_orders_pdf, name='export_purchase_orders_pdf'),
+    path('reports/items-purchases/export/excel/', export_items_purchases_excel, name='export_items_purchases_excel'),
+    path('reports/items-purchases/export/pdf/', export_items_purchases_pdf, name='export_items_purchases_pdf'),
+    path('reports/contracts/export/excel/', export_contracts_excel, name='export_contracts_excel'),
+    path('reports/contracts/export/pdf/', export_contracts_pdf, name='export_contracts_pdf'),
 ]

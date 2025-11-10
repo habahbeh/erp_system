@@ -3,6 +3,14 @@
 Views for Purchases app
 """
 
+# Dashboard Views
+from .dashboard import (
+    PurchaseDashboardView,
+    dashboard_stats_api,
+    monthly_chart_api,
+    top_suppliers_api,
+)
+
 # Invoice Views
 from .invoice_views import (
     PurchaseInvoiceListView,
@@ -99,7 +107,39 @@ from .goods_receipt_views import (
     export_goods_receipts_excel,
 )
 
+# AJAX Views
+from .ajax_views import (
+    ajax_items_search,
+    ajax_request_credit_approval,
+    ajax_price_history,
+    ajax_supplier_info,
+)
+
+# Report Views
+from .report_views import (
+    reports_list,
+    purchases_summary_report,
+    supplier_performance_report,
+    purchase_orders_report,
+    items_purchases_report,
+    contracts_report,
+    export_purchases_summary_excel,
+    export_purchases_summary_pdf,
+    export_supplier_performance_excel,
+    export_supplier_performance_pdf,
+    export_purchase_orders_excel,
+    export_purchase_orders_pdf,
+    export_items_purchases_excel,
+    export_items_purchases_pdf,
+)
+
 __all__ = [
+    # Dashboard Views
+    "PurchaseDashboardView",
+    "dashboard_stats_api",
+    "monthly_chart_api",
+    "top_suppliers_api",
+
     # Invoice Views
     "PurchaseInvoiceListView",
     "PurchaseInvoiceDetailView",
@@ -185,4 +225,26 @@ __all__ = [
     "unpost_goods_receipt",
     "goods_receipt_datatable_ajax",
     "export_goods_receipts_excel",
+
+    # AJAX Views
+    "ajax_items_search",
+    "ajax_request_credit_approval",
+    "ajax_price_history",
+    "ajax_supplier_info",
+
+    # Report Views
+    "reports_list",
+    "purchases_summary_report",
+    "supplier_performance_report",
+    "purchase_orders_report",
+    "items_purchases_report",
+    "contracts_report",
+    "export_purchases_summary_excel",
+    "export_purchases_summary_pdf",
+    "export_supplier_performance_excel",
+    "export_supplier_performance_pdf",
+    "export_purchase_orders_excel",
+    "export_purchase_orders_pdf",
+    "export_items_purchases_excel",
+    "export_items_purchases_pdf",
 ]

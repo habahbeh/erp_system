@@ -23,7 +23,7 @@ class PurchaseOrderForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrder
         fields = [
-            'date', 'supplier', 'warehouse', 'currency',
+            'date', 'branch', 'supplier', 'warehouse', 'currency',
             'requested_by', 'expected_delivery_date',
             'purchase_request', 'notes'
         ]
@@ -31,6 +31,11 @@ class PurchaseOrderForm(forms.ModelForm):
             'date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select select2',
+                'data-placeholder': 'اختر الفرع...',
+                'required': 'required'
             }),
             'supplier': forms.Select(attrs={
                 'class': 'form-select select2',
@@ -71,6 +76,13 @@ class PurchaseOrderForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
+            # تصفية الفروع
+            from apps.core.models import Branch
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=self.company,
+                is_active=True
+            )
+
             # تصفية الموردين
             self.fields['supplier'].queryset = BusinessPartner.objects.filter(
                 company=self.company,
@@ -105,7 +117,11 @@ class PurchaseOrderForm(forms.ModelForm):
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
-            
+
+            # تعيين الفرع الافتراضي
+            if self.branch:
+                self.fields['branch'].initial = self.branch
+
             if self.user:
                 self.fields['requested_by'].initial = self.user
 

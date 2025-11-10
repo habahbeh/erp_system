@@ -24,7 +24,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
     class Meta:
         model = PurchaseInvoice
         fields = [
-            'invoice_type', 'date', 'supplier', 'warehouse',
+            'invoice_type', 'date', 'branch', 'supplier', 'warehouse',
             'payment_method', 'currency', 'receipt_date', 'receipt_number',
             'supplier_invoice_number', 'supplier_invoice_date',
             'discount_type', 'discount_value', 'discount_affects_cost',
@@ -37,6 +37,11 @@ class PurchaseInvoiceForm(forms.ModelForm):
             'date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select select2',
+                'data-placeholder': 'اختر الفرع...',
+                'required': 'required'
             }),
             'supplier': forms.Select(attrs={
                 'class': 'form-select select2',
@@ -109,6 +114,13 @@ class PurchaseInvoiceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
+            # تصفية الفروع
+            from apps.core.models import Branch
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=self.company,
+                is_active=True
+            )
+
             # تصفية الموردين
             self.fields['supplier'].queryset = BusinessPartner.objects.filter(
                 company=self.company,
@@ -165,6 +177,10 @@ class PurchaseInvoiceForm(forms.ModelForm):
             self.fields['date'].initial = date.today()
             self.fields['receipt_date'].initial = date.today()
             self.fields['invoice_type'].initial = 'purchase'
+
+            # تعيين الفرع الافتراضي
+            if self.branch:
+                self.fields['branch'].initial = self.branch
 
             if self.company:
                 # العملة الافتراضية
@@ -223,42 +239,42 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
                 'class': 'form-control form-control-sm',
                 'placeholder': 'البيان...',
             }),
-            'quantity': forms.NumberInput(attrs={
+            'quantity': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end quantity-input',
-                'step': '0.001',
                 'placeholder': '0.000',
-                'min': '0.001'
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
             }),
             'unit': forms.Select(attrs={
                 'class': 'form-select form-select-sm',
             }),
-            'unit_price': forms.NumberInput(attrs={
+            'unit_price': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end price-input',
-                'step': '0.001',
                 'placeholder': '0.000',
-                'min': '0'
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
             }),
-            'discount_percentage': forms.NumberInput(attrs={
+            'discount_percentage': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end discount-pct-input',
-                'step': '0.01',
                 'placeholder': '0.00',
-                'min': '0',
-                'max': '100'
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
             }),
-            'discount_amount': forms.NumberInput(attrs={
+            'discount_amount': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end discount-amount-input',
-                'step': '0.001',
                 'placeholder': '0.000',
-                'min': '0'
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
             }),
             'tax_included': forms.CheckboxInput(attrs={
                 'class': 'form-check-input tax-included-check',
             }),
-            'tax_rate': forms.NumberInput(attrs={
+            'tax_rate': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end tax-rate-input',
-                'step': '0.01',
                 'placeholder': '16.00',
-                'value': '16.00'
+                'value': '16.00',
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
             }),
             'batch_number': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm',

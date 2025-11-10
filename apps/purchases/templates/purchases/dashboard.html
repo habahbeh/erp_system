@@ -1,0 +1,513 @@
+<!-- apps/purchases/templates/purchases/dashboard.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+.stat-card {
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+}
+
+.stat-card .stat-icon {
+    font-size: 3rem;
+    opacity: 0.2;
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.stat-card .stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.alert-widget {
+    border-left: 4px solid;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    background: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.alert-widget.alert-warning {
+    border-left-color: #ffc107;
+}
+
+.alert-widget.alert-danger {
+    border-left-color: #dc3545;
+}
+
+.alert-widget.alert-info {
+    border-left-color: #17a2b8;
+}
+
+.quick-action {
+    text-align: center;
+    padding: 20px;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: all 0.3s;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 15px;
+}
+
+.quick-action:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    text-decoration: none;
+}
+
+.quick-action i {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.table-widget {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.growth-indicator {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.growth-positive {
+    background: #d4edda;
+    color: #155724;
+}
+
+.growth-negative {
+    background: #f8d7da;
+    color: #721c24;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if breadcrumb.url %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% else %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-chart-line text-primary"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted mb-0">نظرة شاملة على عمليات المشتريات</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        حدث خطأ في تحميل البيانات: {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Financial Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card bg-primary text-white">
+                <i class="fas fa-shopping-cart stat-icon"></i>
+                <div class="stat-value">{{ financial_stats.monthly_purchases|floatformat:3 }}</div>
+                <div class="stat-label text-white-50">إجمالي المشتريات الشهرية</div>
+                {% if financial_stats.growth_rate %}
+                <div class="mt-2">
+                    <span class="growth-indicator {% if financial_stats.growth_rate >= 0 %}growth-positive{% else %}growth-negative{% endif %}">
+                        <i class="fas fa-{% if financial_stats.growth_rate >= 0 %}arrow-up{% else %}arrow-down{% endif %}"></i>
+                        {{ financial_stats.growth_rate|floatformat:1 }}%
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-success text-white">
+                <i class="fas fa-calendar-alt stat-icon"></i>
+                <div class="stat-value">{{ financial_stats.yearly_purchases|floatformat:3 }}</div>
+                <div class="stat-label text-white-50">إجمالي المشتريات السنوية</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-info text-white">
+                <i class="fas fa-file-invoice-dollar stat-icon"></i>
+                <div class="stat-value">{{ financial_stats.avg_invoice|floatformat:3 }}</div>
+                <div class="stat-label text-white-50">متوسط قيمة الفاتورة</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-warning text-white">
+                <i class="fas fa-users stat-icon"></i>
+                <div class="stat-value">{{ stats.active_suppliers }}</div>
+                <div class="stat-label text-white-50">الموردين النشطين</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards Row -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="stat-card border-start border-primary border-4">
+                <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
+                <div class="stat-label">الفواتير</div>
+                <small class="text-muted">{{ invoice_stats.posted }} مرحلة</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card border-start border-success border-4">
+                <div class="stat-value text-success">{{ stats.total_orders }}</div>
+                <div class="stat-label">الأوامر</div>
+                <small class="text-muted">{{ stats.active_orders }} نشط</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card border-start border-info border-4">
+                <div class="stat-value text-info">{{ stats.total_requests }}</div>
+                <div class="stat-label">الطلبات</div>
+                <small class="text-muted">{{ stats.pending_requests }} معلق</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card border-start border-warning border-4">
+                <div class="stat-value text-warning">{{ goods_receipt_stats.total }}</div>
+                <div class="stat-label">محاضر الاستلام</div>
+                <small class="text-muted">{{ goods_receipt_stats.confirmed }} مؤكد</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card border-start border-secondary border-4">
+                <div class="stat-value text-secondary">{{ stats.active_contracts }}</div>
+                <div class="stat-label">العقود النشطة</div>
+                <small class="text-muted">من {{ contract_stats.total }} إجمالي</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card border-start border-danger border-4">
+                <div class="stat-value text-danger">{{ financial_stats.total_returns|floatformat:3 }}</div>
+                <div class="stat-label">المرتجعات</div>
+                <small class="text-muted">إجمالي</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Alerts -->
+            {% if alerts %}
+            <div class="mb-4">
+                <h5 class="mb-3"><i class="fas fa-bell text-warning"></i> التنبيهات والإشعارات</h5>
+                {% for alert in alerts %}
+                <div class="alert-widget alert-{{ alert.type }}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas {{ alert.icon }} me-2"></i>
+                            <strong>{{ alert.title }}</strong>
+                            <p class="mb-0 mt-1">{{ alert.message }}</p>
+                        </div>
+                        <a href="{{ alert.url }}" class="btn btn-sm btn-outline-{{ alert.type }}">
+                            عرض <span class="badge bg-{{ alert.type }}">{{ alert.count }}</span>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Monthly Chart -->
+            <div class="mb-4">
+                <div class="chart-container">
+                    <h5 class="mb-3"><i class="fas fa-chart-area text-primary"></i> المشتريات الشهرية</h5>
+                    <canvas id="monthlyPurchasesChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Invoices -->
+            <div class="table-widget mb-4">
+                <h5 class="mb-3"><i class="fas fa-file-invoice text-primary"></i> الفواتير الأخيرة</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>الرقم</th>
+                                <th>التاريخ</th>
+                                <th>المورد</th>
+                                <th class="text-end">المبلغ</th>
+                                <th>الحالة</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in recent_invoices %}
+                            <tr>
+                                <td>{{ invoice.number }}</td>
+                                <td>{{ invoice.date|date:"Y/m/d" }}</td>
+                                <td>{{ invoice.supplier.name }}</td>
+                                <td class="text-end">{{ invoice.total_with_tax|floatformat:3 }}</td>
+                                <td>
+                                    {% if invoice.is_posted %}
+                                        <span class="badge bg-success">مرحلة</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">مسودة</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'purchases:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">لا توجد فواتير</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'purchases:invoice_list' %}" class="btn btn-sm btn-primary">
+                        عرض جميع الفواتير <i class="fas fa-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Top Suppliers -->
+            <div class="table-widget mb-4">
+                <h5 class="mb-3"><i class="fas fa-star text-warning"></i> أفضل الموردين</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>المورد</th>
+                                <th class="text-center">عدد الفواتير</th>
+                                <th class="text-end">إجمالي المشتريات</th>
+                                <th class="text-end">متوسط الفاتورة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier in top_suppliers %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <strong>{{ supplier.supplier__name }}</strong>
+                                    <br><small class="text-muted">{{ supplier.supplier__code }}</small>
+                                </td>
+                                <td class="text-center">{{ supplier.invoice_count }}</td>
+                                <td class="text-end">{{ supplier.total_purchases|floatformat:3 }}</td>
+                                <td class="text-end">{{ supplier.avg_invoice|floatformat:3 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">لا توجد بيانات</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="mb-4">
+                <h5 class="mb-3"><i class="fas fa-bolt text-warning"></i> إجراءات سريعة</h5>
+                {% for action in quick_actions %}
+                <a href="{{ action.url }}" class="quick-action text-{{ action.color }}">
+                    <i class="fas {{ action.icon }}"></i>
+                    <div class="mt-2">{{ action.title }}</div>
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Pending Requests -->
+            {% if pending_requests %}
+            <div class="table-widget mb-4">
+                <h5 class="mb-3"><i class="fas fa-clipboard-list text-info"></i> طلبات معلقة</h5>
+                <div class="list-group list-group-flush">
+                    {% for request in pending_requests %}
+                    <a href="{% url 'purchases:request_detail' request.pk %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ request.number }}</strong>
+                                <br><small class="text-muted">{{ request.date|date:"Y/m/d" }}</small>
+                            </div>
+                            <span class="badge bg-warning">{{ request.get_status_display }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'purchases:request_list' %}?status=pending_approval" class="btn btn-sm btn-info">
+                        عرض الكل
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Active Orders -->
+            {% if active_orders %}
+            <div class="table-widget mb-4">
+                <h5 class="mb-3"><i class="fas fa-shopping-cart text-success"></i> أوامر نشطة</h5>
+                <div class="list-group list-group-flush">
+                    {% for order in active_orders %}
+                    <a href="{% url 'purchases:order_detail' order.pk %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ order.number }}</strong>
+                                <br><small class="text-muted">{{ order.supplier.name }}</small>
+                            </div>
+                            <span class="badge bg-success">{{ order.get_status_display }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'purchases:order_list' %}?status=approved,sent,partial" class="btn btn-sm btn-success">
+                        عرض الكل
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Expiring Contracts -->
+            {% if expiring_contracts %}
+            <div class="table-widget mb-4">
+                <h5 class="mb-3"><i class="fas fa-exclamation-triangle text-danger"></i> عقود منتهية قريباً</h5>
+                <div class="list-group list-group-flush">
+                    {% for contract in expiring_contracts %}
+                    <a href="{% url 'purchases:contract_detail' contract.pk %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ contract.number }}</strong>
+                                <br><small class="text-muted">{{ contract.supplier.name }}</small>
+                            </div>
+                            <span class="badge bg-danger">{{ contract.end_date|date:"Y/m/d" }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'purchases:contract_list' %}?expiring=30" class="btn btn-sm btn-danger">
+                        عرض الكل
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Monthly Purchases Chart
+    {% if monthly_purchases %}
+    const monthlyData = {{ monthly_purchases|safe }};
+
+    const labels = monthlyData.map(item => {
+        const date = new Date(item.month);
+        return date.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short' });
+    });
+
+    const values = monthlyData.map(item => parseFloat(item.total));
+
+    const ctx = document.getElementById('monthlyPurchasesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'إجمالي المشتريات',
+                data: values,
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('ar-SA', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // Auto-refresh every 5 minutes
+    setTimeout(function() {
+        location.reload();
+    }, 300000);
+});
+</script>
+{% endblock %}

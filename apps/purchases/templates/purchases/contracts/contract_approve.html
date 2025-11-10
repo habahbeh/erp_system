@@ -1,0 +1,237 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "اعتماد العقد" %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <!-- Page Header -->
+            <div class="page-header mb-4">
+                <h2 class="mb-1">
+                    <i class="fas fa-check-circle me-2"></i>
+                    {% trans "اعتماد عقد الشراء" %}
+                </h2>
+                <p class="text-white-50 mb-0">{% trans "مراجعة واعتماد العقد" %}</p>
+            </div>
+
+            <div class="detail-card">
+                <div class="card-body">
+                    <!-- Contract Info -->
+                    <div class="detail-card mb-3">
+                        <div class="card-header card-header-basic">
+                            <h6 class="mb-0">
+                                <i class="fas fa-file-contract"></i> {% trans "معلومات العقد" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "رقم العقد" %}</div>
+                                        <div class="info-value">{{ contract.number }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "المورد" %}</div>
+                                        <div class="info-value">{{ contract.supplier.name }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ العقد" %}</div>
+                                        <div class="info-value">{{ contract.contract_date|date:"Y-m-d" }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ البدء" %}</div>
+                                        <div class="info-value">{{ contract.start_date|date:"Y-m-d" }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "تاريخ الانتهاء" %}</div>
+                                        <div class="info-value">{{ contract.end_date|date:"Y-m-d" }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "قيمة العقد" %}</div>
+                                        <div class="info-value fw-bold text-primary">{{ contract.contract_value|floatformat:3 }} {{ contract.currency.code }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "عدد الأصناف" %}</div>
+                                        <div class="info-value">{{ contract.items.count }}</div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-label">{% trans "الحالة" %}</div>
+                                        <div class="info-value">
+                                            <span class="status-badge bg-secondary text-white">{{ contract.get_status_display }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if contract.notes %}
+                            <div class="info-row mt-3">
+                                <div class="info-label">{% trans "ملاحظات" %}</div>
+                                <div class="info-value">{{ contract.notes|linebreaks }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Contract Items -->
+                    <div class="detail-card mb-3">
+                        <div class="card-header card-header-basic">
+                            <h6 class="mb-0">
+                                <i class="fas fa-list"></i> {% trans "أصناف العقد" %}
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>{% trans "الصنف" %}</th>
+                                            <th class="text-center">{% trans "الكمية" %}</th>
+                                            <th class="text-center">{% trans "الوحدة" %}</th>
+                                            <th class="text-end">{% trans "سعر الوحدة" %}</th>
+                                            <th class="text-end">{% trans "الإجمالي" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in contract.items.all %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ item.item.name }}</td>
+                                            <td class="text-center">{{ item.quantity|floatformat:3 }}</td>
+                                            <td class="text-center">{{ item.unit.symbol }}</td>
+                                            <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
+                                            <td class="text-end">{{ item.total_price|floatformat:3 }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot class="table-light">
+                                        <tr>
+                                            <th colspan="5" class="text-end">{% trans "الإجمالي" %}</th>
+                                            <th class="text-end">{{ contract.contract_value|floatformat:3 }} {{ contract.currency.code }}</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approval Form -->
+                    {% if contract.approved %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% trans "تم اعتماد هذا العقد بالفعل في تاريخ" %}: {{ contract.approved_at|date:"Y-m-d H:i" }}
+                        <br>
+                        <small>{% trans "بواسطة" %}: {{ contract.approved_by.get_full_name }}</small>
+                    </div>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "تنبيه" %}:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "بعد الاعتماد، سيتم تفعيل العقد" %}</li>
+                                <li>{% trans "سيتم تغيير حالة العقد إلى معتمد" %}</li>
+                                <li>{% trans "يمكن بعد ذلك إنشاء أوامر شراء من هذا العقد" %}</li>
+                            </ul>
+                        </div>
+
+                        <div class="detail-card mb-3">
+                            <div class="card-header card-header-basic">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-vote-yea"></i> {% trans "قرار الاعتماد" %}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Action -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        {% trans "الإجراء" %} <span class="text-danger">*</span>
+                                    </label>
+                                    <div>
+                                        <div class="form-check">
+                                            <input type="radio" name="action" value="approve" class="form-check-input" id="action_approve" checked>
+                                            <label class="form-check-label" for="action_approve">
+                                                <i class="fas fa-check-circle text-success me-1"></i>
+                                                {% trans "اعتماد العقد" %}
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="radio" name="action" value="reject" class="form-check-input" id="action_reject">
+                                            <label class="form-check-label" for="action_reject">
+                                                <i class="fas fa-times-circle text-danger me-1"></i>
+                                                {% trans "رفض العقد" %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="mb-3">
+                                    <label for="approval_notes" class="form-label">
+                                        {% trans "ملاحظات الاعتماد/الرفض" %}
+                                    </label>
+                                    <textarea name="notes" id="approval_notes" class="form-control" rows="4" placeholder="{% trans 'أدخل ملاحظات إضافية (اختياري)' %}"></textarea>
+                                    <div class="form-text">{% trans "يمكنك إضافة ملاحظات توضح سبب القرار" %}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="action-buttons">
+                            <a href="{% url 'purchases:contract_detail' contract.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-right me-2"></i> {% trans "رجوع" %}
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-circle me-2"></i> {% trans "تنفيذ القرار" %}
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Form validation and confirmation
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        const form = this;
+        const action = $('input[name="action"]:checked').val();
+
+        let title = action === 'approve' ? '{% trans "تأكيد الاعتماد" %}' : '{% trans "تأكيد الرفض" %}';
+        let message = action === 'approve' ?
+            '{% trans "هل أنت متأكد من اعتماد هذا العقد؟" %}' :
+            '{% trans "هل أنت متأكد من رفض هذا العقد؟" %}';
+        let confirmText = action === 'approve' ? '{% trans "نعم، اعتمد" %}' : '{% trans "نعم، ارفض" %}';
+        let color = action === 'approve' ? '#28a745' : '#dc3545';
+
+        Swal.fire({
+            title: title,
+            text: message,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: color,
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: confirmText,
+            cancelButtonText: '{% trans "إلغاء" %}',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

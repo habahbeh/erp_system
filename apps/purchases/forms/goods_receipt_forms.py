@@ -23,7 +23,7 @@ class GoodsReceiptForm(forms.ModelForm):
     class Meta:
         model = GoodsReceipt
         fields = [
-            'date', 'purchase_order', 'supplier', 'warehouse',
+            'date', 'branch', 'purchase_order', 'supplier', 'warehouse',
             'delivery_note_number', 'delivery_date', 'received_by',
             'quality_check_status', 'quality_notes', 'notes'
         ]
@@ -31,6 +31,11 @@ class GoodsReceiptForm(forms.ModelForm):
             'date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select select2',
+                'data-placeholder': 'اختر الفرع...',
+                'required': 'required'
             }),
             'purchase_order': forms.Select(attrs={
                 'class': 'form-select select2',
@@ -84,6 +89,13 @@ class GoodsReceiptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
+            # تصفية الفروع
+            from apps.core.models import Branch
+            self.fields['branch'].queryset = Branch.objects.filter(
+                company=self.company,
+                is_active=True
+            )
+
             # تصفية أوامر الشراء (المعتمدة أو المرسلة للمورد فقط)
             self.fields['purchase_order'].queryset = PurchaseOrder.objects.filter(
                 company=self.company,
@@ -113,6 +125,10 @@ class GoodsReceiptForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
             self.fields['delivery_date'].initial = date.today()
+
+            # تعيين الفرع الافتراضي
+            if self.branch:
+                self.fields['branch'].initial = self.branch
 
             if self.user:
                 self.fields['received_by'].initial = self.user

@@ -168,7 +168,7 @@ class PurchaseRequestDetailView(LoginRequiredMixin, PermissionRequiredMixin, Det
         )
 
         # أوامر الشراء المرتبطة
-        context['related_orders'] = request_obj.purchase_orders.all()
+        context['related_orders'] = request_obj.orders.all()
 
         return context
 
@@ -467,26 +467,69 @@ def request_datatable_ajax(request):
     length = int(request.GET.get('length', 10))
     search_value = request.GET.get('search[value]', '')
 
+    # Additional filters
+    status_filter = request.GET.get('status', '')
+    requested_by_filter = request.GET.get('requested_by', '')
+    date_from_filter = request.GET.get('date_from', '')
+    date_to_filter = request.GET.get('date_to', '')
+    search_filter = request.GET.get('search_filter', '')
+
     queryset = PurchaseRequest.objects.filter(
         company=request.current_company
     ).select_related('requested_by')
 
-    # البحث
+    # البحث العام (من شريط البحث في الجدول)
     if search_value:
         queryset = queryset.filter(
             Q(number__icontains=search_value) |
             Q(department__icontains=search_value) |
-            Q(requested_by__first_name__icontains=search_value)
+            Q(requested_by__first_name__icontains=search_value) |
+            Q(requested_by__last_name__icontains=search_value) |
+            Q(purpose__icontains=search_value)
         )
 
-    # العدد الكلي
-    total_records = queryset.count()
+    # البحث من حقل البحث المخصص
+    if search_filter:
+        queryset = queryset.filter(
+            Q(number__icontains=search_filter) |
+            Q(department__icontains=search_filter) |
+            Q(requested_by__first_name__icontains=search_filter) |
+            Q(requested_by__last_name__icontains=search_filter) |
+            Q(purpose__icontains=search_filter)
+        )
+
+    # فلترة الحالة
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+
+    # فلترة الموظف الطالب
+    if requested_by_filter:
+        queryset = queryset.filter(requested_by_id=requested_by_filter)
+
+    # فلترة التاريخ من
+    if date_from_filter:
+        queryset = queryset.filter(date__gte=date_from_filter)
+
+    # فلترة التاريخ إلى
+    if date_to_filter:
+        queryset = queryset.filter(date__lte=date_to_filter)
+
+    # العدد الكلي قبل الفلترة
+    total_records = PurchaseRequest.objects.filter(
+        company=request.current_company
+    ).count()
+
+    # العدد بعد الفلترة
+    filtered_records = queryset.count()
 
     # الترتيب
     queryset = queryset.order_by('-date', '-number')
 
     # Pagination
-    queryset = queryset[start:start + length]
+    if length > 0:
+        queryset = queryset[start:start + length]
+    else:
+        queryset = queryset[start:]
 
     # البيانات
     data = []
@@ -495,7 +538,8 @@ def request_datatable_ajax(request):
             'number': req.number,
             'date': req.date.strftime('%Y-%m-%d'),
             'requested_by': req.requested_by.get_full_name() if req.requested_by else '',
-            'department': req.department or '',
+            'department': req.department or '-',
+            'required_date': req.required_date.strftime('%Y-%m-%d') if req.required_date else '',
             'status': req.get_status_display(),
             'status_code': req.status,
             'pk': req.pk,
@@ -504,7 +548,7 @@ def request_datatable_ajax(request):
     return JsonResponse({
         'draw': draw,
         'recordsTotal': total_records,
-        'recordsFiltered': total_records,
+        'recordsFiltered': filtered_records,
         'data': data
     })
 

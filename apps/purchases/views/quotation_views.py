@@ -1015,19 +1015,41 @@ def rfq_datatable_ajax(request):
     length = int(request.GET.get('length', 10))
     search_value = request.GET.get('search[value]', '')
 
+    # الفلاتر الإضافية
+    status_filter = request.GET.get('status', '')
+    supplier_filter = request.GET.get('supplier', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    search_filter = request.GET.get('search_filter', '')
+
     queryset = PurchaseQuotationRequest.objects.filter(
         company=request.current_company
     ).select_related('purchase_request')
 
+    # تطبيق الفلاتر
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+
+    if supplier_filter:
+        queryset = queryset.filter(quotations__supplier__id=supplier_filter).distinct()
+
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
     # البحث
-    if search_value:
+    if search_value or search_filter:
+        search_term = search_filter if search_filter else search_value
         queryset = queryset.filter(
-            Q(number__icontains=search_value) |
-            Q(subject__icontains=search_value)
+            Q(number__icontains=search_term) |
+            Q(subject__icontains=search_term)
         )
 
     # العدد الكلي
-    total_records = queryset.count()
+    total_records = PurchaseQuotationRequest.objects.filter(company=request.current_company).count()
+    filtered_records = queryset.count()
 
     # الترتيب
     queryset = queryset.order_by('-date', '-number')
@@ -1038,13 +1060,14 @@ def rfq_datatable_ajax(request):
     # البيانات
     data = []
     for rfq in queryset:
-        quotation_count = rfq.quotations.count()
+        # عدد الموردين = عدد عروض الأسعار المستلمة
+        suppliers_count = rfq.quotations.values('supplier').distinct().count()
         data.append({
             'number': rfq.number,
             'date': rfq.date.strftime('%Y-%m-%d'),
             'subject': rfq.subject,
-            'quotation_count': quotation_count,
-            'deadline': rfq.submission_deadline.strftime('%Y-%m-%d'),
+            'suppliers_count': suppliers_count,
+            'submission_deadline': rfq.submission_deadline.strftime('%Y-%m-%d') if rfq.submission_deadline else '',
             'status': rfq.get_status_display(),
             'status_code': rfq.status,
             'pk': rfq.pk,
@@ -1053,7 +1076,7 @@ def rfq_datatable_ajax(request):
     return JsonResponse({
         'draw': draw,
         'recordsTotal': total_records,
-        'recordsFiltered': total_records,
+        'recordsFiltered': filtered_records,
         'data': data
     })
 

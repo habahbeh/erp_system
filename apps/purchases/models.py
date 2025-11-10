@@ -272,7 +272,7 @@ class PurchaseInvoice(DocumentBaseModel):
 
         # حساب خصم الفاتورة
         if self.discount_type == 'percentage':
-            self.discount_amount = lines_total * (self.discount_value / 100)
+            self.discount_amount = lines_total * (self.discount_value / Decimal('100'))
         else:
             self.discount_amount = self.discount_value
 
@@ -752,7 +752,7 @@ class PurchaseInvoiceItem(models.Model):
 
         # تطبيق الخصم (النسبة لها الأولوية)
         if self.discount_percentage > 0:
-            self.discount_amount = gross_total * (self.discount_percentage / 100)
+            self.discount_amount = gross_total * (self.discount_percentage / Decimal('100'))
 
         # الإجمالي بعد الخصم
         self.subtotal = gross_total - self.discount_amount
@@ -760,10 +760,10 @@ class PurchaseInvoiceItem(models.Model):
         # حساب الضريبة
         if self.tax_included:
             # السعر شامل الضريبة
-            self.tax_amount = self.subtotal - (self.subtotal / (1 + self.tax_rate / 100))
+            self.tax_amount = self.subtotal - (self.subtotal / (Decimal('1') + self.tax_rate / Decimal('100')))
         else:
             # السعر غير شامل
-            self.tax_amount = self.subtotal * (self.tax_rate / 100)
+            self.tax_amount = self.subtotal * (self.tax_rate / Decimal('100'))
 
         super().save(*args, **kwargs)
 
@@ -781,7 +781,7 @@ class PurchaseInvoiceItem(models.Model):
         return f"{self.item.name} - {self.quantity}"
 
 
-class PurchaseOrder(BaseModel):
+class PurchaseOrder(DocumentBaseModel):
     """أوامر الشراء - بموافقة مدير المشتريات"""
 
     number = models.CharField(
@@ -1250,6 +1250,27 @@ class PurchaseRequest(BaseModel):
 
     def __str__(self):
         return f"{self.number} - {self.requested_by.get_full_name()}"
+
+    def submit(self):
+        """تقديم طلب الشراء للموافقة"""
+        if self.status != 'draft':
+            raise ValueError(_('يمكن تقديم الطلب في حالة مسودة فقط'))
+        self.status = 'submitted'
+        self.save()
+
+    def approve(self):
+        """اعتماد طلب الشراء"""
+        if self.status != 'submitted':
+            raise ValueError(_('يمكن اعتماد الطلب في حالة مقدم فقط'))
+        self.status = 'approved'
+        self.save()
+
+    def reject(self):
+        """رفض طلب الشراء"""
+        if self.status != 'submitted':
+            raise ValueError(_('يمكن رفض الطلب في حالة مقدم فقط'))
+        self.status = 'rejected'
+        self.save()
 
 
 class PurchaseRequestItem(models.Model):
@@ -1897,7 +1918,7 @@ class PurchaseQuotationItem(models.Model):
     def save(self, *args, **kwargs):
         """حساب الإجمالي"""
         gross = self.quantity * self.unit_price
-        discount = gross * (self.discount_percentage / 100)
+        discount = gross * (self.discount_percentage / Decimal('100'))
         self.total = gross - discount
         super().save(*args, **kwargs)
 
@@ -1922,7 +1943,7 @@ class PurchaseContract(BaseModel):
         on_delete=models.PROTECT,
         verbose_name=_('المورد'),
         related_name='purchase_contracts',
-        limit_choices_to={'is_supplier': True}
+        limit_choices_to={'partner_type__in': ['supplier', 'both']}
     )
 
     contract_date = models.DateField(
@@ -2081,11 +2102,24 @@ class PurchaseContract(BaseModel):
         """Generate contract number if new"""
         if not self.number:
             from apps.core.models import NumberingSequence
-            self.number = NumberingSequence.get_next_number(
-                self.company,
-                'purchase_contract',
-                self.contract_date
-            )
+            try:
+                sequence = NumberingSequence.objects.get(
+                    company=self.company,
+                    document_type='purchase_contract'
+                )
+                self.number = sequence.get_next_number()
+            except NumberingSequence.DoesNotExist:
+                # Create default sequence if it doesn't exist
+                sequence = NumberingSequence.objects.create(
+                    company=self.company,
+                    document_type='purchase_contract',
+                    prefix='PC',
+                    next_number=1,
+                    padding=5,
+                    include_year=True,
+                    yearly_reset=True
+                )
+                self.number = sequence.get_next_number()
         super().save(*args, **kwargs)
 
     def activate(self, user=None):
@@ -2101,13 +2135,13 @@ class PurchaseContract(BaseModel):
 
         # تسجيل في السجل
         from apps.core.models import AuditLog
-        AuditLog.log_action(
+        AuditLog.objects.create(
             user=user,
             company=self.company,
             action='UPDATE',
             model_name='PurchaseContract',
             object_id=self.id,
-            description=f'تفعيل العقد {self.number}'
+            object_repr=f'تفعيل العقد {self.number}'
         )
 
     def suspend(self, reason='', user=None):
@@ -2122,13 +2156,13 @@ class PurchaseContract(BaseModel):
 
         # تسجيل في السجل
         from apps.core.models import AuditLog
-        AuditLog.log_action(
+        AuditLog.objects.create(
             user=user,
             company=self.company,
             action='UPDATE',
             model_name='PurchaseContract',
             object_id=self.id,
-            description=f'تعليق العقد {self.number}: {reason}'
+            object_repr=f'تعليق العقد {self.number}: {reason}'
         )
 
     def terminate(self, reason='', user=None):
@@ -2143,13 +2177,13 @@ class PurchaseContract(BaseModel):
 
         # تسجيل في السجل
         from apps.core.models import AuditLog
-        AuditLog.log_action(
+        AuditLog.objects.create(
             user=user,
             company=self.company,
             action='UPDATE',
             model_name='PurchaseContract',
             object_id=self.id,
-            description=f'إنهاء العقد {self.number}: {reason}'
+            object_repr=f'إنهاء العقد {self.number}: {reason}'
         )
 
     def check_expiry(self):
@@ -2299,7 +2333,7 @@ class PurchaseContractItem(models.Model):
     def save(self, *args, **kwargs):
         """حساب الإجمالي"""
         gross = self.contracted_quantity * self.unit_price
-        discount = gross * (self.discount_percentage / 100)
+        discount = gross * (self.discount_percentage / Decimal('100'))
         self.total = gross - discount
         super().save(*args, **kwargs)
 
@@ -2461,11 +2495,24 @@ class GoodsReceipt(DocumentBaseModel):
         """توليد الرقم"""
         if not self.number:
             from apps.core.models import NumberingSequence
-            self.number = NumberingSequence.get_next_number(
-                self.company,
-                'goods_receipt',
-                self.date
-            )
+            try:
+                sequence = NumberingSequence.objects.get(
+                    company=self.company,
+                    document_type='goods_receipt'
+                )
+                self.number = sequence.get_next_number()
+            except NumberingSequence.DoesNotExist:
+                # Create default sequence if it doesn't exist
+                sequence = NumberingSequence.objects.create(
+                    company=self.company,
+                    document_type='goods_receipt',
+                    prefix='GR',
+                    next_number=1,
+                    padding=5,
+                    include_year=True,
+                    yearly_reset=True
+                )
+                self.number = sequence.get_next_number()
         super().save(*args, **kwargs)
 
     @transaction.atomic

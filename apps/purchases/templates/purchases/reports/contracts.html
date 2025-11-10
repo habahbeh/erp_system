@@ -1,0 +1,554 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+
+    .expiring-warning {
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-file-contract text-secondary"></i> {{ title }}
+        </h1>
+        <p class="text-muted">تقرير شامل بعقود الشراء وحالاتها</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <button onclick="printReport()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-danger">
+                <i class="fas fa-file-pdf"></i> تصدير PDF
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> الفلاتر
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">الحالة</label>
+                        <select name="status" class="form-select">
+                            <option value="">جميع الحالات</option>
+                            <option value="draft" {% if selected_status == 'draft' %}selected{% endif %}>مسودة</option>
+                            <option value="active" {% if selected_status == 'active' %}selected{% endif %}>نشط</option>
+                            <option value="expired" {% if selected_status == 'expired' %}selected{% endif %}>منتهي</option>
+                            <option value="terminated" {% if selected_status == 'terminated' %}selected{% endif %}>ملغي</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">المورد</label>
+                        <select name="supplier" class="form-select">
+                            <option value="">جميع الموردين</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}" {% if selected_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                {{ supplier.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-contract fa-2x text-primary mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي العقود</h6>
+                    <h3 class="text-primary mb-0">{{ stats.total_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي القيمة</h6>
+                    <h3 class="text-success mb-0">{{ stats.total_value|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-info mb-2"></i>
+                    <h6 class="text-muted mb-2">متوسط قيمة العقد</h6>
+                    <h3 class="text-info mb-0">{{ stats.avg_value|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-danger expiring-warning">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                    <h6 class="text-muted mb-2">عقود منتهية</h6>
+                    <h3 class="text-danger mb-0">{{ expired_count }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contracts by Status -->
+    {% if by_status %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-pie"></i> العقود حسب الحالة
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>الحالة</th>
+                                    <th class="text-center">العدد</th>
+                                    <th class="text-end">إجمالي القيمة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in by_status %}
+                                <tr>
+                                    <td>
+                                        {% if item.status == 'draft' %}
+                                            <span class="badge bg-secondary">مسودة</span>
+                                        {% elif item.status == 'active' %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% elif item.status == 'expired' %}
+                                            <span class="badge bg-danger">منتهي</span>
+                                        {% elif item.status == 'terminated' %}
+                                            <span class="badge bg-dark">ملغي</span>
+                                        {% else %}
+                                            {{ item.status }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center"><strong>{{ item.count }}</strong></td>
+                                    <td class="text-end">{{ item.total_value|floatformat:3 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Expiring Soon Contracts -->
+    {% if expiring_soon %}
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-10">
+            <h5 class="mb-0 text-warning">
+                <i class="fas fa-clock"></i> عقود قاربت على الانتهاء (30 يوم)
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-warning">
+                        <tr>
+                            <th>رقم العقد</th>
+                            <th>المورد</th>
+                            <th>تاريخ البداية</th>
+                            <th>تاريخ الانتهاء</th>
+                            <th class="text-center">الأيام المتبقية</th>
+                            <th class="text-end">القيمة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in expiring_soon %}
+                        <tr>
+                            <td><strong>{{ contract.contract_number }}</strong></td>
+                            <td>{{ contract.supplier.name }}</td>
+                            <td>{{ contract.start_date|date:"Y-m-d" }}</td>
+                            <td>{{ contract.end_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">
+                                {% widthratio contract.end_date today 1 as days_diff %}
+                                <span class="badge bg-warning">
+                                    {{ contract.end_date|timeuntil }}
+                                </span>
+                            </td>
+                            <td class="text-end">{{ contract.contract_value|floatformat:3 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Contracts -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-secondary bg-opacity-10">
+            <h5 class="mb-0 text-secondary">
+                <i class="fas fa-list"></i> العقود التفصيلية
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="contractsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رقم العقد</th>
+                            <th>المورد</th>
+                            <th>العنوان</th>
+                            <th>تاريخ البداية</th>
+                            <th>تاريخ الانتهاء</th>
+                            <th class="text-end">قيمة العقد</th>
+                            <th class="text-center">الحالة</th>
+                            <th>المستخدم</th>
+                            <th>الملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in contracts %}
+                        <tr {% if contract.status == 'active' and contract.end_date < today %}class="table-danger"{% endif %}>
+                            <td><strong>{{ contract.contract_number }}</strong></td>
+                            <td>{{ contract.supplier.name|default:"-" }}</td>
+                            <td>{{ contract.title|truncatewords:5 }}</td>
+                            <td>{{ contract.start_date|date:"Y-m-d" }}</td>
+                            <td>{{ contract.end_date|date:"Y-m-d" }}</td>
+                            <td class="text-end"><strong>{{ contract.contract_value|floatformat:3 }}</strong></td>
+                            <td class="text-center">
+                                {% if contract.status == 'draft' %}
+                                    <span class="badge bg-secondary">مسودة</span>
+                                {% elif contract.status == 'active' %}
+                                    {% if contract.end_date < today %}
+                                        <span class="badge bg-danger">منتهي!</span>
+                                    {% else %}
+                                        <span class="badge bg-success">نشط</span>
+                                    {% endif %}
+                                {% elif contract.status == 'expired' %}
+                                    <span class="badge bg-danger">منتهي</span>
+                                {% elif contract.status == 'terminated' %}
+                                    <span class="badge bg-dark">ملغي</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ contract.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ contract.created_by.get_full_name|default:"-" }}</td>
+                            <td>{{ contract.notes|truncatewords:5|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد عقود مطابقة للفلاتر المحددة
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card shadow-sm mt-4 no-print">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> توزيع العقود حسب الحالة</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="contractsChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted small">
+        <p class="mb-1">
+            <i class="fas fa-building"></i> {{ user.company.name }}
+        </p>
+        <p class="mb-0">
+            تم إنشاء هذا التقرير بواسطة: {{ user.get_full_name }}
+            في {{ today|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    function exportToExcel() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_contracts_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function exportToPDF() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_contracts_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function printReport() {
+        window.print();
+    }
+
+    $(document).ready(function() {
+        // Check if table has data rows
+        var tableRows = $('#contractsTable tbody tr').length;
+        var hasColspan = $('#contractsTable tbody tr td[colspan]').length > 0;
+
+        if (tableRows > 0 && !hasColspan) {
+            // تهيئة DataTable
+            const table = $('#contractsTable').DataTable({
+                pageLength: 50,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                },
+                dom: 'Blfrtip',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'تقرير العقود',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-danger btn-sm',
+                        title: 'تقرير العقود',
+                        orientation: 'landscape',
+                        pageSize: 'A4',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> طباعة',
+                        className: 'btn btn-primary btn-sm',
+                        title: 'تقرير العقود',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ],
+                responsive: true,
+                order: [[4, 'desc']],
+                columnDefs: [
+                    { targets: [5], className: 'text-end' }
+                ]
+            });
+        }
+
+        // Status Chart
+        var ctxStatus = document.getElementById('statusChart');
+        if (ctxStatus) {
+            ctxStatus = ctxStatus.getContext('2d');
+
+            var labels = [];
+            var data = [];
+            var colors = [];
+
+            {% for item in by_status %}
+            labels.push('{% if item.status == "draft" %}مسودة{% elif item.status == "active" %}نشط{% elif item.status == "expired" %}منتهي{% elif item.status == "terminated" %}ملغي{% else %}{{ item.status }}{% endif %}');
+            data.push({{ item.count }});
+            {% if item.status == 'draft' %}
+                colors.push('rgba(108, 117, 125, 0.6)');
+            {% elif item.status == 'active' %}
+                colors.push('rgba(25, 135, 84, 0.6)');
+            {% elif item.status == 'expired' %}
+                colors.push('rgba(220, 53, 69, 0.6)');
+            {% elif item.status == 'terminated' %}
+                colors.push('rgba(52, 58, 64, 0.6)');
+            {% else %}
+                colors.push('rgba(128, 128, 128, 0.6)');
+            {% endif %}
+            {% endfor %}
+
+            var statusChart = new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Contracts Timeline Chart
+        var ctxContracts = document.getElementById('contractsChart');
+        if (ctxContracts) {
+            ctxContracts = ctxContracts.getContext('2d');
+
+            var contractsChart = new Chart(ctxContracts, {
+                type: 'bar',
+                data: {
+                    labels: ['مسودة', 'نشط', 'منتهي', 'ملغي'],
+                    datasets: [{
+                        label: 'عدد العقود',
+                        data: [
+                            {% for item in by_status %}
+                                {% if item.status == 'draft' %}{{ item.count }}{% endif %}
+                            {% endfor %},
+                            {% for item in by_status %}
+                                {% if item.status == 'active' %}{{ item.count }}{% endif %}
+                            {% endfor %},
+                            {% for item in by_status %}
+                                {% if item.status == 'expired' %}{{ item.count }}{% endif %}
+                            {% endfor %},
+                            {% for item in by_status %}
+                                {% if item.status == 'terminated' %}{{ item.count }}{% endif %}
+                            {% endfor %}
+                        ],
+                        backgroundColor: [
+                            'rgba(108, 117, 125, 0.6)',
+                            'rgba(25, 135, 84, 0.6)',
+                            'rgba(220, 53, 69, 0.6)',
+                            'rgba(52, 58, 64, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(108, 117, 125, 1)',
+                            'rgba(25, 135, 84, 1)',
+                            'rgba(220, 53, 69, 1)',
+                            'rgba(52, 58, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'عدد العقود'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

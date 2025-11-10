@@ -1,0 +1,407 @@
+{# apps/purchases/templates/purchases/contracts/contract_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-file-contract text-primary"></i>
+            {% trans "عقد شراء رقم" %} {{ contract.number }}
+        </h2>
+        <div>
+            {% if can_edit %}
+            <a href="{% url 'purchases:contract_update' contract.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+
+            {% if can_approve %}
+            <a href="{% url 'purchases:contract_approve' contract.pk %}" class="btn btn-success">
+                <i class="fas fa-check-circle"></i> {% trans "اعتماد" %}
+            </a>
+            {% endif %}
+
+            {% if can_activate %}
+            <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=activate" class="btn btn-primary">
+                <i class="fas fa-play-circle"></i> {% trans "تفعيل" %}
+            </a>
+            {% endif %}
+
+            {% if can_suspend %}
+            <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=suspend" class="btn btn-warning">
+                <i class="fas fa-pause-circle"></i> {% trans "تعليق" %}
+            </a>
+            {% endif %}
+
+            {% if can_terminate %}
+            <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=terminate" class="btn btn-danger">
+                <i class="fas fa-stop-circle"></i> {% trans "إنهاء" %}
+            </a>
+            {% endif %}
+
+            {% if can_delete %}
+            <a href="{% url 'purchases:contract_delete' contract.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+
+            <a href="{% url 'purchases:contract_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Contract Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل العقد" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم العقد:" %}</strong> {{ contract.number }}</p>
+                            <p><strong>{% trans "المورد:" %}</strong> {{ contract.supplier.name }}</p>
+                            <p><strong>{% trans "تاريخ العقد:" %}</strong> {{ contract.contract_date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "العملة:" %}</strong> {{ contract.currency.code }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>{% trans "تاريخ البدء:" %}</strong> {{ contract.start_date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "تاريخ الانتهاء:" %}</strong> {{ contract.end_date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                {% if contract.status == 'draft' %}
+                                    <span class="badge bg-secondary fs-6">{% trans "مسودة" %}</span>
+                                {% elif contract.status == 'active' %}
+                                    <span class="badge bg-success fs-6">{% trans "نشط" %}</span>
+                                {% elif contract.status == 'suspended' %}
+                                    <span class="badge bg-warning fs-6">{% trans "معلق" %}</span>
+                                {% elif contract.status == 'completed' %}
+                                    <span class="badge bg-info fs-6">{% trans "مكتمل" %}</span>
+                                {% elif contract.status == 'terminated' %}
+                                    <span class="badge bg-danger fs-6">{% trans "منهي" %}</span>
+                                {% elif contract.status == 'expired' %}
+                                    <span class="badge bg-dark fs-6">{% trans "منتهي الصلاحية" %}</span>
+                                {% endif %}
+                            </p>
+                            {% if contract.approved %}
+                            <p><strong>{% trans "معتمد من:" %}</strong> {{ contract.approved_by.get_full_name }}</p>
+                            <p><strong>{% trans "تاريخ الاعتماد:" %}</strong> {{ contract.approved_at|date:"Y-m-d H:i" }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if days_remaining is not None %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <p><strong>{% trans "الأيام المتبقية:" %}</strong>
+                                <span class="badge {% if is_expiring_soon %}bg-warning{% else %}bg-info{% endif %} fs-6">
+                                    {{ days_remaining }} {% trans "يوم" %}
+                                </span>
+                                {% if is_expiring_soon %}
+                                <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                <span class="text-warning">{% trans "ينتهي قريباً" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Contract Terms Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> {% trans "شروط العقد" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if contract.payment_terms %}
+                    <div class="mb-3">
+                        <strong>{% trans "شروط الدفع:" %}</strong>
+                        <p class="mb-0">{{ contract.payment_terms|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if contract.delivery_terms %}
+                    <div class="mb-3">
+                        <strong>{% trans "شروط التسليم:" %}</strong>
+                        <p class="mb-0">{{ contract.delivery_terms|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if contract.quality_standards %}
+                    <div class="mb-3">
+                        <strong>{% trans "معايير الجودة:" %}</strong>
+                        <p class="mb-0">{{ contract.quality_standards|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if contract.penalty_terms %}
+                    <div class="mb-3">
+                        <strong>{% trans "شروط الغرامات:" %}</strong>
+                        <p class="mb-0">{{ contract.penalty_terms|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if contract.termination_terms %}
+                    <div class="mb-3">
+                        <strong>{% trans "شروط الإنهاء:" %}</strong>
+                        <p class="mb-0">{{ contract.termination_terms|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if contract.renewal_terms %}
+                    <div class="mb-3">
+                        <strong>{% trans "شروط التجديد:" %}</strong>
+                        <p class="mb-0">{{ contract.renewal_terms|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if not contract.payment_terms and not contract.delivery_terms and not contract.quality_standards and not contract.penalty_terms and not contract.termination_terms and not contract.renewal_terms %}
+                    <p class="text-muted mb-0">{% trans "لا توجد شروط محددة" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Contract Items Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "أصناف العقد" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "البيان" %}</th>
+                                    <th class="text-center">{% trans "الكمية" %}</th>
+                                    <th class="text-center">{% trans "الوحدة" %}</th>
+                                    <th class="text-end">{% trans "سعر الوحدة" %}</th>
+                                    <th class="text-end">{% trans "الإجمالي" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in contract.items.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ item.item.name }}</td>
+                                    <td>{{ item.description|default:"-" }}</td>
+                                    <td class="text-center">{{ item.quantity|floatformat:3 }}</td>
+                                    <td class="text-center">{{ item.unit.symbol }}</td>
+                                    <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
+                                    <td class="text-end">{{ item.total_price|floatformat:3 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">{% trans "لا توجد أصناف" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if contract.items.exists %}
+                            <tfoot class="table-light">
+                                <tr class="table-primary">
+                                    <td colspan="6" class="text-end"><strong>{% trans "قيمة العقد:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ contract.contract_value|floatformat:3 }} {{ contract.currency.code }}</strong></td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes Card -->
+            {% if contract.notes %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-sticky-note"></i> {% trans "ملاحظات" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ contract.notes|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Financial Summary Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-calculator"></i> {% trans "ملخص مالي" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "قيمة العقد:" %}</span>
+                        <strong>{{ contract.contract_value|floatformat:3 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "إجمالي المطلوب:" %}</span>
+                        <span>{{ contract.total_ordered|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "إجمالي المستلم:" %}</span>
+                        <span>{{ contract.total_received|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "إجمالي المفوتر:" %}</span>
+                        <span>{{ contract.total_invoiced|floatformat:3 }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <strong>{% trans "المتبقي:" %}</strong>
+                        <strong class="text-primary">{{ remaining_value|floatformat:3 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utilization Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-pie"></i> {% trans "نسبة الاستخدام" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar {% if utilization_percentage >= 90 %}bg-danger{% elif utilization_percentage >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+                             role="progressbar"
+                             style="width: {{ utilization_percentage }}%;"
+                             aria-valuenow="{{ utilization_percentage }}"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            {{ utilization_percentage|floatformat:1 }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        {% if utilization_percentage >= 90 %}
+                        <i class="fas fa-exclamation-triangle text-danger"></i> {% trans "العقد شارف على الانتهاء" %}
+                        {% elif utilization_percentage >= 70 %}
+                        <i class="fas fa-exclamation-circle text-warning"></i> {% trans "استخدام مرتفع" %}
+                        {% else %}
+                        <i class="fas fa-check-circle text-success"></i> {% trans "استخدام طبيعي" %}
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات الحالة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الحالة:" %}</strong>
+                        {% if contract.status == 'draft' %}
+                            <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                        {% elif contract.status == 'active' %}
+                            <span class="badge bg-success">{% trans "نشط" %}</span>
+                        {% elif contract.status == 'suspended' %}
+                            <span class="badge bg-warning">{% trans "معلق" %}</span>
+                        {% elif contract.status == 'completed' %}
+                            <span class="badge bg-info">{% trans "مكتمل" %}</span>
+                        {% elif contract.status == 'terminated' %}
+                            <span class="badge bg-danger">{% trans "منهي" %}</span>
+                        {% elif contract.status == 'expired' %}
+                            <span class="badge bg-dark">{% trans "منتهي الصلاحية" %}</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>{% trans "معتمد:" %}</strong>
+                        {% if contract.approved %}
+                            <span class="badge bg-success">{% trans "نعم" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{% trans "لا" %}</span>
+                        {% endif %}
+                    </p>
+                    <hr>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-user me-1"></i>
+                        أنشئ بواسطة: {{ contract.created_by.get_full_name }}
+                    </small>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        تاريخ الإنشاء: {{ contract.created_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% if contract.updated_at != contract.created_at %}
+                    <small class="text-muted d-block">
+                        <i class="fas fa-edit me-1"></i>
+                        آخر تحديث: {{ contract.updated_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-cog"></i> {% trans "الإجراءات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i> {% trans "طباعة" %}
+                        </button>
+
+                        {% if can_edit %}
+                        <a href="{% url 'purchases:contract_update' contract.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit me-1"></i> {% trans "تعديل" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_approve %}
+                        <a href="{% url 'purchases:contract_approve' contract.pk %}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-check-circle me-1"></i> {% trans "اعتماد" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_activate %}
+                        <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=activate" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-play-circle me-1"></i> {% trans "تفعيل" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_suspend %}
+                        <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=suspend" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-pause-circle me-1"></i> {% trans "تعليق" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_terminate %}
+                        <a href="{% url 'purchases:contract_change_status' contract.pk %}?action=terminate" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-stop-circle me-1"></i> {% trans "إنهاء" %}
+                        </a>
+                        {% endif %}
+
+                        {% if can_delete %}
+                        <a href="{% url 'purchases:contract_delete' contract.pk %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash me-1"></i> {% trans "حذف" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

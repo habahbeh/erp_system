@@ -16,6 +16,7 @@ from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, date, timedelta
 
@@ -406,7 +407,7 @@ def contract_approve(request, pk):
             if action == 'approve':
                 contract.approved = True
                 contract.approved_by = request.user
-                contract.approved_at = datetime.now()
+                contract.approved_at = timezone.now()
                 if notes:
                     contract.notes = f"{contract.notes}\n\nملاحظات الاعتماد: {notes}"
                 contract.save()

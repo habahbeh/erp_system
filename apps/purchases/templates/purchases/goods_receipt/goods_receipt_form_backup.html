@@ -1,0 +1,662 @@
+<!-- apps/purchases/templates/purchases/goods_receipt/goods_receipt_form.html -->
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Receipt Table Styling */
+.receipt-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.receipt-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    border-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.receipt-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.receipt-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.receipt-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+    border-right: 1px solid #f0f0f0;
+}
+
+.receipt-table tbody td:last-child {
+    border-right: none;
+}
+
+.receipt-table input,
+.receipt-table select {
+    font-size: 0.875rem;
+    border-color: #dee2e6;
+}
+
+.receipt-table input:focus,
+.receipt-table select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: #0d6efd;
+    font-size: 0.95rem;
+}
+
+.btn-delete-row {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'purchases:goods_receipt_list' %}">محاضر استلام البضاعة</a></li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {% if object %}تعديل محضر الاستلام{% else %}محضر استلام جديد{% endif %}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    تعديل بيانات محضر استلام البضاعة رقم {{ object.number }}
+                {% else %}
+                    إضافة محضر استلام بضاعة جديد
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'purchases:goods_receipt_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <form method="post" id="goodsReceiptForm" novalidate>
+        {% csrf_token %}
+        {{ lines.management_form }}
+
+        <div class="row">
+            <!-- Main Form Section -->
+            <div class="col-12">
+                <!-- Goods Receipt Header Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-dolly me-2"></i>
+                            معلومات محضر الاستلام الأساسية
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Receipt Date -->
+                            <div class="col-md-3">
+                                <label for="{{ form.date.id_for_label }}" class="form-label required-field">
+                                    {{ form.date.label }}
+                                </label>
+                                {{ form.date|add_class:"form-control" }}
+                                {% if form.date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Purchase Order -->
+                            <div class="col-md-3">
+                                <label for="{{ form.purchase_order.id_for_label }}" class="form-label required-field">
+                                    {{ form.purchase_order.label }}
+                                </label>
+                                {{ form.purchase_order }}
+                                {% if form.purchase_order.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.purchase_order.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Supplier -->
+                            <div class="col-md-3">
+                                <label for="{{ form.supplier.id_for_label }}" class="form-label required-field">
+                                    {{ form.supplier.label }}
+                                </label>
+                                {{ form.supplier }}
+                                {% if form.supplier.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.supplier.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Warehouse -->
+                            <div class="col-md-3">
+                                <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
+                                    {{ form.warehouse.label }}
+                                </label>
+                                {{ form.warehouse }}
+                                {% if form.warehouse.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.warehouse.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Delivery Note Number -->
+                            <div class="col-md-3">
+                                <label for="{{ form.delivery_note_number.id_for_label }}" class="form-label">
+                                    {{ form.delivery_note_number.label }}
+                                </label>
+                                {{ form.delivery_note_number|add_class:"form-control" }}
+                                {% if form.delivery_note_number.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.delivery_note_number.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Delivery Date -->
+                            <div class="col-md-3">
+                                <label for="{{ form.delivery_date.id_for_label }}" class="form-label">
+                                    {{ form.delivery_date.label }}
+                                </label>
+                                {{ form.delivery_date|add_class:"form-control" }}
+                                {% if form.delivery_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.delivery_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Received By -->
+                            <div class="col-md-3">
+                                <label for="{{ form.received_by.id_for_label }}" class="form-label required-field">
+                                    {{ form.received_by.label }}
+                                </label>
+                                {{ form.received_by }}
+                                {% if form.received_by.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.received_by.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Quality Check Status -->
+                            <div class="col-md-3">
+                                <label for="{{ form.quality_check_status.id_for_label }}" class="form-label">
+                                    {{ form.quality_check_status.label }}
+                                </label>
+                                {{ form.quality_check_status|add_class:"form-select" }}
+                                {% if form.quality_check_status.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.quality_check_status.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Quality Notes -->
+                            <div class="col-md-6">
+                                <label for="{{ form.quality_notes.id_for_label }}" class="form-label">
+                                    {{ form.quality_notes.label }}
+                                </label>
+                                {{ form.quality_notes|add_class:"form-control" }}
+                                {% if form.quality_notes.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.quality_notes.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-md-6">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes|add_class:"form-control" }}
+                                {% if form.notes.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.notes.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Receipt Items -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            بنود محضر الاستلام
+                        </h5>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary" id="btn-add-line">
+                                <i class="fas fa-plus me-1"></i> إضافة سطر
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover receipt-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;" class="text-center">#</th>
+                                        <th style="width: 200px;">المادة</th>
+                                        <th style="width: 100px;">الكمية المطلوبة</th>
+                                        <th style="width: 100px;">الكمية المستلمة</th>
+                                        <th style="width: 100px;">الكمية المرفوضة</th>
+                                        <th style="width: 120px;">رقم الدفعة</th>
+                                        <th style="width: 120px;">تاريخ الانتهاء</th>
+                                        <th style="width: 100px;">حالة الجودة</th>
+                                        <th style="width: 150px;">ملاحظات الجودة</th>
+                                        <th style="width: 150px;">ملاحظات</th>
+                                        <th style="width: 60px;">حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-tbody">
+                                    {% for line_form in lines %}
+                                        <tr class="item-row">
+                                            <td class="row-number text-center">{{ forloop.counter }}</td>
+                                            <td>
+                                                {{ line_form.item|add_class:"form-select form-select-sm" }}
+                                                {{ line_form.id }}
+                                                {{ line_form.purchase_order_line }}
+                                            </td>
+                                            <td class="text-end ordered-qty">0.000</td>
+                                            <td>{{ line_form.received_quantity|add_class:"form-control form-control-sm text-end received-qty-input" }}</td>
+                                            <td>{{ line_form.rejected_quantity|add_class:"form-control form-control-sm text-end rejected-qty-input" }}</td>
+                                            <td>{{ line_form.batch_number|add_class:"form-control form-control-sm" }}</td>
+                                            <td>{{ line_form.expiry_date|add_class:"form-control form-control-sm" }}</td>
+                                            <td>{{ line_form.quality_status|add_class:"form-select form-select-sm" }}</td>
+                                            <td>{{ line_form.quality_notes|add_class:"form-control form-control-sm" }}</td>
+                                            <td>{{ line_form.notes|add_class:"form-control form-control-sm" }}</td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                                <div style="display:none;">{{ line_form.DELETE }}</div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'purchases:goods_receipt_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>
+                                {% if object %}تحديث محضر الاستلام{% else %}حفظ محضر الاستلام{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Empty Row Template -->
+<script type="text/template" id="empty-row-template">
+    <tr class="item-row">
+        <td class="row-number text-center">0</td>
+        <td>
+            <select class="form-select form-select-sm" name="lines-__prefix__-item" id="id_lines-__prefix__-item">
+                <option value="">اختر المادة...</option>
+            </select>
+            <input type="hidden" name="lines-__prefix__-id" id="id_lines-__prefix__-id">
+            <input type="hidden" name="lines-__prefix__-purchase_order_line" id="id_lines-__prefix__-purchase_order_line">
+        </td>
+        <td class="text-end ordered-qty">0.000</td>
+        <td><input type="number" class="form-control form-control-sm text-end received-qty-input" name="lines-__prefix__-received_quantity" placeholder="0.000" step="0.001" id="id_lines-__prefix__-received_quantity"></td>
+        <td><input type="number" class="form-control form-control-sm text-end rejected-qty-input" name="lines-__prefix__-rejected_quantity" placeholder="0.000" step="0.001" id="id_lines-__prefix__-rejected_quantity" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm" name="lines-__prefix__-batch_number" id="id_lines-__prefix__-batch_number"></td>
+        <td><input type="date" class="form-control form-control-sm" name="lines-__prefix__-expiry_date" id="id_lines-__prefix__-expiry_date"></td>
+        <td>
+            <select class="form-select form-select-sm" name="lines-__prefix__-quality_status" id="id_lines-__prefix__-quality_status">
+                <option value="pending">قيد الفحص</option>
+                <option value="accepted">مقبول</option>
+                <option value="rejected">مرفوض</option>
+                <option value="partial">جزئي</option>
+            </select>
+        </td>
+        <td><textarea class="form-control form-control-sm" name="lines-__prefix__-quality_notes" id="id_lines-__prefix__-quality_notes" rows="1"></textarea></td>
+        <td><textarea class="form-control form-control-sm" name="lines-__prefix__-notes" id="id_lines-__prefix__-notes" rows="1"></textarea></td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <input type="checkbox" name="lines-__prefix__-DELETE" id="id_lines-__prefix__-DELETE" style="display:none;">
+        </td>
+    </tr>
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ar.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // ============================================
+    // Initialize Select2
+    // ============================================
+    function initSelect2() {
+        // Initialize Select2 for form selects
+        $('#id_purchase_order, #id_supplier, #id_warehouse, #id_received_by').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر...',
+            allowClear: true,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
+            }
+        });
+    }
+
+    initSelect2();
+
+    // ============================================
+    // Update Row Numbers
+    // ============================================
+    function updateRowNumbers() {
+        var rowNum = 1;
+        $('#items-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                $(this).find('.row-number').text(rowNum++);
+            }
+        });
+    }
+
+    // ============================================
+    // Add New Row
+    // ============================================
+    var formIdx = {{ lines.total_form_count }};
+
+    $('#btn-add-line').on('click', function(e) {
+        e.preventDefault();
+
+        // Get template HTML and replace __prefix__
+        var templateHtml = $('#empty-row-template').html();
+        var rowHtml = templateHtml.replace(/__prefix__/g, formIdx);
+        var newRow = $(rowHtml);
+
+        // Append to tbody
+        $('#items-tbody').append(newRow);
+
+        // Update TOTAL_FORMS
+        $('#id_lines-TOTAL_FORMS').val(formIdx + 1);
+        formIdx++;
+
+        updateRowNumbers();
+    });
+
+    // ============================================
+    // Delete Row
+    // ============================================
+    $(document).on('click', '.btn-delete-row', function() {
+        var row = $(this).closest('tr');
+        var deleteInput = row.find('input[name$="-DELETE"]');
+
+        if (deleteInput.length && row.find('input[name$="-id"]').val()) {
+            // Mark for deletion if it's an existing record
+            deleteInput.prop('checked', true);
+            row.hide();
+        } else {
+            // Remove completely if it's a new row
+            row.remove();
+        }
+
+        updateRowNumbers();
+    });
+
+    // ============================================
+    // Form Change Tracking
+    // ============================================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    $('form').on('submit', function() {
+        formChanged = false;
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+});
+</script>
+{% endblock %}

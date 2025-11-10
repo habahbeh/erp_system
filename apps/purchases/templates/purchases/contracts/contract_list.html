@@ -1,0 +1,599 @@
+{# apps/purchases/templates/purchases/contracts/contract_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+/* Select2 RTL Styles */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card .card-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card .card-body::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s;
+}
+
+.stat-card:hover .card-body::before {
+    transform: scale(1);
+}
+
+.badge-status {
+    font-size: 0.875rem;
+    padding: 0.35em 0.65em;
+}
+
+.progress-thin {
+    height: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة عقود الشراء طويلة الأجل" %}</p>
+        </div>
+        {% if can_add %}
+        <a href="{% url 'purchases:contract_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "عقد جديد" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards Row 1 -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-primary shadow-sm" onclick="filterByStatus('')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "الإجمالي" %}</h6>
+                            <h2 class="mb-0">{{ stats.total_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-file-contract fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-secondary shadow-sm" onclick="filterByStatus('draft')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مسودة" %}</h6>
+                            <h2 class="mb-0">{{ stats.draft_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-edit fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-success shadow-sm" onclick="filterByStatus('active')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "ساري" %}</h6>
+                            <h2 class="mb-0">{{ stats.active_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-warning shadow-sm" onclick="filterByStatus('suspended')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "معلق" %}</h6>
+                            <h2 class="mb-0">{{ stats.suspended_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-pause-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-info shadow-sm" onclick="filterByStatus('completed')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "مكتمل" %}</h6>
+                            <h2 class="mb-0">{{ stats.completed_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-flag-checkered fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card stat-card text-white bg-danger shadow-sm" onclick="filterByStatus('expired')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "منتهي" %}</h6>
+                            <h2 class="mb-0">{{ stats.expired_count|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-calendar-times fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards Row 2 - Financial Info -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-coins fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">{% trans "إجمالي قيمة العقود" %}</h6>
+                            <h4 class="mb-0">{{ stats.total_value|floatformat:3 }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-shopping-cart fa-2x text-success"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">{% trans "إجمالي المشتريات" %}</h6>
+                            <h4 class="mb-0">{{ stats.total_ordered|floatformat:3 }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">{% trans "عقود قاربت على الانتهاء" %}</h6>
+                            <h4 class="mb-0">{{ stats.expiring_soon|default:0 }}</h4>
+                            <small class="text-muted">{% trans "خلال 30 يوم" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <form method="get" id="filterForm">
+                    <div class="row g-3">
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "الحالة" %}</label>
+                            <select name="status" class="form-select" id="statusFilter">
+                                <option value="">{% trans "الكل" %}</option>
+                                <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>{% trans "مسودة" %}</option>
+                                <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>{% trans "ساري" %}</option>
+                                <option value="suspended" {% if request.GET.status == 'suspended' %}selected{% endif %}>{% trans "معلق" %}</option>
+                                <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>{% trans "مكتمل" %}</option>
+                                <option value="expired" {% if request.GET.status == 'expired' %}selected{% endif %}>{% trans "منتهي" %}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "المورد" %}</label>
+                            <select name="supplier" class="form-select select2" id="supplierFilter">
+                                <option value="">{% trans "جميع الموردين" %}</option>
+                                {% for supplier in suppliers %}
+                                    <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ supplier.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "من تاريخ" %}</label>
+                            <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                            <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "البحث" %}</label>
+                            <input type="text" name="search" class="form-control" placeholder="{% trans 'رقم العقد أو المورد...' %}" value="{{ request.GET.search }}">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "عقود قاربت على الانتهاء" %}</label>
+                            <select name="expiring" class="form-select">
+                                <option value="">{% trans "الكل" %}</option>
+                                <option value="7" {% if request.GET.expiring == '7' %}selected{% endif %}>{% trans "خلال 7 أيام" %}</option>
+                                <option value="30" {% if request.GET.expiring == '30' %}selected{% endif %}>{% trans "خلال 30 يوم" %}</option>
+                                <option value="60" {% if request.GET.expiring == '60' %}selected{% endif %}>{% trans "خلال 60 يوم" %}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-10 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> {% trans "بحث" %}
+                            </button>
+                            <a href="{% url 'purchases:contract_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-redo"></i> {% trans "إعادة تعيين" %}
+                            </a>
+                            {% comment %}
+                            <a href="#" class="btn btn-success" onclick="exportData(); return false;">
+                                <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                            </a>
+                            {% endcomment %}
+                            {% if can_edit %}
+                            <button type="button" class="btn btn-warning" onclick="checkExpiredContracts()">
+                                <i class="fas fa-sync-alt"></i> {% trans "تحديث العقود المنتهية" %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contracts Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رقم العقد" %}</th>
+                            <th>{% trans "تاريخ العقد" %}</th>
+                            <th>{% trans "المورد" %}</th>
+                            <th>{% trans "تاريخ البداية" %}</th>
+                            <th>{% trans "تاريخ النهاية" %}</th>
+                            <th class="text-end">{% trans "قيمة العقد" %}</th>
+                            <th class="text-end">{% trans "المشتريات" %}</th>
+                            <th class="text-center">{% trans "الاستخدام" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in contracts %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'purchases:contract_detail' contract.pk %}" class="fw-bold text-decoration-none">
+                                    {{ contract.number }}
+                                </a>
+                            </td>
+                            <td>{{ contract.contract_date|date:"Y-m-d" }}</td>
+                            <td>{{ contract.supplier.name }}</td>
+                            <td>
+                                {% if contract.start_date %}
+                                    {{ contract.start_date|date:"Y-m-d" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if contract.end_date %}
+                                    {{ contract.end_date|date:"Y-m-d" }}
+                                    {% with days_remaining=contract.end_date|timeuntil %}
+                                        {% if contract.status == 'active' %}
+                                            <br><small class="text-muted">{{ days_remaining }}</small>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ contract.contract_value|floatformat:3 }}</td>
+                            <td class="text-end">{{ contract.total_ordered|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% with utilization=contract.get_utilization_percentage %}
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <div class="progress progress-thin" style="width: 60px;">
+                                            <div class="progress-bar
+                                                {% if utilization >= 90 %}bg-danger
+                                                {% elif utilization >= 75 %}bg-warning
+                                                {% else %}bg-success{% endif %}"
+                                                role="progressbar"
+                                                style="width: {{ utilization }}%"
+                                                aria-valuenow="{{ utilization }}"
+                                                aria-valuemin="0"
+                                                aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <span class="ms-2 small">{{ utilization|floatformat:0 }}%</span>
+                                    </div>
+                                {% endwith %}
+                            </td>
+                            <td class="text-center">
+                                {% if contract.status == 'draft' %}
+                                    <span class="badge badge-status bg-secondary">{% trans "مسودة" %}</span>
+                                {% elif contract.status == 'active' %}
+                                    <span class="badge badge-status bg-success">{% trans "ساري" %}</span>
+                                {% elif contract.status == 'suspended' %}
+                                    <span class="badge badge-status bg-warning text-dark">{% trans "معلق" %}</span>
+                                {% elif contract.status == 'completed' %}
+                                    <span class="badge badge-status bg-info">{% trans "مكتمل" %}</span>
+                                {% elif contract.status == 'expired' %}
+                                    <span class="badge badge-status bg-danger">{% trans "منتهي" %}</span>
+                                {% endif %}
+
+                                {% if contract.approved and contract.status == 'draft' %}
+                                    <br><span class="badge bg-success mt-1 small">{% trans "معتمد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'purchases:contract_detail' contract.pk %}" class="btn btn-info" title="{% trans 'عرض' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit and contract.status == 'draft' %}
+                                    <a href="{% url 'purchases:contract_update' contract.pk %}" class="btn btn-warning" title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if can_delete and contract.status == 'draft' %}
+                                    <a href="{% url 'purchases:contract_delete' contract.pk %}" class="btn btn-danger" title="{% trans 'حذف' %}" onclick="return confirm('{% trans "هل أنت متأكد من حذف هذا العقد؟" %}')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                {% trans "لا توجد عقود شراء" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "الأولى" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "السابقة" %}</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "التالية" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{% trans "الأخيرة" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        language: 'ar'
+    });
+});
+
+// Filter by status from stat cards
+function filterByStatus(status) {
+    $('#statusFilter').val(status);
+    $('#filterForm').submit();
+}
+
+// Check and update expired contracts
+function checkExpiredContracts() {
+    Swal.fire({
+        title: '{% trans "تحديث العقود المنتهية" %}',
+        text: '{% trans "هل تريد فحص وتحديث حالة العقود المنتهية الصلاحية؟" %}',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '{% trans "نعم، تحديث" %}',
+        cancelButtonText: '{% trans "إلغاء" %}',
+        confirmButtonColor: '#ffc107'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: '{% trans "جاري التحديث..." %}',
+                text: '{% trans "يرجى الانتظار" %}',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Send AJAX request
+            $.ajax({
+                url: '{% url "purchases:contract_check_expiry" %}',
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '{% trans "تم التحديث بنجاح" %}',
+                        text: response.message,
+                        confirmButtonText: '{% trans "حسناً" %}'
+                    }).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '{% trans "خطأ" %}',
+                        text: '{% trans "حدث خطأ أثناء تحديث العقود" %}',
+                        confirmButtonText: '{% trans "حسناً" %}'
+                    });
+                }
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

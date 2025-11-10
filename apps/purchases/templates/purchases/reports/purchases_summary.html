@@ -1,0 +1,457 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+<!-- DataTables Buttons CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: white;
+        }
+        table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
+        }
+        .table {
+            font-size: 10pt;
+        }
+    }
+
+    .dt-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .dt-button {
+        margin-left: 0.5rem;
+    }
+
+    .stat-card {
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-file-invoice-dollar text-primary"></i> {{ title }}
+        </h1>
+        <p class="text-muted">تقرير شامل بجميع فواتير المشتريات والإحصائيات التفصيلية</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <button onclick="printReport()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-danger">
+                <i class="fas fa-file-pdf"></i> تصدير PDF
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> الفلاتر
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">المورد</label>
+                        <select name="supplier" class="form-select">
+                            <option value="">جميع الموردين</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}" {% if selected_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                {{ supplier.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">نوع الفاتورة</label>
+                        <select name="invoice_type" class="form-select">
+                            <option value="purchase" {% if invoice_type == 'purchase' %}selected{% endif %}>مشتريات</option>
+                            <option value="return" {% if invoice_type == 'return' %}selected{% endif %}>مرتجعات</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-invoice fa-2x text-primary mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي الفواتير</h6>
+                    <h3 class="text-primary mb-0">{{ stats.total_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي المبالغ</h6>
+                    <h3 class="text-success mb-0">{{ stats.total_amount|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي الضرائب</h6>
+                    <h3 class="text-warning mb-0">{{ stats.total_tax|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-info mb-2"></i>
+                    <h6 class="text-muted mb-2">متوسط الفاتورة</h6>
+                    <h3 class="text-info mb-0">{{ stats.avg_invoice|floatformat:0 }}</h3>
+                    <small class="text-muted">د.أ</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchases by Supplier -->
+    {% if by_supplier %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-users"></i> المشتريات حسب المورد (أعلى 20)
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رمز المورد</th>
+                            <th>اسم المورد</th>
+                            <th class="text-center">عدد الفواتير</th>
+                            <th class="text-end">إجمالي المبالغ</th>
+                            <th class="text-end">متوسط الفاتورة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_supplier %}
+                        <tr>
+                            <td><strong>{{ item.supplier__code|default:"-" }}</strong></td>
+                            <td>{{ item.supplier__name }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ item.count }}</span>
+                            </td>
+                            <td class="text-end">{{ item.total_amount|floatformat:3 }}</td>
+                            <td class="text-end">{{ item.avg_amount|floatformat:3 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Monthly Chart -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> المشتريات الشهرية</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="monthlyChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Detailed Invoices -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary bg-opacity-10">
+            <h5 class="mb-0 text-primary">
+                <i class="fas fa-list"></i> الفواتير التفصيلية
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="invoicesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>التاريخ</th>
+                            <th>رقم الفاتورة</th>
+                            <th>المورد</th>
+                            <th>الفرع</th>
+                            <th class="text-end">المبلغ قبل الضريبة</th>
+                            <th class="text-end">الضريبة</th>
+                            <th class="text-end">الخصم</th>
+                            <th class="text-end">الإجمالي</th>
+                            <th class="text-center">الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.date|date:"Y-m-d" }}</td>
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.supplier.name|default:"-" }}</td>
+                            <td>{{ invoice.branch.name|default:"-" }}</td>
+                            <td class="text-end">{{ invoice.total|floatformat:3 }}</td>
+                            <td class="text-end">{{ invoice.tax_amount|floatformat:3 }}</td>
+                            <td class="text-end">{{ invoice.discount_amount|floatformat:3 }}</td>
+                            <td class="text-end"><strong>{{ invoice.total_with_tax|floatformat:3 }}</strong></td>
+                            <td class="text-center">
+                                {% if invoice.is_posted %}
+                                    <span class="badge bg-success">مرحل</span>
+                                {% else %}
+                                    <span class="badge bg-warning">مسودة</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد فواتير مطابقة للفلاتر المحددة
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted small">
+        <p class="mb-1">
+            <i class="fas fa-building"></i> {{ user.company.name }}
+        </p>
+        <p class="mb-0">
+            تم إنشاء هذا التقرير بواسطة: {{ user.get_full_name }}
+            في {{ today|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    function exportToExcel() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_purchases_summary_excel" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function exportToPDF() {
+        // Build URL with current filters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = '{% url "purchases:export_purchases_summary_pdf" %}?' + params.toString();
+        window.location.href = exportUrl;
+    }
+
+    function printReport() {
+        window.print();
+    }
+
+    $(document).ready(function() {
+        // Check if table has data rows
+        var tableRows = $('#invoicesTable tbody tr').length;
+        var hasColspan = $('#invoicesTable tbody tr td[colspan]').length > 0;
+
+        if (tableRows > 0 && !hasColspan) {
+            // تهيئة DataTable
+            const table = $('#invoicesTable').DataTable({
+                pageLength: 50,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                },
+                dom: 'Blfrtip',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'تقرير ملخص المشتريات',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-danger btn-sm',
+                        title: 'تقرير ملخص المشتريات',
+                        orientation: 'landscape',
+                        pageSize: 'A4',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> طباعة',
+                        className: 'btn btn-primary btn-sm',
+                        title: 'تقرير ملخص المشتريات',
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ],
+                responsive: true,
+                order: [[0, 'desc']],
+                columnDefs: [
+                    { targets: [4, 5, 6, 7], className: 'text-end' }
+                ]
+            });
+        }
+
+        // Monthly Chart
+        var ctx = document.getElementById('monthlyChart');
+        if (ctx) {
+            ctx = ctx.getContext('2d');
+
+            var monthData = {{ by_month|safe }};
+            var labels = monthData.map(item => {
+                var date = new Date(item.month);
+                return date.toLocaleDateString('ar-JO', { year: 'numeric', month: 'short' });
+            });
+            var counts = monthData.map(item => item.count);
+            var amounts = monthData.map(item => parseFloat(item.total_amount));
+
+            var monthlyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'عدد الفواتير',
+                        data: counts,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'المبالغ',
+                        data: amounts,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        type: 'line',
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'عدد الفواتير'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'المبالغ (د.أ)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
