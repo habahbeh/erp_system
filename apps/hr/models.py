@@ -8,8 +8,8 @@ from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
-from apps.core.models import BaseModel, User, Branch
-from apps.accounting.models import Account, Currency, JournalEntry
+from apps.core.models import BaseModel, DocumentBaseModel, User, Branch, Currency
+from apps.accounting.models import Account, JournalEntry
 
 
 class Department(BaseModel):
@@ -144,11 +144,15 @@ class Employee(BaseModel):
     national_id = models.CharField(
         _('الرقم الوطني'),
         max_length=20,
-        unique=True
+        unique=True,
+        null=True,
+        blank=True
     )
 
     birth_date = models.DateField(
-        _('تاريخ الميلاد')
+        _('تاريخ الميلاد'),
+        null=True,
+        blank=True
     )
 
     birth_place = models.CharField(
@@ -160,19 +164,22 @@ class Employee(BaseModel):
     gender = models.CharField(
         _('الجنس'),
         max_length=10,
-        choices=GENDER_CHOICES
+        choices=GENDER_CHOICES,
+        blank=True
     )
 
     marital_status = models.CharField(
         _('الحالة الاجتماعية'),
         max_length=10,
-        choices=MARITAL_STATUS
+        choices=MARITAL_STATUS,
+        blank=True
     )
 
     # معلومات الاتصال
     phone = models.CharField(
         _('الهاتف'),
-        max_length=20
+        max_length=20,
+        blank=True
     )
 
     mobile = models.CharField(
@@ -186,7 +193,8 @@ class Employee(BaseModel):
     )
 
     address = models.TextField(
-        _('العنوان')
+        _('العنوان'),
+        blank=True
     )
 
     # معلومات التوظيف
@@ -199,7 +207,9 @@ class Employee(BaseModel):
     job_title = models.ForeignKey(
         JobTitle,
         on_delete=models.PROTECT,
-        verbose_name=_('المسمى الوظيفي')
+        verbose_name=_('المسمى الوظيفي'),
+        null=True,
+        blank=True
     )
 
     hire_date = models.DateField(
@@ -236,13 +246,17 @@ class Employee(BaseModel):
         _('الراتب الأساسي'),
         max_digits=12,
         decimal_places=2,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator(0)],
+        null=True,
+        blank=True
     )
 
     currency = models.ForeignKey(
         Currency,
         on_delete=models.PROTECT,
-        verbose_name=_('العملة')
+        verbose_name=_('العملة'),
+        null=True,
+        blank=True
     )
 
     # الحسابات البنكية

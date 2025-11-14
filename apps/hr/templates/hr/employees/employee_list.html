@@ -1,0 +1,187 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="#">الموارد البشرية</a></li>
+            <li class="breadcrumb-item active">الموظفين</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">إدارة بيانات الموظفين</p>
+        </div>
+        <div>
+            <a href="{% url 'hr:employee_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> إضافة موظف
+            </a>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <input type="text"
+                           name="search"
+                           class="form-control"
+                           placeholder="ابحث برقم الموظف، الاسم، الهوية، الجوال، أو البريد الإلكتروني..."
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-3">
+                    <select name="department" class="form-select">
+                        <option value="">كل الأقسام</option>
+                        {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"s" %}selected{% endif %}>
+                                {{ dept.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="status" class="form-select">
+                        <option value="">كل الحالات</option>
+                        <option value="active" {% if selected_status == 'active' %}selected{% endif %}>نشط</option>
+                        <option value="on_leave" {% if selected_status == 'on_leave' %}selected{% endif %}>إجازة</option>
+                        <option value="terminated" {% if selected_status == 'terminated' %}selected{% endif %}>منتهي الخدمة</option>
+                        <option value="suspended" {% if selected_status == 'suspended' %}selected{% endif %}>موقوف</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Employees Table -->
+    <div class="card">
+        <div class="card-body">
+            {% if employees %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>رقم الموظف</th>
+                            <th>الاسم</th>
+                            <th>القسم</th>
+                            <th>المسمى الوظيفي</th>
+                            <th>الجوال</th>
+                            <th>البريد الإلكتروني</th>
+                            <th>الحالة الوظيفية</th>
+                            <th>الحالة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in employees %}
+                        <tr>
+                            <td><strong>{{ employee.employee_number }}</strong></td>
+                            <td>{{ employee.first_name }} {{ employee.last_name }}</td>
+                            <td>
+                                {% if employee.department %}
+                                    <span class="badge bg-info">{{ employee.department.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.job_title %}
+                                    {{ employee.job_title.name }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ employee.mobile|default:"-" }}</td>
+                            <td>{{ employee.email|default:"-" }}</td>
+                            <td>
+                                {% if employee.employment_status == 'active' %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% elif employee.employment_status == 'on_leave' %}
+                                    <span class="badge bg-warning">إجازة</span>
+                                {% elif employee.employment_status == 'terminated' %}
+                                    <span class="badge bg-danger">منتهي الخدمة</span>
+                                {% elif employee.employment_status == 'suspended' %}
+                                    <span class="badge bg-secondary">موقوف</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-danger">غير نشط</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'hr:employee_update' employee.pk %}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="تعديل">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'hr:employee_delete' employee.pk %}"
+                                   class="btn btn-sm btn-outline-danger"
+                                   title="حذف">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">الأولى</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">السابقة</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">التالية</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">الأخيرة</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <p class="text-muted">لا يوجد موظفين حالياً</p>
+                <a href="{% url 'hr:employee_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i> إضافة موظف الآن
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

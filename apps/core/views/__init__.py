@@ -10,7 +10,7 @@ from .item_views import (
 )
 from .partner_views import (
     BusinessPartnerListView, BusinessPartnerCreateView, BusinessPartnerUpdateView,
-    BusinessPartnerDeleteView, BusinessPartnerDetailView
+    BusinessPartnerDeleteView, BusinessPartnerDetailView, partner_create_ajax, item_search_ajax
 )
 from .warehouse_views import (
     WarehouseListView, WarehouseCreateView, WarehouseUpdateView,

@@ -92,7 +92,6 @@ class BusinessPartnerCreateView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 representatives = representative_formset.save(commit=False)
                 for representative in representatives:
                     representative.company = self.request.current_company
-                    representative.branch = self.request.current_branch
                     representative.created_by = self.request.user
                     representative.save()
 
@@ -175,8 +174,6 @@ class BusinessPartnerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 for representative in representatives:
                     if not representative.company:
                         representative.company = self.request.current_company
-                    if not representative.branch:
-                        representative.branch = self.request.current_branch
                     if not representative.created_by:
                         representative.created_by = self.request.user
                     representative.save()
@@ -273,3 +270,137 @@ class BusinessPartnerDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Com
                 _('لا يمكن حذف هذا العميل لوجود بيانات مرتبطة به')
             )
             return redirect('core:partner_list')
+
+
+# AJAX Views
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+
+
+@login_required
+@require_POST
+def partner_create_ajax(request):
+    """إنشاء شريك تجاري عبر AJAX"""
+    try:
+        # التحقق من الصلاحيات
+        if not request.user.has_perm('core.add_businesspartner'):
+            return JsonResponse({
+                'success': False,
+                'error': 'ليس لديك صلاحية لإضافة موردين'
+            }, status=403)
+
+        # الحصول على البيانات
+        name = request.POST.get('name', '').strip()
+        code = request.POST.get('code', '').strip()
+        email = request.POST.get('email', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        mobile = request.POST.get('mobile', '').strip()
+        tax_number = request.POST.get('tax_number', '').strip()
+        address = request.POST.get('address', '').strip()
+        partner_type = request.POST.get('partner_type', 'supplier')
+        is_active = request.POST.get('is_active', 'true') == 'true'
+
+        # التحقق من الاسم
+        if not name:
+            return JsonResponse({
+                'success': False,
+                'error': 'الاسم مطلوب'
+            }, status=400)
+
+        # إنشاء المورد
+        with transaction.atomic():
+            supplier = BusinessPartner.objects.create(
+                company=request.current_company,
+                created_by=request.user,
+                name=name,
+                code=code or None,
+                email=email or None,
+                phone=phone or None,
+                mobile=mobile or None,
+                tax_number=tax_number or None,
+                address=address or None,
+                partner_type=partner_type,
+                is_active=is_active
+            )
+
+        return JsonResponse({
+            'success': True,
+            'supplier': {
+                'id': supplier.id,
+                'name': supplier.name,
+                'code': supplier.code,
+                'email': supplier.email,
+                'phone': supplier.phone,
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def item_search_ajax(request):
+    """البحث في المنتجات عبر AJAX للاستخدام مع Select2"""
+    try:
+        search_term = request.GET.get('q', '').strip()
+        page = int(request.GET.get('page', 1))
+        page_size = 20
+
+        from ..models import Item
+
+        # البحث في المنتجات
+        items = Item.objects.filter(
+            company=request.current_company,
+            is_active=True
+        )
+
+        if search_term:
+            # البحث في كل كلمة من كلمات البحث
+            search_words = search_term.split()
+            from django.db.models import Q
+
+            for word in search_words:
+                items = items.filter(
+                    Q(name__icontains=word) |
+                    Q(name_en__icontains=word) |
+                    Q(code__icontains=word) |
+                    Q(barcode__icontains=word)
+                )
+
+        # حساب العدد الإجمالي
+        total_count = items.count()
+
+        # Pagination
+        start = (page - 1) * page_size
+        end = start + page_size
+        items = items[start:end]
+
+        # تحويل النتائج إلى JSON
+        results = []
+        for item in items:
+            results.append({
+                'id': item.id,
+                'text': f"{item.code} - {item.name}",
+                'name': item.name,
+                'code': item.code,
+                'unit': item.unit_of_measure.name if item.unit_of_measure else '',
+                'unit_id': item.unit_of_measure.id if item.unit_of_measure else None
+            })
+
+        return JsonResponse({
+            'results': results,
+            'pagination': {
+                'more': end < total_count
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'results': [],
+            'error': str(e)
+        }, status=500)

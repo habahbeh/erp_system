@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from decimal import Decimal
 from apps.core.models import BaseModel, DocumentBaseModel, BusinessPartner, Item, Warehouse, UnitOfMeasure, User, Branch, PaymentMethod, Currency, ItemVariant
 from apps.accounting.models import Account, JournalEntry
+from apps.hr.models import Department, Employee
 
 class PurchaseInvoice(DocumentBaseModel):
     """فواتير المشتريات"""
@@ -816,10 +817,12 @@ class PurchaseOrder(DocumentBaseModel):
 
     # الموظف الطالب
     requested_by = models.ForeignKey(
-        User,
+        Employee,
         on_delete=models.PROTECT,
         verbose_name=_('طلب بواسطة'),
-        related_name='purchase_orders_requested'
+        related_name='purchase_orders_requested',
+        null=True,
+        blank=True
     )
 
     # موافقة المدير
@@ -1180,16 +1183,21 @@ class PurchaseRequest(BaseModel):
 
     # الموظف الطالب
     requested_by = models.ForeignKey(
-        User,
+        Employee,
         on_delete=models.PROTECT,
         verbose_name=_('طلب بواسطة'),
-        related_name='purchase_requests'
+        related_name='purchase_requests',
+        null=True,
+        blank=True
     )
 
-    department = models.CharField(
-        _('القسم'),
-        max_length=100,
-        blank=True
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        verbose_name=_('القسم'),
+        null=True,
+        blank=True,
+        related_name='purchase_requests'
     )
 
     # الغرض
@@ -1249,7 +1257,8 @@ class PurchaseRequest(BaseModel):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.number} - {self.requested_by.get_full_name()}"
+        requested_by_name = self.requested_by.get_full_name() if self.requested_by else _('غير محدد')
+        return f"{self.number} - {requested_by_name}"
 
     def submit(self):
         """تقديم طلب الشراء للموافقة"""
@@ -2189,7 +2198,7 @@ class PurchaseContract(BaseModel):
     def check_expiry(self):
         """فحص انتهاء صلاحية العقد"""
         from datetime import date
-        if self.status == 'active' and self.end_date < date.today():
+        if self.status in ['active', 'suspended'] and self.end_date and self.end_date < date.today():
             self.status = 'expired'
             self.save()
             return True

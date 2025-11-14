@@ -39,6 +39,20 @@ class PurchaseContractListView(LoginRequiredMixin, PermissionRequiredMixin, List
     paginate_by = 50
     permission_required = 'purchases.view_purchasecontract'
 
+    def dispatch(self, request, *args, **kwargs):
+        """فحص وتحديث العقود المنتهية تلقائياً عند كل تحميل للصفحة"""
+        # فحص العقود المنتهية وتحديث حالتها (النشطة والمعلقة)
+        expired_contracts = PurchaseContract.objects.filter(
+            company=request.current_company,
+            status__in=['active', 'suspended'],
+            end_date__lt=date.today()
+        )
+        for contract in expired_contracts:
+            contract.status = 'expired'
+            contract.save()
+
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = PurchaseContract.objects.filter(
             company=self.request.current_company
@@ -146,6 +160,15 @@ class PurchaseContractDetailView(LoginRequiredMixin, PermissionRequiredMixin, De
         ).select_related(
             'supplier', 'currency', 'approved_by', 'created_by'
         ).prefetch_related('items__item', 'items__unit')
+
+    def get_object(self, queryset=None):
+        """فحص انتهاء العقد تلقائياً عند عرضه"""
+        obj = super().get_object(queryset)
+        # فحص انتهاء صلاحية العقد
+        obj.check_expiry()
+        # إعادة تحميل الكائن من قاعدة البيانات للحصول على الحالة المحدثة
+        obj.refresh_from_db()
+        return obj
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -496,7 +519,7 @@ def contract_check_expiry(request):
     expired_count = 0
     contracts = PurchaseContract.objects.filter(
         company=request.current_company,
-        status='active',
+        status__in=['active', 'suspended'],
         end_date__lt=date.today()
     )
 
@@ -504,8 +527,101 @@ def contract_check_expiry(request):
         if contract.check_expiry():
             expired_count += 1
 
+    if expired_count == 0:
+        message = _('لا توجد عقود منتهية الصلاحية تحتاج إلى تحديث')
+    else:
+        message = _('تم تحديث حالة %(count)s عقد منتهي الصلاحية') % {'count': expired_count}
+
     return JsonResponse({
         'success': True,
         'expired_count': expired_count,
-        'message': _('تم تحديث حالة %(count)s عقد منتهي الصلاحية') % {'count': expired_count}
+        'message': message
     })
+
+
+@login_required
+@permission_required('purchases.add_purchasecontract', raise_exception=True)
+@transaction.atomic
+def contract_copy_or_renew(request, pk):
+    """نسخ العقد أو تجديده"""
+    original_contract = get_object_or_404(
+        PurchaseContract,
+        pk=pk,
+        company=request.current_company
+    )
+
+    # حساب مدة العقد الأصلي بالأيام
+    contract_duration_days = (original_contract.end_date - original_contract.start_date).days
+
+    # إنشاء نسخة جديدة من العقد
+    new_contract = PurchaseContract()
+
+    # نسخ الحقول الأساسية
+    new_contract.company = request.current_company
+    new_contract.branch = request.current_branch
+    new_contract.created_by = request.user
+
+    # نسخ بيانات المورد والعملة
+    new_contract.supplier = original_contract.supplier
+    new_contract.currency = original_contract.currency
+
+    # تحديث التواريخ
+    new_contract.contract_date = date.today()
+    new_contract.start_date = date.today()
+    new_contract.end_date = date.today() + timedelta(days=contract_duration_days)
+
+    # نسخ الشروط
+    new_contract.payment_terms = original_contract.payment_terms
+    new_contract.delivery_terms = original_contract.delivery_terms
+    new_contract.quality_standards = original_contract.quality_standards
+    new_contract.penalty_terms = original_contract.penalty_terms
+    new_contract.termination_terms = original_contract.termination_terms
+    new_contract.renewal_terms = original_contract.renewal_terms
+
+    # إعداد الملاحظات
+    new_contract.notes = f"نسخة من العقد: {original_contract.number}\nتاريخ النسخ: {date.today()}"
+    if original_contract.notes:
+        new_contract.notes += f"\n\nالملاحظات الأصلية:\n{original_contract.notes}"
+
+    # الحالة والاعتماد (مسودة جديدة)
+    new_contract.status = 'draft'
+    new_contract.approved = False
+    new_contract.approved_by = None
+    new_contract.approved_at = None
+
+    # القيم المالية (صفر للعقد الجديد)
+    new_contract.total_ordered = Decimal('0.000')
+    new_contract.total_received = Decimal('0.000')
+    new_contract.total_invoiced = Decimal('0.000')
+    new_contract.contract_value = Decimal('0.000')  # سيتم حسابه تلقائياً عند حفظ الأصناف
+
+    # حفظ العقد الجديد لتوليد الرقم
+    new_contract.save()
+
+    # نسخ أصناف العقد
+    for original_item in original_contract.items.all():
+        new_item = PurchaseContractItem()
+        new_item.contract = new_contract
+        new_item.item = original_item.item
+        new_item.item_description = original_item.item_description
+        new_item.specifications = original_item.specifications
+        new_item.unit = original_item.unit
+        new_item.contracted_quantity = original_item.contracted_quantity
+        new_item.unit_price = original_item.unit_price
+        new_item.min_order_quantity = original_item.min_order_quantity
+        new_item.max_order_quantity = original_item.max_order_quantity
+        new_item.discount_percentage = original_item.discount_percentage
+        new_item.notes = original_item.notes
+
+        # القيم التنفيذية (صفر للعقد الجديد)
+        new_item.ordered_quantity = Decimal('0.000')
+        new_item.received_quantity = Decimal('0.000')
+
+        new_item.save()
+
+    messages.success(
+        request,
+        _('تم نسخ العقد بنجاح. العقد الجديد: %(number)s') % {'number': new_contract.number}
+    )
+
+    return redirect('purchases:contract_detail', pk=new_contract.pk)

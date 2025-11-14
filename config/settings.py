@@ -46,7 +46,7 @@ DJANGO_APPS = [
     'apps.purchases',
     # 'apps.sales',
     'apps.inventory',
-    # 'apps.hr',
+    'apps.hr',
     'apps.reports',
     'rest_framework',
     'widget_tweaks',

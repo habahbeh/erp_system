@@ -137,6 +137,7 @@ urlpatterns = [
     path('contracts/<int:pk>/approve/', contract_approve, name='contract_approve'),
     path('contracts/<int:pk>/change-status/', contract_change_status, name='contract_change_status'),
     path('contracts/check-expiry/', contract_check_expiry, name='contract_check_expiry'),
+    path('contracts/<int:pk>/copy/', contract_copy_or_renew, name='contract_copy_or_renew'),
 
     # ==================== Reports ====================
     path('reports/', reports_list, name='reports_list'),

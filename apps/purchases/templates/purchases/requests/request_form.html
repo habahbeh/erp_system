@@ -39,6 +39,25 @@
     color: #dc3545;
 }
 
+.is-invalid {
+    border-color: #dc3545 !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: left calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+}
+
+.form-control.is-invalid, .form-select.is-invalid {
+    padding-left: calc(1.5em + 0.75rem);
+}
+
+.invalid-feedback {
+    display: block;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
 /* Select2 RTL */
 .select2-container--bootstrap-5 .select2-selection--single {
     background-image: none !important;
@@ -417,14 +436,20 @@ select[data-select2-id] {
                         </div>
                     </div>
                     <div class="card-body p-0">
+                        <div class="alert alert-info mb-0 rounded-0 border-0 border-bottom">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>ملاحظة:</strong>
+                            يجب إدخال <strong>البيان</strong> و<strong>الكمية</strong> لكل صنف.
+                            اختيار الصنف من القائمة اختياري (للمواد الموجودة في النظام).
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-hover request-table mb-0">
                                 <thead>
                                     <tr id="request-table-header">
                                         <th style="width: 40px;" class="text-center">#</th>
-                                        <th style="width: 250px;">الصنف</th>
-                                        <th style="width: 300px;">البيان</th>
-                                        <th style="width: 120px;">الكمية</th>
+                                        <th style="width: 250px;">الصنف <small class="text-muted">(اختياري)</small></th>
+                                        <th style="width: 300px;">البيان <span class="text-danger">*</span></th>
+                                        <th style="width: 120px;">الكمية <span class="text-danger">*</span></th>
                                         <th style="width: 120px;">الوحدة</th>
                                         <th style="width: 120px;">السعر التقديري</th>
                                         <th style="width: 200px;">ملاحظات</th>
@@ -436,14 +461,14 @@ select[data-select2-id] {
                                         <tr class="item-row">
                                             <td class="row-number text-center">{{ forloop.counter }}</td>
                                             <td>
-                                                {{ item_form.item|add_class:"form-select form-select-sm item-select" }}
+                                                {{ item_form.item }}
                                                 {{ item_form.id }}
                                             </td>
-                                            <td>{{ item_form.item_description|add_class:"form-control form-control-sm" }}</td>
-                                            <td>{{ item_form.quantity|add_class:"form-control form-control-sm text-end quantity-input" }}</td>
-                                            <td>{{ item_form.unit|add_class:"form-control form-control-sm" }}</td>
-                                            <td>{{ item_form.estimated_price|add_class:"form-control form-control-sm text-end price-input" }}</td>
-                                            <td>{{ item_form.notes|add_class:"form-control form-control-sm" }}</td>
+                                            <td>{{ item_form.item_description }}</td>
+                                            <td>{{ item_form.quantity|add_class:"quantity-input" }}</td>
+                                            <td>{{ item_form.unit }}</td>
+                                            <td>{{ item_form.estimated_price|add_class:"price-input" }}</td>
+                                            <td>{{ item_form.notes }}</td>
                                             <td class="text-center">
                                                 <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
                                                     <i class="fas fa-trash-alt"></i>
@@ -578,6 +603,19 @@ $(document).ready(function() {
             width: '100%',
             dir: "rtl",
             placeholder: 'اختر الموظف...',
+            allowClear: true,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
+            }
+        });
+
+        // Initialize Select2 for department
+        $('#id_department').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر القسم...',
             allowClear: true,
             language: {
                 noResults: function() { return "لا توجد نتائج"; },
@@ -766,24 +804,211 @@ $(document).ready(function() {
     // Form Validation
     // ============================================
     $('#requestForm').on('submit', function(e) {
-        var validRows = $('#items-tbody tr:visible').filter(function() {
-            return !$(this).find('input[name$="-DELETE"]').is(':checked');
-        }).length;
+        var errors = [];
+
+        // إزالة جميع الأخطاء السابقة
+        $('.is-invalid').removeClass('is-invalid');
+        $('.invalid-feedback').remove();
+
+        // 1. التحقق من التاريخ
+        var dateInput = $('input[name="date"]');
+        var date = dateInput.val();
+        if (!date) {
+            errors.push('يجب تحديد تاريخ الطلب');
+            dateInput.addClass('is-invalid');
+        }
+
+        // 2. التحقق من التاريخ المطلوب
+        var requiredDateInput = $('input[name="required_date"]');
+        var requiredDate = requiredDateInput.val();
+        if (date && requiredDate && requiredDate < date) {
+            errors.push('التاريخ المطلوب يجب أن يكون بعد أو يساوي تاريخ الطلب');
+            requiredDateInput.addClass('is-invalid');
+        }
+
+        // 3. التحقق من الموظف الطالب
+        var requestedBySelect = $('select[name="requested_by"]');
+        var requestedBy = requestedBySelect.val();
+        if (!requestedBy) {
+            errors.push('يجب تحديد الموظف الطالب');
+            requestedBySelect.addClass('is-invalid');
+        }
+
+        // 4. التحقق من وجود أصناف
+        var validRows = 0;
+        var itemErrors = [];
+
+        $('#items-tbody tr:visible').each(function(index) {
+            var row = $(this);
+            var isDeleted = row.find('input[name$="-DELETE"]').is(':checked');
+
+            if (!isDeleted) {
+                var rowNum = index + 1;
+                var itemSelect = row.find('select[name$="-item"]');
+                var descriptionInput = row.find('textarea[name$="-item_description"]');
+                var quantityInput = row.find('input[name$="-quantity"]');
+                var unitInput = row.find('input[name$="-unit"]');
+                var priceInput = row.find('input[name$="-estimated_price"]');
+                var notesInput = row.find('textarea[name$="-notes"]');
+
+                var item = itemSelect.val();
+                var description = descriptionInput.val() ? descriptionInput.val().trim() : '';
+                var quantity = quantityInput.val();
+                var unit = unitInput.val() ? unitInput.val().trim() : '';
+                var price = priceInput.val() ? priceInput.val().trim() : '';
+                var notes = notesInput.val() ? notesInput.val().trim() : '';
+
+                // التحقق إذا كان السطر فارغ تماماً
+                var isEmpty = !item && !description && !quantity && !unit && !price && !notes;
+
+                // إذا كان السطر فارغ تماماً، نتجاهله
+                if (isEmpty) {
+                    return true; // continue to next iteration
+                }
+
+                // إذا بدأ المستخدم بإدخال بيانات، نتحقق من المطلوب
+                var hasErrors = false;
+
+                // التحقق من البيان (مطلوب إذا بدأ بإدخال البيانات)
+                if (!description) {
+                    itemErrors.push('السطر ' + rowNum + ': يجب إدخال بيان المادة المطلوبة');
+                    descriptionInput.addClass('is-invalid');
+                    hasErrors = true;
+                }
+
+                // التحقق من الكمية (مطلوب وأكبر من صفر)
+                if (!quantity || parseFloat(quantity) <= 0) {
+                    itemErrors.push('السطر ' + rowNum + ': يجب إدخال كمية صحيحة أكبر من صفر');
+                    quantityInput.addClass('is-invalid');
+                    hasErrors = true;
+                }
+
+                // إذا كان البيان والكمية صحيحين، فهذا سطر صالح
+                if (!hasErrors && description && quantity && parseFloat(quantity) > 0) {
+                    validRows++;
+                }
+            }
+        });
 
         if (validRows === 0) {
+            errors.push('يجب إضافة صنف واحد على الأقل مع بيان وكمية صحيحة');
+        }
+
+        // دمج جميع الأخطاء
+        if (itemErrors.length > 0) {
+            errors = errors.concat(itemErrors);
+        }
+
+        // عرض الأخطاء إن وجدت
+        if (errors.length > 0) {
             e.preventDefault();
+
+            var errorHtml = '<div class="text-start" dir="rtl"><ul class="mb-0">';
+            errors.forEach(function(error) {
+                errorHtml += '<li>' + error + '</li>';
+            });
+            errorHtml += '</ul></div>';
+
             Swal.fire({
                 icon: 'error',
-                title: 'خطأ',
-                text: 'يجب إضافة صنف واحد على الأقل',
-                confirmButtonText: 'حسناً'
+                title: 'يوجد أخطاء في النموذج',
+                html: errorHtml,
+                confirmButtonText: 'حسناً',
+                customClass: {
+                    popup: 'text-end'
+                }
+            }).then(function() {
+                // التمرير إلى أول حقل خاطئ
+                var firstInvalid = $('.is-invalid').first();
+                if (firstInvalid.length) {
+                    $('html, body').animate({
+                        scrollTop: firstInvalid.offset().top - 100
+                    }, 500);
+                    firstInvalid.focus();
+                }
             });
+
+            // تمكين زر الإرسال مرة أخرى
+            $('button[type="submit"]').prop('disabled', false).html(
+                '<i class="fas fa-save me-1"></i>حفظ الطلب'
+            );
+
             return false;
         }
 
+        // إذا كان كل شيء صحيح، تعطيل الزر
         $('button[type="submit"]').prop('disabled', true).html(
             '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
         );
+    });
+
+    // ============================================
+    // إزالة علامة الخطأ عند التصحيح
+    // ============================================
+    $(document).on('input change', '.is-invalid', function() {
+        $(this).removeClass('is-invalid');
+        $(this).next('.invalid-feedback').remove();
+    });
+
+    // ============================================
+    // Real-time validation للحقول المطلوبة
+    // ============================================
+
+    // دالة للتحقق إذا كان السطر فارغ تماماً
+    function isRowEmpty(row) {
+        var item = row.find('select[name$="-item"]').val();
+        var description = row.find('textarea[name$="-item_description"]').val() ?
+                         row.find('textarea[name$="-item_description"]').val().trim() : '';
+        var quantity = row.find('input[name$="-quantity"]').val();
+        var unit = row.find('input[name$="-unit"]').val() ?
+                   row.find('input[name$="-unit"]').val().trim() : '';
+        var price = row.find('input[name$="-estimated_price"]').val();
+        var notes = row.find('textarea[name$="-notes"]').val() ?
+                    row.find('textarea[name$="-notes"]').val().trim() : '';
+
+        return !item && !description && !quantity && !unit && !price && !notes;
+    }
+
+    // التحقق من البيان في الوقت الفعلي
+    $(document).on('blur', 'textarea[name$="-item_description"]', function() {
+        var $this = $(this);
+        var row = $this.closest('tr');
+        var isDeleted = row.find('input[name$="-DELETE"]').is(':checked');
+
+        // إذا كان السطر محذوف أو فارغ تماماً، لا نضع علامة خطأ
+        if (isDeleted || isRowEmpty(row)) {
+            $this.removeClass('is-invalid');
+            return;
+        }
+
+        // إذا بدأ المستخدم بإدخال بيانات، نتحقق من البيان
+        var value = $this.val() ? $this.val().trim() : '';
+        if (!value) {
+            $this.addClass('is-invalid');
+        } else {
+            $this.removeClass('is-invalid');
+        }
+    });
+
+    // التحقق من الكمية في الوقت الفعلي
+    $(document).on('blur', 'input[name$="-quantity"]', function() {
+        var $this = $(this);
+        var row = $this.closest('tr');
+        var isDeleted = row.find('input[name$="-DELETE"]').is(':checked');
+
+        // إذا كان السطر محذوف أو فارغ تماماً، لا نضع علامة خطأ
+        if (isDeleted || isRowEmpty(row)) {
+            $this.removeClass('is-invalid');
+            return;
+        }
+
+        // إذا بدأ المستخدم بإدخال بيانات، نتحقق من الكمية
+        var value = parseFloat($this.val());
+        if (isNaN(value) || value <= 0) {
+            $this.addClass('is-invalid');
+        } else {
+            $this.removeClass('is-invalid');
+        }
     });
 
     // ============================================

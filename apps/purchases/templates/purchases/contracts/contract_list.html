@@ -357,11 +357,14 @@ select[data-select2-id] {
                                 <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
                             </a>
                             {% endcomment %}
+                            {% comment %}
+                            زر تحديث العقود المنتهية تم إخفاءه لأن الفحص يتم تلقائياً عند تحميل الصفحة
                             {% if can_edit %}
                             <button type="button" class="btn btn-warning" onclick="checkExpiredContracts()">
                                 <i class="fas fa-sync-alt"></i> {% trans "تحديث العقود المنتهية" %}
                             </button>
                             {% endif %}
+                            {% endcomment %}
                         </div>
                     </div>
                 </form>
@@ -460,15 +463,20 @@ select[data-select2-id] {
                                     <a href="{% url 'purchases:contract_detail' contract.pk %}" class="btn btn-info" title="{% trans 'عرض' %}">
                                         <i class="fas fa-eye"></i>
                                     </a>
+                                    {% if can_add %}
+                                    <button type="button" class="btn btn-secondary" title="{% trans 'نسخ/تجديد' %}" onclick="confirmCopyContract('{{ contract.pk }}', '{{ contract.number }}')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    {% endif %}
                                     {% if can_edit and contract.status == 'draft' %}
                                     <a href="{% url 'purchases:contract_update' contract.pk %}" class="btn btn-warning" title="{% trans 'تعديل' %}">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     {% endif %}
                                     {% if can_delete and contract.status == 'draft' %}
-                                    <a href="{% url 'purchases:contract_delete' contract.pk %}" class="btn btn-danger" title="{% trans 'حذف' %}" onclick="return confirm('{% trans "هل أنت متأكد من حذف هذا العقد؟" %}')">
+                                    <button type="button" class="btn btn-danger" title="{% trans 'حذف' %}" onclick="confirmDelete('{{ contract.pk }}', '{{ contract.number }}', '{{ contract.supplier.name }}')">
                                         <i class="fas fa-trash"></i>
-                                    </a>
+                                    </button>
                                     {% endif %}
                                 </div>
                             </td>
@@ -543,7 +551,100 @@ function filterByStatus(status) {
     $('#filterForm').submit();
 }
 
+// Confirm Delete Contract
+function confirmDelete(contractId, contractNumber, supplierName) {
+    Swal.fire({
+        title: '{% trans "هل أنت متأكد؟" %}',
+        html: `
+            <div class="text-center">
+                <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                <h5 class="mb-3">{% trans "سيتم حذف العقد التالي:" %}</h5>
+                <div class="alert alert-danger" role="alert">
+                    <strong>${contractNumber}</strong><br>
+                    <small class="text-muted">${supplierName}</small>
+                </div>
+                <p class="text-muted small">{% trans "لا يمكن التراجع عن هذا الإجراء!" %}</p>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-trash me-2"></i>{% trans "نعم، احذف" %}',
+        cancelButtonText: '<i class="fas fa-times me-2"></i>{% trans "إلغاء" %}',
+        customClass: {
+            confirmButton: 'btn btn-danger btn-lg',
+            cancelButton: 'btn btn-secondary btn-lg'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: '{% trans "جاري الحذف..." %}',
+                text: '{% trans "يرجى الانتظار" %}',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Submit delete form
+            window.location.href = '{% url "purchases:contract_delete" 0 %}'.replace('0', contractId);
+        }
+    });
+}
+
+// Confirm Copy Contract
+function confirmCopyContract(contractId, contractNumber) {
+    Swal.fire({
+        title: '{% trans "نسخ/تجديد العقد" %}',
+        html: `
+            <div class="text-center">
+                <i class="fas fa-copy text-info" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                <h5 class="mb-3">{% trans "هل تريد نسخ العقد التالي؟" %}</h5>
+                <div class="alert alert-info" role="alert">
+                    <strong>${contractNumber}</strong>
+                </div>
+                <p class="text-muted small">{% trans "سيتم إنشاء عقد جديد بنفس الشروط والأصناف" %}</p>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#17a2b8',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-copy me-2"></i>{% trans "نعم، انسخ" %}',
+        cancelButtonText: '<i class="fas fa-times me-2"></i>{% trans "إلغاء" %}',
+        customClass: {
+            confirmButton: 'btn btn-info btn-lg',
+            cancelButton: 'btn btn-secondary btn-lg'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: '{% trans "جاري النسخ..." %}',
+                text: '{% trans "يرجى الانتظار..." %}',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Redirect to copy action
+            window.location.href = '{% url "purchases:contract_copy_or_renew" 0 %}'.replace('0', contractId);
+        }
+    });
+}
+
 // Check and update expired contracts
+// تم تعطيل هذه الدالة لأن الفحص يتم تلقائياً عند تحميل الصفحة
+/*
 function checkExpiredContracts() {
     Swal.fire({
         title: '{% trans "تحديث العقود المنتهية" %}',
@@ -595,5 +696,6 @@ function checkExpiredContracts() {
         }
     });
 }
+*/
 </script>
 {% endblock %}

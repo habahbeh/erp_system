@@ -126,18 +126,22 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in invoice.items.all %}
+                                {% for item in invoice.lines.all %}
                                 <tr>
                                     <td>{{ forloop.counter }}</td>
                                     <td>
-                                        {{ item.item.name }}
+                                        {% if item.item %}
+                                            <strong>{{ item.item.code }}</strong> - {{ item.item.name }}
+                                        {% endif %}
                                         {% if item.item_variant %}
                                             <br><small class="text-muted">{{ item.item_variant.name }}</small>
                                         {% endif %}
                                     </td>
                                     <td>{{ item.description|default:"-" }}</td>
-                                    <td class="text-center">{{ item.quantity|floatformat:3 }}</td>
-                                    <td class="text-center">{{ item.unit.symbol }}</td>
+                                    <td class="text-center"><strong>{{ item.quantity|floatformat:3 }}</strong></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">{{ item.unit.name }}</span>
+                                    </td>
                                     <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
                                     <td class="text-end">
                                         {{ item.discount_amount|floatformat:3 }}
@@ -151,14 +155,14 @@
                                             <br><small class="text-muted">({{ item.tax_rate }}%)</small>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end">{{ item.total_amount|floatformat:3 }}</td>
+                                    <td class="text-end">{{ item.subtotal|floatformat:3 }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="8" class="text-end"><strong>{% trans "المجموع الفرعي:" %}</strong></td>
-                                    <td class="text-end"><strong>{{ invoice.subtotal|floatformat:3 }}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.subtotal_before_discount|floatformat:3 }}</strong></td>
                                 </tr>
                                 {% if invoice.discount_amount > 0 %}
                                 <tr>
@@ -167,12 +171,16 @@
                                 </tr>
                                 {% endif %}
                                 <tr>
+                                    <td colspan="8" class="text-end"><strong>{% trans "المجموع بعد الخصم:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.subtotal_after_discount|floatformat:3 }}</strong></td>
+                                </tr>
+                                <tr>
                                     <td colspan="8" class="text-end"><strong>{% trans "إجمالي الضريبة:" %}</strong></td>
                                     <td class="text-end"><strong>{{ invoice.tax_amount|floatformat:3 }}</strong></td>
                                 </tr>
                                 <tr class="table-primary">
-                                    <td colspan="8" class="text-end"><strong>{% trans "الإجمالي:" %}</strong></td>
-                                    <td class="text-end"><strong>{{ invoice.total_amount|floatformat:3 }} {{ invoice.currency.code }}</strong></td>
+                                    <td colspan="8" class="text-end"><strong>{% trans "الإجمالي النهائي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ invoice.total_with_tax|floatformat:3 }} {{ invoice.currency.code }}</strong></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -209,19 +217,19 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between mb-2">
                         <span>{% trans "عدد الأصناف:" %}</span>
-                        <strong>{{ invoice.items.count }}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>{% trans "إجمالي الكمية:" %}</span>
-                        <strong>{{ invoice.total_quantity|floatformat:3 }}</strong>
+                        <strong>{{ invoice.lines.count }}</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>{% trans "المجموع الفرعي:" %}</span>
-                        <span>{{ invoice.subtotal|floatformat:3 }}</span>
+                        <span>{{ invoice.subtotal_before_discount|floatformat:3 }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>{% trans "الخصم:" %}</span>
                         <span class="text-danger">{{ invoice.discount_amount|floatformat:3 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "بعد الخصم:" %}</span>
+                        <span>{{ invoice.subtotal_after_discount|floatformat:3 }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>{% trans "الضريبة:" %}</span>
@@ -229,8 +237,8 @@
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between">
-                        <strong>{% trans "الإجمالي:" %}</strong>
-                        <strong class="text-primary">{{ invoice.total_amount|floatformat:3 }}</strong>
+                        <strong>{% trans "الإجمالي النهائي:" %}</strong>
+                        <strong class="text-primary">{{ invoice.total_with_tax|floatformat:3 }}</strong>
                     </div>
                 </div>
             </div>
@@ -248,14 +256,17 @@
                             <span class="badge bg-warning">{% trans "مسودة" %}</span>
                         {% endif %}
                     </p>
-                    {% if invoice.is_posted %}
-                    <p><strong>{% trans "تاريخ الترحيل:" %}</strong> {{ invoice.posted_at|date:"Y-m-d H:i" }}</p>
-                    <p><strong>{% trans "تم الترحيل بواسطة:" %}</strong> {{ invoice.posted_by.get_full_name }}</p>
-                    {% endif %}
-                    {% if invoice.stock_in %}
+                    {% if invoice.goods_receipt and invoice.goods_receipt.stock_in %}
                     <p><strong>{% trans "رقم إذن الإدخال:" %}</strong>
-                        <a href="{% url 'inventory:stock_in_detail' invoice.stock_in.pk %}">
-                            {{ invoice.stock_in.number }}
+                        <a href="{% url 'inventory:stock_in_detail' invoice.goods_receipt.stock_in.pk %}">
+                            {{ invoice.goods_receipt.stock_in.number }}
+                        </a>
+                    </p>
+                    {% endif %}
+                    {% if invoice.goods_receipt %}
+                    <p><strong>{% trans "محضر الاستلام:" %}</strong>
+                        <a href="{% url 'purchases:goods_receipt_detail' invoice.goods_receipt.pk %}">
+                            {{ invoice.goods_receipt.number }}
                         </a>
                     </p>
                     {% endif %}

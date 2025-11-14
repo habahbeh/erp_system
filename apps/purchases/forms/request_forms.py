@@ -12,6 +12,7 @@ from datetime import date
 
 from ..models import PurchaseRequest, PurchaseRequestItem
 from apps.core.models import Item, User
+from apps.hr.models import Department, Employee
 
 
 class PurchaseRequestForm(forms.ModelForm):
@@ -32,9 +33,9 @@ class PurchaseRequestForm(forms.ModelForm):
                 'class': 'form-select select2',
                 'data-placeholder': 'اختر الموظف...',
             }),
-            'department': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'اسم القسم...',
+            'department': forms.Select(attrs={
+                'class': 'form-select select2',
+                'data-placeholder': 'اختر القسم...',
             }),
             'purpose': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -58,17 +59,26 @@ class PurchaseRequestForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
-            # تصفية المستخدمين النشطين
-            self.fields['requested_by'].queryset = User.objects.filter(
-                is_active=True
+            # تصفية الموظفين النشطين
+            self.fields['requested_by'].queryset = Employee.objects.filter(
+                company=self.company,
+                is_active=True,
+                employment_status='active'
             ).order_by('first_name', 'last_name')
+
+            # تصفية الأقسام النشطة
+            self.fields['department'].queryset = Department.objects.filter(
+                company=self.company,
+                is_active=True
+            ).order_by('name')
 
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
 
-            if self.user:
-                self.fields['requested_by'].initial = self.user
+            # إذا كان المستخدم الحالي لديه موظف، نختاره تلقائياً
+            if self.user and hasattr(self.user, 'employee_profile'):
+                self.fields['requested_by'].initial = self.user.employee_profile
 
         # جعل الحقول اختيارية (حسب المتطلبات)
         self.fields['department'].required = False
@@ -173,12 +183,21 @@ class BasePurchaseRequestItemFormSet(BaseInlineFormSet):
         valid_forms = 0
         for form in self.forms:
             if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-                # يجب أن يحتوي السطر على وصف على الأقل
-                if form.cleaned_data.get('item_description'):
+                # يجب أن يحتوي السطر على وصف وكمية
+                item_description = form.cleaned_data.get('item_description')
+                quantity = form.cleaned_data.get('quantity')
+
+                if item_description and quantity and quantity > 0:
                     valid_forms += 1
+                elif item_description or quantity:
+                    # إذا تم إدخال وصف بدون كمية أو العكس
+                    if not quantity or quantity <= 0:
+                        raise ValidationError(_('يجب إدخال كمية صحيحة أكبر من صفر لكل صنف'))
+                    if not item_description:
+                        raise ValidationError(_('يجب إدخال وصف المادة لكل صنف'))
 
         if valid_forms < 1:
-            raise ValidationError(_('يجب إضافة سطر واحد على الأقل لطلب الشراء'))
+            raise ValidationError(_('يجب إضافة صنف واحد على الأقل مع وصف وكمية صحيحة'))
 
 
 # إنشاء Inline Formset لسطور طلب الشراء

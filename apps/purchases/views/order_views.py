@@ -105,6 +105,13 @@ class PurchaseOrderListView(LoginRequiredMixin, PermissionRequiredMixin, ListVie
             is_active=True
         ).order_by('name')
 
+        # قائمة المستودعات للفلترة
+        from apps.core.models import Warehouse
+        context['warehouses'] = Warehouse.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).order_by('name')
+
         # Filter form
         context['filter_form'] = PurchaseOrderFilterForm(
             self.request.GET,
@@ -243,8 +250,9 @@ class PurchaseOrderCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
         context = self.get_context_data()
         formset = context['formset']
 
-        # ربط الأمر بالشركة
+        # ربط الأمر بالشركة والفرع
         form.instance.company = self.request.current_company
+        form.instance.branch = self.request.current_branch
         form.instance.created_by = self.request.user
 
         if formset.is_valid():
@@ -560,7 +568,7 @@ def order_datatable_ajax(request):
 
     queryset = PurchaseOrder.objects.filter(
         company=request.current_company
-    ).select_related('supplier', 'currency')
+    ).select_related('supplier', 'currency', 'warehouse')
 
     # البحث
     if search_value:
@@ -568,6 +576,27 @@ def order_datatable_ajax(request):
             Q(number__icontains=search_value) |
             Q(supplier__name__icontains=search_value)
         )
+
+    # الفلاتر
+    status = request.GET.get('status')
+    if status:
+        queryset = queryset.filter(status=status)
+
+    supplier = request.GET.get('supplier')
+    if supplier:
+        queryset = queryset.filter(supplier_id=supplier)
+
+    warehouse = request.GET.get('warehouse')
+    if warehouse:
+        queryset = queryset.filter(warehouse_id=warehouse)
+
+    date_from = request.GET.get('date_from')
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+
+    date_to = request.GET.get('date_to')
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
 
     # العدد الكلي
     total_records = queryset.count()
@@ -585,7 +614,9 @@ def order_datatable_ajax(request):
             'number': order.number,
             'date': order.date.strftime('%Y-%m-%d'),
             'supplier': order.supplier.name,
-            'total': float(order.total_amount),
+            'warehouse': order.warehouse.name if order.warehouse else '-',
+            'expected_delivery_date': order.expected_delivery_date.strftime('%Y-%m-%d') if order.expected_delivery_date else None,
+            'total_amount': float(order.total_amount),
             'status': order.get_status_display(),
             'status_code': order.status,
             'pk': order.pk,

@@ -91,6 +91,7 @@ from .contract_views import (
     contract_approve,
     contract_change_status,
     contract_check_expiry,
+    contract_copy_or_renew,
 )
 
 # Goods Receipt Views
@@ -213,6 +214,7 @@ __all__ = [
     "contract_approve",
     "contract_change_status",
     "contract_check_expiry",
+    "contract_copy_or_renew",
 
     # Goods Receipt Views
     "GoodsReceiptListView",

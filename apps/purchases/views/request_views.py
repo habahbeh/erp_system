@@ -48,7 +48,7 @@ class PurchaseRequestListView(LoginRequiredMixin, PermissionRequiredMixin, ListV
         if search:
             queryset = queryset.filter(
                 Q(number__icontains=search) |
-                Q(department__icontains=search) |
+                Q(department__name__icontains=search) |
                 Q(purpose__icontains=search) |
                 Q(requested_by__first_name__icontains=search) |
                 Q(requested_by__last_name__icontains=search)
@@ -482,7 +482,7 @@ def request_datatable_ajax(request):
     if search_value:
         queryset = queryset.filter(
             Q(number__icontains=search_value) |
-            Q(department__icontains=search_value) |
+            Q(department__name__icontains=search_value) |
             Q(requested_by__first_name__icontains=search_value) |
             Q(requested_by__last_name__icontains=search_value) |
             Q(purpose__icontains=search_value)
@@ -492,7 +492,7 @@ def request_datatable_ajax(request):
     if search_filter:
         queryset = queryset.filter(
             Q(number__icontains=search_filter) |
-            Q(department__icontains=search_filter) |
+            Q(department__name__icontains=search_filter) |
             Q(requested_by__first_name__icontains=search_filter) |
             Q(requested_by__last_name__icontains=search_filter) |
             Q(purpose__icontains=search_filter)
@@ -537,8 +537,8 @@ def request_datatable_ajax(request):
         data.append({
             'number': req.number,
             'date': req.date.strftime('%Y-%m-%d'),
-            'requested_by': req.requested_by.get_full_name() if req.requested_by else '',
-            'department': req.department or '-',
+            'requested_by': req.requested_by.get_full_name() if req.requested_by else '-',
+            'department': req.department.name if req.department else '-',
             'required_date': req.required_date.strftime('%Y-%m-%d') if req.required_date else '',
             'status': req.get_status_display(),
             'status_code': req.status,
@@ -617,7 +617,7 @@ def export_requests_excel(request):
         ws.cell(row=row_num, column=1, value=req.number).border = border
         ws.cell(row=row_num, column=2, value=req.date.strftime('%Y-%m-%d')).border = border
         ws.cell(row=row_num, column=3, value=req.requested_by.get_full_name() if req.requested_by else '').border = border
-        ws.cell(row=row_num, column=4, value=req.department or '').border = border
+        ws.cell(row=row_num, column=4, value=req.department.name if req.department else '').border = border
         ws.cell(row=row_num, column=5, value=req.purpose or '').border = border
         ws.cell(row=row_num, column=6, value=req.required_date.strftime('%Y-%m-%d') if req.required_date else '').border = border
         ws.cell(row=row_num, column=7, value=req.get_status_display()).border = border

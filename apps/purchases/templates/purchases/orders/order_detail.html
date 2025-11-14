@@ -96,6 +96,7 @@
                             <p><strong>{% trans "رقم الأمر:" %}</strong> {{ order.number }}</p>
                             <p><strong>{% trans "التاريخ:" %}</strong> {{ order.date|date:"Y-m-d" }}</p>
                             <p><strong>{% trans "المورد:" %}</strong> {{ order.supplier.name }}</p>
+                            <p><strong>{% trans "المستودع:" %}</strong> {{ order.warehouse.name }}</p>
                             <p><strong>{% trans "العملة:" %}</strong> {{ order.currency.code }}</p>
                             {% if order.purchase_request %}
                             <p><strong>{% trans "طلب الشراء:" %}</strong>
@@ -114,6 +115,7 @@
                                 {% endif %}
                             </p>
                             <p><strong>{% trans "الفرع:" %}</strong> {{ order.branch.name }}</p>
+                            <p><strong>{% trans "طلب بواسطة:" %}</strong> {{ order.requested_by.get_full_name }}</p>
                             <p><strong>{% trans "الحالة:" %}</strong>
                                 {% if order.status == 'draft' %}
                                     <span class="badge bg-secondary fs-6">{% trans "مسودة" %}</span>
@@ -171,8 +173,6 @@
                                     <th class="text-center">{% trans "الكمية" %}</th>
                                     <th class="text-center">{% trans "الوحدة" %}</th>
                                     <th class="text-end">{% trans "سعر الوحدة" %}</th>
-                                    <th class="text-end">{% trans "الخصم" %}</th>
-                                    <th class="text-end">{% trans "الضريبة" %}</th>
                                     <th class="text-end">{% trans "الإجمالي" %}</th>
                                 </tr>
                             </thead>
@@ -181,49 +181,28 @@
                                 <tr>
                                     <td>{{ forloop.counter }}</td>
                                     <td>
-                                        {{ line.item.name }}
-                                        {% if line.item_variant %}
-                                            <br><small class="text-muted">{{ line.item_variant.name }}</small>
+                                        {% if line.item %}
+                                            <strong>{{ line.item.code }}</strong> - {{ line.item.name }}
                                         {% endif %}
                                     </td>
                                     <td>{{ line.description|default:"-" }}</td>
-                                    <td class="text-center">{{ line.quantity|floatformat:3 }}</td>
-                                    <td class="text-center">{{ line.unit.symbol }}</td>
+                                    <td class="text-center"><strong>{{ line.quantity|floatformat:3 }}</strong></td>
+                                    <td class="text-center">
+                                        {% if line.item.unit_of_measure %}
+                                            <span class="badge bg-secondary">{{ line.item.unit_of_measure.name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-end">{{ line.unit_price|floatformat:3 }}</td>
-                                    <td class="text-end">
-                                        {{ line.discount_amount|floatformat:3 }}
-                                        {% if line.discount_percentage %}
-                                            <br><small class="text-muted">({{ line.discount_percentage }}%)</small>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
-                                        {{ line.tax_amount|floatformat:3 }}
-                                        {% if line.tax_rate %}
-                                            <br><small class="text-muted">({{ line.tax_rate }}%)</small>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">{{ line.total_amount|floatformat:3 }}</td>
+                                    <td class="text-end"><strong>{{ line.total|floatformat:3 }}</strong></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot class="table-light">
-                                <tr>
-                                    <td colspan="8" class="text-end"><strong>{% trans "المجموع الفرعي:" %}</strong></td>
-                                    <td class="text-end"><strong>{{ order.subtotal|floatformat:3 }}</strong></td>
-                                </tr>
-                                {% if order.discount_amount > 0 %}
-                                <tr>
-                                    <td colspan="8" class="text-end"><strong>{% trans "الخصم الإجمالي:" %}</strong></td>
-                                    <td class="text-end text-danger"><strong>{{ order.discount_amount|floatformat:3 }}</strong></td>
-                                </tr>
-                                {% endif %}
-                                <tr>
-                                    <td colspan="8" class="text-end"><strong>{% trans "إجمالي الضريبة:" %}</strong></td>
-                                    <td class="text-end"><strong>{{ order.tax_amount|floatformat:3 }}</strong></td>
-                                </tr>
                                 <tr class="table-primary">
-                                    <td colspan="8" class="text-end"><strong>{% trans "الإجمالي:" %}</strong></td>
-                                    <td class="text-end"><strong>{{ order.total_with_tax|floatformat:3 }} {{ order.currency.code }}</strong></td>
+                                    <td colspan="6" class="text-end"><strong>{% trans "الإجمالي:" %}</strong></td>
+                                    <td class="text-end"><strong>{{ order.total_amount|floatformat:3 }} {{ order.currency.code }}</strong></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -259,22 +238,10 @@
                         <span>{% trans "عدد الأصناف:" %}</span>
                         <strong>{{ order.lines.count }}</strong>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>{% trans "المجموع الفرعي:" %}</span>
-                        <span>{{ order.subtotal|floatformat:3 }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>{% trans "الخصم:" %}</span>
-                        <span class="text-danger">{{ order.discount_amount|floatformat:3 }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>{% trans "الضريبة:" %}</span>
-                        <span>{{ order.tax_amount|floatformat:3 }}</span>
-                    </div>
                     <hr>
                     <div class="d-flex justify-content-between">
                         <strong>{% trans "الإجمالي:" %}</strong>
-                        <strong class="text-primary">{{ order.total_with_tax|floatformat:3 }}</strong>
+                        <strong class="text-primary">{{ order.total_amount|floatformat:3 }} {{ order.currency.code }}</strong>
                     </div>
                 </div>
             </div>
