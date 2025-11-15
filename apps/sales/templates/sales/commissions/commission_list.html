@@ -1,0 +1,375 @@
+{# apps/sales/templates/sales/commissions/commission_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card .card-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card .card-body::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s;
+}
+
+.stat-card:hover .card-body::before {
+    transform: scale(1);
+}
+
+/* Status Badges */
+.badge-status-unpaid {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.badge-status-partial {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.badge-status-paid {
+    background-color: #198754;
+    color: #fff;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة عمولات المندوبين ومتابعة المدفوعات" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'sales:commission_report' %}" class="btn btn-info me-2">
+                <i class="fas fa-file-alt me-1"></i> التقرير التفصيلي
+            </a>
+            <a href="{% url 'sales:commission_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> إضافة عمولة جديدة
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <!-- إجمالي العمولات -->
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "إجمالي العمولات" %}</h6>
+                            <h2 class="mb-0">{{ total_commissions|default:0 }}</h2>
+                            <small class="text-white-75">{{ total_commission_amount|default:0|floatformat:2 }} دينار</small>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-hand-holding-usd fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- عمولات مدفوعة -->
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "عمولات مدفوعة" %}</h6>
+                            <h2 class="mb-0">{{ paid_commissions|default:0 }}</h2>
+                            <small class="text-white-75">{{ total_paid_amount|default:0|floatformat:2 }} دينار</small>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- عمولات جزئية -->
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "عمولات جزئية" %}</h6>
+                            <h2 class="mb-0">{{ partial_commissions|default:0 }}</h2>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-adjust fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- عمولات غير مدفوعة -->
+        <div class="col-md-3">
+            <div class="card stat-card text-white bg-danger shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">{% trans "عمولات غير مدفوعة" %}</h6>
+                            <h2 class="mb-0">{{ unpaid_commissions|default:0 }}</h2>
+                            <small class="text-white-75">{{ total_remaining_amount|default:0|floatformat:2 }} متبقي</small>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-exclamation-triangle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <form method="get" id="filterForm">
+                    <div class="row g-3">
+                        <!-- البحث -->
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "البحث" %}</label>
+                            <input type="text" class="form-control" name="search" value="{{ request.GET.search }}" placeholder="رقم الفاتورة أو اسم المندوب">
+                        </div>
+
+                        <!-- المندوب -->
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "المندوب" %}</label>
+                            <select class="form-select" name="salesperson">
+                                <option value="">{% trans "الكل" %}</option>
+                                {% for sp in salespersons %}
+                                <option value="{{ sp.id }}" {% if request.GET.salesperson == sp.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ sp.get_full_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- الحالة -->
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "حالة الدفع" %}</label>
+                            <select class="form-select" name="payment_status">
+                                <option value="">{% trans "الكل" %}</option>
+                                <option value="unpaid" {% if request.GET.payment_status == 'unpaid' %}selected{% endif %}>غير مدفوعة</option>
+                                <option value="partial" {% if request.GET.payment_status == 'partial' %}selected{% endif %}>مدفوعة جزئياً</option>
+                                <option value="paid" {% if request.GET.payment_status == 'paid' %}selected{% endif %}>مدفوعة بالكامل</option>
+                            </select>
+                        </div>
+
+                        <!-- من تاريخ -->
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "من تاريخ" %}</label>
+                            <input type="date" class="form-control" name="date_from" value="{{ request.GET.date_from }}">
+                        </div>
+
+                        <!-- إلى تاريخ -->
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                            <input type="date" class="form-control" name="date_to" value="{{ request.GET.date_to }}">
+                        </div>
+
+                        <!-- أزرار الإجراءات -->
+                        <div class="col-md-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> {% trans "بحث" %}
+                            </button>
+                            <a href="{% url 'sales:commission_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> {% trans "مسح" %}
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Commissions Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "المندوب" %}</th>
+                            <th>{% trans "رقم الفاتورة" %}</th>
+                            <th>{% trans "العميل" %}</th>
+                            <th class="text-center">{% trans "تاريخ الحساب" %}</th>
+                            <th class="text-center">{% trans "المبلغ الأساسي" %}</th>
+                            <th class="text-center">{% trans "النسبة %" %}</th>
+                            <th class="text-center">{% trans "مبلغ العمولة" %}</th>
+                            <th class="text-center">{% trans "المدفوع" %}</th>
+                            <th class="text-center">{% trans "المتبقي" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for commission in page_obj %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'sales:commission_detail' commission.pk %}">
+                                    {{ commission.salesperson.get_full_name }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{% url 'sales:invoice_detail' commission.invoice.pk %}">
+                                    {{ commission.invoice.number }}
+                                </a>
+                            </td>
+                            <td>{{ commission.invoice.customer.name }}</td>
+                            <td class="text-center">{{ commission.calculation_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">{{ commission.base_amount|floatformat:3 }}</td>
+                            <td class="text-center">{{ commission.commission_rate }}%</td>
+                            <td class="text-center"><strong>{{ commission.commission_amount|floatformat:3 }}</strong></td>
+                            <td class="text-center text-success">{{ commission.paid_amount|floatformat:3 }}</td>
+                            <td class="text-center text-warning">{{ commission.remaining_amount|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% if commission.payment_status == 'unpaid' %}
+                                    <span class="badge badge-status-unpaid">
+                                        <i class="fas fa-times-circle me-1"></i>غير مدفوعة
+                                    </span>
+                                {% elif commission.payment_status == 'partial' %}
+                                    <span class="badge badge-status-partial">
+                                        <i class="fas fa-adjust me-1"></i>جزئية
+                                    </span>
+                                {% elif commission.payment_status == 'paid' %}
+                                    <span class="badge badge-status-paid">
+                                        <i class="fas fa-check-circle me-1"></i>مدفوعة
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'sales:commission_detail' commission.pk %}"
+                                       class="btn btn-outline-primary"
+                                       data-bs-toggle="tooltip"
+                                       title="التفاصيل">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if commission.payment_status != 'paid' %}
+                                    <a href="{% url 'sales:record_commission_payment' commission.pk %}"
+                                       class="btn btn-outline-success"
+                                       data-bs-toggle="tooltip"
+                                       title="تسجيل دفعة">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'sales:commission_update' commission.pk %}"
+                                       class="btn btn-outline-warning"
+                                       data-bs-toggle="tooltip"
+                                       title="تعديل">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3 d-block"></i>
+                                <p class="text-muted">{% trans "لا توجد عمولات" %}</p>
+                                <a href="{% url 'sales:commission_create' %}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-1"></i> إضافة عمولة جديدة
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-light">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize tooltips
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,642 @@
+<!-- apps/sales/templates/sales/installments/installment_detail.html -->
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+/* Hero Section */
+.installment-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.installment-hero h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.hero-badge {
+    font-size: 1.2rem;
+    padding: 0.5rem 1rem;
+}
+
+/* Info Grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.info-card {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    transition: all 0.2s;
+}
+
+.info-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+}
+
+.info-card-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.info-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.info-card-icon {
+    font-size: 2rem;
+    color: rgba(13, 110, 253, 0.2);
+    float: left;
+    margin-left: 0.5rem;
+}
+
+/* Status Badge */
+.status-badge-xl {
+    font-size: 1.2rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+}
+
+/* Timeline */
+.timeline {
+    position: relative;
+    padding: 1rem 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 20px;
+    width: 2px;
+    height: 100%;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    padding-right: 50px;
+    padding-bottom: 2rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    top: 0;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #0d6efd;
+    z-index: 1;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+}
+
+.timeline-content h6 {
+    margin-bottom: 0.5rem;
+    color: #0d6efd;
+}
+
+.timeline-date {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+/* Alert Boxes */
+.alert-installment {
+    border-left: 4px solid;
+    border-radius: 0.375rem;
+}
+
+.alert-installment-success {
+    border-left-color: #198754;
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.alert-installment-warning {
+    border-left-color: #ffc107;
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.alert-installment-danger {
+    border-left-color: #dc3545;
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+    flex: 1;
+    min-width: 150px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:installment_list' %}">أقساط الدفع</a></li>
+            <li class="breadcrumb-item active" aria-current="page">القسط #{{ installment.installment_number }}</li>
+        </ol>
+    </nav>
+
+    <!-- Installment Hero -->
+    <div class="installment-hero">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h2><i class="fas fa-calendar-check me-2"></i>القسط رقم {{ installment.installment_number }}</h2>
+                <p class="mb-0 opacity-75">الفاتورة: {{ installment.invoice.number }} | العميل: {{ installment.invoice.customer.name }}</p>
+            </div>
+            <div>
+                {% if installment.status == 'pending' %}
+                    <span class="badge bg-warning text-dark hero-badge">
+                        <i class="fas fa-clock me-1"></i>معلق
+                    </span>
+                {% elif installment.status == 'paid' %}
+                    <span class="badge bg-success hero-badge">
+                        <i class="fas fa-check-circle me-1"></i>مدفوع
+                    </span>
+                {% elif installment.status == 'overdue' %}
+                    <span class="badge bg-danger hero-badge">
+                        <i class="fas fa-exclamation-triangle me-1"></i>متأخر
+                    </span>
+                {% elif installment.status == 'cancelled' %}
+                    <span class="badge bg-secondary hero-badge">
+                        <i class="fas fa-ban me-1"></i>ملغي
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Alerts -->
+    {% if is_overdue %}
+    <div class="alert alert-installment alert-installment-danger" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>تنبيه:</strong> هذا القسط متأخر عن تاريخ الاستحقاق ({{ installment.due_date|date:"Y-m-d" }})
+    </div>
+    {% endif %}
+
+    {% if installment.status == 'paid' %}
+    <div class="alert alert-installment alert-installment-success" role="alert">
+        <i class="fas fa-check-circle me-2"></i>
+        <strong>تم الدفع:</strong> تم دفع هذا القسط بالكامل بتاريخ {{ installment.payment_date|date:"Y-m-d" }}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Main Column -->
+        <div class="col-lg-8">
+            <!-- Installment Details -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        تفاصيل القسط
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <i class="fas fa-hashtag info-card-icon"></i>
+                            <div class="info-card-label">رقم القسط</div>
+                            <div class="info-card-value">#{{ installment.installment_number }}</div>
+                        </div>
+
+                        <div class="info-card">
+                            <i class="fas fa-calendar info-card-icon"></i>
+                            <div class="info-card-label">تاريخ الاستحقاق</div>
+                            <div class="info-card-value">{{ installment.due_date|date:"Y-m-d" }}</div>
+                        </div>
+
+                        <div class="info-card">
+                            <i class="fas fa-dollar-sign info-card-icon"></i>
+                            <div class="info-card-label">مبلغ القسط</div>
+                            <div class="info-card-value">{{ installment.amount|floatformat:3 }}</div>
+                        </div>
+
+                        <div class="info-card">
+                            <i class="fas fa-check-circle info-card-icon"></i>
+                            <div class="info-card-label">المبلغ المدفوع</div>
+                            <div class="info-card-value" style="color: #198754;">{{ installment.paid_amount|floatformat:3 }}</div>
+                        </div>
+
+                        <div class="info-card">
+                            <i class="fas fa-hourglass-half info-card-icon"></i>
+                            <div class="info-card-label">المبلغ المتبقي</div>
+                            <div class="info-card-value" style="color: #ffc107;">{{ remaining_amount|floatformat:3 }}</div>
+                        </div>
+
+                        {% if installment.payment_date %}
+                        <div class="info-card">
+                            <i class="fas fa-calendar-check info-card-icon"></i>
+                            <div class="info-card-label">تاريخ الدفع</div>
+                            <div class="info-card-value" style="font-size: 1.2rem;">{{ installment.payment_date|date:"Y-m-d" }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if installment.notes %}
+                    <div class="mt-4">
+                        <h6 class="text-muted">الملاحظات:</h6>
+                        <div class="alert alert-light mb-0">
+                            {{ installment.notes|linebreaks }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Invoice Details -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-invoice me-2"></i>
+                        معلومات الفاتورة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th style="width: 150px;">رقم الفاتورة:</th>
+                                    <td>
+                                        <a href="{% url 'sales:invoice_detail' installment.invoice.pk %}">
+                                            {{ installment.invoice.number }}
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>تاريخ الفاتورة:</th>
+                                    <td>{{ installment.invoice.date|date:"Y-m-d" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>نوع الفاتورة:</th>
+                                    <td>{{ installment.invoice.get_invoice_type_display }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th style="width: 150px;">العميل:</th>
+                                    <td>{{ installment.invoice.customer.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>إجمالي الفاتورة:</th>
+                                    <td>{{ installment.invoice.total_with_tax|floatformat:3 }}</td>
+                                </tr>
+                                <tr>
+                                    <th>حالة الدفع:</th>
+                                    <td>
+                                        {% if installment.invoice.payment_status == 'paid' %}
+                                            <span class="badge bg-success">مدفوعة</span>
+                                        {% elif installment.invoice.payment_status == 'unpaid' %}
+                                            <span class="badge bg-danger">غير مدفوعة</span>
+                                        {% elif installment.invoice.payment_status == 'partial' %}
+                                            <span class="badge bg-warning text-dark">مدفوعة جزئياً</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Voucher Info -->
+            {% if installment.receipt_voucher %}
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-receipt me-2"></i>
+                        سند القبض
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th style="width: 150px;">رقم السند:</th>
+                                    <td><strong>{{ installment.receipt_voucher.number }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>تاريخ السند:</th>
+                                    <td>{{ installment.receipt_voucher.date|date:"Y-m-d" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>المبلغ:</th>
+                                    <td><strong class="text-success">{{ installment.receipt_voucher.amount|floatformat:3 }}</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th style="width: 150px;">طريقة القبض:</th>
+                                    <td>{{ installment.receipt_voucher.get_receipt_method_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>الحالة:</th>
+                                    <td>
+                                        {% if installment.receipt_voucher.status == 'draft' %}
+                                            <span class="badge bg-secondary">مسودة</span>
+                                        {% elif installment.receipt_voucher.status == 'confirmed' %}
+                                            <span class="badge bg-info">مؤكد</span>
+                                        {% elif installment.receipt_voucher.status == 'posted' %}
+                                            <span class="badge bg-success">مرحل</span>
+                                        {% elif installment.receipt_voucher.status == 'cancelled' %}
+                                            <span class="badge bg-danger">ملغي</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>البيان:</th>
+                                    <td>{{ installment.receipt_voucher.description }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    {% if installment.receipt_voucher.check_number %}
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>معلومات الشيك:</strong> رقم الشيك: {{ installment.receipt_voucher.check_number }}
+                        {% if installment.receipt_voucher.check_date %}
+                            | تاريخ: {{ installment.receipt_voucher.check_date|date:"Y-m-d" }}
+                        {% endif %}
+                        {% if installment.receipt_voucher.bank_name %}
+                            | البنك: {{ installment.receipt_voucher.bank_name }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Payment History -->
+            {% if installment.receipt_voucher or installment.payment_date %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        سجل الدفعات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        {% if installment.payment_date %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h6><i class="fas fa-dollar-sign me-1"></i>دفعة مسجلة</h6>
+                                <div class="timeline-date">
+                                    <i class="fas fa-calendar me-1"></i>{{ installment.payment_date|date:"Y-m-d" }}
+                                </div>
+                                <p class="mb-0">تم تسجيل دفعة بمبلغ <strong>{{ installment.paid_amount|floatformat:3 }}</strong> دينار</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if installment.receipt_voucher %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker" style="border-color: #198754;"></div>
+                            <div class="timeline-content">
+                                <h6><i class="fas fa-receipt me-1"></i>سند قبض</h6>
+                                <div class="timeline-date">
+                                    <i class="fas fa-calendar me-1"></i>{{ installment.receipt_voucher.date|date:"Y-m-d" }}
+                                </div>
+                                <p class="mb-0">
+                                    رقم السند: <strong>{{ installment.receipt_voucher.number }}</strong><br>
+                                    المبلغ: <strong>{{ installment.receipt_voucher.amount|floatformat:3 }}</strong> دينار<br>
+                                    الحالة:
+                                    {% if installment.receipt_voucher.status == 'posted' %}
+                                        <span class="badge bg-success">مرحل</span>
+                                    {% elif installment.receipt_voucher.status == 'confirmed' %}
+                                        <span class="badge bg-info">مؤكد</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ installment.receipt_voucher.get_status_display }}</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h6><i class="fas fa-plus-circle me-1"></i>إنشاء القسط</h6>
+                                <div class="timeline-date">
+                                    <i class="fas fa-calendar me-1"></i>{{ installment.created_at|date:"Y-m-d H:i" }}
+                                </div>
+                                <p class="mb-0">تم إنشاء القسط بواسطة <strong>{{ installment.created_by.get_full_name }}</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks me-2"></i>
+                        الإجراءات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="action-buttons">
+                        {% if can_record_payment %}
+                        <a href="{% url 'sales:record_payment' installment.pk %}" class="btn btn-success">
+                            <i class="fas fa-dollar-sign me-1"></i> تسجيل دفعة
+                        </a>
+                        {% endif %}
+
+                        <a href="{% url 'sales:invoice_detail' installment.invoice.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-invoice me-1"></i> عرض الفاتورة
+                        </a>
+
+                        <a href="{% url 'sales:installment_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-list me-1"></i> قائمة الأقساط
+                        </a>
+
+                        {% if installment.status != 'paid' and installment.status != 'cancelled' %}
+                        <button type="button" class="btn btn-outline-danger" onclick="cancelInstallment()">
+                            <i class="fas fa-ban me-1"></i> إلغاء القسط
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Progress -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        نسبة الدفع
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% widthratio installment.paid_amount installment.amount 100 as payment_percentage %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>نسبة الدفع</span>
+                            <strong>{{ payment_percentage }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar {% if payment_percentage >= 100 %}bg-success{% elif payment_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                 role="progressbar"
+                                 style="width: {{ payment_percentage }}%;"
+                                 aria-valuenow="{{ payment_percentage }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                {{ payment_percentage }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">المبلغ الكلي:</span>
+                        <strong>{{ installment.amount|floatformat:3 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">المدفوع:</span>
+                        <strong class="text-success">{{ installment.paid_amount|floatformat:3 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">المتبقي:</span>
+                        <strong class="text-warning">{{ remaining_amount|floatformat:3 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        معلومات النظام
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted" style="width: 120px;">تاريخ الإنشاء:</td>
+                            <td>{{ installment.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">تم الإنشاء بواسطة:</td>
+                            <td>{{ installment.created_by.get_full_name }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">آخر تحديث:</td>
+                            <td>{{ installment.updated_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">الشركة:</td>
+                            <td>{{ installment.company.name }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">الفرع:</td>
+                            <td>{{ installment.branch.name }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function cancelInstallment() {
+    Swal.fire({
+        title: '{% trans "هل أنت متأكد؟" %}',
+        text: '{% trans "سيتم إلغاء هذا القسط" %}',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '{% trans "نعم، ألغِ القسط" %}',
+        cancelButtonText: '{% trans "إلغاء" %}'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{% url "sales:cancel_installment" installment.pk %}';
+
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = '{{ csrf_token }}';
+            form.appendChild(csrfInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+</script>
+{% endblock %}

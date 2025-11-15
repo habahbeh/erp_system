@@ -6,6 +6,7 @@ URL Configuration for Purchases App
 from django.urls import path
 from .views import *
 from .views.dashboard import PurchaseDashboardView, dashboard_stats_api, monthly_chart_api, top_suppliers_api
+from .views.quotation_views import get_purchase_request_items_ajax
 from .views.report_views import (
     reports_list, purchases_summary_report, supplier_performance_report,
     purchase_orders_report, items_purchases_report, contracts_report,
@@ -107,6 +108,7 @@ urlpatterns = [
 
     # RFQ AJAX & Export
     path('ajax/rfqs/datatable/', rfq_datatable_ajax, name='rfq_datatable_ajax'),
+    path('ajax/rfqs/get-purchase-request-items/<int:request_id>/', get_purchase_request_items_ajax, name='get_purchase_request_items_ajax'),
     path('rfqs/export/', export_rfqs_excel, name='export_rfqs_excel'),
 
     # ==================== Quotations ====================

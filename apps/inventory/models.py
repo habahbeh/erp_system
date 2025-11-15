@@ -7,6 +7,7 @@
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from decimal import Decimal
 from apps.core.models import BaseModel, DocumentBaseModel, Item, Warehouse, BusinessPartner, User
 from apps.accounting.models import Account, JournalEntry
@@ -457,15 +458,15 @@ class StockOut(StockDocument):
         related_name='stock_outs'
     )
 
-    # فاتورة المبيعات المرتبطة (معطل مؤقتاً - تطبيق المبيعات غير مفعل)
-    # sales_invoice = models.ForeignKey(
-    #     'sales.SalesInvoice',
-    #     on_delete=models.SET_NULL,
-    #     null=True,
-    #     blank=True,
-    #     verbose_name=_('فاتورة المبيعات'),
-    #     related_name='stock_outs'
-    # )
+    # فاتورة المبيعات المرتبطة
+    sales_invoice = models.ForeignKey(
+        'sales.SalesInvoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('فاتورة المبيعات'),
+        related_name='stock_outs'
+    )
 
     # القيد المحاسبي
     journal_entry = models.ForeignKey(

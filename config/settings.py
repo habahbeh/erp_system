@@ -44,7 +44,7 @@ DJANGO_APPS = [
     'apps.accounting',
     'apps.assets',
     'apps.purchases',
-    # 'apps.sales',
+    'apps.sales',
     'apps.inventory',
     'apps.hr',
     'apps.reports',

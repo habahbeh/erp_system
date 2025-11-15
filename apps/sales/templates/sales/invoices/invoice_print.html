@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فاتورة مبيعات - {{ invoice.number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+
+        body {
+            font-family: 'Arial', 'Segoe UI', 'Tahoma', sans-serif;
+            background: white;
+            color: #333;
+            line-height: 1.6;
+            font-size: 11pt;
+        }
+
+        .invoice-container {
+            width: 100%;
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+        }
+
+        /* Header - معلومات الشركة */
+        .invoice-header {
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+        }
+
+        .company-info {
+            flex: 1;
+        }
+
+        .company-name {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #0d6efd;
+            margin-bottom: 5px;
+        }
+
+        .company-details {
+            font-size: 9pt;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .company-logo {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        /* Invoice Title */
+        .invoice-title {
+            text-align: center;
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            color: white;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 18pt;
+            font-weight: bold;
+        }
+
+        /* Invoice Info - معلومات الفاتورة */
+        .invoice-info-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .info-box h3 {
+            font-size: 12pt;
+            color: #0d6efd;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 5px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 10pt;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .info-value {
+            color: #333;
+        }
+
+        /* Items Table - جدول السطور */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10pt;
+        }
+
+        .items-table thead {
+            background: #0d6efd;
+            color: white;
+        }
+
+        .items-table th {
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid white;
+        }
+
+        .items-table tbody tr {
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .items-table tbody tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .items-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+
+        .items-table .text-right {
+            text-align: right;
+        }
+
+        .items-table .text-left {
+            text-align: left;
+        }
+
+        /* Totals Section - المجاميع */
+        .totals-section {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .totals-box {
+            width: 50%;
+            border: 2px solid #0d6efd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .total-row:last-child {
+            border-bottom: none;
+        }
+
+        .total-row.highlight {
+            background: #0d6efd;
+            color: white;
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .total-row .label {
+            font-weight: bold;
+        }
+
+        .total-row .value {
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Footer - التذييل */
+        .invoice-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #dee2e6;
+        }
+
+        .notes-section {
+            margin-bottom: 20px;
+        }
+
+        .notes-title {
+            font-weight: bold;
+            color: #0d6efd;
+            margin-bottom: 5px;
+        }
+
+        .notes-content {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border-right: 3px solid #0d6efd;
+        }
+
+        .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .signature-box {
+            text-align: center;
+        }
+
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 50px;
+            padding-top: 5px;
+            font-size: 10pt;
+        }
+
+        /* QR Code Section */
+        .qr-section {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .qr-code {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            border: 2px solid #0d6efd;
+            border-radius: 5px;
+            padding: 10px;
+            background: white;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 9pt;
+            font-weight: bold;
+        }
+
+        .status-posted {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-draft {
+            background: #ffc107;
+            color: #333;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+            }
+
+            .invoice-container {
+                width: 100%;
+                max-width: none;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            @page {
+                margin: 10mm;
+            }
+
+            /* تجنب فصل الصفحات داخل العناصر */
+            .invoice-header,
+            .invoice-info-section,
+            .items-table,
+            .totals-section {
+                page-break-inside: avoid;
+            }
+
+            /* إزالة الظلال والألوان الخلفية للطباعة الواضحة */
+            .info-box,
+            .items-table tbody tr:nth-child(even) {
+                background: white !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* الحفاظ على ألوان العناوين */
+            .invoice-title,
+            .items-table thead,
+            .total-row.highlight {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
+        /* Watermark للفواتير غير المرحلة */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100pt;
+            color: rgba(220, 53, 69, 0.1);
+            font-weight: bold;
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    {% if not invoice.is_posted %}
+    <div class="watermark">مسودة</div>
+    {% endif %}
+
+    <div class="invoice-container">
+        <!-- Header - معلومات الشركة -->
+        <div class="invoice-header">
+            <div class="company-info">
+                <div class="company-name">{{ invoice.company.name }}</div>
+                <div class="company-details">
+                    {% if invoice.company.address %}
+                    <div><strong>العنوان:</strong> {{ invoice.company.address }}</div>
+                    {% endif %}
+                    {% if invoice.company.phone %}
+                    <div><strong>الهاتف:</strong> {{ invoice.company.phone }}</div>
+                    {% endif %}
+                    {% if invoice.company.email %}
+                    <div><strong>البريد:</strong> {{ invoice.company.email }}</div>
+                    {% endif %}
+                    {% if invoice.company.tax_number %}
+                    <div><strong>الرقم الضريبي:</strong> {{ invoice.company.tax_number }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="company-logo">
+                {{ invoice.company.name|slice:":1" }}
+            </div>
+        </div>
+
+        <!-- Invoice Title -->
+        <div class="invoice-title">
+            فاتورة مبيعات - {{ invoice.get_invoice_type_display }}
+            {% if invoice.is_posted %}
+            <span class="status-badge status-posted">مرحلة</span>
+            {% else %}
+            <span class="status-badge status-draft">مسودة</span>
+            {% endif %}
+        </div>
+
+        <!-- Invoice Info -->
+        <div class="invoice-info-section">
+            <!-- معلومات الفاتورة -->
+            <div class="info-box">
+                <h3>معلومات الفاتورة</h3>
+                <div class="info-row">
+                    <span class="info-label">رقم الفاتورة:</span>
+                    <span class="info-value">{{ invoice.number }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">التاريخ:</span>
+                    <span class="info-value">{{ invoice.date|date:"Y-m-d" }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">المستودع:</span>
+                    <span class="info-value">{{ invoice.warehouse.name }}</span>
+                </div>
+                {% if invoice.salesperson %}
+                <div class="info-row">
+                    <span class="info-label">المندوب:</span>
+                    <span class="info-value">{{ invoice.salesperson.get_full_name }}</span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="info-label">طريقة الدفع:</span>
+                    <span class="info-value">{{ invoice.payment_method.name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">حالة الدفع:</span>
+                    <span class="info-value">
+                        {% if invoice.payment_status == 'paid' %}
+                            مدفوعة
+                        {% elif invoice.payment_status == 'partial' %}
+                            مدفوعة جزئياً
+                        {% else %}
+                            غير مدفوعة
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- معلومات العميل -->
+            <div class="info-box">
+                <h3>معلومات العميل</h3>
+                <div class="info-row">
+                    <span class="info-label">اسم العميل:</span>
+                    <span class="info-value">{{ invoice.customer.name }}</span>
+                </div>
+                {% if invoice.customer.code %}
+                <div class="info-row">
+                    <span class="info-label">رقم العميل:</span>
+                    <span class="info-value">{{ invoice.customer.code }}</span>
+                </div>
+                {% endif %}
+                {% if invoice.customer.phone %}
+                <div class="info-row">
+                    <span class="info-label">الهاتف:</span>
+                    <span class="info-value">{{ invoice.customer.phone }}</span>
+                </div>
+                {% endif %}
+                {% if invoice.customer.email %}
+                <div class="info-row">
+                    <span class="info-label">البريد:</span>
+                    <span class="info-value">{{ invoice.customer.email }}</span>
+                </div>
+                {% endif %}
+                {% if invoice.recipient_name %}
+                <div class="info-row">
+                    <span class="info-label">المستلم:</span>
+                    <span class="info-value">{{ invoice.recipient_name }}</span>
+                </div>
+                {% endif %}
+                {% if invoice.recipient_phone %}
+                <div class="info-row">
+                    <span class="info-label">هاتف المستلم:</span>
+                    <span class="info-value">{{ invoice.recipient_phone }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Items Table -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">#</th>
+                    <th style="width: 120px;">رمز المادة</th>
+                    <th class="text-right">اسم المادة</th>
+                    <th style="width: 80px;">الكمية</th>
+                    <th style="width: 70px;">الوحدة</th>
+                    <th style="width: 90px;">سعر الوحدة</th>
+                    <th style="width: 70px;">الخصم %</th>
+                    <th style="width: 90px;">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in invoice.lines.all %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ item.item.code }}</td>
+                    <td class="text-right">
+                        {{ item.item.name }}
+                        {% if item.description %}
+                        <br><small style="color: #666;">{{ item.description }}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.quantity|floatformat:3 }}</td>
+                    <td>{{ item.item.unit_of_measure.code }}</td>
+                    <td>{{ item.unit_price|floatformat:3 }}</td>
+                    <td>{{ item.discount_percentage|floatformat:2 }}%</td>
+                    <td>{{ item.subtotal|floatformat:3 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="totals-section">
+            <div class="totals-box">
+                <div class="total-row">
+                    <span class="label">المجموع الفرعي:</span>
+                    <span class="value">{{ invoice.subtotal_before_discount|floatformat:3 }}</span>
+                </div>
+                {% if invoice.discount_amount > 0 %}
+                <div class="total-row">
+                    <span class="label">الخصم الإجمالي:</span>
+                    <span class="value" style="color: #dc3545;">{{ invoice.discount_amount|floatformat:3 }}</span>
+                </div>
+                <div class="total-row">
+                    <span class="label">بعد الخصم:</span>
+                    <span class="value">{{ invoice.subtotal_after_discount|floatformat:3 }}</span>
+                </div>
+                {% endif %}
+                <div class="total-row">
+                    <span class="label">الضريبة:</span>
+                    <span class="value">{{ invoice.tax_amount|floatformat:3 }}</span>
+                </div>
+                {% if invoice.shipping_cost and invoice.shipping_cost > 0 %}
+                <div class="total-row">
+                    <span class="label">تكلفة الشحن:</span>
+                    <span class="value">{{ invoice.shipping_cost|floatformat:3 }}</span>
+                </div>
+                {% endif %}
+                <div class="total-row highlight">
+                    <span class="label">الإجمالي النهائي:</span>
+                    <span class="value">{{ invoice.total_with_tax|floatformat:3 }} {{ invoice.currency.code }}</span>
+                </div>
+                {% if invoice.salesperson_commission_rate and invoice.salesperson_commission_rate > 0 %}
+                <div class="total-row" style="background: #d4edda; color: #155724;">
+                    <span class="label">عمولة المندوب ({{ invoice.salesperson_commission_rate }}%):</span>
+                    <span class="value">{{ invoice.salesperson_commission_amount|floatformat:3 }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="qr-section">
+            <div class="qr-code">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ invoice.number }}"
+                     alt="QR Code" style="width: 100%; height: 100%;">
+            </div>
+            <div style="margin-top: 10px; font-size: 9pt; color: #666;">
+                امسح الكود للتحقق من الفاتورة
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="invoice-footer">
+            <!-- Notes -->
+            {% if invoice.notes %}
+            <div class="notes-section">
+                <div class="notes-title">ملاحظات:</div>
+                <div class="notes-content">{{ invoice.notes|linebreaks }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Signatures -->
+            <div class="signature-section">
+                <div class="signature-box">
+                    <div class="signature-line">
+                        المحاسب
+                    </div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line">
+                        العميل
+                    </div>
+                </div>
+            </div>
+
+            <!-- Print Info -->
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 8pt; color: #999;">
+                <div>تم الطباعة بواسطة: {{ request.user.get_full_name }} | التاريخ: {% now "Y-m-d H:i" %}</div>
+                <div style="margin-top: 5px;">نظام إدارة الموارد - {{ invoice.company.name }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Button (hidden in print) -->
+    <div class="no-print" style="text-align: center; margin: 20px; padding: 20px;">
+        <button onclick="window.print()" style="padding: 12px 30px; font-size: 14pt; background: #0d6efd; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            <i class="fas fa-print"></i> طباعة الفاتورة
+        </button>
+        <button onclick="window.close()" style="padding: 12px 30px; font-size: 14pt; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+            <i class="fas fa-times"></i> إغلاق
+        </button>
+    </div>
+
+    <script>
+        // Auto print on load (optional)
+        // window.onload = function() { window.print(); }
+    </script>
+</body>
+</html>

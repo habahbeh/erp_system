@@ -1,0 +1,357 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+{% load custom_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/responsive/2.4.1/css/responsive.bootstrap5.min.css" rel="stylesheet">
+<style>
+    .stat-card {
+        border-radius: 10px;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .badge-status {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- صفحة العنوان -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">
+            <i class="fas fa-shopping-cart ms-2"></i>
+            {{ title }}
+        </h2>
+        {% if perms.sales.add_salesorder %}
+        <a href="{% url 'sales:order_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus ms-2"></i>
+            إضافة طلب بيع جديد
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- البطاقات الإحصائية -->
+    <div class="row mb-4">
+        <div class="col-md-2 mb-3">
+            <div class="card stat-card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">إجمالي الطلبات</h6>
+                            <h3 class="mb-0 fw-bold">{{ total_orders }}</h3>
+                        </div>
+                        <div class="fs-1 opacity-50">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2 mb-3">
+            <div class="card stat-card border-0 shadow-sm bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">معتمدة</h6>
+                            <h3 class="mb-0 fw-bold">{{ approved_orders }}</h3>
+                        </div>
+                        <div class="fs-1 opacity-50">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2 mb-3">
+            <div class="card stat-card border-0 shadow-sm bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">معلقة</h6>
+                            <h3 class="mb-0 fw-bold">{{ pending_orders }}</h3>
+                        </div>
+                        <div class="fs-1 opacity-50">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2 mb-3">
+            <div class="card stat-card border-0 shadow-sm bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">مسلمة</h6>
+                            <h3 class="mb-0 fw-bold">{{ delivered_orders }}</h3>
+                        </div>
+                        <div class="fs-1 opacity-50">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2 mb-3">
+            <div class="card stat-card border-0 shadow-sm bg-secondary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">مفوترة</h6>
+                            <h3 class="mb-0 fw-bold">{{ invoiced_orders }}</h3>
+                        </div>
+                        <div class="fs-1 opacity-50">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- بطاقة الجدول -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0 py-3">
+            <h5 class="mb-0 fw-bold">
+                <i class="fas fa-list ms-2"></i>
+                قائمة طلبات البيع
+            </h5>
+        </div>
+        <div class="card-body">
+            <!-- فلاتر البحث -->
+            <form method="get" id="filterForm" class="mb-4">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">بحث</label>
+                        <input type="text" name="search" class="form-control"
+                               placeholder="رقم الطلب، العميل..."
+                               value="{{ request.GET.search }}">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">الحالة</label>
+                        <select name="is_approved" class="form-select">
+                            <option value="">الكل</option>
+                            <option value="true" {% if request.GET.is_approved == 'true' %}selected{% endif %}>معتمد</option>
+                            <option value="false" {% if request.GET.is_approved == 'false' %}selected{% endif %}>غير معتمد</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">التسليم</label>
+                        <select name="is_delivered" class="form-select">
+                            <option value="">الكل</option>
+                            <option value="true" {% if request.GET.is_delivered == 'true' %}selected{% endif %}>مسلم</option>
+                            <option value="false" {% if request.GET.is_delivered == 'false' %}selected{% endif %}>غير مسلم</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">الفوترة</label>
+                        <select name="is_invoiced" class="form-select">
+                            <option value="">الكل</option>
+                            <option value="true" {% if request.GET.is_invoiced == 'true' %}selected{% endif %}>مفوتر</option>
+                            <option value="false" {% if request.GET.is_invoiced == 'false' %}selected{% endif %}>غير مفوتر</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search ms-2"></i>
+                            بحث
+                        </button>
+                        <a href="{% url 'sales:order_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-redo ms-2"></i>
+                            إعادة تعيين
+                        </a>
+                    </div>
+                </div>
+            </form>
+
+            <!-- الجدول -->
+            <div class="table-responsive">
+                <table id="ordersTable" class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>رقم الطلب</th>
+                            <th>التاريخ</th>
+                            <th>العميل</th>
+                            <th>المستودع</th>
+                            <th>موظف المبيعات</th>
+                            <th>تاريخ التسليم</th>
+                            <th>الحالة</th>
+                            <th>التسليم</th>
+                            <th>الفوترة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'sales:order_detail' order.pk %}"
+                                   class="text-decoration-none fw-bold">
+                                    {{ order.number }}
+                                </a>
+                            </td>
+                            <td>{{ order.date|date:"Y/m/d" }}</td>
+                            <td>{{ order.customer.name }}</td>
+                            <td>{{ order.warehouse.name }}</td>
+                            <td>{{ order.salesperson.get_full_name }}</td>
+                            <td>
+                                {% if order.delivery_date %}
+                                    {{ order.delivery_date|date:"Y/m/d" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.is_approved %}
+                                    <span class="badge badge-status bg-success">
+                                        <i class="fas fa-check-circle ms-1"></i>
+                                        معتمد
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-status bg-warning">
+                                        <i class="fas fa-clock ms-1"></i>
+                                        معلق
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.is_delivered %}
+                                    <span class="badge badge-status bg-info">
+                                        <i class="fas fa-check ms-1"></i>
+                                        مسلم
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-status bg-secondary">
+                                        <i class="fas fa-times ms-1"></i>
+                                        غير مسلم
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.is_invoiced %}
+                                    <span class="badge badge-status bg-primary">
+                                        <i class="fas fa-check ms-1"></i>
+                                        مفوتر
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-status bg-secondary">
+                                        <i class="fas fa-times ms-1"></i>
+                                        غير مفوتر
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    {% if perms.sales.view_salesorder %}
+                                    <a href="{% url 'sales:order_detail' order.pk %}"
+                                       class="btn btn-sm btn-info"
+                                       title="عرض التفاصيل">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% endif %}
+
+                                    {% if perms.sales.change_salesorder and not order.is_delivered and not order.is_invoiced %}
+                                    <a href="{% url 'sales:order_update' order.pk %}"
+                                       class="btn btn-sm btn-warning"
+                                       title="تعديل">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+
+                                    {% if perms.sales.delete_salesorder and not order.is_delivered and not order.is_invoiced %}
+                                    <a href="{% url 'sales:order_delete' order.pk %}"
+                                       class="btn btn-sm btn-danger"
+                                       title="حذف">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                لا توجد طلبات بيع
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">الأولى</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">السابقة</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">التالية</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">الأخيرة</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.4.1/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.4.1/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#ordersTable').DataTable({
+        responsive: true,
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/ar.json'
+        },
+        order: [[1, 'desc']],
+        pageLength: 50,
+        dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip',
+        columnDefs: [
+            { orderable: false, targets: -1 }
+        ]
+    });
+});
+</script>
+{% endblock %}

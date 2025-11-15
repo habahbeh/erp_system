@@ -1,0 +1,765 @@
+<!-- apps/sales/templates/sales/installments/installment_plan_form.html -->
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Invoice Info Card */
+.invoice-info-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.invoice-info-card h4 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.invoice-info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.invoice-info-item:last-child {
+    border-bottom: none;
+}
+
+.invoice-info-label {
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.invoice-info-value {
+    font-weight: 600;
+}
+
+/* Installments Table */
+.installments-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.installments-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    border-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.installments-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.installments-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.installments-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+    border-right: 1px solid #f0f0f0;
+}
+
+.installments-table tbody td:last-child {
+    border-right: none;
+}
+
+.installments-table input {
+    font-size: 0.875rem;
+    border-color: #dee2e6;
+}
+
+.installments-table input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: #0d6efd;
+    font-size: 0.95rem;
+}
+
+.btn-delete-row {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Summary Section */
+.summary-section {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.summary-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.summary-line:last-child {
+    border-bottom: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding-top: 1rem;
+    border-top: 2px solid #0d6efd;
+}
+
+.summary-label {
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.summary-value {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #212529;
+}
+
+/* Alert Messages */
+.alert-custom {
+    border-left: 4px solid;
+    border-radius: 0.375rem;
+}
+
+.alert-custom-info {
+    border-left-color: #0d6efd;
+    background-color: #e7f3ff;
+    color: #004085;
+}
+
+.alert-custom-warning {
+    border-left-color: #ffc107;
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:invoice_list' %}">فواتير المبيعات</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:invoice_detail' invoice.pk %}">الفاتورة {{ invoice.number }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">إنشاء خطة أقساط</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">إنشاء خطة دفع بالأقساط للفاتورة {{ invoice.number }}</p>
+        </div>
+        <div>
+            <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <!-- Invoice Info Card -->
+    <div class="invoice-info-card">
+        <h4><i class="fas fa-file-invoice me-2"></i>معلومات الفاتورة</h4>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">رقم الفاتورة:</span>
+                    <span class="invoice-info-value">{{ invoice.number }}</span>
+                </div>
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">العميل:</span>
+                    <span class="invoice-info-value">{{ invoice.customer.name }}</span>
+                </div>
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">تاريخ الفاتورة:</span>
+                    <span class="invoice-info-value">{{ invoice.date|date:"Y-m-d" }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">إجمالي الفاتورة:</span>
+                    <span class="invoice-info-value">{{ invoice.total_with_tax|floatformat:3 }}</span>
+                </div>
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">المتبقي للتقسيط:</span>
+                    <span class="invoice-info-value">{{ remaining_for_installments|floatformat:3 }}</span>
+                </div>
+                <div class="invoice-info-item">
+                    <span class="invoice-info-label">عدد الأقساط الحالية:</span>
+                    <span class="invoice-info-value">{{ invoice.installments.count }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if remaining_for_installments <= 0 %}
+    <div class="alert alert-custom alert-custom-warning" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>تنبيه:</strong> لا يوجد مبلغ متبقي للتقسيط. تم تقسيم المبلغ الكلي للفاتورة.
+    </div>
+    {% endif %}
+
+    <form method="post" id="installmentPlanForm" novalidate>
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <div class="row">
+            <div class="col-12">
+                <!-- Auto-Generate Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-magic me-2"></i>
+                            إعدادات التوليد التلقائي
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-custom alert-custom-info" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            املأ البيانات أدناه واضغط "توليد الأقساط" لإنشاء خطة أقساط تلقائية، أو قم بإدخال الأقساط يدوياً في الجدول أدناه.
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- عدد الأقساط -->
+                            <div class="col-md-3">
+                                <label for="{{ form.number_of_installments.id_for_label }}" class="form-label required-field">
+                                    {{ form.number_of_installments.label }}
+                                </label>
+                                {{ form.number_of_installments|add_class:"form-control" }}
+                                <small class="text-muted">{{ form.number_of_installments.help_text }}</small>
+                                {% if form.number_of_installments.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.number_of_installments.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- تاريخ أول قسط -->
+                            <div class="col-md-3">
+                                <label for="{{ form.first_installment_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.first_installment_date.label }}
+                                </label>
+                                {{ form.first_installment_date|add_class:"form-control" }}
+                                <small class="text-muted">{{ form.first_installment_date.help_text }}</small>
+                                {% if form.first_installment_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.first_installment_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- الفترة بين الأقساط -->
+                            <div class="col-md-3">
+                                <label for="{{ form.interval_days.id_for_label }}" class="form-label required-field">
+                                    {{ form.interval_days.label }}
+                                </label>
+                                {{ form.interval_days|add_class:"form-control" }}
+                                <small class="text-muted">{{ form.interval_days.help_text }}</small>
+                                {% if form.interval_days.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.interval_days.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- مبالغ متساوية -->
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check">
+                                    {{ form.equal_amounts|add_class:"form-check-input" }}
+                                    <label for="{{ form.equal_amounts.id_for_label }}" class="form-check-label">
+                                        {{ form.equal_amounts.label }}
+                                    </label>
+                                    <br>
+                                    <small class="text-muted">{{ form.equal_amounts.help_text }}</small>
+                                </div>
+                            </div>
+
+                            <!-- زر التوليد -->
+                            <div class="col-12">
+                                <button type="button" class="btn btn-success" id="btn-generate-installments">
+                                    <i class="fas fa-wand-magic me-1"></i> توليد الأقساط التلقائي
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Installments Table -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            جدول الأقساط
+                        </h5>
+                        <button type="button" class="btn btn-sm btn-primary" id="btn-add-installment">
+                            <i class="fas fa-plus me-1"></i> إضافة قسط
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover installments-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;" class="text-center">#</th>
+                                        <th style="width: 100px;">رقم القسط</th>
+                                        <th style="width: 150px;">تاريخ الاستحقاق</th>
+                                        <th style="width: 150px;">المبلغ</th>
+                                        <th>الملاحظات</th>
+                                        <th style="width: 60px;">حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="installments-tbody">
+                                    {% for installment_form in formset %}
+                                        <tr class="installment-row">
+                                            <td class="row-number text-center">{{ forloop.counter }}</td>
+                                            <td>
+                                                {{ installment_form.installment_number|add_class:"form-control form-control-sm text-end" }}
+                                                {{ installment_form.id }}
+                                            </td>
+                                            <td>{{ installment_form.due_date|add_class:"form-control form-control-sm" }}</td>
+                                            <td>{{ installment_form.amount|add_class:"form-control form-control-sm text-end amount-input" }}</td>
+                                            <td>{{ installment_form.notes|add_class:"form-control form-control-sm" }}</td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                                <div style="display:none;">{{ installment_form.DELETE }}</div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calculator me-2"></i>
+                            ملخص الأقساط
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="summary-section">
+                            <div class="summary-line">
+                                <span class="summary-label">عدد الأقساط:</span>
+                                <span class="summary-value" id="summary-count">0</span>
+                            </div>
+                            <div class="summary-line">
+                                <span class="summary-label">مجموع الأقساط:</span>
+                                <span class="summary-value" id="summary-total">0.000</span>
+                            </div>
+                            <div class="summary-line">
+                                <span class="summary-label">المبلغ المتبقي للتقسيط:</span>
+                                <span class="summary-value">{{ remaining_for_installments|floatformat:3 }}</span>
+                            </div>
+                            <div class="summary-line">
+                                <span class="summary-label">الفرق (متبقي - مجموع الأقساط):</span>
+                                <span class="summary-value" id="summary-difference">{{ remaining_for_installments|floatformat:3 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save me-1"></i> حفظ خطة الأقساط
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Empty Row Template -->
+<script type="text/template" id="empty-installment-template">
+    <tr class="installment-row">
+        <td class="row-number text-center">0</td>
+        <td>
+            <input type="number" class="form-control form-control-sm text-end" name="installments-__prefix__-installment_number" id="id_installments-__prefix__-installment_number" min="1">
+            <input type="hidden" name="installments-__prefix__-id" id="id_installments-__prefix__-id">
+        </td>
+        <td><input type="date" class="form-control form-control-sm" name="installments-__prefix__-due_date" id="id_installments-__prefix__-due_date"></td>
+        <td><input type="text" class="form-control form-control-sm text-end amount-input" name="installments-__prefix__-amount" id="id_installments-__prefix__-amount" placeholder="0.000"></td>
+        <td><input type="text" class="form-control form-control-sm" name="installments-__prefix__-notes" id="id_installments-__prefix__-notes"></td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <input type="checkbox" name="installments-__prefix__-DELETE" id="id_installments-__prefix__-DELETE" style="display:none;">
+        </td>
+    </tr>
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    const remainingAmount = parseFloat('{{ remaining_for_installments|floatformat:3 }}');
+    var formIdx = {{ formset.total_form_count }};
+
+    // ============================================
+    // Calculate Summary
+    // ============================================
+    function calculateSummary() {
+        var count = 0;
+        var total = 0;
+
+        $('#installments-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                count++;
+                var amount = parseFloat($(this).find('.amount-input').val()) || 0;
+                total += amount;
+            }
+        });
+
+        $('#summary-count').text(count);
+        $('#summary-total').text(total.toFixed(3));
+
+        var difference = remainingAmount - total;
+        $('#summary-difference').text(difference.toFixed(3));
+
+        // Change color based on difference
+        if (Math.abs(difference) < 0.001) {
+            $('#summary-difference').css('color', '#198754'); // Green - perfect match
+        } else if (difference > 0) {
+            $('#summary-difference').css('color', '#ffc107'); // Yellow - still remaining
+        } else {
+            $('#summary-difference').css('color', '#dc3545'); // Red - exceeds
+        }
+    }
+
+    // ============================================
+    // Update Row Numbers
+    // ============================================
+    function updateRowNumbers() {
+        var rowNum = 1;
+        $('#installments-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                $(this).find('.row-number').text(rowNum++);
+            }
+        });
+    }
+
+    // ============================================
+    // Event Handlers
+    // ============================================
+    $(document).on('input change', '.amount-input', function() {
+        calculateSummary();
+    });
+
+    // ============================================
+    // Add New Installment
+    // ============================================
+    $('#btn-add-installment').on('click', function(e) {
+        e.preventDefault();
+
+        var templateHtml = $('#empty-installment-template').html();
+        var rowHtml = templateHtml.replace(/__prefix__/g, formIdx);
+        var newRow = $(rowHtml);
+
+        $('#installments-tbody').append(newRow);
+
+        $('#id_installments-TOTAL_FORMS').val(formIdx + 1);
+        formIdx++;
+
+        updateRowNumbers();
+        calculateSummary();
+    });
+
+    // ============================================
+    // Delete Row
+    // ============================================
+    $(document).on('click', '.btn-delete-row', function() {
+        var row = $(this).closest('tr');
+        var deleteInput = row.find('input[name$="-DELETE"]');
+
+        if (deleteInput.length && row.find('input[name$="-id"]').val()) {
+            deleteInput.prop('checked', true);
+            row.hide();
+        } else {
+            row.remove();
+        }
+
+        updateRowNumbers();
+        calculateSummary();
+    });
+
+    // ============================================
+    // Generate Installments
+    // ============================================
+    $('#btn-generate-installments').on('click', function(e) {
+        e.preventDefault();
+
+        // Get form values
+        var numberOfInstallments = parseInt($('#id_number_of_installments').val());
+        var firstDate = $('#id_first_installment_date').val();
+        var intervalDays = parseInt($('#id_interval_days').val());
+        var equalAmounts = $('#id_equal_amounts').is(':checked');
+
+        // Validate
+        if (!numberOfInstallments || numberOfInstallments < 1) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إدخال عدد الأقساط'
+            });
+            return;
+        }
+
+        if (!firstDate) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إدخال تاريخ أول قسط'
+            });
+            return;
+        }
+
+        if (!intervalDays || intervalDays < 1) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إدخال الفترة بين الأقساط'
+            });
+            return;
+        }
+
+        // Clear existing rows (mark for deletion or remove)
+        $('#installments-tbody tr').each(function() {
+            var row = $(this);
+            var deleteInput = row.find('input[name$="-DELETE"]');
+            if (deleteInput.length && row.find('input[name$="-id"]').val()) {
+                deleteInput.prop('checked', true);
+                row.hide();
+            } else {
+                row.remove();
+            }
+        });
+
+        // Calculate amounts
+        var amountPerInstallment = equalAmounts ? (remainingAmount / numberOfInstallments) : 0;
+
+        // Generate installments
+        var firstDateObj = new Date(firstDate);
+
+        for (var i = 0; i < numberOfInstallments; i++) {
+            var installmentDate = new Date(firstDateObj);
+            installmentDate.setDate(installmentDate.getDate() + (intervalDays * i));
+
+            var dateStr = installmentDate.toISOString().split('T')[0];
+
+            // Calculate amount (last installment gets remainder)
+            var amount;
+            if (equalAmounts) {
+                if (i === numberOfInstallments - 1) {
+                    amount = remainingAmount - (amountPerInstallment * (numberOfInstallments - 1));
+                } else {
+                    amount = amountPerInstallment;
+                }
+            } else {
+                amount = 0;
+            }
+
+            // Create row
+            var templateHtml = $('#empty-installment-template').html();
+            var rowHtml = templateHtml.replace(/__prefix__/g, formIdx);
+            var newRow = $(rowHtml);
+
+            newRow.find('input[name$="-installment_number"]').val(i + 1);
+            newRow.find('input[name$="-due_date"]').val(dateStr);
+            newRow.find('input[name$="-amount"]').val(amount.toFixed(3));
+
+            $('#installments-tbody').append(newRow);
+
+            $('#id_installments-TOTAL_FORMS').val(formIdx + 1);
+            formIdx++;
+        }
+
+        updateRowNumbers();
+        calculateSummary();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'تم!',
+            text: `تم توليد ${numberOfInstallments} قسط بنجاح`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    });
+
+    // ============================================
+    // Form Submission Validation
+    // ============================================
+    $('#installmentPlanForm').on('submit', function(e) {
+        var total = 0;
+        var hasRows = false;
+
+        $('#installments-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                hasRows = true;
+                var amount = parseFloat($(this).find('.amount-input').val()) || 0;
+                total += amount;
+            }
+        });
+
+        if (!hasRows) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى إضافة قسط واحد على الأقل'
+            });
+            return false;
+        }
+
+        var difference = Math.abs(remainingAmount - total);
+        if (difference > 0.01) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'تنبيه',
+                html: `مجموع الأقساط (${total.toFixed(3)}) لا يساوي المبلغ المتبقي (${remainingAmount.toFixed(3)})<br>الفرق: ${difference.toFixed(3)}<br><br>هل تريد المتابعة؟`,
+                showCancelButton: true,
+                confirmButtonText: 'نعم، احفظ',
+                cancelButtonText: 'إلغاء'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#installmentPlanForm').off('submit').submit();
+                }
+            });
+            return false;
+        }
+
+        $('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+    });
+
+    // Initial calculation
+    calculateSummary();
+});
+</script>
+{% endblock %}

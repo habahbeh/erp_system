@@ -54,8 +54,8 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
                 'placeholder': 'وصف تفصيلي للأصناف المطلوبة...',
             }),
             'purchase_request': forms.Select(attrs={
-                'class': 'form-select select2',
-                'data-placeholder': 'اختر طلب الشراء (اختياري)...',
+                'class': 'form-select',
+                'data-placeholder': 'اختر طلب شراء معتمد (اختياري)...',
             }),
             'submission_deadline': forms.DateInput(attrs={
                 'class': 'form-control',
@@ -95,11 +95,17 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
-            # تصفية طلبات الشراء المعتمدة
+            # تصفية طلبات الشراء المعتمدة مع عرض معلومات إضافية
             self.fields['purchase_request'].queryset = PurchaseRequest.objects.filter(
                 company=self.company,
                 status='approved'
-            ).order_by('-date')
+            ).select_related('requested_by', 'department').order_by('-date')
+
+            # تخصيص label_from_instance لعرض معلومات أكثر
+            self.fields['purchase_request'].label_from_instance = lambda obj: (
+                f"{obj.number} - {obj.date.strftime('%Y-%m-%d')} - "
+                f"{obj.requested_by.get_full_name() if obj.requested_by else 'غير محدد'}"
+            )
 
             # تصفية الموردين
             self.fields['suppliers'].queryset = BusinessPartner.objects.filter(

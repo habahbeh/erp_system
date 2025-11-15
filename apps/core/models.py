@@ -1041,6 +1041,24 @@ class BusinessPartner(BaseModel):
     tax_status = models.CharField(_('الحالة الضريبية'), max_length=20, choices=TAX_STATUS_CHOICES, default='taxable')
     commercial_register = models.CharField(_('السجل التجاري'), max_length=50, blank=True)
 
+    # شروط الدفع والمندوب الافتراضي
+    payment_terms = models.CharField(
+        _('شروط الدفع'),
+        max_length=200,
+        blank=True,
+        help_text=_('شروط الدفع للعميل (مثال: نقدي، آجل 30 يوم، إلخ)')
+    )
+
+    default_salesperson = models.ForeignKey(
+        'hr.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_customers',
+        verbose_name=_('المندوب الافتراضي'),
+        help_text=_('مندوب المبيعات المخصص لهذا العميل')
+    )
+
     # حقول جديدة لفترة الإعفاء الضريبي
     tax_exemption_start_date = models.DateField(_('تاريخ بداية الإعفاء'), null=True, blank=True)
     tax_exemption_end_date = models.DateField(_('تاريخ انتهاء الإعفاء'), null=True, blank=True)
@@ -1182,6 +1200,8 @@ class BusinessPartner(BaseModel):
     # دالة للحصول على الحساب المناسب:
     def get_account(self):
         """الحصول على الحساب المحاسبي المناسب"""
+        from apps.accounting.models import Account
+
         if self.partner_type == 'customer':
             return self.customer_account or Account.objects.get(
                 company=self.company, code='220100'
@@ -1193,6 +1213,108 @@ class BusinessPartner(BaseModel):
         else:  # both
             # إرجاع حسب السياق أو الافتراضي
             return self.customer_account or self.supplier_account
+
+    def get_current_balance(self):
+        """
+        حساب الرصيد الحالي للعميل من الفواتير
+
+        Returns:
+            Decimal: الرصيد الحالي (موجب = مدين للشركة، سالب = دائن)
+        """
+        from decimal import Decimal
+
+        # نفترض أن هناك موديل SalesInvoice في apps.sales
+        # وأن له حقل customer و total_with_tax و payment_status
+        try:
+            from apps.sales.models import SalesInvoice
+            from django.db.models import Sum, Q
+
+            # حساب إجمالي الفواتير المرحلة
+            invoices_total = SalesInvoice.objects.filter(
+                customer=self,
+                is_posted=True
+            ).aggregate(
+                total=Sum('total_with_tax')
+            )['total'] or Decimal('0')
+
+            # حساب إجمالي المبالغ المدفوعة
+            paid_total = SalesInvoice.objects.filter(
+                customer=self,
+                is_posted=True
+            ).aggregate(
+                total=Sum('paid_amount')
+            )['total'] or Decimal('0')
+
+            # الرصيد = إجمالي الفواتير - المدفوع
+            balance = invoices_total - paid_total
+
+            return balance
+
+        except ImportError:
+            # في حال عدم وجود موديل المبيعات بعد
+            return Decimal('0')
+
+    def check_credit_limit(self, amount):
+        """
+        التحقق من حد الائتمان قبل السماح بعملية بيع
+
+        Args:
+            amount: المبلغ المراد التحقق منه
+
+        Returns:
+            dict: نتيجة التحقق مع التفاصيل
+        """
+        from decimal import Decimal
+
+        result = {
+            'allowed': True,
+            'current_balance': Decimal('0'),
+            'new_balance': Decimal('0'),
+            'credit_limit': self.credit_limit,
+            'available_credit': Decimal('0'),
+            'message': ''
+        }
+
+        # إذا كان الحساب نقدي، لا يوجد حد ائتمان
+        if self.account_type == 'cash':
+            result['message'] = _('حساب نقدي - لا يوجد حد ائتمان')
+            return result
+
+        # إذا كان حد الائتمان صفر، يعني غير محدود
+        if self.credit_limit == 0:
+            result['message'] = _('لا يوجد حد ائتمان محدد')
+            return result
+
+        # حساب الرصيد الحالي
+        current_balance = self.get_current_balance()
+        result['current_balance'] = current_balance
+
+        # حساب الرصيد الجديد بعد إضافة المبلغ
+        new_balance = current_balance + Decimal(str(amount))
+        result['new_balance'] = new_balance
+
+        # حساب الائتمان المتاح
+        available_credit = self.credit_limit - current_balance
+        result['available_credit'] = available_credit
+
+        # التحقق من تجاوز الحد
+        if new_balance > self.credit_limit:
+            result['allowed'] = False
+            result['message'] = _(
+                'تجاوز حد الائتمان! الرصيد الحالي: {current}, المبلغ المطلوب: {amount}, '
+                'الرصيد الجديد: {new}, حد الائتمان: {limit}'
+            ).format(
+                current=current_balance,
+                amount=amount,
+                new=new_balance,
+                limit=self.credit_limit
+            )
+        else:
+            result['message'] = _(
+                'ضمن حد الائتمان. الائتمان المتاح: {available}'
+            ).format(available=available_credit)
+
+        return result
 
 # نموذج جديد للمندوبين المتعددين
 class PartnerRepresentative(BaseModel):

@@ -1,0 +1,346 @@
+{# apps/sales/templates/sales/pos/pos_session_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.session-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.cash-difference {
+    font-size: 1.25rem;
+    font-weight: 700;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    text-align: center;
+}
+
+.cash-difference.surplus {
+    background: #d1e7dd;
+    color: #0f5132;
+    border: 1px solid #badbcc;
+}
+
+.cash-difference.deficit {
+    background: #f8d7da;
+    color: #842029;
+    border: 1px solid #f5c2c7;
+}
+
+.cash-difference.balanced {
+    background: #cff4fc;
+    color: #055160;
+    border: 1px solid #b6effb;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:pos_session_list' %}">جلسات نقاط البيع</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ session.session_number }}</li>
+        </ol>
+    </nav>
+
+    <!-- Session Header -->
+    <div class="session-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="h2 mb-2">
+                    <i class="fas fa-cash-register me-2"></i>
+                    جلسة POS: {{ session.session_number }}
+                </h1>
+                <p class="mb-0 opacity-75">
+                    <i class="fas fa-user me-2"></i>{{ session.cashier.get_full_name }}
+                    <span class="mx-2">|</span>
+                    <i class="fas fa-building me-2"></i>{{ session.branch.name }}
+                </p>
+            </div>
+            <div>
+                {% if session.status == 'open' %}
+                    <span class="badge bg-success fs-5">
+                        <i class="fas fa-circle me-1"></i>مفتوحة
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-5">
+                        <i class="fas fa-lock me-1"></i>مغلقة
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2 mb-4">
+        {% if can_close %}
+            <a href="{% url 'sales:pos_interface' session.pk %}" class="btn btn-success">
+                <i class="fas fa-shopping-cart me-1"></i> واجهة البيع
+            </a>
+            <a href="{% url 'sales:pos_session_close' session.pk %}" class="btn btn-warning">
+                <i class="fas fa-door-closed me-1"></i> إغلاق الجلسة
+            </a>
+        {% endif %}
+        {% if session.status == 'closed' %}
+            <a href="{% url 'sales:pos_session_print' session.pk %}" class="btn btn-info" target="_blank">
+                <i class="fas fa-print me-1"></i> طباعة التقرير
+            </a>
+        {% endif %}
+        <a href="{% url 'sales:pos_session_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> العودة للقائمة
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Session Info -->
+        <div class="col-md-8">
+            <!-- Time Info -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clock me-2"></i>معلومات الوقت
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="stat-box">
+                                <div class="stat-label">وقت الفتح</div>
+                                <div class="stat-value">{{ session.opening_datetime|date:"Y-m-d H:i" }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="stat-box">
+                                <div class="stat-label">وقت الإغلاق</div>
+                                <div class="stat-value">
+                                    {% if session.closing_datetime %}
+                                        {{ session.closing_datetime|date:"Y-m-d H:i" }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cash Info -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-money-bill-wave me-2"></i>معلومات النقد
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="stat-box">
+                                <div class="stat-label">النقد الافتتاحي</div>
+                                <div class="stat-value">{{ session.opening_cash|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-box">
+                                <div class="stat-label">المبيعات النقدية</div>
+                                <div class="stat-value text-success">{{ session.total_cash_sales|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-box">
+                                <div class="stat-label">النقد المتوقع</div>
+                                <div class="stat-value">{{ session.expected_cash|floatformat:3 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-box">
+                                <div class="stat-label">النقد الختامي</div>
+                                <div class="stat-value">
+                                    {% if session.status == 'closed' %}
+                                        {{ session.closing_cash|floatformat:3 }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if session.status == 'closed' %}
+                        <div class="mt-3">
+                            {% if session.cash_difference == 0 %}
+                                <div class="cash-difference balanced">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    النقد متطابق تماماً
+                                </div>
+                            {% elif session.cash_difference > 0 %}
+                                <div class="cash-difference surplus">
+                                    <i class="fas fa-arrow-up me-2"></i>
+                                    فائض نقدي: {{ session.cash_difference|floatformat:3 }} دينار
+                                    ({{ cash_difference_percentage|floatformat:2 }}%)
+                                </div>
+                            {% else %}
+                                <div class="cash-difference deficit">
+                                    <i class="fas fa-arrow-down me-2"></i>
+                                    عجز نقدي: {{ session.cash_difference|floatformat:3|slice:"1:" }} دينار
+                                    ({{ cash_difference_percentage|floatformat:2 }}%)
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Notes -->
+            {% if session.opening_notes or session.closing_notes %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-sticky-note me-2"></i>الملاحظات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if session.opening_notes %}
+                        <div class="mb-3">
+                            <strong class="d-block mb-1">ملاحظات الفتح:</strong>
+                            <p class="mb-0">{{ session.opening_notes }}</p>
+                        </div>
+                    {% endif %}
+                    {% if session.closing_notes %}
+                        <div>
+                            <strong class="d-block mb-1">ملاحظات الإغلاق:</strong>
+                            <p class="mb-0">{{ session.closing_notes }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Invoices -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-file-invoice me-2"></i>
+                        الفواتير ({{ invoices_count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>رقم الفاتورة</th>
+                                    <th>العميل</th>
+                                    <th>طريقة الدفع</th>
+                                    <th class="text-center">الإجمالي</th>
+                                    <th class="text-center">الوقت</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for invoice in invoices %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'sales:invoice_detail' invoice.pk %}">
+                                            {{ invoice.number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ invoice.customer.name }}</td>
+                                    <td>{{ invoice.payment_method.name }}</td>
+                                    <td class="text-center"><strong>{{ invoice.total_amount|floatformat:3 }}</strong></td>
+                                    <td class="text-center">{{ invoice.date|date:"H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">
+                                        لا توجد فواتير في هذه الجلسة
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="col-md-4">
+            <!-- Sales Stats -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>إحصائيات المبيعات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="stat-box">
+                        <div class="stat-label">إجمالي المبيعات</div>
+                        <div class="stat-value text-primary">{{ session.total_sales|floatformat:3 }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">مبيعات نقدية</div>
+                        <div class="stat-value text-success">{{ session.total_cash_sales|floatformat:3 }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">مبيعات بالبطاقة</div>
+                        <div class="stat-value text-info">{{ session.total_card_sales|floatformat:3 }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">المرتجعات</div>
+                        <div class="stat-value text-danger">{{ session.total_returns|floatformat:3 }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">عدد المعاملات</div>
+                        <div class="stat-value">{{ session.transactions_count }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location -->
+            {% if session.pos_location %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-map-marker-alt me-2"></i>الموقع
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ session.pos_location }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

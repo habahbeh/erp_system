@@ -1,0 +1,438 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+{% load custom_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-card {
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+    .badge-lg {
+        font-size: 1rem;
+        padding: 0.5rem 1rem;
+    }
+    .table-items {
+        background-color: #fff;
+    }
+    .table-items th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    .action-buttons .btn {
+        margin-left: 0.5rem;
+    }
+    .print-section {
+        display: none;
+    }
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        .print-section {
+            display: block;
+        }
+        .card {
+            border: none;
+            box-shadow: none;
+        }
+    }
+    .total-box {
+        background-color: #e9ecef;
+        border-radius: 8px;
+        padding: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- صفحة العنوان -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <h2 class="fw-bold">
+            <i class="fas fa-shopping-cart ms-2"></i>
+            {{ title }}
+        </h2>
+        <div class="action-buttons">
+            <a href="{% url 'sales:order_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right ms-2"></i>
+                رجوع للقائمة
+            </a>
+
+            {% if not order.is_delivered and not order.is_invoiced and perms.sales.change_salesorder %}
+            <a href="{% url 'sales:order_update' order.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit ms-2"></i>
+                تعديل
+            </a>
+            {% endif %}
+
+            {% if not order.is_approved and perms.sales.change_salesorder %}
+            <form method="post" action="{% url 'sales:order_approve' order.pk %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success" onclick="return confirm('هل أنت متأكد من اعتماد طلب البيع؟')">
+                    <i class="fas fa-check-circle ms-2"></i>
+                    اعتماد
+                </button>
+            </form>
+            {% endif %}
+
+            {% if order.is_approved and not order.is_invoiced and perms.sales.add_salesinvoice %}
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#convertModal">
+                <i class="fas fa-file-invoice ms-2"></i>
+                تحويل لفاتورة
+            </button>
+            {% endif %}
+
+            <button onclick="window.print()" class="btn btn-primary">
+                <i class="fas fa-print ms-2"></i>
+                طباعة
+            </button>
+
+            {% if not order.is_delivered and not order.is_invoiced and perms.sales.delete_salesorder %}
+            <a href="{% url 'sales:order_delete' order.pk %}" class="btn btn-danger"
+               onclick="return confirm('هل أنت متأكد من حذف طلب البيع؟')">
+                <i class="fas fa-trash ms-2"></i>
+                حذف
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- حالة الطلب -->
+    <div class="row mb-4 no-print">
+        <div class="col-12">
+            <div class="d-flex gap-2">
+                {% if order.is_approved %}
+                    <span class="badge badge-lg bg-success">
+                        <i class="fas fa-check-circle ms-1"></i>
+                        معتمد
+                    </span>
+                {% else %}
+                    <span class="badge badge-lg bg-warning text-dark">
+                        <i class="fas fa-clock ms-1"></i>
+                        معلق
+                    </span>
+                {% endif %}
+
+                {% if order.is_delivered %}
+                    <span class="badge badge-lg bg-info">
+                        <i class="fas fa-truck ms-1"></i>
+                        مسلم
+                    </span>
+                {% endif %}
+
+                {% if order.is_invoiced %}
+                    <span class="badge badge-lg bg-primary">
+                        <i class="fas fa-file-invoice ms-1"></i>
+                        مفوتر
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- معلومات طلب البيع -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card info-card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle ms-2"></i>
+                        معلومات طلب البيع
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">رقم طلب البيع</label>
+                            <div class="fw-bold fs-5">{{ order.number }}</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">التاريخ</label>
+                            <div class="fw-bold">{{ order.date|date:"Y/m/d" }}</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">العميل</label>
+                            <div class="fw-bold">{{ order.customer.name }}</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">المستودع</label>
+                            <div class="fw-bold">{{ order.warehouse.name }}</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">موظف المبيعات</label>
+                            <div class="fw-bold">{{ order.salesperson.get_full_name }}</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">تاريخ التسليم المتوقع</label>
+                            <div class="fw-bold">
+                                {% if order.delivery_date %}
+                                    {{ order.delivery_date|date:"Y/m/d" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if order.quotation %}
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">عرض السعر</label>
+                            <div>
+                                <a href="{% url 'sales:quotation_detail' order.quotation.pk %}" class="text-decoration-none">
+                                    {{ order.quotation.number }}
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small mb-1">تم الإنشاء بواسطة</label>
+                            <div>{{ order.created_by.get_full_name }} - {{ order.created_at|date:"Y/m/d H:i" }}</div>
+                        </div>
+
+                        {% if order.notes %}
+                        <div class="col-12">
+                            <label class="text-muted small mb-1">ملاحظات</label>
+                            <div class="p-2 bg-light rounded">{{ order.notes }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- سطور طلب البيع -->
+            <div class="card info-card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list ms-2"></i>
+                        سطور طلب البيع
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-items table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الصنف</th>
+                                    <th class="text-center">الكمية</th>
+                                    <th class="text-end">سعر الوحدة</th>
+                                    <th class="text-end">الإجمالي</th>
+                                    <th class="text-center">الكمية المسلمة</th>
+                                    <th class="text-center">الكمية المفوترة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in lines %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td class="fw-bold">{{ line.item.name }}</td>
+                                    <td class="text-center">{{ line.quantity|floatformat:3 }}</td>
+                                    <td class="text-end">{{ line.unit_price|floatformat:2 }}</td>
+                                    <td class="text-end fw-bold text-success">
+                                        {% widthratio line.quantity 1 line.unit_price as line_total %}
+                                        {{ line_total|floatformat:2 }}
+                                    </td>
+                                    <td class="text-center">
+                                        {{ line.delivered_quantity|floatformat:3 }}
+                                        {% if line.delivered_quantity >= line.quantity %}
+                                            <span class="badge bg-success ms-1">مكتمل</span>
+                                        {% elif line.delivered_quantity > 0 %}
+                                            <span class="badge bg-warning ms-1">جزئي</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {{ line.invoiced_quantity|floatformat:3 }}
+                                        {% if line.invoiced_quantity >= line.quantity %}
+                                            <span class="badge bg-success ms-1">مكتمل</span>
+                                        {% elif line.invoiced_quantity > 0 %}
+                                            <span class="badge bg-warning ms-1">جزئي</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        لا توجد سطور
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الإجماليات -->
+        <div class="col-lg-4">
+            <div class="card info-card mb-4 sticky-top" style="top: 20px;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calculator ms-2"></i>
+                        الإجماليات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="total-box">
+                        <div class="d-flex justify-content-between">
+                            <span class="h5 mb-0">الإجمالي:</span>
+                            <span class="h5 mb-0 fw-bold text-success">
+                                {{ total_amount|floatformat:2 }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- معلومات إضافية -->
+                    <div class="mt-4">
+                        <h6 class="fw-bold mb-3">معلومات إضافية</h6>
+
+                        <div class="mb-2">
+                            <small class="text-muted">الشركة:</small>
+                            <div class="fw-bold">{{ order.company.name }}</div>
+                        </div>
+
+                        {% if order.is_invoiced %}
+                        <div class="alert alert-info mt-3 mb-0">
+                            <i class="fas fa-info-circle ms-2"></i>
+                            <strong>تم إصدار فاتورة</strong><br>
+                            <small>تم تحويل هذا الطلب إلى فاتورة</small>
+                        </div>
+                        {% endif %}
+
+                        {% if order.is_delivered %}
+                        <div class="alert alert-success mt-3 mb-0">
+                            <i class="fas fa-check-circle ms-2"></i>
+                            <strong>تم التسليم</strong><br>
+                            <small>تم تسليم هذا الطلب بالكامل</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal لتحويل طلب البيع لفاتورة -->
+{% if order.is_approved and not order.is_invoiced and perms.sales.add_salesinvoice %}
+<div class="modal fade" id="convertModal" tabindex="-1" aria-labelledby="convertModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="convertModalLabel">
+                    <i class="fas fa-file-invoice ms-2"></i>
+                    تحويل طلب البيع لفاتورة
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'sales:order_convert_to_invoice' order.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>سيتم تحويل طلب البيع <strong>{{ order.number }}</strong> إلى فاتورة مبيعات.</p>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle ms-2"></i>
+                        بعد التحويل، لن يمكن تعديل أو حذف طلب البيع.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times ms-2"></i>
+                        إلغاء
+                    </button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-check ms-2"></i>
+                        تأكيد التحويل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Print Section -->
+<div class="print-section">
+    <div class="text-center mb-4">
+        <h2>{{ order.company.name }}</h2>
+        <h4>طلب بيع رقم: {{ order.number }}</h4>
+        <p>التاريخ: {{ order.date|date:"Y/m/d" }}</p>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-6">
+            <strong>العميل:</strong> {{ order.customer.name }}
+        </div>
+        <div class="col-6">
+            <strong>المستودع:</strong> {{ order.warehouse.name }}
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-6">
+            <strong>موظف المبيعات:</strong> {{ order.salesperson.get_full_name }}
+        </div>
+        {% if order.delivery_date %}
+        <div class="col-6">
+            <strong>تاريخ التسليم:</strong> {{ order.delivery_date|date:"Y/m/d" }}
+        </div>
+        {% endif %}
+    </div>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>سعر الوحدة</th>
+                <th>الإجمالي</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ line.item.name }}</td>
+                <td>{{ line.quantity|floatformat:3 }}</td>
+                <td>{{ line.unit_price|floatformat:2 }}</td>
+                <td>
+                    {% widthratio line.quantity 1 line.unit_price as line_total %}
+                    {{ line_total|floatformat:2 }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="text-end"><strong>الإجمالي:</strong></td>
+                <td><strong>{{ total_amount|floatformat:2 }}</strong></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    {% if order.notes %}
+    <div class="mt-3">
+        <strong>ملاحظات:</strong>
+        <p>{{ order.notes }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Any additional JavaScript if needed
+});
+</script>
+{% endblock %}

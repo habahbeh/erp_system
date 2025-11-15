@@ -1,0 +1,235 @@
+{# apps/sales/templates/sales/pos/pos_session_form.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.opening-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.info-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.info-box h5 {
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.info-value {
+    color: #212529;
+    font-weight: 600;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:pos_session_list' %}">جلسات نقاط البيع</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="opening-header">
+        <div class="text-center">
+            <h1 class="h2 mb-2">
+                <i class="fas fa-cash-register fa-2x mb-3 d-block"></i>
+                {{ title }}
+            </h1>
+            <p class="mb-0 opacity-75">افتح جلسة POS جديدة لبدء المبيعات</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- معلومات المستخدم -->
+            <div class="info-box">
+                <h5><i class="fas fa-user me-2"></i>معلومات الجلسة</h5>
+                <div class="info-item">
+                    <span class="info-label">الكاشير:</span>
+                    <span class="info-value">{{ user.get_full_name }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">الفرع:</span>
+                    <span class="info-value">{{ request.current_branch.name }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">التاريخ والوقت:</span>
+                    <span class="info-value">{{ now|date:"Y-m-d H:i" }}</span>
+                </div>
+            </div>
+
+            <!-- نموذج فتح الجلسة -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-door-open me-2"></i>بيانات فتح الجلسة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="sessionForm">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <!-- موقع نقطة البيع -->
+                        <div class="mb-4">
+                            <label for="{{ form.pos_location.id_for_label }}" class="form-label">
+                                <i class="fas fa-map-marker-alt me-1"></i>
+                                موقع نقطة البيع
+                                <span class="text-muted">(اختياري)</span>
+                            </label>
+                            {{ form.pos_location|add_class:"form-control" }}
+                            {% if form.pos_location.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.pos_location.errors }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                مثال: صالة 1، فرع المدينة، كاونتر رقم 3
+                            </small>
+                        </div>
+
+                        <!-- النقد الافتتاحي -->
+                        <div class="mb-4">
+                            <label for="{{ form.opening_cash.id_for_label }}" class="form-label">
+                                <i class="fas fa-money-bill-wave me-1"></i>
+                                النقد الافتتاحي <span class="text-danger">*</span>
+                            </label>
+                            {{ form.opening_cash|add_class:"form-control form-control-lg" }}
+                            {% if form.opening_cash.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.opening_cash.errors }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                المبلغ النقدي الموجود في الدرج عند بداية الجلسة
+                            </small>
+                        </div>
+
+                        <!-- ملاحظات الفتح -->
+                        <div class="mb-4">
+                            <label for="{{ form.opening_notes.id_for_label }}" class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>
+                                ملاحظات الفتح
+                                <span class="text-muted">(اختياري)</span>
+                            </label>
+                            {{ form.opening_notes|add_class:"form-control" }}
+                            {% if form.opening_notes.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.opening_notes.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- تحذير -->
+                        <div class="alert alert-info" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>تنبيه:</strong> بعد فتح الجلسة، سيتم توجيهك تلقائياً إلى واجهة البيع لبدء المعاملات.
+                        </div>
+
+                        <!-- الأزرار -->
+                        <div class="d-flex gap-2 justify-content-between">
+                            <a href="{% url 'sales:pos_session_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-right me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-door-open me-1"></i> فتح الجلسة والبدء
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- نصائح -->
+            <div class="card border-warning mt-4">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <h6 class="mb-0 text-warning">
+                        <i class="fas fa-lightbulb me-2"></i>نصائح مهمة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li class="mb-2">تأكد من عد النقد بدقة قبل إدخال المبلغ الافتتاحي</li>
+                        <li class="mb-2">سجل أي ملاحظات مهمة في حقل الملاحظات</li>
+                        <li class="mb-2">لا يمكن فتح أكثر من جلسة واحدة لنفس المستخدم</li>
+                        <li class="mb-2">يجب إغلاق الجلسة في نهاية الدوام لمطابقة النقد</li>
+                        <li>جميع المبيعات ستُربط بهذه الجلسة تلقائياً</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Focus on opening cash field
+    $('#id_opening_cash').focus();
+
+    // Format currency on blur
+    $('#id_opening_cash').on('blur', function() {
+        let value = parseFloat($(this).val());
+        if (!isNaN(value)) {
+            $(this).val(value.toFixed(3));
+        }
+    });
+
+    // Form validation
+    $('#sessionForm').on('submit', function(e) {
+        let openingCash = parseFloat($('#id_opening_cash').val());
+
+        if (isNaN(openingCash) || openingCash < 0) {
+            e.preventDefault();
+            alert('يجب إدخال قيمة صحيحة للنقد الافتتاحي');
+            $('#id_opening_cash').focus();
+            return false;
+        }
+
+        // تأكيد الفتح
+        if (!confirm('هل أنت متأكد من فتح جلسة POS جديدة؟')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

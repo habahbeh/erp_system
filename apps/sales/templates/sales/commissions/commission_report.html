@@ -1,0 +1,306 @@
+{# apps/sales/templates/sales/commissions/commission_report.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.salesperson-card {
+    border-left: 4px solid #0d6efd;
+    margin-bottom: 2rem;
+    transition: all 0.2s;
+}
+
+.salesperson-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+.summary-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.summary-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.grand-total-card {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'sales:commission_list' %}">عمولات المندوبين</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Report Header -->
+    <div class="report-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="h2 mb-2"><i class="fas fa-chart-bar me-2"></i>{{ title }}</h1>
+                <p class="mb-0 opacity-75">تقرير شامل بعمولات المندوبين ومدفوعاتهم</p>
+            </div>
+            <div>
+                <button onclick="window.print()" class="btn btn-light">
+                    <i class="fas fa-print me-1"></i> طباعة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "فلترة التقرير" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <!-- المندوب -->
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "المندوب" %}</label>
+                        <select class="form-select" name="salesperson">
+                            <option value="">{% trans "جميع المندوبين" %}</option>
+                            {% for sp in all_salespersons %}
+                            <option value="{{ sp.id }}" {% if filter_salesperson == sp.id|stringformat:"s" %}selected{% endif %}>
+                                {{ sp.get_full_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- من تاريخ -->
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "من تاريخ" %}</label>
+                        <input type="date" class="form-control" name="date_from" value="{{ filter_date_from }}">
+                    </div>
+
+                    <!-- إلى تاريخ -->
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                        <input type="date" class="form-control" name="date_to" value="{{ filter_date_to }}">
+                    </div>
+
+                    <!-- حالة الدفع -->
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "حالة الدفع" %}</label>
+                        <select class="form-select" name="payment_status">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="unpaid" {% if filter_payment_status == 'unpaid' %}selected{% endif %}>غير مدفوعة</option>
+                            <option value="partial" {% if filter_payment_status == 'partial' %}selected{% endif %}>جزئية</option>
+                            <option value="paid" {% if filter_payment_status == 'paid' %}selected{% endif %}>مدفوعة</option>
+                        </select>
+                    </div>
+
+                    <!-- أزرار -->
+                    <div class="col-md-3 d-flex align-items-end gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> {% trans "تطبيق" %}
+                        </button>
+                        <a href="{% url 'sales:commission_report' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Grand Totals -->
+    <div class="grand-total-card">
+        <h4 class="mb-3"><i class="fas fa-calculator me-2"></i>الإجمالي الكلي</h4>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="mb-0">
+                    <small class="opacity-75">عدد العمولات:</small>
+                    <h3 class="mb-0">{{ grand_totals.total_commissions }}</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="mb-0">
+                    <small class="opacity-75">المبلغ الأساسي:</small>
+                    <h3 class="mb-0">{{ grand_totals.total_base_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="mb-0">
+                    <small class="opacity-75">مبلغ العمولة:</small>
+                    <h3 class="mb-0">{{ grand_totals.total_commission_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="mb-0">
+                    <small class="opacity-75">المدفوع:</small>
+                    <h3 class="mb-0 text-success-light">{{ grand_totals.total_paid_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="mb-0">
+                    <small class="opacity-75">المتبقي:</small>
+                    <h3 class="mb-0 text-warning-light">{{ grand_totals.total_remaining_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Salespersons Data -->
+    {% for data in salespersons_data %}
+    <div class="card salesperson-card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>{{ data.salesperson.get_full_name }}
+                </h5>
+                <span class="badge bg-light text-dark">{{ data.total_commissions }} عمولة</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Summary Boxes -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="summary-box">
+                        <div class="summary-label">المبلغ الأساسي</div>
+                        <div class="summary-value">{{ data.total_base_amount|floatformat:2 }} د.أ</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="summary-box">
+                        <div class="summary-label">مبلغ العمولة</div>
+                        <div class="summary-value text-primary">{{ data.total_commission_amount|floatformat:2 }} د.أ</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="summary-box">
+                        <div class="summary-label">المدفوع</div>
+                        <div class="summary-value text-success">{{ data.total_paid_amount|floatformat:2 }} د.أ</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="summary-box">
+                        <div class="summary-label">المتبقي</div>
+                        <div class="summary-value text-warning">{{ data.total_remaining_amount|floatformat:2 }} د.أ</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Commissions Table -->
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>رقم الفاتورة</th>
+                            <th>العميل</th>
+                            <th>التاريخ</th>
+                            <th class="text-center">المبلغ الأساسي</th>
+                            <th class="text-center">النسبة %</th>
+                            <th class="text-center">العمولة</th>
+                            <th class="text-center">المدفوع</th>
+                            <th class="text-center">المتبقي</th>
+                            <th class="text-center">الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for commission in data.commissions %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'sales:commission_detail' commission.pk %}">
+                                    {{ commission.invoice.number }}
+                                </a>
+                            </td>
+                            <td>{{ commission.invoice.customer.name }}</td>
+                            <td>{{ commission.calculation_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">{{ commission.base_amount|floatformat:3 }}</td>
+                            <td class="text-center">{{ commission.commission_rate }}%</td>
+                            <td class="text-center"><strong>{{ commission.commission_amount|floatformat:3 }}</strong></td>
+                            <td class="text-center text-success">{{ commission.paid_amount|floatformat:3 }}</td>
+                            <td class="text-center text-warning">{{ commission.remaining_amount|floatformat:3 }}</td>
+                            <td class="text-center">
+                                {% if commission.payment_status == 'unpaid' %}
+                                    <span class="badge bg-danger">غير مدفوعة</span>
+                                {% elif commission.payment_status == 'partial' %}
+                                    <span class="badge bg-warning text-dark">جزئية</span>
+                                {% elif commission.payment_status == 'paid' %}
+                                    <span class="badge bg-success">مدفوعة</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="3" class="text-end">المجموع:</th>
+                            <th class="text-center">{{ data.total_base_amount|floatformat:3 }}</th>
+                            <th></th>
+                            <th class="text-center"><strong>{{ data.total_commission_amount|floatformat:3 }}</strong></th>
+                            <th class="text-center text-success"><strong>{{ data.total_paid_amount|floatformat:3 }}</strong></th>
+                            <th class="text-center text-warning"><strong>{{ data.total_remaining_amount|floatformat:3 }}</strong></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info text-center py-5">
+        <i class="fas fa-info-circle fa-3x mb-3 d-block"></i>
+        <h5>لا توجد بيانات للعرض</h5>
+        <p class="text-muted mb-0">قم بتغيير معايير الفلترة أو أضف عمولات جديدة</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+@media print {
+    .breadcrumb,
+    .card-header button,
+    .btn,
+    nav {
+        display: none !important;
+    }
+
+    .report-header {
+        background: #667eea !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+</style>
+{% endblock %}

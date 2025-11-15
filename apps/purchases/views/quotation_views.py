@@ -1311,3 +1311,64 @@ def export_quotations_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     return response
+
+
+# ============================================================================
+# AJAX - جلب أصناف طلب الشراء
+# ============================================================================
+
+@login_required
+def get_purchase_request_items_ajax(request, request_id):
+    """جلب أصناف طلب الشراء عبر AJAX"""
+    try:
+        # التحقق من وجود طلب الشراء وأنه تابع للشركة الحالية
+        purchase_request = get_object_or_404(
+            PurchaseRequest,
+            id=request_id,
+            company=request.current_company
+        )
+
+        # جلب أصناف طلب الشراء
+        items = purchase_request.lines.select_related('item', 'item__unit_of_measure').all()
+
+        # تحويل البيانات إلى قائمة
+        items_data = []
+        for item in items:
+            item_data = {
+                'item_id': item.item.id if item.item else None,
+                'item_name': item.item.name if item.item else '',
+                'item_code': item.item.code if item.item else '',
+                'item_description': item.item_description,
+                'quantity': str(item.quantity),
+                'unit': item.unit if item.unit else (item.item.unit_of_measure.name if item.item and item.item.unit_of_measure else ''),
+                'estimated_price': str(item.estimated_price) if item.estimated_price else '0.000',
+                'notes': item.notes if item.notes else '',
+            }
+            items_data.append(item_data)
+
+        # معلومات إضافية عن طلب الشراء
+        request_data = {
+            'number': purchase_request.number,
+            'date': purchase_request.date.strftime('%Y-%m-%d'),
+            'required_date': purchase_request.required_date.strftime('%Y-%m-%d') if purchase_request.required_date else None,
+            'purpose': purchase_request.purpose,
+            'notes': purchase_request.notes,
+            'items': items_data
+        }
+
+        return JsonResponse({
+            'success': True,
+            'data': request_data
+        })
+
+    except PurchaseRequest.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'طلب الشراء غير موجود'
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -1,0 +1,316 @@
+{% extends 'base/base.html' %}
+{% load static i18n %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<style>
+    @media print {
+        .no-print { display: none !important; }
+        body { background: white; }
+        table { page-break-inside: auto; border-collapse: collapse; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        .table { font-size: 10pt; }
+    }
+    .stat-card { transition: all 0.3s ease; }
+    .stat-card:hover { transform: translateY(-5px); }
+    .badge-draft { background-color: #6c757d; }
+    .badge-sent { background-color: #17a2b8; }
+    .badge-approved { background-color: #28a745; }
+    .badge-rejected { background-color: #dc3545; }
+    .badge-converted { background-color: #ffc107; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-balance-scale text-primary"></i> {{ title }}
+        </h1>
+        <p class="text-muted">مقارنة عروض الأسعار ومتابعة حالاتها ومعدل التحويل</p>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <button onclick="window.print()" class="btn btn-primary">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> تصدير Excel
+            </button>
+        </div>
+        <div>
+            <span class="text-muted">
+                <i class="fas fa-calendar"></i>
+                تاريخ التقرير: {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-filter"></i> الفلاتر</h6>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">العميل</label>
+                        <select name="customer" class="form-select">
+                            <option value="">الكل</option>
+                            {% for cust in customers %}
+                            <option value="{{ cust.id }}" {% if customer and cust.id == customer.id %}selected{% endif %}>
+                                {{ cust.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">الحالة</label>
+                        <select name="status" class="form-select">
+                            <option value="">الكل</option>
+                            <option value="draft" {% if status == 'draft' %}selected{% endif %}>مسودة</option>
+                            <option value="sent" {% if status == 'sent' %}selected{% endif %}>مرسلة</option>
+                            <option value="approved" {% if status == 'approved' %}selected{% endif %}>موافق عليها</option>
+                            <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>مرفوضة</option>
+                            <option value="converted" {% if status == 'converted' %}selected{% endif %}>محولة لفاتورة</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">المادة</label>
+                        <select name="item" class="form-select">
+                            <option value="">الكل</option>
+                            {% for itm in items %}
+                            <option value="{{ itm.id }}" {% if item and itm.id == item.id %}selected{% endif %}>
+                                {{ itm.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">من تاريخ</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">إلى تاريخ</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-3">
+                        <label class="form-label">التجميع حسب</label>
+                        <select name="group_by" class="form-select">
+                            <option value="">بدون تجميع</option>
+                            <option value="status" {% if group_by == 'status' %}selected{% endif %}>الحالة</option>
+                            <option value="customer" {% if group_by == 'customer' %}selected{% endif %}>العميل</option>
+                            <option value="salesman" {% if group_by == 'salesman' %}selected{% endif %}>المندوب</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> عرض
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    {% if stats %}
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-contract fa-2x text-primary mb-2"></i>
+                    <h6 class="text-muted mb-2">عدد العروض</h6>
+                    <h3 class="text-primary mb-0">{{ stats.total_quotations }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                    <h6 class="text-muted mb-2">إجمالي القيمة</h6>
+                    <h3 class="text-success mb-0">{{ stats.total_value|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-calculator fa-2x text-info mb-2"></i>
+                    <h6 class="text-muted mb-2">متوسط القيمة</h6>
+                    <h3 class="text-info mb-0">{{ stats.average_value|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                    <h6 class="text-muted mb-2">معدل التحويل</h6>
+                    <h3 class="text-warning mb-0">{{ stats.conversion_rate|floatformat:2 }}%</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Status Breakdown -->
+    {% if status_breakdown %}
+    <div class="row g-3 mb-4">
+        {% for stat in status_breakdown %}
+        <div class="col-md-2">
+            <div class="card border-secondary">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-muted mb-1" style="font-size: 0.85rem;">{{ stat.status_display }}</h6>
+                    <h5 class="mb-0">{{ stat.count }}</h5>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Quotations Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-list"></i> عروض الأسعار</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="quotationsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رقم العرض</th>
+                            <th>التاريخ</th>
+                            <th>العميل</th>
+                            <th>المندوب</th>
+                            <th class="text-end">القيمة</th>
+                            <th>صالح حتى</th>
+                            <th class="text-center">الحالة</th>
+                            <th class="text-center no-print">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if group_by %}
+                            {% for group, quotations in grouped_data.items %}
+                            <tr class="table-secondary">
+                                <td colspan="8"><strong>{{ group }}</strong></td>
+                            </tr>
+                            {% for quote in quotations %}
+                            <tr>
+                                <td><strong>{{ quote.number }}</strong></td>
+                                <td>{{ quote.date|date:"Y-m-d" }}</td>
+                                <td>{{ quote.customer.name }}</td>
+                                <td>{{ quote.salesman.name|default:"-" }}</td>
+                                <td class="text-end">{{ quote.total_amount|floatformat:2 }}</td>
+                                <td>{{ quote.valid_until|date:"Y-m-d" }}</td>
+                                <td class="text-center">
+                                    {% if quote.status == 'draft' %}
+                                        <span class="badge badge-draft">مسودة</span>
+                                    {% elif quote.status == 'sent' %}
+                                        <span class="badge badge-sent">مرسلة</span>
+                                    {% elif quote.status == 'approved' %}
+                                        <span class="badge badge-approved">موافق</span>
+                                    {% elif quote.status == 'rejected' %}
+                                        <span class="badge badge-rejected">مرفوضة</span>
+                                    {% elif quote.status == 'converted' %}
+                                        <span class="badge badge-converted">محولة</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center no-print">
+                                    <a href="{% url 'sales:quotation_detail' quote.id %}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="table-info">
+                                <td colspan="4" class="text-end"><strong>مجموع {{ group }}:</strong></td>
+                                <td class="text-end"><strong>{{ quotations|sum_value|floatformat:2 }}</strong></td>
+                                <td colspan="3"></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            {% for quote in quotations %}
+                            <tr>
+                                <td><strong>{{ quote.number }}</strong></td>
+                                <td>{{ quote.date|date:"Y-m-d" }}</td>
+                                <td>{{ quote.customer.name }}</td>
+                                <td>{{ quote.salesman.name|default:"-" }}</td>
+                                <td class="text-end">{{ quote.total_amount|floatformat:2 }}</td>
+                                <td>{{ quote.valid_until|date:"Y-m-d" }}</td>
+                                <td class="text-center">
+                                    {% if quote.status == 'draft' %}
+                                        <span class="badge badge-draft">مسودة</span>
+                                    {% elif quote.status == 'sent' %}
+                                        <span class="badge badge-sent">مرسلة</span>
+                                    {% elif quote.status == 'approved' %}
+                                        <span class="badge badge-approved">موافق</span>
+                                    {% elif quote.status == 'rejected' %}
+                                        <span class="badge badge-rejected">مرفوضة</span>
+                                    {% elif quote.status == 'converted' %}
+                                        <span class="badge badge-converted">محولة</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center no-print">
+                                    <a href="{% url 'sales:quotation_detail' quote.id %}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    لا توجد بيانات للعرض
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function exportToExcel() {
+    const table = document.getElementById('quotationsTable');
+    let html = table.outerHTML;
+    const uri = 'data:application/vnd.ms-excel;base64,';
+    const template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>عروض الأسعار</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>{table}</body></html>';
+    const base64 = function(s) { return window.btoa(unescape(encodeURIComponent(s))) };
+    const format = function(s, c) { return s.replace(/{(\w+)}/g, function(m, p) { return c[p]; }) };
+
+    const ctx = { table: html };
+    const link = document.createElement("a");
+    link.download = "quotation_comparison_" + new Date().getTime() + ".xls";
+    link.href = uri + base64(format(template, ctx));
+    link.click();
+}
+</script>
+{% endblock %}
