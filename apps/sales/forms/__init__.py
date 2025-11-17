@@ -28,10 +28,6 @@ from .payment_forms import (
     InstallmentPlanFormSet,
 )
 
-from .campaign_forms import (
-    DiscountCampaignForm,
-)
-
 from .commission_forms import (
     SalespersonCommissionForm,
     RecordCommissionPaymentForm,
@@ -51,7 +47,6 @@ __all__ = [
     'RecordPaymentForm',
     'CreateInstallmentPlanForm',
     'InstallmentPlanFormSet',
-    'DiscountCampaignForm',
     'SalespersonCommissionForm',
     'RecordCommissionPaymentForm',
 ]

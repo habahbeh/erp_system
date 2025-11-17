@@ -3,6 +3,8 @@
 Views لنظام المبيعات
 """
 
+from .dashboard_views import sales_dashboard
+
 from .invoice_views import (
     SalesInvoiceListView,
     SalesInvoiceCreateView,
@@ -11,6 +13,8 @@ from .invoice_views import (
     SalesInvoiceDeleteView,
     SalesInvoicePostView,
     SalesInvoiceUnpostView,
+    invoice_datatable_ajax,
+    export_invoices_excel,
 )
 
 from .quotation_views import (
@@ -42,16 +46,6 @@ from .payment_views import (
     UpdateInstallmentStatusView,
 )
 
-from .campaign_views import (
-    CampaignListView,
-    CampaignCreateView,
-    CampaignUpdateView,
-    CampaignDetailView,
-    CampaignDeleteView,
-    ToggleCampaignStatusView,
-    GetActiveCampaignsAjax,
-)
-
 from .commission_views import (
     CommissionListView,
     CommissionCreateView,
@@ -62,19 +56,9 @@ from .commission_views import (
     CommissionReportView,
 )
 
-from .pos_views import (
-    POSSessionListView,
-    POSSessionCreateView,
-    POSSessionDetailView,
-    POSSessionCloseView,
-    POSInterfaceView,
-    POSSearchItemView,
-    POSCreateInvoiceView,
-    POSSessionReopenView,
-    POSSessionPrintReportView,
-)
-
 __all__ = [
+    # Dashboard
+    'sales_dashboard',
     # Invoice Views
     'SalesInvoiceListView',
     'SalesInvoiceCreateView',
@@ -83,6 +67,8 @@ __all__ = [
     'SalesInvoiceDeleteView',
     'SalesInvoicePostView',
     'SalesInvoiceUnpostView',
+    'invoice_datatable_ajax',
+    'export_invoices_excel',
     # Quotation Views
     'QuotationListView',
     'QuotationCreateView',
@@ -106,14 +92,6 @@ __all__ = [
     'RecordPaymentView',
     'CancelInstallmentView',
     'UpdateInstallmentStatusView',
-    # Campaign Views
-    'CampaignListView',
-    'CampaignCreateView',
-    'CampaignUpdateView',
-    'CampaignDetailView',
-    'CampaignDeleteView',
-    'ToggleCampaignStatusView',
-    'GetActiveCampaignsAjax',
     # Commission Views
     'CommissionListView',
     'CommissionCreateView',
@@ -122,14 +100,4 @@ __all__ = [
     'CommissionDeleteView',
     'RecordCommissionPaymentView',
     'CommissionReportView',
-    # POS Views
-    'POSSessionListView',
-    'POSSessionCreateView',
-    'POSSessionDetailView',
-    'POSSessionCloseView',
-    'POSInterfaceView',
-    'POSSearchItemView',
-    'POSCreateInvoiceView',
-    'POSSessionReopenView',
-    'POSSessionPrintReportView',
 ]

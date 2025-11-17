@@ -50,6 +50,21 @@ class SalesOrderListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         if salesperson_id:
             queryset = queryset.filter(salesperson_id=salesperson_id)
 
+        # Filter by status
+        status = self.request.GET.get('status')
+        if status == 'pending':
+            queryset = queryset.filter(is_approved=False)
+        elif status == 'approved':
+            queryset = queryset.filter(is_approved=True)
+        elif status == 'delivered':
+            queryset = queryset.filter(is_delivered=True)
+        elif status == 'invoiced':
+            queryset = queryset.filter(is_invoiced=True)
+        elif status == 'cancelled':
+            # Assuming there's a cancelled field or status
+            queryset = queryset.filter(is_active=False)
+
+        # Old filters for backward compatibility
         is_approved = self.request.GET.get('is_approved')
         if is_approved:
             queryset = queryset.filter(is_approved=is_approved == 'true')
@@ -61,6 +76,15 @@ class SalesOrderListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         is_invoiced = self.request.GET.get('is_invoiced')
         if is_invoiced:
             queryset = queryset.filter(is_invoiced=is_invoiced == 'true')
+
+        # Date filters
+        date_from = self.request.GET.get('date_from')
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+
+        date_to = self.request.GET.get('date_to')
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
 
         # البحث
         search = self.request.GET.get('search')
@@ -77,13 +101,31 @@ class SalesOrderListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['title'] = _('طلبات البيع')
 
+        # Breadcrumbs
+        context['breadcrumbs'] = [
+            {'title': _('الرئيسية'), 'url': '/'},
+            {'title': _('المبيعات'), 'url': '/sales/'},
+            {'title': _('طلبات البيع'), 'url': ''},
+        ]
+
         # إحصائيات
-        orders = self.get_queryset()
-        context['total_orders'] = orders.count()
-        context['approved_orders'] = orders.filter(is_approved=True).count()
-        context['pending_orders'] = orders.filter(is_approved=False).count()
-        context['delivered_orders'] = orders.filter(is_delivered=True).count()
-        context['invoiced_orders'] = orders.filter(is_invoiced=True).count()
+        all_orders = SalesOrder.objects.filter(
+            company=self.request.current_company
+        )
+        context['total_orders'] = all_orders.count()
+        context['approved_orders'] = all_orders.filter(is_approved=True).count()
+        context['pending_orders'] = all_orders.filter(is_approved=False).count()
+        context['delivered_orders'] = all_orders.filter(is_delivered=True).count()
+        context['invoiced_orders'] = all_orders.filter(is_invoiced=True).count()
+        context['cancelled_orders'] = all_orders.filter(is_active=False).count()
+
+        # Get customers for filter dropdown
+        from apps.core.models import BusinessPartner
+        context['customers'] = BusinessPartner.objects.filter(
+            company=self.request.current_company,
+            partner_type__in=['customer', 'both'],
+            is_active=True
+        ).order_by('name')
 
         return context
 
@@ -118,6 +160,19 @@ class SalesOrderCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateVi
                 instance=self.object,
                 form_kwargs={'company': self.request.current_company}
             )
+
+        # بيانات للجافاسكربت
+        from apps.core.models import Item
+        context['items_data'] = list(
+            Item.objects.filter(
+                company=self.request.current_company,
+                is_active=True
+            ).values(
+                'id', 'name', 'code', 'barcode',
+                'tax_rate', 'unit_of_measure__name',
+                'unit_of_measure__code'
+            )
+        )
 
         return context
 
@@ -182,6 +237,19 @@ class SalesOrderUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateVi
                 instance=self.object,
                 form_kwargs={'company': self.request.current_company}
             )
+
+        # بيانات للجافاسكربت
+        from apps.core.models import Item
+        context['items_data'] = list(
+            Item.objects.filter(
+                company=self.request.current_company,
+                is_active=True
+            ).values(
+                'id', 'name', 'code', 'barcode',
+                'tax_rate', 'unit_of_measure__name',
+                'unit_of_measure__code'
+            )
+        )
 
         return context
 
@@ -249,14 +317,14 @@ class SalesOrderDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailVi
 
         # حساب الإجماليات
         lines = self.object.lines.all()
-        context['lines'] = lines
 
-        # حساب الإجمالي
+        # حساب الإجمالي وإضافة line_total لكل سطر
         total = Decimal('0')
         for line in lines:
-            line_total = line.quantity * line.unit_price
-            total += line_total
+            line.line_total = line.quantity * line.unit_price
+            total += line.line_total
 
+        context['lines'] = lines
         context['total_amount'] = total
 
         return context
@@ -340,7 +408,7 @@ class ConvertToInvoiceView(LoginRequiredMixin, PermissionRequiredMixin, View):
             company=self.request.current_company,
             is_approved=True,
             is_invoiced=False
-        )
+        ).select_related('quotation', 'quotation__currency')
 
     @transaction.atomic
     def post(self, request, pk):
@@ -357,13 +425,21 @@ class ConvertToInvoiceView(LoginRequiredMixin, PermissionRequiredMixin, View):
             return redirect('sales:order_detail', pk=order.pk)
 
         # الحصول على البيانات المطلوبة
-        from apps.core.models import PaymentMethod, Currency
-        payment_method = PaymentMethod.objects.filter(is_active=True).first()
-        currency = Currency.objects.filter(is_active=True).first()
+        from apps.core.models import PaymentMethod
+        payment_method = PaymentMethod.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).first()
 
         if not payment_method:
             messages.error(request, _('لا توجد طريقة دفع متاحة'))
             return redirect('sales:order_detail', pk=order.pk)
+
+        # تحديد العملة: من عرض السعر أو من الشركة
+        if order.quotation and order.quotation.currency:
+            currency = order.quotation.currency
+        else:
+            currency = request.current_company.base_currency
 
         # إنشاء فاتورة المبيعات
         invoice = SalesInvoice.objects.create(
@@ -374,7 +450,7 @@ class ConvertToInvoiceView(LoginRequiredMixin, PermissionRequiredMixin, View):
             warehouse=order.warehouse,
             salesperson=order.salesperson,
             payment_method=payment_method,
-            currency=currency or order.customer.currency if hasattr(order.customer, 'currency') else None,
+            currency=currency,
             receipt_number=f"RCP-{order.number}",
             notes=order.notes or "",
             created_by=request.user

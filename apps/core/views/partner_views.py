@@ -302,11 +302,18 @@ def partner_create_ajax(request):
         partner_type = request.POST.get('partner_type', 'supplier')
         is_active = request.POST.get('is_active', 'true') == 'true'
 
-        # التحقق من الاسم
+        # التحقق من الحقول المطلوبة
+        errors = {}
         if not name:
+            errors['name'] = 'الاسم مطلوب'
+        if not code:
+            errors['code'] = 'رمز المورد مطلوب'
+
+        if errors:
             return JsonResponse({
                 'success': False,
-                'error': 'الاسم مطلوب'
+                'errors': errors,
+                'error': 'يرجى تعبئة جميع الحقول المطلوبة'
             }, status=400)
 
         # إنشاء المورد
@@ -315,14 +322,19 @@ def partner_create_ajax(request):
                 company=request.current_company,
                 created_by=request.user,
                 name=name,
-                code=code or None,
-                email=email or None,
-                phone=phone or None,
-                mobile=mobile or None,
-                tax_number=tax_number or None,
-                address=address or None,
+                code=code,
+                email=email or '',
+                phone=phone or '',
+                mobile=mobile or '',
+                tax_number=tax_number or '',
+                address=address or '',
                 partner_type=partner_type,
-                is_active=is_active
+                is_active=is_active,
+                # الحقول المطلوبة الأخرى
+                account_type='credit',  # افتراضي: ذمم
+                tax_status='taxable',   # افتراضي: خاضع
+                credit_limit=0,          # افتراضي: 0
+                credit_period=0          # افتراضي: 0
             )
 
         return JsonResponse({

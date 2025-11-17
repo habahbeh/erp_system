@@ -28,6 +28,8 @@ class QuotationListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
 
     def get_queryset(self):
         """الحصول على عروض الأسعار للشركة الحالية"""
+        from datetime import date, timedelta
+
         queryset = Quotation.objects.filter(
             company=self.request.current_company
         ).select_related(
@@ -37,22 +39,47 @@ class QuotationListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
             'created_by'
         ).prefetch_related('lines')
 
-        # الفلاتر
+        # فلتر الحالة
+        status = self.request.GET.get('status')
+        if status:
+            if status == 'pending':
+                queryset = queryset.filter(is_approved=False, converted_to_order=False)
+            elif status == 'approved':
+                queryset = queryset.filter(is_approved=True, converted_to_order=False)
+            elif status == 'converted':
+                queryset = queryset.filter(converted_to_order=True)
+            elif status == 'expired':
+                queryset = queryset.filter(expiry_date__lt=date.today(), converted_to_order=False)
+
+        # فلتر العميل
         customer_id = self.request.GET.get('customer')
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
 
+        # فلتر موظف المبيعات
         salesperson_id = self.request.GET.get('salesperson')
         if salesperson_id:
             queryset = queryset.filter(salesperson_id=salesperson_id)
 
-        is_approved = self.request.GET.get('is_approved')
-        if is_approved:
-            queryset = queryset.filter(is_approved=is_approved == 'true')
+        # فلتر التاريخ
+        date_from = self.request.GET.get('date_from')
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
 
-        converted = self.request.GET.get('converted')
-        if converted:
-            queryset = queryset.filter(converted_to_order=converted == 'true')
+        date_to = self.request.GET.get('date_to')
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
+
+        # فلتر قارب على الانتهاء
+        expiring = self.request.GET.get('expiring')
+        if expiring:
+            days = int(expiring)
+            today = date.today()
+            queryset = queryset.filter(
+                expiry_date__gte=today,
+                expiry_date__lte=today + timedelta(days=days),
+                converted_to_order=False
+            )
 
         # البحث
         search = self.request.GET.get('search')
@@ -69,12 +96,63 @@ class QuotationListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['title'] = _('عروض الأسعار')
 
-        # إحصائيات
-        quotations = self.get_queryset()
-        context['total_quotations'] = quotations.count()
-        context['approved_quotations'] = quotations.filter(is_approved=True).count()
-        context['pending_quotations'] = quotations.filter(is_approved=False, converted_to_order=False).count()
-        context['converted_quotations'] = quotations.filter(converted_to_order=True).count()
+        # إحصائيات شاملة
+        from datetime import date, timedelta
+        from django.db.models import Sum, Count
+
+        quotations = Quotation.objects.filter(company=self.request.current_company)
+        today = date.today()
+
+        # إحصائيات الحالة
+        stats = {
+            'total_count': quotations.count(),
+            'pending_count': quotations.filter(is_approved=False, converted_to_order=False).count(),
+            'approved_count': quotations.filter(is_approved=True, converted_to_order=False).count(),
+            'converted_count': quotations.filter(converted_to_order=True).count(),
+            'expired_count': quotations.filter(expiry_date__lt=today, converted_to_order=False).count(),
+
+            # الإحصائيات المالية
+            'total_value': quotations.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+            'approved_value': quotations.filter(is_approved=True).aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+            'converted_value': quotations.filter(converted_to_order=True).aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+
+            # عروض قاربت على الانتهاء (خلال 7 أيام)
+            'expiring_soon': quotations.filter(
+                expiry_date__gte=today,
+                expiry_date__lte=today + timedelta(days=7),
+                converted_to_order=False
+            ).count(),
+        }
+
+        context['stats'] = stats
+
+        # قائمة العملاء للفلتر
+        from apps.core.models import BusinessPartner
+        context['customers'] = BusinessPartner.objects.filter(
+            company=self.request.current_company,
+            partner_type__in=['customer', 'both'],
+            is_active=True
+        ).order_by('name')
+
+        # قائمة موظفي المبيعات
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        context['salespeople'] = User.objects.filter(
+            is_active=True
+        ).order_by('first_name', 'last_name')
+
+        # صلاحيات
+        context['can_add'] = self.request.user.has_perm('sales.add_quotation')
+        context['can_edit'] = self.request.user.has_perm('sales.change_quotation')
+        context['can_delete'] = self.request.user.has_perm('sales.delete_quotation')
+
+        # Breadcrumbs
+        from django.urls import reverse
+        context['breadcrumbs'] = [
+            {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+            {'title': _('المبيعات'), 'url': reverse('sales:dashboard')},
+            {'title': _('عروض الأسعار'), 'url': ''},
+        ]
 
         return context
 
@@ -259,7 +337,19 @@ class QuotationDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailVie
         # حساب الإجماليات
         lines = self.object.lines.all()
         context['lines'] = lines
-        context['subtotal'] = sum(line.total for line in lines)
+
+        # حساب الإجمالي الفرعي والخصم
+        subtotal = Decimal('0')
+        total_discount = Decimal('0')
+
+        for line in lines:
+            line_subtotal = line.quantity * line.unit_price
+            line_discount = line_subtotal * (line.discount_percentage / 100) if line.discount_percentage else Decimal('0')
+            subtotal += line_subtotal
+            total_discount += line_discount
+
+        context['subtotal'] = subtotal
+        context['total_discount'] = total_discount
 
         # التحقق من انتهاء الصلاحية
         from datetime import date
@@ -268,6 +358,20 @@ class QuotationDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailVie
         else:
             context['is_expired'] = False
 
+        # الحصول على طلبات البيع المرتبطة
+        context['related_orders'] = SalesOrder.objects.filter(
+            quotation=self.object
+        ).select_related('customer', 'warehouse')
+
+        # Breadcrumbs
+        from django.urls import reverse
+        context['breadcrumbs'] = [
+            {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+            {'title': _('المبيعات'), 'url': reverse('sales:dashboard')},
+            {'title': _('عروض الأسعار'), 'url': reverse('sales:quotation_list')},
+            {'title': self.object.number, 'url': ''},
+        ]
+
         return context
 
 
@@ -275,8 +379,8 @@ class QuotationDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
     """حذف عرض سعر"""
     model = Quotation
     template_name = 'sales/quotations/quotation_confirm_delete.html'
-    permission_required = 'sales.delete_quotation'
     success_url = reverse_lazy('sales:quotation_list')
+    permission_required = 'sales.delete_quotation'
 
     def get_queryset(self):
         """الحصول على عروض الأسعار للشركة الحالية فقط"""
@@ -294,15 +398,10 @@ class QuotationDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
             )
             return redirect('sales:quotation_detail', pk=self.object.pk)
 
-        if self.object.is_approved:
-            messages.warning(
-                request,
-                _('تحذير: حذف عرض سعر معتمد')
-            )
-
+        quotation_number = self.object.number
         messages.success(
             request,
-            _('تم حذف عرض السعر {} بنجاح').format(self.object.number)
+            _('تم حذف عرض السعر {} بنجاح').format(quotation_number)
         )
         return super().delete(request, *args, **kwargs)
 
@@ -355,21 +454,25 @@ class ConvertToOrderView(LoginRequiredMixin, PermissionRequiredMixin, View):
             warehouse=warehouse,
             salesperson=quotation.salesperson,
             quotation=quotation,
-            currency=quotation.currency,
             notes=quotation.notes,
             created_by=request.user
         )
 
         # نسخ سطور عرض السعر لطلب البيع
         for quote_line in quotation.lines.all():
+            # حساب السعر الفعلي بعد الخصم
+            # إذا كان هناك خصم، نحسب السعر الجديد
+            if quote_line.discount_percentage and quote_line.discount_percentage > 0:
+                # السعر الفعلي = السعر الأصلي - (السعر الأصلي * نسبة الخصم / 100)
+                effective_price = quote_line.unit_price * (1 - quote_line.discount_percentage / 100)
+            else:
+                effective_price = quote_line.unit_price
+
             SalesOrderItem.objects.create(
                 order=order,
                 item=quote_line.item,
-                description=quote_line.description,
                 quantity=quote_line.quantity,
-                unit_price=quote_line.unit_price,
-                discount_percentage=quote_line.discount_percentage,
-                subtotal=quote_line.total
+                unit_price=effective_price
             )
 
         # تحديث حالة عرض السعر

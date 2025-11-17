@@ -66,6 +66,7 @@ from .quotation_views import (
     send_rfq_to_suppliers,
     cancel_rfq,
     mark_rfq_as_evaluating,
+    get_purchase_request_items_ajax,
     PurchaseQuotationListView,
     PurchaseQuotationDetailView,
     PurchaseQuotationCreateView,
@@ -189,6 +190,7 @@ __all__ = [
     "send_rfq_to_suppliers",
     "cancel_rfq",
     "mark_rfq_as_evaluating",
+    "get_purchase_request_items_ajax",
 
     # Quotation Views
     "PurchaseQuotationListView",

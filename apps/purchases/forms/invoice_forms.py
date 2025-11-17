@@ -25,7 +25,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
         model = PurchaseInvoice
         fields = [
             'invoice_type', 'date', 'branch', 'supplier', 'warehouse',
-            'payment_method', 'currency', 'receipt_date', 'receipt_number',
+            'payment_method', 'currency',
             'supplier_invoice_number', 'supplier_invoice_date',
             'discount_type', 'discount_value', 'discount_affects_cost',
             'discount_account', 'supplier_account', 'reference', 'notes'
@@ -56,18 +56,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
             'payment_method': forms.Select(attrs={
                 'class': 'form-select',
             }),
-            'currency': forms.Select(attrs={
-                'class': 'form-select',
-            }),
-            'receipt_date': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date',
-            }),
-            'receipt_number': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'رقم إيصال الاستلام',
-                'required': 'required'
-            }),
+            'currency': forms.HiddenInput(),
             'supplier_invoice_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'رقم فاتورة المورد',
@@ -113,6 +102,44 @@ class PurchaseInvoiceForm(forms.ModelForm):
         self.branch = kwargs.pop('branch', None)
         super().__init__(*args, **kwargs)
 
+        # تخصيص رسائل الخطأ للحقول المطلوبة
+        self.fields['invoice_type'].error_messages = {
+            'required': 'يرجى اختيار نوع الفاتورة',
+            'invalid': 'نوع الفاتورة غير صحيح'
+        }
+        self.fields['date'].error_messages = {
+            'required': 'يرجى إدخال تاريخ الفاتورة',
+            'invalid': 'تاريخ الفاتورة غير صحيح'
+        }
+        self.fields['branch'].error_messages = {
+            'required': 'يرجى اختيار الفرع',
+            'invalid': 'الفرع غير صحيح'
+        }
+        self.fields['supplier'].error_messages = {
+            'required': 'يرجى اختيار المورد',
+            'invalid': 'المورد غير صحيح'
+        }
+        self.fields['warehouse'].error_messages = {
+            'required': 'يرجى اختيار المستودع',
+            'invalid': 'المستودع غير صحيح'
+        }
+        self.fields['payment_method'].error_messages = {
+            'required': 'يرجى اختيار طريقة الدفع',
+            'invalid': 'طريقة الدفع غير صحيحة'
+        }
+        self.fields['currency'].error_messages = {
+            'required': 'يرجى اختيار العملة',
+            'invalid': 'العملة غير صحيحة'
+        }
+        self.fields['discount_type'].error_messages = {
+            'required': 'يرجى اختيار نوع الخصم',
+            'invalid': 'نوع الخصم غير صحيح'
+        }
+        self.fields['discount_value'].error_messages = {
+            'required': 'يرجى إدخال قيمة الخصم',
+            'invalid': 'قيمة الخصم غير صحيحة'
+        }
+
         if self.company:
             # تصفية الفروع
             from apps.core.models import Branch
@@ -135,10 +162,11 @@ class PurchaseInvoiceForm(forms.ModelForm):
             )
             # Note: Warehouse doesn't have direct branch field, but has default_for_branches ManyToMany
 
-            # تصفية طرق الدفع
+            # تصفية طرق الدفع - فقط نقدي وآجل
             self.fields['payment_method'].queryset = PaymentMethod.objects.filter(
                 company=self.company,
-                is_active=True
+                is_active=True,
+                code__in=['CASH', 'CREDIT']
             )
 
             # تصفية العملات
@@ -175,7 +203,6 @@ class PurchaseInvoiceForm(forms.ModelForm):
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
-            self.fields['receipt_date'].initial = date.today()
             self.fields['invoice_type'].initial = 'purchase'
 
             # تعيين الفرع الافتراضي
@@ -183,35 +210,24 @@ class PurchaseInvoiceForm(forms.ModelForm):
                 self.fields['branch'].initial = self.branch
 
             if self.company:
-                # العملة الافتراضية
+                # العملة الافتراضية JOD
                 default_currency = Currency.objects.filter(
-                    code='KWD', is_active=True
+                    code='JOD', is_active=True
                 ).first()
                 if default_currency:
                     self.fields['currency'].initial = default_currency
 
-                # طريقة الدفع الافتراضية
+                # طريقة الدفع الافتراضية - نقدي
                 default_payment = PaymentMethod.objects.filter(
                     company=self.company,
-                    is_active=True
+                    is_active=True,
+                    code='CASH'
                 ).first()
                 if default_payment:
                     self.fields['payment_method'].initial = default_payment
 
     def clean(self):
         cleaned_data = super().clean()
-
-        invoice_date = cleaned_data.get('date')
-        receipt_date = cleaned_data.get('receipt_date')
-        supplier_invoice_date = cleaned_data.get('supplier_invoice_date')
-
-        # التحقق من التواريخ
-        if receipt_date and invoice_date:
-            if receipt_date > invoice_date:
-                raise ValidationError({
-                    'receipt_date': _('تاريخ الإيصال يجب أن يكون قبل أو يساوي تاريخ الفاتورة')
-                })
-
         return cleaned_data
 
 
@@ -394,10 +410,12 @@ class BasePurchaseInvoiceItemFormSet(BaseInlineFormSet):
         valid_forms = 0
         for form in self.forms:
             if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-                valid_forms += 1
+                # التحقق من أن السطر يحتوي على مادة
+                if form.cleaned_data.get('item'):
+                    valid_forms += 1
 
         if valid_forms < 1:
-            raise ValidationError(_('يجب إضافة سطر واحد على الأقل للفاتورة'))
+            raise ValidationError('⚠️ يرجى إضافة سطر واحد على الأقل للفاتورة. لا يمكن حفظ فاتورة فارغة.')
 
 
 # إنشاء Inline Formset لسطور الفاتورة

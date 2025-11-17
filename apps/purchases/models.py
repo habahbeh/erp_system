@@ -65,7 +65,9 @@ class PurchaseInvoice(DocumentBaseModel):
 
     receipt_number = models.CharField(
         _('رقم الإيصال'),
-        max_length=50
+        max_length=50,
+        blank=True,
+        null=True
     )
 
     reference = models.CharField(
@@ -1054,8 +1056,6 @@ class PurchaseOrder(DocumentBaseModel):
                 company=self.company,
                 is_active=True
             ).first(),
-            receipt_number=f"PO-{self.number}",
-            receipt_date=timezone.now().date(),
             reference=self.number,
             notes=f"تحويل من أمر شراء {self.number}",
             created_by=user or self.created_by
@@ -1383,6 +1383,15 @@ class PurchaseQuotationRequest(BaseModel):
         blank=True
     )
 
+    # العملة
+    currency = models.ForeignKey(
+        Currency,
+        on_delete=models.PROTECT,
+        verbose_name=_('العملة'),
+        null=True,
+        blank=True
+    )
+
     # شروط العرض
     payment_terms = models.TextField(
         _('شروط الدفع'),
@@ -1449,6 +1458,20 @@ class PurchaseQuotationRequest(BaseModel):
         _('ملاحظات'),
         blank=True
     )
+
+    @property
+    def total_estimated(self):
+        """حساب التكلفة التقديرية الإجمالية"""
+        total = Decimal('0')
+        for item in self.items.all():
+            if item.estimated_price and item.quantity:
+                total += item.estimated_price * item.quantity
+        return total
+
+    @property
+    def is_awarded(self):
+        """هل تم ترسية العرض"""
+        return self.status == 'awarded' and self.awarded_quotation is not None
 
     class Meta:
         verbose_name = _('طلب عرض أسعار')
@@ -1559,6 +1582,13 @@ class PurchaseQuotationRequestItem(models.Model):
         _('ملاحظات'),
         blank=True
     )
+
+    @property
+    def line_total(self):
+        """حساب الإجمالي التقديري للسطر"""
+        if self.estimated_price and self.quantity:
+            return self.estimated_price * self.quantity
+        return Decimal('0')
 
     class Meta:
         verbose_name = _('صنف طلب عرض أسعار')

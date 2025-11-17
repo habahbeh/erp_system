@@ -170,7 +170,7 @@ class SalesInvoiceListView(LoginRequiredMixin, PermissionRequiredMixin, ListView
         ).order_by('name')
 
         # خيارات الفلترة
-        context['invoice_types'] = SalesInvoice.INVOICE_TYPE_CHOICES
+        context['invoice_types'] = SalesInvoice.INVOICE_TYPES
         context['payment_statuses'] = SalesInvoice.PAYMENT_STATUS_CHOICES
 
         # الصلاحيات
@@ -248,52 +248,72 @@ class SalesInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Create
 
         return context
 
-    @transaction.atomic
-    def form_valid(self, form):
-        context = self.get_context_data()
-        formset = context['formset']
+    def post(self, request, *args, **kwargs):
+        """Handle POST request with form and formset"""
+        self.object = None
+        form = self.get_form()
 
+        # Create formset from POST data
+        formset = InvoiceItemFormSet(
+            self.request.POST,
+            instance=self.object,
+            company=self.request.current_company
+        )
+
+        # Validate both form and formset
+        if form.is_valid() and formset.is_valid():
+            return self.form_valid(form, formset)
+        else:
+            return self.form_invalid(form, formset)
+
+    @transaction.atomic
+    def form_valid(self, form, formset):
+        """Save both form and formset"""
         # ربط الفاتورة بالشركة والفرع
         form.instance.company = self.request.current_company
         form.instance.branch = self.request.current_branch
         form.instance.created_by = self.request.user
 
-        if formset.is_valid():
-            self.object = form.save()
-            formset.instance = self.object
-            formset.save()
+        # حفظ الفاتورة
+        self.object = form.save()
 
-            # حساب المجاميع
-            self.object.calculate_totals()
+        # ربط الفورمسيت بالفاتورة وحفظه
+        formset.instance = self.object
+        formset.save()
 
-            # تحديث حالة الدفع
-            self.object.update_payment_status()
+        # حساب المجاميع
+        self.object.calculate_totals()
 
-            # حساب العمولة
-            self.object.calculate_commission()
+        # تحديث حالة الدفع
+        self.object.update_payment_status()
 
-            self.object.save()
+        # حساب العمولة
+        self.object.calculate_commission()
 
-            # التحقق من حد الائتمان للعميل (للمبيعات الآجلة)
-            if self.object.invoice_type in ['credit_sale', 'installment']:
-                credit_check = self.object.customer.check_credit_limit(self.object.total_with_tax)
-                if not credit_check['allowed']:
-                    messages.warning(
-                        self.request,
-                        _('تحذير: ') + credit_check['message']
-                    )
+        self.object.save()
 
-            messages.success(
-                self.request,
-                _('تم إضافة فاتورة المبيعات بنجاح')
-            )
-            return redirect('sales:invoice_detail', pk=self.object.pk)
-        else:
-            messages.error(
-                self.request,
-                _('يرجى تصحيح الأخطاء في النموذج')
-            )
-            return self.render_to_response(self.get_context_data(form=form))
+        # التحقق من حد الائتمان للعميل (للمبيعات الآجلة)
+        if self.object.invoice_type in ['credit_sale', 'installment']:
+            credit_check = self.object.customer.check_credit_limit(self.object.total_with_tax)
+            if not credit_check['allowed']:
+                messages.warning(
+                    self.request,
+                    _('تحذير: ') + credit_check['message']
+                )
+
+        messages.success(
+            self.request,
+            _('تم إضافة فاتورة المبيعات بنجاح')
+        )
+        return redirect('sales:invoice_detail', pk=self.object.pk)
+
+    def form_invalid(self, form, formset):
+        """Handle invalid form or formset"""
+        # Return with form and formset context to show inline errors
+        context = self.get_context_data()
+        context['form'] = form
+        context['formset'] = formset
+        return self.render_to_response(context)
 
 
 class SalesInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
@@ -358,47 +378,67 @@ class SalesInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Update
 
         return context
 
-    @transaction.atomic
-    def form_valid(self, form):
-        context = self.get_context_data()
-        formset = context['formset']
+    def post(self, request, *args, **kwargs):
+        """Handle POST request with form and formset"""
+        self.object = self.get_object()
+        form = self.get_form()
 
-        if formset.is_valid():
-            self.object = form.save()
-            formset.instance = self.object
-            formset.save()
+        # Create formset from POST data
+        formset = InvoiceItemFormSet(
+            self.request.POST,
+            instance=self.object,
+            company=self.request.current_company
+        )
 
-            # إعادة حساب المجاميع
-            self.object.calculate_totals()
-
-            # تحديث حالة الدفع
-            self.object.update_payment_status()
-
-            # حساب العمولة
-            self.object.calculate_commission()
-
-            self.object.save()
-
-            # التحقق من حد الائتمان للعميل (للمبيعات الآجلة)
-            if self.object.invoice_type in ['credit_sale', 'installment']:
-                credit_check = self.object.customer.check_credit_limit(self.object.total_with_tax)
-                if not credit_check['allowed']:
-                    messages.warning(
-                        self.request,
-                        _('تحذير: ') + credit_check['message']
-                    )
-
-            messages.success(
-                self.request,
-                _('تم تعديل فاتورة المبيعات بنجاح')
-            )
-            return redirect('sales:invoice_detail', pk=self.object.pk)
+        # Validate both form and formset
+        if form.is_valid() and formset.is_valid():
+            return self.form_valid(form, formset)
         else:
-            messages.error(
-                self.request,
-                _('يرجى تصحيح الأخطاء في النموذج')
-            )
-            return self.render_to_response(self.get_context_data(form=form))
+            return self.form_invalid(form, formset)
+
+    @transaction.atomic
+    def form_valid(self, form, formset):
+        """Save both form and formset"""
+        # حفظ الفاتورة
+        self.object = form.save()
+
+        # ربط الفورمسيت بالفاتورة وحفظه
+        formset.instance = self.object
+        formset.save()
+
+        # إعادة حساب المجاميع
+        self.object.calculate_totals()
+
+        # تحديث حالة الدفع
+        self.object.update_payment_status()
+
+        # حساب العمولة
+        self.object.calculate_commission()
+
+        self.object.save()
+
+        # التحقق من حد الائتمان للعميل (للمبيعات الآجلة)
+        if self.object.invoice_type in ['credit_sale', 'installment']:
+            credit_check = self.object.customer.check_credit_limit(self.object.total_with_tax)
+            if not credit_check['allowed']:
+                messages.warning(
+                    self.request,
+                    _('تحذير: ') + credit_check['message']
+                )
+
+        messages.success(
+            self.request,
+            _('تم تعديل فاتورة المبيعات بنجاح')
+        )
+        return redirect('sales:invoice_detail', pk=self.object.pk)
+
+    def form_invalid(self, form, formset):
+        """Handle invalid form or formset"""
+        # Return with form and formset context to show inline errors
+        context = self.get_context_data()
+        context['form'] = form
+        context['formset'] = formset
+        return self.render_to_response(context)
 
 
 class SalesInvoiceDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
@@ -532,6 +572,10 @@ class SalesInvoicePostView(LoginRequiredMixin, PermissionRequiredMixin, View):
             is_posted=False
         )
 
+    def get(self, request, pk):
+        """إعادة التوجيه إلى صفحة التفاصيل"""
+        return redirect('sales:invoice_detail', pk=pk)
+
     def post(self, request, pk):
         """ترحيل الفاتورة"""
         try:
@@ -594,6 +638,10 @@ class SalesInvoiceUnpostView(LoginRequiredMixin, PermissionRequiredMixin, View):
             is_posted=True
         )
 
+    def get(self, request, pk):
+        """إعادة التوجيه إلى صفحة التفاصيل"""
+        return redirect('sales:invoice_detail', pk=pk)
+
     def post(self, request, pk):
         """إلغاء ترحيل الفاتورة"""
         try:
@@ -647,3 +695,295 @@ class SalesInvoiceUnpostView(LoginRequiredMixin, PermissionRequiredMixin, View):
             )
 
         return redirect('sales:invoice_detail', pk=invoice.pk)
+
+
+@login_required
+@permission_required('sales.view_salesinvoice', raise_exception=True)
+def invoice_datatable_ajax(request):
+    """AJAX endpoint for DataTables"""
+    draw = int(request.GET.get('draw', 1))
+    start = int(request.GET.get('start', 0))
+    length = int(request.GET.get('length', 10))
+    search_value = request.GET.get('search[value]', '')
+
+    # الفلاتر من الواجهة
+    invoice_type = request.GET.get('invoice_type', '')
+    is_posted = request.GET.get('is_posted', '')
+    payment_status = request.GET.get('payment_status', '')
+    customer_id = request.GET.get('customer', '')
+    salesperson_id = request.GET.get('salesperson', '')
+    warehouse_id = request.GET.get('warehouse', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    search_filter = request.GET.get('search_filter', '')
+
+    queryset = SalesInvoice.objects.filter(
+        company=request.current_company
+    ).select_related('customer', 'warehouse', 'salesperson', 'currency')
+
+    # تطبيق الفلاتر
+    if invoice_type:
+        queryset = queryset.filter(invoice_type=invoice_type)
+
+    if is_posted == '1':
+        queryset = queryset.filter(is_posted=True)
+    elif is_posted == '0':
+        queryset = queryset.filter(is_posted=False)
+
+    if payment_status:
+        queryset = queryset.filter(payment_status=payment_status)
+
+    if customer_id:
+        queryset = queryset.filter(customer_id=customer_id)
+
+    if salesperson_id:
+        queryset = queryset.filter(salesperson_id=salesperson_id)
+
+    if warehouse_id:
+        queryset = queryset.filter(warehouse_id=warehouse_id)
+
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
+    # البحث العام
+    if search_filter:
+        queryset = queryset.filter(
+            Q(number__icontains=search_filter) |
+            Q(customer__name__icontains=search_filter) |
+            Q(receipt_number__icontains=search_filter)
+        )
+
+    # البحث من DataTable
+    if search_value:
+        queryset = queryset.filter(
+            Q(number__icontains=search_value) |
+            Q(customer__name__icontains=search_value) |
+            Q(receipt_number__icontains=search_value)
+        )
+
+    # العدد الكلي
+    total_records = queryset.count()
+
+    # الترتيب
+    queryset = queryset.order_by('-date', '-number')
+
+    # Pagination
+    if length > 0:
+        queryset = queryset[start:start + length]
+
+    # البيانات - يجب أن تكون array وليس dictionary
+    data = []
+    for invoice in queryset:
+        # تحديد نوع الفاتورة
+        invoice_type_display = 'مبيعات' if invoice.invoice_type == 'sales' else 'مرتجع'
+
+        # تحديد حالة الترحيل
+        if invoice.is_posted:
+            status_badge = '<span class="badge bg-success">مرحلة</span>'
+        else:
+            status_badge = '<span class="badge bg-warning text-dark">مسودة</span>'
+
+        # تحديد حالة الدفع
+        if invoice.payment_status == 'paid':
+            payment_badge = '<span class="badge bg-success">مدفوعة</span>'
+        elif invoice.payment_status == 'partial':
+            payment_badge = '<span class="badge bg-warning text-dark">دفع جزئي</span>'
+        else:
+            payment_badge = '<span class="badge bg-danger">غير مدفوعة</span>'
+
+        # أزرار الإجراءات
+        actions = f'''
+        <div class="btn-group" role="group">
+            <a href="{reverse('sales:invoice_detail', args=[invoice.pk])}"
+               class="btn btn-sm btn-info"
+               data-bs-toggle="tooltip"
+               title="عرض">
+                <i class="fas fa-eye"></i>
+            </a>
+        '''
+
+        if not invoice.is_posted:
+            actions += f'''
+            <a href="{reverse('sales:invoice_update', args=[invoice.pk])}"
+               class="btn btn-sm btn-primary"
+               data-bs-toggle="tooltip"
+               title="تعديل">
+                <i class="fas fa-edit"></i>
+            </a>
+            <button onclick="postInvoice({invoice.pk}, '{invoice.number}')"
+                    class="btn btn-sm btn-success"
+                    data-bs-toggle="tooltip"
+                    title="ترحيل">
+                <i class="fas fa-check"></i>
+            </button>
+            <button onclick="deleteInvoice({invoice.pk}, '{invoice.number}')"
+                    class="btn btn-sm btn-danger"
+                    data-bs-toggle="tooltip"
+                    title="حذف">
+                <i class="fas fa-trash"></i>
+            </button>
+            '''
+        else:
+            actions += f'''
+            <button onclick="unpostInvoice({invoice.pk}, '{invoice.number}')"
+                    class="btn btn-sm btn-warning"
+                    data-bs-toggle="tooltip"
+                    title="إلغاء الترحيل">
+                <i class="fas fa-undo"></i>
+            </button>
+            '''
+
+        actions += '</div>'
+
+        # إضافة البيانات كـ array وليس dictionary
+        data.append([
+            invoice.number or '-',  # 0: رقم الفاتورة
+            invoice.date.strftime('%Y-%m-%d'),  # 1: التاريخ
+            invoice.customer.name if invoice.customer else '-',  # 2: الزبون
+            invoice_type_display,  # 3: النوع
+            invoice.warehouse.name if invoice.warehouse else '-',  # 4: المستودع
+            f'{float(invoice.total_with_tax):,.3f}',  # 5: الإجمالي
+            payment_badge,  # 6: حالة الدفع
+            status_badge,  # 7: حالة الترحيل
+            actions  # 8: الإجراءات
+        ])
+
+    return JsonResponse({
+        'draw': draw,
+        'recordsTotal': total_records,
+        'recordsFiltered': total_records,
+        'data': data
+    })
+
+
+@login_required
+@permission_required('sales.view_salesinvoice', raise_exception=True)
+def export_invoices_excel(request):
+    """تصدير فواتير المبيعات إلى Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from io import BytesIO
+
+    # استرجاع البيانات
+    queryset = SalesInvoice.objects.filter(
+        company=request.current_company
+    ).select_related(
+        'customer', 'warehouse', 'salesperson', 'currency'
+    ).order_by('-date', '-number')
+
+    # تطبيق الفلاتر من GET parameters
+    customer_id = request.GET.get('customer')
+    if customer_id:
+        queryset = queryset.filter(customer_id=customer_id)
+
+    salesperson_id = request.GET.get('salesperson')
+    if salesperson_id:
+        queryset = queryset.filter(salesperson_id=salesperson_id)
+
+    warehouse_id = request.GET.get('warehouse')
+    if warehouse_id:
+        queryset = queryset.filter(warehouse_id=warehouse_id)
+
+    invoice_type = request.GET.get('invoice_type')
+    if invoice_type:
+        queryset = queryset.filter(invoice_type=invoice_type)
+
+    is_posted = request.GET.get('is_posted')
+    if is_posted == '1':
+        queryset = queryset.filter(is_posted=True)
+    elif is_posted == '0':
+        queryset = queryset.filter(is_posted=False)
+
+    payment_status = request.GET.get('payment_status')
+    if payment_status:
+        queryset = queryset.filter(payment_status=payment_status)
+
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
+    # إنشاء ملف Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "فواتير المبيعات"
+
+    # الأنماط
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True, size=12)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # العناوين
+    headers = [
+        'رقم الفاتورة', 'التاريخ', 'الزبون', 'المندوب', 'المستودع',
+        'رقم الإيصال', 'الإجمالي', 'الضريبة', 'الإجمالي مع الضريبة',
+        'العملة', 'حالة الترحيل', 'حالة الدفع'
+    ]
+
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # البيانات
+    for row_num, invoice in enumerate(queryset, 2):
+        ws.cell(row=row_num, column=1, value=invoice.number).border = border
+        ws.cell(row=row_num, column=2, value=invoice.date.strftime('%Y-%m-%d')).border = border
+        ws.cell(row=row_num, column=3, value=invoice.customer.name).border = border
+        ws.cell(row=row_num, column=4, value=invoice.salesperson.get_full_name() if invoice.salesperson else '-').border = border
+        ws.cell(row=row_num, column=5, value=invoice.warehouse.name).border = border
+        ws.cell(row=row_num, column=6, value=invoice.receipt_number).border = border
+        ws.cell(row=row_num, column=7, value=float(invoice.total_amount)).border = border
+        ws.cell(row=row_num, column=8, value=float(invoice.tax_amount)).border = border
+        ws.cell(row=row_num, column=9, value=float(invoice.total_with_tax)).border = border
+        ws.cell(row=row_num, column=10, value=invoice.currency.code).border = border
+        ws.cell(row=row_num, column=11, value='مرحل' if invoice.is_posted else 'مسودة').border = border
+
+        # حالة الدفع
+        payment_status_text = {
+            'unpaid': 'غير مدفوعة',
+            'partial': 'دفع جزئي',
+            'paid': 'مدفوعة'
+        }.get(invoice.payment_status, '-')
+        ws.cell(row=row_num, column=12, value=payment_status_text).border = border
+
+    # ضبط عرض الأعمدة
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['C'].width = 30
+    ws.column_dimensions['D'].width = 25
+    ws.column_dimensions['E'].width = 20
+    ws.column_dimensions['F'].width = 20
+    ws.column_dimensions['G'].width = 15
+    ws.column_dimensions['H'].width = 15
+    ws.column_dimensions['I'].width = 18
+    ws.column_dimensions['J'].width = 10
+    ws.column_dimensions['K'].width = 12
+    ws.column_dimensions['L'].width = 15
+
+    # حفظ الملف
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    # إرجاع الملف
+    filename = f"sales_invoices_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response

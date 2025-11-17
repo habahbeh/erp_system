@@ -33,7 +33,7 @@ from ..forms import (
     PurchaseQuotationItemForm,
     PurchaseQuotationItemFormSet,
 )
-from apps.core.models import BusinessPartner, Item
+from apps.core.models import BusinessPartner, Item, Currency
 
 
 # ============================================================================
@@ -130,8 +130,27 @@ class PurchaseQuotationRequestDetailView(LoginRequiredMixin, PermissionRequiredM
         return PurchaseQuotationRequest.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'purchase_request', 'awarded_quotation__supplier', 'created_by'
-        ).prefetch_related('items', 'quotations__supplier')
+            'purchase_request', 'awarded_quotation__supplier', 'created_by', 'currency'
+        ).prefetch_related(
+            'items__item__unit_of_measure',
+            'quotations__supplier'
+        )
+
+    def get_object(self, queryset=None):
+        """الحصول على الكائن والتأكد من وجود عملة"""
+        obj = super().get_object(queryset)
+
+        # إذا لم يكن للكائن عملة، قم بتعيين العملة الافتراضية
+        if not obj.currency:
+            default_currency = Currency.objects.filter(
+                is_base=True,
+                is_active=True
+            ).first()
+            if default_currency:
+                obj.currency = default_currency
+                obj.save()
+
+        return obj
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -268,6 +287,24 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
             formset.instance = self.object
             formset.save()
 
+            # حفظ الموردين المختارين
+            selected_suppliers = form.cleaned_data.get('suppliers')
+            if selected_suppliers:
+                # حذف الموردين السابقين (إن وجدوا)
+                self.object.quotations.all().delete()
+
+                # إنشاء PurchaseQuotation لكل مورد مختار
+                for supplier in selected_suppliers:
+                    PurchaseQuotation.objects.create(
+                        company=self.request.current_company,
+                        quotation_request=self.object,
+                        supplier=supplier,
+                        date=self.object.date,
+                        valid_until=self.object.submission_deadline,
+                        status='draft',
+                        created_by=self.request.user
+                    )
+
             messages.success(
                 self.request,
                 _('تم إضافة طلب عرض الأسعار بنجاح')
@@ -294,6 +331,22 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
             company=self.request.current_company,
             status__in=['draft', 'receiving']
         )
+
+    def get_object(self, queryset=None):
+        """الحصول على الكائن والتأكد من وجود عملة"""
+        obj = super().get_object(queryset)
+
+        # إذا لم يكن للكائن عملة، قم بتعيين العملة الافتراضية
+        if not obj.currency:
+            default_currency = Currency.objects.filter(
+                is_base=True,
+                is_active=True
+            ).first()
+            if default_currency:
+                obj.currency = default_currency
+                obj.save()
+
+        return obj
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -337,6 +390,11 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
             )
         )
 
+        # جلب الموردين المحددين مسبقاً
+        if not self.request.POST:
+            selected_suppliers = rfq.quotations.values_list('supplier_id', flat=True)
+            context['form'].fields['suppliers'].initial = list(selected_suppliers)
+
         return context
 
     @transaction.atomic
@@ -348,6 +406,25 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
             self.object = form.save()
             formset.instance = self.object
             formset.save()
+
+            # تحديث الموردين المختارين
+            selected_suppliers = form.cleaned_data.get('suppliers')
+            if selected_suppliers is not None:
+                # حذف الموردين السابقين فقط في حالة draft
+                if self.object.status == 'draft':
+                    self.object.quotations.filter(status='draft').delete()
+
+                    # إنشاء PurchaseQuotation لكل مورد مختار
+                    for supplier in selected_suppliers:
+                        PurchaseQuotation.objects.create(
+                            company=self.request.current_company,
+                            quotation_request=self.object,
+                            supplier=supplier,
+                            date=self.object.date,
+                            valid_until=self.object.submission_deadline,
+                            status='draft',
+                            created_by=self.request.user
+                        )
 
             messages.success(
                 self.request,

@@ -12,9 +12,10 @@ from .views.report_views import (
     invoice_search_report,
     quotation_comparison_report,
     commission_report,
-    campaign_report,
 )
 from .views import (
+    # Dashboard
+    sales_dashboard,
     # Invoice Views
     SalesInvoiceListView,
     SalesInvoiceCreateView,
@@ -23,6 +24,8 @@ from .views import (
     SalesInvoiceDeleteView,
     SalesInvoicePostView,
     SalesInvoiceUnpostView,
+    invoice_datatable_ajax,
+    export_invoices_excel,
     # Quotation Views
     QuotationListView,
     QuotationCreateView,
@@ -46,14 +49,6 @@ from .views import (
     RecordPaymentView,
     CancelInstallmentView,
     UpdateInstallmentStatusView,
-    # Campaign Views
-    CampaignListView,
-    CampaignCreateView,
-    CampaignUpdateView,
-    CampaignDetailView,
-    CampaignDeleteView,
-    ToggleCampaignStatusView,
-    GetActiveCampaignsAjax,
     # Commission Views
     CommissionListView,
     CommissionCreateView,
@@ -62,21 +57,14 @@ from .views import (
     CommissionDeleteView,
     RecordCommissionPaymentView,
     CommissionReportView,
-    # POS Views
-    POSSessionListView,
-    POSSessionCreateView,
-    POSSessionDetailView,
-    POSSessionCloseView,
-    POSInterfaceView,
-    POSSearchItemView,
-    POSCreateInvoiceView,
-    POSSessionReopenView,
-    POSSessionPrintReportView,
 )
 
 app_name = 'sales'
 
 urlpatterns = [
+    # ==================== Dashboard ====================
+    path('', sales_dashboard, name='dashboard'),
+
     # ==================== Sales Invoices ====================
     path('invoices/', SalesInvoiceListView.as_view(), name='invoice_list'),
     path('invoices/create/', SalesInvoiceCreateView.as_view(), name='invoice_create'),
@@ -87,6 +75,10 @@ urlpatterns = [
     # Invoice Actions
     path('invoices/<int:pk>/post/', SalesInvoicePostView.as_view(), name='invoice_post'),
     path('invoices/<int:pk>/unpost/', SalesInvoiceUnpostView.as_view(), name='invoice_unpost'),
+
+    # Invoice AJAX & Export
+    path('ajax/invoices/datatable/', invoice_datatable_ajax, name='invoice_datatable_ajax'),
+    path('invoices/export/', export_invoices_excel, name='export_invoices_excel'),
 
     # ==================== Quotations ====================
     path('quotations/', QuotationListView.as_view(), name='quotation_list'),
@@ -120,17 +112,6 @@ urlpatterns = [
     # Installment Plan
     path('invoices/<int:invoice_pk>/create-installment-plan/', CreateInstallmentPlanView.as_view(), name='create_installment_plan'),
 
-    # ==================== Discount Campaigns ====================
-    path('campaigns/', CampaignListView.as_view(), name='campaign_list'),
-    path('campaigns/create/', CampaignCreateView.as_view(), name='campaign_create'),
-    path('campaigns/<int:pk>/', CampaignDetailView.as_view(), name='campaign_detail'),
-    path('campaigns/<int:pk>/update/', CampaignUpdateView.as_view(), name='campaign_update'),
-    path('campaigns/<int:pk>/delete/', CampaignDeleteView.as_view(), name='campaign_delete'),
-
-    # Campaign Actions
-    path('campaigns/<int:pk>/toggle-status/', ToggleCampaignStatusView.as_view(), name='toggle_campaign_status'),
-    path('campaigns/get-active-campaigns/', GetActiveCampaignsAjax.as_view(), name='get_active_campaigns'),
-
     # ==================== Salesperson Commissions ====================
     path('commissions/', CommissionListView.as_view(), name='commission_list'),
     path('commissions/create/', CommissionCreateView.as_view(), name='commission_create'),
@@ -142,19 +123,6 @@ urlpatterns = [
     path('commissions/<int:pk>/record-payment/', RecordCommissionPaymentView.as_view(), name='record_commission_payment'),
     path('commissions/report/', CommissionReportView.as_view(), name='commission_report'),
 
-    # ==================== POS Sessions ====================
-    path('pos/sessions/', POSSessionListView.as_view(), name='pos_session_list'),
-    path('pos/sessions/create/', POSSessionCreateView.as_view(), name='pos_session_create'),
-    path('pos/sessions/<int:pk>/', POSSessionDetailView.as_view(), name='pos_session_detail'),
-    path('pos/sessions/<int:pk>/close/', POSSessionCloseView.as_view(), name='pos_session_close'),
-    path('pos/sessions/<int:pk>/reopen/', POSSessionReopenView.as_view(), name='pos_session_reopen'),
-    path('pos/sessions/<int:pk>/print/', POSSessionPrintReportView.as_view(), name='pos_session_print'),
-
-    # POS Selling Interface
-    path('pos/<int:pk>/interface/', POSInterfaceView.as_view(), name='pos_interface'),
-    path('pos/search-item/', POSSearchItemView.as_view(), name='pos_search_item'),
-    path('pos/<int:session_id>/create-invoice/', POSCreateInvoiceView.as_view(), name='pos_create_invoice'),
-
     # ==================== Reports ====================
     path('reports/customer-statement/', customer_statement_report, name='report_customer_statement'),
     path('reports/sales-detailed/', sales_detailed_report, name='report_sales_detailed'),
@@ -163,5 +131,4 @@ urlpatterns = [
     path('reports/invoice-search/', invoice_search_report, name='report_invoice_search'),
     path('reports/quotation-comparison/', quotation_comparison_report, name='report_quotation_comparison'),
     path('reports/commission/', commission_report, name='report_commission'),
-    path('reports/campaign/', campaign_report, name='report_campaign'),
 ]

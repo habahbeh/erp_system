@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 from datetime import date
 
-from ..models import SalesInvoice, InvoiceItem, DiscountCampaign
+from ..models import SalesInvoice, InvoiceItem
 from apps.core.models import (
     BusinessPartner, Item, ItemVariant, Warehouse,
     UnitOfMeasure, Currency, User, PaymentMethod
@@ -27,6 +27,9 @@ class SalesInvoiceForm(forms.ModelForm):
             'date', 'customer', 'salesperson', 'warehouse',
             'currency', 'payment_method', 'invoice_type',
 
+            # معلومات الإيصال
+            'receipt_date', 'receipt_number',
+
             # معلومات المستلم
             'recipient_name', 'recipient_phone', 'recipient_address',
 
@@ -40,10 +43,11 @@ class SalesInvoiceForm(forms.ModelForm):
             'salesperson_commission_rate',
 
             # خصم الفاتورة
-            'discount_campaign', 'discount_type', 'discount_value',
+            'discount_type', 'discount_value',
+            'discount_affects_cost', 'discount_account',
 
             # ملاحظات
-            'notes'
+            'notes', 'reference'
         ]
 
         widgets = {
@@ -78,6 +82,19 @@ class SalesInvoiceForm(forms.ModelForm):
             }),
             'invoice_type': forms.Select(attrs={
                 'class': 'form-select',
+            }),
+
+            # معلومات الإيصال
+            'receipt_date': forms.DateInput(
+                format='%Y-%m-%d',
+                attrs={
+                    'class': 'form-control',
+                    'type': 'date',
+                }
+            ),
+            'receipt_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'رقم الإيصال...',
             }),
 
             # معلومات المستلم
@@ -135,11 +152,6 @@ class SalesInvoiceForm(forms.ModelForm):
             }),
 
             # خصم الفاتورة
-            'discount_campaign': forms.Select(attrs={
-                'class': 'form-select select2',
-                'data-placeholder': 'اختر حملة خصم (اختياري)...',
-                'id': 'id_discount_campaign'
-            }),
             'discount_type': forms.Select(attrs={
                 'class': 'form-select',
                 'id': 'id_discount_type'
@@ -196,16 +208,6 @@ class SalesInvoiceForm(forms.ModelForm):
                 is_active=True
             ).order_by('first_name', 'last_name')
 
-            # تصفية حملات الخصم النشطة فقط
-            from django.utils import timezone
-            today = timezone.now().date()
-            self.fields['discount_campaign'].queryset = DiscountCampaign.objects.filter(
-                company=self.company,
-                is_active=True,
-                start_date__lte=today,
-                end_date__gte=today
-            ).order_by('-priority', 'name')
-
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
@@ -235,16 +237,24 @@ class SalesInvoiceForm(forms.ModelForm):
                     self.fields['payment_method'].initial = default_payment
 
         # جعل بعض الحقول اختيارية
+        self.fields['receipt_date'].required = False
         self.fields['recipient_name'].required = False
         self.fields['recipient_phone'].required = False
         self.fields['recipient_address'].required = False
         self.fields['delivery_date'].required = False
         self.fields['shipping_cost'].required = False
+        self.fields['payment_status'].required = False
         self.fields['due_date'].required = False
         self.fields['salesperson_commission_rate'].required = False
-        self.fields['discount_campaign'].required = False
         self.fields['discount_value'].required = False
+        self.fields['discount_affects_cost'].required = False
+        self.fields['discount_account'].required = False
+        self.fields['reference'].required = False
         self.fields['notes'].required = False
+
+        # تعيين قيم افتراضية
+        if not self.instance.pk:
+            self.fields['payment_status'].initial = 'unpaid'
 
     def clean(self):
         cleaned_data = super().clean()
@@ -293,13 +303,17 @@ class InvoiceItemForm(forms.ModelForm):
     class Meta:
         model = InvoiceItem
         fields = [
-            'item', 'description', 'quantity', 'unit_price',
-            'discount_percentage', 'tax_rate', 'tax_included'
+            'item', 'item_variant', 'description', 'quantity', 'unit', 'unit_price',
+            'discount_percentage', 'discount_amount', 'tax_rate', 'tax_included'
         ]
         widgets = {
             'item': forms.Select(attrs={
                 'class': 'form-select form-select-sm item-select',
                 'data-placeholder': 'اختر المادة...',
+            }),
+            'item_variant': forms.Select(attrs={
+                'class': 'form-select form-select-sm variant-select',
+                'data-placeholder': 'اختر المتغير...',
             }),
             'description': forms.Textarea(attrs={
                 'class': 'form-control form-control-sm',
@@ -312,6 +326,9 @@ class InvoiceItemForm(forms.ModelForm):
                 'placeholder': '0.000',
                 'min': '0.001'
             }),
+            'unit': forms.Select(attrs={
+                'class': 'form-select form-select-sm',
+            }),
             'unit_price': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm text-end price-input',
                 'step': '0.001',
@@ -319,11 +336,17 @@ class InvoiceItemForm(forms.ModelForm):
                 'min': '0'
             }),
             'discount_percentage': forms.NumberInput(attrs={
-                'class': 'form-control form-control-sm text-end discount-input',
+                'class': 'form-control form-control-sm text-end discount-pct-input',
                 'step': '0.01',
                 'placeholder': '0.00',
                 'min': '0',
                 'max': '100'
+            }),
+            'discount_amount': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm text-end discount-amount-input',
+                'step': '0.001',
+                'placeholder': '0.000',
+                'min': '0'
             }),
             'tax_rate': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm text-end tax-rate-input',
@@ -347,14 +370,33 @@ class InvoiceItemForm(forms.ModelForm):
                 is_active=True
             ).select_related('category', 'unit_of_measure')
 
+            # تصفية الوحدات
+            self.fields['unit'].queryset = UnitOfMeasure.objects.filter(
+                company=self.company,
+                is_active=True
+            )
+
+        # تصفية المتغيرات (سيتم تحديثها عبر JavaScript عند اختيار المادة)
+        from apps.core.models import ItemVariant
+        if self.instance.pk and self.instance.item:
+            self.fields['item_variant'].queryset = ItemVariant.objects.filter(
+                item=self.instance.item,
+                is_active=True
+            )
+        else:
+            self.fields['item_variant'].queryset = ItemVariant.objects.none()
+
         # جعل بعض الحقول اختيارية
+        self.fields['item_variant'].required = False
         self.fields['description'].required = False
         self.fields['discount_percentage'].required = False
+        self.fields['discount_amount'].required = False
         self.fields['tax_rate'].required = False
 
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['discount_percentage'].initial = 0
+            self.fields['discount_amount'].initial = 0
             self.fields['tax_rate'].initial = 16  # ضريبة افتراضية 16%
             self.fields['tax_included'].initial = False
 
@@ -372,12 +414,40 @@ class InvoiceItemForm(forms.ModelForm):
             raise ValidationError(_('الكمية يجب أن تكون أكبر من صفر'))
         return quantity
 
+    def clean_discount_amount(self):
+        """التحقق من مبلغ الخصم"""
+        discount_amount = self.cleaned_data.get('discount_amount')
+        if discount_amount and discount_amount < 0:
+            raise ValidationError(_('مبلغ الخصم يجب أن يكون صفر أو أكبر'))
+        return discount_amount
+
     def clean_unit_price(self):
         """التحقق من السعر"""
         price = self.cleaned_data.get('unit_price')
         if price and price < 0:
             raise ValidationError(_('السعر يجب أن يكون صفر أو أكبر'))
         return price
+
+    def clean(self):
+        """التحقق الشامل للنموذج"""
+        cleaned_data = super().clean()
+
+        item = cleaned_data.get('item')
+        unit = cleaned_data.get('unit')
+
+        # التحقق من أن الوحدة تنتمي إلى المادة
+        if item and unit:
+            # إذا كانت المادة لها وحدة قياس افتراضية، تأكد من أن الوحدة المختارة صحيحة
+            if item.unit_of_measure and not unit:
+                cleaned_data['unit'] = item.unit_of_measure
+        elif item and not unit:
+            # تعيين الوحدة الافتراضية من المادة
+            if item.unit_of_measure:
+                cleaned_data['unit'] = item.unit_of_measure
+            else:
+                raise ValidationError(_('يجب تحديد وحدة القياس'))
+
+        return cleaned_data
 
 
 class BaseInvoiceItemFormSet(BaseInlineFormSet):

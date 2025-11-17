@@ -73,10 +73,7 @@
             <p class="text-muted mb-0">{% trans "تفاصيل عرض السعر" %}</p>
         </div>
         <div>
-            {% if quotation.status in 'draft,received' %}
-                <a href="{% url 'purchases:evaluate_quotation' quotation.pk %}" class="btn btn-primary action-button">
-                    <i class="fas fa-star"></i> {% trans "تقييم العرض" %}
-                </a>
+            {% if quotation.status == 'draft' or quotation.status == 'received' %}
                 <a href="{% url 'purchases:quotation_update' quotation.pk %}" class="btn btn-warning action-button">
                     <i class="fas fa-edit"></i> {% trans "تعديل" %}
                 </a>
@@ -85,17 +82,14 @@
                     <i class="fas fa-trash"></i> {% trans "حذف" %}
                 </a>
                 {% endif %}
-            {% elif quotation.status == 'evaluated' %}
-                <a href="{% url 'purchases:award_quotation' quotation.pk %}" class="btn btn-success action-button">
-                    <i class="fas fa-trophy"></i> {% trans "اعتماد العرض" %}
-                </a>
-                <a href="{% url 'purchases:reject_quotation' quotation.pk %}" class="btn btn-danger action-button">
-                    <i class="fas fa-times-circle"></i> {% trans "رفض العرض" %}
+            {% elif quotation.status == 'under_evaluation' or quotation.status == 'accepted' %}
+                <a href="{% url 'purchases:quotation_update' quotation.pk %}" class="btn btn-warning action-button">
+                    <i class="fas fa-edit"></i> {% trans "تعديل" %}
                 </a>
             {% elif quotation.status == 'awarded' %}
-                <a href="{% url 'purchases:convert_quotation_to_order' quotation.pk %}" class="btn btn-success action-button">
-                    <i class="fas fa-file-invoice"></i> {% trans "تحويل لأمر شراء" %}
-                </a>
+                <span class="badge bg-success fs-5 me-2">
+                    <i class="fas fa-trophy"></i> {% trans "عرض فائز" %}
+                </span>
             {% endif %}
             <a href="{% url 'purchases:quotation_list' %}" class="btn btn-secondary action-button">
                 <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
@@ -124,7 +118,11 @@
                             <div class="mb-3">
                                 <label class="form-label text-muted">{% trans "طلب عرض السعر" %}</label>
                                 <p class="fw-bold">
-                                    <a href="{% url 'purchases:rfq_detail' quotation.rfq.pk %}">{{ quotation.rfq.number }}</a>
+                                    {% if quotation.quotation_request %}
+                                        <a href="{% url 'purchases:rfq_detail' quotation.quotation_request.pk %}">{{ quotation.quotation_request.number }}</a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </p>
                             </div>
                         </div>
@@ -146,8 +144,8 @@
                             <div class="mb-3">
                                 <label class="form-label text-muted">{% trans "تاريخ الصلاحية" %}</label>
                                 <p class="fw-bold">
-                                    {% if quotation.validity_date %}
-                                        {{ quotation.validity_date|date:"Y-m-d" }}
+                                    {% if quotation.valid_until %}
+                                        {{ quotation.valid_until|date:"Y-m-d" }}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
@@ -160,10 +158,14 @@
                                 <div>
                                     {% if quotation.status == 'draft' %}
                                         <span class="badge status-badge-lg bg-secondary">{% trans "مسودة" %}</span>
+                                    {% elif quotation.status == 'sent' %}
+                                        <span class="badge status-badge-lg bg-primary">{% trans "مرسل" %}</span>
                                     {% elif quotation.status == 'received' %}
                                         <span class="badge status-badge-lg bg-info">{% trans "مستلم" %}</span>
-                                    {% elif quotation.status == 'evaluated' %}
-                                        <span class="badge status-badge-lg bg-warning text-dark">{% trans "تم التقييم" %}</span>
+                                    {% elif quotation.status == 'under_evaluation' %}
+                                        <span class="badge status-badge-lg bg-warning text-dark">{% trans "تحت التقييم" %}</span>
+                                    {% elif quotation.status == 'accepted' %}
+                                        <span class="badge status-badge-lg bg-success">{% trans "مقبول" %}</span>
                                     {% elif quotation.status == 'awarded' %}
                                         <span class="badge status-badge-lg bg-success">{% trans "فائز" %}</span>
                                     {% elif quotation.status == 'rejected' %}
@@ -188,10 +190,28 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-12">
+                        <div class="col-md-6">
                             <div class="mb-0">
-                                <label class="form-label text-muted">{% trans "الضمان" %}</label>
-                                <p>{{ quotation.warranty|default:"-" }}</p>
+                                <label class="form-label text-muted">{% trans "مدة التسليم" %}</label>
+                                <p>
+                                    {% if quotation.delivery_period_days %}
+                                        {{ quotation.delivery_period_days }} {% trans "يوم" %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-0">
+                                <label class="form-label text-muted">{% trans "مدة الضمان" %}</label>
+                                <p>
+                                    {% if quotation.warranty_period_months %}
+                                        {{ quotation.warranty_period_months }} {% trans "شهر" %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -276,16 +296,28 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in quotation.items.all %}
+                                {% for item in quotation.lines.all %}
                                 <tr>
                                     <td>{{ forloop.counter }}</td>
-                                    <td>{{ item.item.name }}</td>
+                                    <td>
+                                        {% if item.item %}
+                                            {{ item.item.name }}
+                                        {% else %}
+                                            {{ item.description }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{ item.brand|default:"-" }}</td>
                                     <td>{{ item.country_of_origin|default:"-" }}</td>
                                     <td class="text-end">{{ item.quantity|floatformat:2 }}</td>
                                     <td class="text-end">{{ item.unit_price|floatformat:3 }}</td>
-                                    <td class="text-end">{{ item.discount_amount|floatformat:3 }}</td>
-                                    <td class="text-end fw-bold">{{ item.total_amount|floatformat:3 }}</td>
+                                    <td class="text-end">
+                                        {% if item.discount_percentage %}
+                                            {{ item.discount_percentage }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold">{{ item.total|floatformat:3 }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
@@ -315,7 +347,7 @@
                             <div class="financial-summary">
                                 <div class="summary-row">
                                     <span>{% trans "المجموع الفرعي" %}</span>
-                                    <span class="fw-bold">{{ quotation.subtotal_amount|floatformat:3 }}</span>
+                                    <span class="fw-bold">{{ quotation.subtotal|floatformat:3 }}</span>
                                 </div>
                                 <div class="summary-row">
                                     <span>{% trans "الخصم" %}</span>

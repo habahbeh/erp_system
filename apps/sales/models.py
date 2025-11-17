@@ -129,17 +129,6 @@ class SalesInvoice(DocumentBaseModel):
         related_name='discount_invoices'
     )
 
-    # حملة الخصم
-    discount_campaign = models.ForeignKey(
-        'DiscountCampaign',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name=_('حملة الخصم'),
-        related_name='invoices',
-        help_text=_('حملة الخصم المطبقة على هذه الفاتورة')
-    )
-
     # المبالغ الإجمالية
     subtotal_before_discount = models.DecimalField(
         _('المجموع قبل الخصم'),
@@ -562,6 +551,15 @@ class SalesInvoice(DocumentBaseModel):
             revenue_accounts[revenue_account]['credit'] += line.subtotal
             revenue_accounts[revenue_account]['items'].append(line.item.name)
 
+        # إذا كان الخصم يؤثر على التكلفة، نطرحه من الإيرادات
+        total_revenue = sum(data['credit'] for data in revenue_accounts.values())
+        if self.discount_amount > 0 and self.discount_affects_cost:
+            # توزيع الخصم على حسابات الإيرادات بنسبة كل حساب
+            for account, data in revenue_accounts.items():
+                proportion = data['credit'] / total_revenue if total_revenue > 0 else 0
+                discount_portion = self.discount_amount * proportion
+                data['credit'] -= discount_portion
+
         for account, data in revenue_accounts.items():
             JournalEntryLine.objects.create(
                 journal_entry=journal_entry,
@@ -594,6 +592,40 @@ class SalesInvoice(DocumentBaseModel):
                 line_number += 1
             except Account.DoesNotExist:
                 pass
+
+        # سطر الشحن (دائن - إذا وجد)
+        if self.shipping_cost > 0:
+            try:
+                shipping_account = Account.objects.get(
+                    company=self.company, code='411000'  # حساب إيرادات الشحن
+                )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=shipping_account,
+                    description=f"إيرادات شحن",
+                    debit_amount=0,
+                    credit_amount=self.shipping_cost,
+                    currency=self.currency,
+                    reference=self.number
+                )
+                line_number += 1
+            except Account.DoesNotExist:
+                # إذا لم يوجد حساب شحن، أضفه لحساب الإيرادات الرئيسي
+                revenue_account = Account.objects.get(
+                    company=self.company, code='410000'
+                )
+                JournalEntryLine.objects.create(
+                    journal_entry=journal_entry,
+                    line_number=line_number,
+                    account=revenue_account,
+                    description=f"إيرادات شحن",
+                    debit_amount=0,
+                    credit_amount=self.shipping_cost,
+                    currency=self.currency,
+                    reference=self.number
+                )
+                line_number += 1
 
         # سطر خصم المبيعات (مدين - إذا وجد)
         if self.discount_amount > 0 and not self.discount_affects_cost:
@@ -865,28 +897,38 @@ class InvoiceItem(models.Model):
         """التحقق من صحة البيانات"""
         super().clean()
 
+        # التحقق فقط إذا كانت المادة موجودة (استخدام item_id لتجنب RelatedObjectDoesNotExist)
+        if not self.item_id:
+            return
+
         # إذا كان المادة له متغيرات، يجب تحديد متغير
-        if self.item and self.item.has_variants and not self.item_variant:
+        if hasattr(self.item, 'has_variants') and self.item.has_variants and not self.item_variant_id:
             raise ValidationError({
                 'item_variant': _('يجب تحديد متغير للمادة الذي له متغيرات')
             })
 
         # إذا كان المادة بدون متغيرات، لا يجب تحديد متغير
-        if self.item and not self.item.has_variants and self.item_variant:
+        if hasattr(self.item, 'has_variants') and not self.item.has_variants and self.item_variant_id:
             raise ValidationError({
                 'item_variant': _('لا يمكن تحديد متغير لمادة بدون متغيرات')
             })
 
         # التحقق من أن المتغير يتبع المادة
-        if self.item_variant and self.item_variant.item != self.item:
+        if self.item_variant_id and self.item_variant.item_id != self.item_id:
             raise ValidationError({
                 'item_variant': _('المتغير المحدد لا يتبع المادة')
             })
 
     def save(self, *args, **kwargs):
         """حساب المبالغ"""
+        # التحقق من وجود المادة قبل المتابعة (استخدام item_id لتجنب RelatedObjectDoesNotExist)
+        if not self.item_id:
+            # حفظ السطر بدون حسابات إذا لم تكن المادة محددة
+            super().save(*args, **kwargs)
+            return
+
         # 🆕 إضافة: الحصول على السعر من قائمة الأسعار
-        if self.item and not self.unit_price:
+        if not self.unit_price:
             from apps.core.models import get_item_price, PriceList
 
             # الحصول على قائمة أسعار العميل (إذا وجدت)
@@ -918,17 +960,17 @@ class InvoiceItem(models.Model):
                 self.unit_price = 0  # أو رفع خطأ
 
         # البيانات من المادة
-        if self.item and not self.barcode:
+        if not self.barcode:
             # استخدم باركود المتغير إذا وجد، وإلا باركود المادة
             if self.item_variant and self.item_variant.barcode:
                 self.barcode = self.item_variant.barcode
             else:
                 self.barcode = self.item.barcode or ''
 
-        if self.item and not self.name_latin:
+        if not self.name_latin:
             self.name_latin = self.item.name_en or ''
 
-        if self.item and not self.unit_id:
+        if not self.unit_id:
             self.unit = self.item.unit_of_measure
 
         # الإجمالي قبل الخصم
@@ -957,7 +999,9 @@ class InvoiceItem(models.Model):
             self.invoice.save()
 
     def __str__(self):
-        return f"{self.item.name} - {self.quantity}"
+        if self.item_id:
+            return f"{self.item.name} - {self.quantity}"
+        return f"سطر فاتورة #{self.pk}" if self.pk else "سطر فاتورة جديد"
 
 
 class Quotation(BaseModel):
@@ -1425,414 +1469,6 @@ class PaymentInstallment(DocumentBaseModel):
 
 
 # ========================================
-# نموذج حملات الخصومات
-# ========================================
-
-class DiscountCampaign(BaseModel):
-    """
-    نموذج حملات الخصومات
-    يدير حملات الخصومات والعروض الترويجية
-    يدعم أنواع مختلفة: خصم نسبة مئوية، خصم ثابت، اشتري X واحصل على Y
-    """
-
-    # أنواع الحملات
-    CAMPAIGN_TYPES = [
-        ('percentage', _('خصم نسبة مئوية')),
-        ('fixed', _('خصم مبلغ ثابت')),
-        ('buy_x_get_y', _('اشتري X واحصل على Y')),
-        ('bundle', _('عرض باقة')),
-        ('free_shipping', _('شحن مجاني')),
-    ]
-
-    # ========== معلومات الحملة ==========
-    name = models.CharField(
-        _('اسم الحملة'),
-        max_length=200,
-        help_text=_('اسم مميز للحملة (مثال: عرض رمضان 2025)')
-    )
-
-    code = models.CharField(
-        _('كود الحملة'),
-        max_length=50,
-        unique=True,
-        help_text=_('كود فريد للحملة يمكن استخدامه في الفواتير')
-    )
-
-    campaign_type = models.CharField(
-        _('نوع الحملة'),
-        max_length=20,
-        choices=CAMPAIGN_TYPES,
-        default='percentage',
-        help_text=_('نوع العرض أو الخصم')
-    )
-
-    description = models.TextField(
-        _('وصف الحملة'),
-        blank=True,
-        help_text=_('وصف تفصيلي للحملة وشروطها')
-    )
-
-    # ========== فترة الحملة ==========
-    start_date = models.DateField(
-        _('تاريخ البداية'),
-        help_text=_('تاريخ بدء الحملة')
-    )
-
-    end_date = models.DateField(
-        _('تاريخ النهاية'),
-        help_text=_('تاريخ انتهاء الحملة')
-    )
-
-    start_time = models.TimeField(
-        _('وقت البداية'),
-        null=True,
-        blank=True,
-        help_text=_('وقت بدء الحملة اليومي (اختياري)')
-    )
-
-    end_time = models.TimeField(
-        _('وقت النهاية'),
-        null=True,
-        blank=True,
-        help_text=_('وقت انتهاء الحملة اليومي (اختياري)')
-    )
-
-    # ========== حقول الخصم ==========
-    discount_percentage = models.DecimalField(
-        _('نسبة الخصم %'),
-        max_digits=5,
-        decimal_places=2,
-        default=0,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text=_('نسبة الخصم المئوية (للحملات من نوع percentage)')
-    )
-
-    discount_amount = models.DecimalField(
-        _('مبلغ الخصم'),
-        max_digits=12,
-        decimal_places=3,
-        default=0,
-        validators=[MinValueValidator(0)],
-        help_text=_('مبلغ الخصم الثابت (للحملات من نوع fixed)')
-    )
-
-    max_discount_amount = models.DecimalField(
-        _('الحد الأقصى للخصم'),
-        max_digits=12,
-        decimal_places=3,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(0)],
-        help_text=_('الحد الأقصى لقيمة الخصم (اختياري)')
-    )
-
-    # ========== حقول العروض (Buy X Get Y) ==========
-    buy_quantity = models.PositiveIntegerField(
-        _('كمية الشراء'),
-        default=0,
-        help_text=_('عدد الوحدات المطلوب شراؤها (للحملات من نوع buy_x_get_y)')
-    )
-
-    get_quantity = models.PositiveIntegerField(
-        _('كمية الهدية'),
-        default=0,
-        help_text=_('عدد الوحدات المجانية (للحملات من نوع buy_x_get_y)')
-    )
-
-    # ========== شروط الحملة ==========
-    min_purchase_amount = models.DecimalField(
-        _('الحد الأدنى للشراء'),
-        max_digits=12,
-        decimal_places=3,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(0)],
-        help_text=_('الحد الأدنى لقيمة الفاتورة لتطبيق الحملة')
-    )
-
-    max_purchase_amount = models.DecimalField(
-        _('الحد الأقصى للشراء'),
-        max_digits=12,
-        decimal_places=3,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(0)],
-        help_text=_('الحد الأقصى لقيمة الفاتورة لتطبيق الحملة')
-    )
-
-    max_uses = models.PositiveIntegerField(
-        _('الحد الأقصى للاستخدام'),
-        null=True,
-        blank=True,
-        help_text=_('عدد مرات الاستخدام القصوى للحملة (اختياري - بدون حد)')
-    )
-
-    max_uses_per_customer = models.PositiveIntegerField(
-        _('الحد الأقصى للاستخدام لكل عميل'),
-        null=True,
-        blank=True,
-        help_text=_('عدد مرات الاستخدام القصوى لكل عميل (اختياري)')
-    )
-
-    current_uses = models.PositiveIntegerField(
-        _('عدد مرات الاستخدام الحالية'),
-        default=0,
-        editable=False,
-        help_text=_('عدد مرات استخدام الحملة حتى الآن')
-    )
-
-    # ========== العلاقات (ManyToMany) ==========
-    items = models.ManyToManyField(
-        Item,
-        blank=True,
-        related_name='discount_campaigns',
-        verbose_name=_('المواد المشمولة'),
-        help_text=_('المواد التي تنطبق عليها الحملة (فارغ = جميع المواد)')
-    )
-
-    categories = models.ManyToManyField(
-        'core.ItemCategory',
-        blank=True,
-        related_name='discount_campaigns',
-        verbose_name=_('الأصناف المشمولة'),
-        help_text=_('أصناف المواد التي تنطبق عليها الحملة')
-    )
-
-    customers = models.ManyToManyField(
-        BusinessPartner,
-        blank=True,
-        limit_choices_to={'is_customer': True},
-        related_name='discount_campaigns',
-        verbose_name=_('العملاء المشمولين'),
-        help_text=_('العملاء الذين يمكنهم الاستفادة من الحملة (فارغ = جميع العملاء)')
-    )
-
-    # ========== الحالة ==========
-    is_active = models.BooleanField(
-        _('نشط'),
-        default=True,
-        help_text=_('هل الحملة نشطة؟ يمكن إيقافها مؤقتاً')
-    )
-
-    priority = models.PositiveIntegerField(
-        _('الأولوية'),
-        default=0,
-        help_text=_('أولوية الحملة (الأعلى = يتم تطبيقها أولاً)')
-    )
-
-    notes = models.TextField(
-        _('ملاحظات'),
-        blank=True
-    )
-
-    class Meta:
-        verbose_name = _('حملة خصم')
-        verbose_name_plural = _('حملات الخصومات')
-        ordering = ['-priority', '-start_date']
-        indexes = [
-            models.Index(fields=['code']),
-            models.Index(fields=['start_date', 'end_date']),
-            models.Index(fields=['is_active']),
-            models.Index(fields=['-priority']),
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({self.code})"
-
-    def clean(self):
-        """التحقق من صحة البيانات"""
-        super().clean()
-
-        # التحقق من التواريخ
-        if self.start_date and self.end_date and self.start_date > self.end_date:
-            raise ValidationError(_('تاريخ البداية يجب أن يكون قبل تاريخ النهاية'))
-
-        # التحقق من الأوقات
-        if self.start_time and self.end_time and self.start_time >= self.end_time:
-            raise ValidationError(_('وقت البداية يجب أن يكون قبل وقت النهاية'))
-
-        # التحقق من حقول الخصم حسب النوع
-        if self.campaign_type == 'percentage' and self.discount_percentage == 0:
-            raise ValidationError(_('يجب تحديد نسبة الخصم لحملات الخصم النسبي'))
-
-        if self.campaign_type == 'fixed' and self.discount_amount == 0:
-            raise ValidationError(_('يجب تحديد مبلغ الخصم لحملات الخصم الثابت'))
-
-        if self.campaign_type == 'buy_x_get_y':
-            if self.buy_quantity == 0 or self.get_quantity == 0:
-                raise ValidationError(_('يجب تحديد كمية الشراء وكمية الهدية لعروض اشتري X واحصل على Y'))
-
-        # التحقق من الحدود
-        if self.min_purchase_amount and self.max_purchase_amount:
-            if self.min_purchase_amount > self.max_purchase_amount:
-                raise ValidationError(_('الحد الأدنى للشراء يجب أن يكون أقل من الحد الأقصى'))
-
-    def is_campaign_active(self, check_date=None, check_time=None):
-        """
-        التحقق من أن الحملة نشطة في تاريخ ووقت محددين
-
-        Args:
-            check_date: التاريخ للتحقق منه (افتراضياً اليوم)
-            check_time: الوقت للتحقق منه (افتراضياً الآن)
-
-        Returns:
-            bool: True إذا كانت الحملة نشطة
-        """
-        from django.utils import timezone
-
-        # التحقق من الحالة العامة
-        if not self.is_active:
-            return False
-
-        # التحقق من التاريخ
-        if check_date is None:
-            check_date = timezone.now().date()
-
-        if check_date < self.start_date or check_date > self.end_date:
-            return False
-
-        # التحقق من الوقت (إذا كان محدداً)
-        if self.start_time and self.end_time:
-            if check_time is None:
-                check_time = timezone.now().time()
-
-            if check_time < self.start_time or check_time > self.end_time:
-                return False
-
-        # التحقق من عدد مرات الاستخدام
-        if self.max_uses and self.current_uses >= self.max_uses:
-            return False
-
-        return True
-
-    def can_apply_to_item(self, item):
-        """
-        التحقق من إمكانية تطبيق الحملة على مادة معينة
-
-        Args:
-            item: المادة المراد التحقق منها
-
-        Returns:
-            bool: True إذا كانت الحملة تنطبق على المادة
-        """
-        # إذا لم يتم تحديد مواد، الحملة تنطبق على الجميع
-        if not self.items.exists() and not self.categories.exists():
-            return True
-
-        # التحقق من المواد المحددة
-        if self.items.filter(id=item.id).exists():
-            return True
-
-        # التحقق من الأصناف
-        if item.category and self.categories.filter(id=item.category.id).exists():
-            return True
-
-        return False
-
-    def can_apply_to_customer(self, customer):
-        """
-        التحقق من إمكانية تطبيق الحملة على عميل معين
-
-        Args:
-            customer: العميل المراد التحقق منه
-
-        Returns:
-            bool: True إذا كانت الحملة تنطبق على العميل
-        """
-        # إذا لم يتم تحديد عملاء، الحملة تنطبق على الجميع
-        if not self.customers.exists():
-            return True
-
-        # التحقق من العملاء المحددين
-        return self.customers.filter(id=customer.id).exists()
-
-    def apply_to_item(self, item, quantity=1, unit_price=None):
-        """
-        تطبيق الخصم على مادة
-
-        Args:
-            item: المادة
-            quantity: الكمية
-            unit_price: سعر الوحدة (اختياري)
-
-        Returns:
-            dict: معلومات الخصم المطبق
-        """
-        result = {
-            'applicable': False,
-            'discount_amount': Decimal('0'),
-            'discount_percentage': Decimal('0'),
-            'free_quantity': 0,
-            'message': ''
-        }
-
-        # التحقق من إمكانية التطبيق
-        if not self.can_apply_to_item(item):
-            result['message'] = _('الحملة لا تنطبق على هذه المادة')
-            return result
-
-        if not self.is_campaign_active():
-            result['message'] = _('الحملة غير نشطة حالياً')
-            return result
-
-        # الحصول على السعر
-        if unit_price is None:
-            unit_price = item.selling_price or Decimal('0')
-
-        total_price = unit_price * Decimal(str(quantity))
-
-        # تطبيق الخصم حسب النوع
-        if self.campaign_type == 'percentage':
-            discount_amount = total_price * (self.discount_percentage / 100)
-
-            # تطبيق الحد الأقصى إن وجد
-            if self.max_discount_amount and discount_amount > self.max_discount_amount:
-                discount_amount = self.max_discount_amount
-
-            result['applicable'] = True
-            result['discount_amount'] = discount_amount
-            result['discount_percentage'] = self.discount_percentage
-            result['message'] = _('تم تطبيق خصم {}%').format(self.discount_percentage)
-
-        elif self.campaign_type == 'fixed':
-            discount_amount = self.discount_amount
-
-            # لا يمكن أن يكون الخصم أكبر من السعر
-            if discount_amount > total_price:
-                discount_amount = total_price
-
-            result['applicable'] = True
-            result['discount_amount'] = discount_amount
-            result['discount_percentage'] = (discount_amount / total_price * 100) if total_price > 0 else 0
-            result['message'] = _('تم تطبيق خصم {}').format(discount_amount)
-
-        elif self.campaign_type == 'buy_x_get_y':
-            # حساب عدد المجموعات الكاملة
-            complete_sets = quantity // self.buy_quantity
-            free_quantity = complete_sets * self.get_quantity
-
-            result['applicable'] = True
-            result['free_quantity'] = free_quantity
-            result['discount_amount'] = unit_price * Decimal(str(free_quantity))
-            result['message'] = _('اشتري {} واحصل على {} مجاناً').format(
-                self.buy_quantity,
-                self.get_quantity
-            )
-
-        return result
-
-    def increment_usage(self):
-        """زيادة عداد الاستخدام"""
-        self.current_uses += 1
-        self.save(update_fields=['current_uses'])
-
-    def reset_usage(self):
-        """إعادة تعيين عداد الاستخدام"""
-        self.current_uses = 0
-        self.save(update_fields=['current_uses'])
-
-
-# ========================================
 # نموذج عمولات المندوبين
 # ========================================
 
@@ -2088,347 +1724,3 @@ class SalespersonCommission(DocumentBaseModel):
 
 
 # ========================================
-# نموذج جلسات نقاط البيع POS
-# ========================================
-
-class POSSession(BaseModel):
-    """
-    نموذج جلسات نقاط البيع
-    يدير جلسات العمل في نقاط البيع من الفتح حتى الإغلاق
-    يتتبع النقد الافتتاحي والختامي والفرق
-    """
-
-    # حالات الجلسة
-    STATUS_CHOICES = [
-        ('open', _('مفتوحة')),
-        ('closed', _('مغلقة')),
-    ]
-
-    # ========== معلومات الجلسة ==========
-    session_number = models.CharField(
-        _('رقم الجلسة'),
-        max_length=50,
-        unique=True,
-        help_text=_('رقم فريد للجلسة')
-    )
-
-    cashier = models.ForeignKey(
-        User,
-        on_delete=models.PROTECT,
-        related_name='pos_sessions',
-        verbose_name=_('الكاشير'),
-        help_text=_('الموظف المسؤول عن هذه الجلسة')
-    )
-
-    pos_location = models.CharField(
-        _('موقع نقطة البيع'),
-        max_length=200,
-        blank=True,
-        help_text=_('الموقع الفعلي لنقطة البيع (صالة 1، فرع المدينة، إلخ)')
-    )
-
-    # ========== تواريخ وأوقات الجلسة ==========
-    opening_datetime = models.DateTimeField(
-        _('تاريخ ووقت الفتح'),
-        auto_now_add=True,
-        help_text=_('تاريخ ووقت فتح الجلسة')
-    )
-
-    closing_datetime = models.DateTimeField(
-        _('تاريخ ووقت الإغلاق'),
-        null=True,
-        blank=True,
-        help_text=_('تاريخ ووقت إغلاق الجلسة')
-    )
-
-    status = models.CharField(
-        _('حالة الجلسة'),
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='open',
-        help_text=_('هل الجلسة مفتوحة أم مغلقة')
-    )
-
-    # ========== النقد ==========
-    opening_cash = models.DecimalField(
-        _('النقد الافتتاحي'),
-        max_digits=12,
-        decimal_places=3,
-        default=0,
-        validators=[MinValueValidator(0)],
-        help_text=_('المبلغ النقدي في الدرج عند فتح الجلسة')
-    )
-
-    closing_cash = models.DecimalField(
-        _('النقد الختامي'),
-        max_digits=12,
-        decimal_places=3,
-        default=0,
-        validators=[MinValueValidator(0)],
-        help_text=_('المبلغ النقدي الفعلي في الدرج عند إغلاق الجلسة')
-    )
-
-    expected_cash = models.DecimalField(
-        _('النقد المتوقع'),
-        max_digits=12,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('النقد المتوقع = الافتتاحي + مبيعات نقدية - مرتجعات نقدية')
-    )
-
-    cash_difference = models.DecimalField(
-        _('فرق النقد'),
-        max_digits=12,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('الفرق بين النقد الختامي والمتوقع (موجب = زيادة، سالب = نقص)')
-    )
-
-    # ========== إحصائيات المبيعات ==========
-    total_sales = models.DecimalField(
-        _('إجمالي المبيعات'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('إجمالي قيمة المبيعات خلال الجلسة')
-    )
-
-    total_cash_sales = models.DecimalField(
-        _('المبيعات النقدية'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('إجمالي المبيعات المدفوعة نقداً')
-    )
-
-    total_card_sales = models.DecimalField(
-        _('المبيعات بالبطاقة'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('إجمالي المبيعات المدفوعة بالبطاقة')
-    )
-
-    total_returns = models.DecimalField(
-        _('إجمالي المرتجعات'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        editable=False,
-        help_text=_('إجمالي قيمة المرتجعات خلال الجلسة')
-    )
-
-    transactions_count = models.PositiveIntegerField(
-        _('عدد المعاملات'),
-        default=0,
-        editable=False,
-        help_text=_('عدد فواتير المبيعات في الجلسة')
-    )
-
-    # ========== ملاحظات ==========
-    opening_notes = models.TextField(
-        _('ملاحظات الفتح'),
-        blank=True,
-        help_text=_('ملاحظات عند فتح الجلسة')
-    )
-
-    closing_notes = models.TextField(
-        _('ملاحظات الإغلاق'),
-        blank=True,
-        help_text=_('ملاحظات عند إغلاق الجلسة')
-    )
-
-    class Meta:
-        verbose_name = _('جلسة نقطة بيع')
-        verbose_name_plural = _('جلسات نقاط البيع')
-        ordering = ['-opening_datetime']
-        indexes = [
-            models.Index(fields=['session_number']),
-            models.Index(fields=['cashier', 'status']),
-            models.Index(fields=['status']),
-            models.Index(fields=['-opening_datetime']),
-        ]
-
-    def __str__(self):
-        return f"{self.session_number} - {self.cashier} - {self.get_status_display()}"
-
-    def clean(self):
-        """التحقق من صحة البيانات"""
-        super().clean()
-
-        # التحقق من أن الجلسة المفتوحة لها تاريخ فتح فقط
-        if self.status == 'open' and self.closing_datetime:
-            raise ValidationError(_('الجلسة المفتوحة لا يمكن أن يكون لها تاريخ إغلاق'))
-
-        # التحقق من أن الجلسة المغلقة لها تاريخ إغلاق
-        if self.status == 'closed' and not self.closing_datetime:
-            raise ValidationError(_('الجلسة المغلقة يجب أن يكون لها تاريخ إغلاق'))
-
-        # التحقق من عدم وجود جلسة مفتوحة أخرى لنفس الكاشير
-        if self.status == 'open':
-            existing_open = POSSession.objects.filter(
-                cashier=self.cashier,
-                status='open',
-                company=self.company
-            ).exclude(pk=self.pk)
-
-            if existing_open.exists():
-                raise ValidationError(
-                    _('الكاشير لديه جلسة مفتوحة بالفعل. يجب إغلاق الجلسة السابقة أولاً.')
-                )
-
-    def save(self, *args, **kwargs):
-        """حفظ الجلسة مع توليد رقم تلقائي"""
-        # توليد رقم الجلسة تلقائياً إذا لم يكن موجوداً
-        if not self.session_number:
-            from django.utils import timezone
-            now = timezone.now()
-            prefix = "POS"
-            year = now.strftime("%Y")
-            month = now.strftime("%m")
-            day = now.strftime("%d")
-            time_str = now.strftime("%H%M")
-
-            # رقم تسلسلي يومي
-            today_sessions = POSSession.objects.filter(
-                opening_datetime__date=now.date(),
-                company=self.company
-            ).count()
-
-            self.session_number = f"{prefix}/{year}/{month}{day}/{time_str}/{today_sessions + 1:03d}"
-
-        super().save(*args, **kwargs)
-
-    def calculate_totals(self):
-        """
-        حساب إحصائيات الجلسة من الفواتير المرتبطة
-
-        Returns:
-            dict: قاموس بالإحصائيات المحسوبة
-        """
-        from django.db.models import Sum, Count, Q
-
-        # جلب فواتير المبيعات في هذه الجلسة
-        # ملاحظة: لاحقاً يجب إضافة حقل pos_session للفاتورة
-        # حالياً سنستخدم company و is_posted و date
-        # POSSession يرث من BaseModel (لا يحتوي على branch)
-        invoices = SalesInvoice.objects.filter(
-            company=self.company,
-            is_posted=True,
-            date=self.opening_datetime.date() if self.opening_datetime else timezone.now().date()
-        )
-
-        # حساب الإجماليات
-        totals = invoices.aggregate(
-            total_sales=Sum('total_with_tax') or Decimal('0'),
-            count=Count('id')
-        )
-
-        self.total_sales = totals['total_sales'] or Decimal('0')
-        self.transactions_count = totals['count'] or 0
-
-        # حساب المبيعات النقدية والبطاقة
-        # نفترض أن payment_method موجود في الفاتورة
-        cash_sales = invoices.filter(
-            payment_method__name__icontains='نقد'
-        ).aggregate(total=Sum('total_with_tax'))
-
-        card_sales = invoices.filter(
-            Q(payment_method__name__icontains='بطاقة') |
-            Q(payment_method__name__icontains='شبكة')
-        ).aggregate(total=Sum('total_with_tax'))
-
-        self.total_cash_sales = cash_sales['total'] or Decimal('0')
-        self.total_card_sales = card_sales['total'] or Decimal('0')
-
-        # حساب النقد المتوقع
-        self.expected_cash = self.opening_cash + self.total_cash_sales - self.total_returns
-
-        # حساب الفرق
-        self.cash_difference = self.closing_cash - self.expected_cash
-
-        return {
-            'total_sales': self.total_sales,
-            'total_cash_sales': self.total_cash_sales,
-            'total_card_sales': self.total_card_sales,
-            'total_returns': self.total_returns,
-            'transactions_count': self.transactions_count,
-            'expected_cash': self.expected_cash,
-            'cash_difference': self.cash_difference,
-        }
-
-    def close_session(self, closing_cash, closing_notes=''):
-        """
-        إغلاق الجلسة
-
-        Args:
-            closing_cash: المبلغ النقدي الفعلي عند الإغلاق
-            closing_notes: ملاحظات الإغلاق
-        """
-        from django.utils import timezone
-
-        if self.status == 'closed':
-            raise ValidationError(_('الجلسة مغلقة بالفعل'))
-
-        # تحديث النقد الختامي
-        self.closing_cash = closing_cash
-        self.closing_notes = closing_notes
-        self.closing_datetime = timezone.now()
-
-        # حساب الإحصائيات
-        self.calculate_totals()
-
-        # تغيير الحالة
-        self.status = 'closed'
-
-        self.save()
-
-        return {
-            'opening_cash': self.opening_cash,
-            'closing_cash': self.closing_cash,
-            'expected_cash': self.expected_cash,
-            'cash_difference': self.cash_difference,
-            'total_sales': self.total_sales,
-            'transactions_count': self.transactions_count,
-        }
-
-    def reopen_session(self):
-        """إعادة فتح الجلسة"""
-        if self.status == 'open':
-            raise ValidationError(_('الجلسة مفتوحة بالفعل'))
-
-        # التحقق من عدم وجود جلسة مفتوحة أخرى
-        existing_open = POSSession.objects.filter(
-            cashier=self.cashier,
-            status='open',
-            company=self.company
-        ).exclude(pk=self.pk)
-
-        if existing_open.exists():
-            raise ValidationError(
-                _('الكاشير لديه جلسة مفتوحة أخرى. لا يمكن إعادة فتح هذه الجلسة.')
-            )
-
-        self.status = 'open'
-        self.closing_datetime = None
-        self.save()
-
-    @property
-    def is_open(self):
-        """هل الجلسة مفتوحة؟"""
-        return self.status == 'open'
-
-    @property
-    def session_duration(self):
-        """مدة الجلسة"""
-        from django.utils import timezone
-
-        if self.closing_datetime:
-            return self.closing_datetime - self.opening_datetime
-        else:
-            return timezone.now() - self.opening_datetime

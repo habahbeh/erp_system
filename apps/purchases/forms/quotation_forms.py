@@ -24,9 +24,13 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
     # حقل لاختيار الموردين
     suppliers = forms.ModelMultipleChoiceField(
         queryset=BusinessPartner.objects.none(),
-        required=False,
+        required=True,
         label=_('الموردين'),
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-select select2-multiple',
+            'multiple': 'multiple',
+            'data-placeholder': 'اختر الموردين...',
+        }),
         help_text=_('اختر الموردين الذين سيتم إرسال طلب العرض لهم')
     )
 
@@ -35,6 +39,7 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
         fields = [
             'date', 'subject', 'description', 'purchase_request',
             'submission_deadline', 'required_delivery_date',
+            'currency',
             'payment_terms', 'delivery_terms',
             'warranty_required', 'warranty_period_months',
             'notes'
@@ -64,6 +69,9 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
             'required_delivery_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }),
+            'currency': forms.Select(attrs={
+                'class': 'form-select',
             }),
             'payment_terms': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -114,16 +122,34 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
                 is_active=True
             ).order_by('name')
 
+            # تصفية العملات
+            from apps.core.models import Currency
+            self.fields['currency'].queryset = Currency.objects.filter(
+                is_active=True
+            ).order_by('name')
+
         # تعيين القيم الافتراضية
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
             self.fields['submission_deadline'].initial = date.today() + timedelta(days=7)
             self.fields['required_delivery_date'].initial = date.today() + timedelta(days=30)
 
+            # تعيين العملة الافتراضية
+            if self.company:
+                from apps.core.models import Currency
+                default_currency = Currency.objects.filter(
+                    is_base=True,
+                    is_active=True
+                ).first()
+                if default_currency:
+                    self.fields['currency'].initial = default_currency
+
         # جعل الحقول اختيارية
         self.fields['description'].required = False
         self.fields['purchase_request'].required = False
         self.fields['required_delivery_date'].required = False
+        # currency مطلوب في قاعدة البيانات
+        self.fields['currency'].required = True
         self.fields['payment_terms'].required = False
         self.fields['delivery_terms'].required = False
         self.fields['warranty_period_months'].required = False
@@ -137,6 +163,27 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
         required_delivery_date = cleaned_data.get('required_delivery_date')
         warranty_required = cleaned_data.get('warranty_required')
         warranty_period = cleaned_data.get('warranty_period_months')
+        currency = cleaned_data.get('currency')
+
+        # التحقق من العملة
+        if not currency:
+            # محاولة تعيين العملة الافتراضية
+            if self.company:
+                from apps.core.models import Currency
+                default_currency = Currency.objects.filter(
+                    is_base=True,
+                    is_active=True
+                ).first()
+                if default_currency:
+                    cleaned_data['currency'] = default_currency
+                else:
+                    raise ValidationError({
+                        'currency': _('يجب تحديد العملة')
+                    })
+            else:
+                raise ValidationError({
+                    'currency': _('يجب تحديد العملة')
+                })
 
         # التحقق من التواريخ
         if submission_deadline and request_date:
@@ -223,6 +270,19 @@ class PurchaseQuotationRequestItemForm(forms.ModelForm):
         self.fields['unit'].required = False
         self.fields['estimated_price'].required = False
         self.fields['notes'].required = False
+
+    def clean(self):
+        """تعبئة الوحدة تلقائياً من المادة إذا كانت فارغة"""
+        cleaned_data = super().clean()
+        item = cleaned_data.get('item')
+        unit = cleaned_data.get('unit')
+
+        # إذا كانت المادة موجودة والوحدة فارغة، املأ الوحدة تلقائياً
+        if item and not unit:
+            if item.unit_of_measure:
+                cleaned_data['unit'] = item.unit_of_measure.name
+
+        return cleaned_data
 
 
 class BasePurchaseQuotationRequestItemFormSet(BaseInlineFormSet):
@@ -381,7 +441,7 @@ class PurchaseQuotationForm(forms.ModelForm):
             self.fields['valid_until'].initial = date.today() + timedelta(days=30)
 
             if self.company:
-                default_currency = Currency.objects.filter(is_default=True).first()
+                default_currency = Currency.objects.filter(is_base=True).first()
                 if default_currency:
                     self.fields['currency'].initial = default_currency
 

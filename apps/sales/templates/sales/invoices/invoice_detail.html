@@ -35,15 +35,15 @@
             {% endif %}
             
             {% if can_post and not invoice.is_posted %}
-            <a href="{% url 'sales:post_invoice' invoice.pk %}" class="btn btn-success">
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#postModal">
                 <i class="fas fa-check-circle"></i> {% trans "ترحيل" %}
-            </a>
+            </button>
             {% endif %}
 
             {% if can_unpost and invoice.is_posted %}
-            <a href="{% url 'sales:unpost_invoice' invoice.pk %}" class="btn btn-warning">
+            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#unpostModal">
                 <i class="fas fa-undo"></i> {% trans "إلغاء الترحيل" %}
-            </a>
+            </button>
             {% endif %}
             
             {% if can_delete and not invoice.is_posted %}
@@ -340,15 +340,15 @@
                         {% endif %}
                         
                         {% if can_post and not invoice.is_posted %}
-                        <a href="{% url 'sales:post_invoice' invoice.pk %}" class="btn btn-outline-success btn-sm">
+                        <button type="button" class="btn btn-outline-success btn-sm w-100" data-bs-toggle="modal" data-bs-target="#postModal">
                             <i class="fas fa-check-circle me-1"></i> {% trans "ترحيل" %}
-                        </a>
+                        </button>
                         {% endif %}
 
                         {% if can_unpost and invoice.is_posted %}
-                        <a href="{% url 'sales:unpost_invoice' invoice.pk %}" class="btn btn-outline-warning btn-sm">
+                        <button type="button" class="btn btn-outline-warning btn-sm w-100" data-bs-toggle="modal" data-bs-target="#unpostModal">
                             <i class="fas fa-undo me-1"></i> {% trans "إلغاء الترحيل" %}
-                        </a>
+                        </button>
                         {% endif %}
                         
                         {% if can_delete and not invoice.is_posted %}
@@ -362,4 +362,119 @@
         </div>
     </div>
 </div>
+
+<!-- Modal لتأكيد ترحيل الفاتورة -->
+{% if can_post and not invoice.is_posted %}
+<div class="modal fade" id="postModal" tabindex="-1" aria-labelledby="postModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="postModalLabel">
+                    <i class="fas fa-check-circle ms-2"></i>
+                    {% trans "تأكيد ترحيل الفاتورة" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'sales:invoice_post' invoice.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle ms-2"></i>
+                        {% trans "هل أنت متأكد من ترحيل فاتورة المبيعات" %} <strong>{{ invoice.number }}</strong>؟
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">{% trans "ملخص الفاتورة:" %}</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li><strong>{% trans "العميل:" %}</strong> {{ invoice.customer.name }}</li>
+                                <li><strong>{% trans "الإجمالي:" %}</strong> {{ invoice.grand_total|floatformat:3 }} {{ invoice.currency.code }}</li>
+                                <li><strong>{% trans "التاريخ:" %}</strong> {{ invoice.date|date:"Y-m-d" }}</li>
+                                <li><strong>{% trans "المستودع:" %}</strong> {{ invoice.warehouse.name }}</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle ms-2"></i>
+                        <strong>{% trans "سيتم عند الترحيل:" %}</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>{% trans "إنشاء سند إخراج من المستودع" %}</li>
+                            <li>{% trans "إنشاء قيد محاسبي تلقائي" %}</li>
+                            <li>{% trans "لن يمكن تعديل أو حذف الفاتورة بعد الترحيل" %}</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times ms-2"></i>
+                        {% trans "إلغاء" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check ms-2"></i>
+                        {% trans "تأكيد الترحيل" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal لتأكيد إلغاء ترحيل الفاتورة -->
+{% if can_unpost and invoice.is_posted %}
+<div class="modal fade" id="unpostModal" tabindex="-1" aria-labelledby="unpostModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="unpostModalLabel">
+                    <i class="fas fa-undo ms-2"></i>
+                    {% trans "تأكيد إلغاء ترحيل الفاتورة" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'sales:invoice_unpost' invoice.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle ms-2"></i>
+                        {% trans "هل أنت متأكد من إلغاء ترحيل فاتورة المبيعات" %} <strong>{{ invoice.number }}</strong>؟
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">{% trans "ملخص الفاتورة:" %}</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li><strong>{% trans "العميل:" %}</strong> {{ invoice.customer.name }}</li>
+                                <li><strong>{% trans "الإجمالي:" %}</strong> {{ invoice.grand_total|floatformat:3 }} {{ invoice.currency.code }}</li>
+                                <li><strong>{% trans "التاريخ:" %}</strong> {{ invoice.date|date:"Y-m-d" }}</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger mb-0">
+                        <i class="fas fa-exclamation-circle ms-2"></i>
+                        <strong>{% trans "سيتم عند إلغاء الترحيل:" %}</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>{% trans "حذف سند الإخراج من المستودع" %}</li>
+                            <li>{% trans "حذف القيد المحاسبي" %}</li>
+                            <li>{% trans "إرجاع الكميات إلى المخزون" %}</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times ms-2"></i>
+                        {% trans "إلغاء" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-check ms-2"></i>
+                        {% trans "تأكيد إلغاء الترحيل" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
