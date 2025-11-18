@@ -1,0 +1,242 @@
+{# apps/core/templates/core/uom_conversions/conversion_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة تحويلات وحدات القياس بين الوحدات المختلفة" %}</p>
+        </div>
+        {% if can_add %}
+        <div class="btn-group">
+            <a href="{% url 'core:uom_conversion_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة تحويل" %}
+            </a>
+            <a href="{% url 'core:uom_conversion_bulk_create' %}" class="btn btn-success">
+                <i class="fas fa-layer-group"></i> {% trans "إضافة متعددة" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "إجمالي التحويلات" %}</h6>
+                            <h2 class="mb-0">{{ page_obj.paginator.count }}</h2>
+                        </div>
+                        <div class="text-primary">
+                            <i class="fas fa-exchange-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "تحويلات عامة" %}</h6>
+                            <h2 class="mb-0">{{ object_list|length }}</h2>
+                        </div>
+                        <div class="text-success">
+                            <i class="fas fa-globe fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "بحث" %}</label>
+                    <input type="text" name="search" class="form-control"
+                           placeholder="{% trans 'بحث في المواد أو الوحدات...' %}"
+                           value="{{ request.GET.search }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="is_active" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="1" {% if request.GET.is_active == '1' %}selected{% endif %}>{% trans "نشط" %}</option>
+                        <option value="0" {% if request.GET.is_active == '0' %}selected{% endif %}>{% trans "غير نشط" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                    <a href="{% url 'core:uom_conversion_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if object_list %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "النطاق" %}</th>
+                            <th>{% trans "المادة/المتغير" %}</th>
+                            <th>{% trans "من وحدة" %}</th>
+                            <th>{% trans "معامل التحويل" %}</th>
+                            <th>{% trans "الصيغة" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for conversion in object_list %}
+                        <tr>
+                            <td>
+                                {% if conversion.variant %}
+                                    <span class="badge bg-info">{% trans "خاص بمتغير" %}</span>
+                                {% elif conversion.item %}
+                                    <span class="badge bg-primary">{% trans "خاص بمادة" %}</span>
+                                {% else %}
+                                    <span class="badge bg-success">{% trans "عام" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if conversion.variant %}
+                                    <strong>{{ conversion.item.name }}</strong><br>
+                                    <small class="text-muted">{{ conversion.variant.code }}</small>
+                                {% elif conversion.item %}
+                                    {{ conversion.item.name }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "جميع المواد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ conversion.from_uom.name }}</strong><br>
+                                <small class="text-muted">{{ conversion.from_uom.code }}</small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary fs-6">{{ conversion.conversion_factor }}</span>
+                            </td>
+                            <td>
+                                {% if conversion.formula_expression %}
+                                    <small class="text-muted">{{ conversion.formula_expression|truncatewords:5 }}</small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if conversion.is_active %}
+                                    <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'core:uom_conversion_detail' conversion.pk %}"
+                                       class="btn btn-outline-info" title="{% trans 'عرض' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_change %}
+                                    <a href="{% url 'core:uom_conversion_update' conversion.pk %}"
+                                       class="btn btn-outline-warning" title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if can_delete %}
+                                    <a href="{% url 'core:uom_conversion_delete' conversion.pk %}"
+                                       class="btn btn-outline-danger" title="{% trans 'حذف' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "الأولى" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "السابقة" %}</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "التالية" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "الأخيرة" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                <p class="mb-0">{% trans "لا توجد تحويلات متاحة حالياً" %}</p>
+                {% if can_add %}
+                <a href="{% url 'core:uom_conversion_create' %}" class="btn btn-primary mt-2">
+                    <i class="fas fa-plus"></i> {% trans "إضافة أول تحويل" %}
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

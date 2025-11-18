@@ -20,8 +20,8 @@
 
             <!-- Dashboard -->
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-                   href="{% url 'core:dashboard' %}">
+                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'main_dashboard' %}active{% endif %}"
+                   href="{% url 'core:main_dashboard' %}">
                     <i class="fas fa-tachometer-alt"></i>
                     <span>{% trans "لوحة التحكم" %}</span>
                 </a>
@@ -584,10 +584,35 @@
 
                         {% if perms.core.view_unitofmeasure or user.is_superuser %}
                             <li class="nav-item">
-                                <a class="nav-link {% if 'unit' in request.resolver_match.url_name %}active{% endif %}"
-                                   href="{% url 'core:unit_list' %}">
-                                    <i class="fas fa-ruler"></i> {% trans "وحدات القياس" %}
+                                <a class="nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#uomMenu"
+                                   aria-expanded="{% if 'uom' in request.resolver_match.url_name or 'unit' in request.resolver_match.url_name %}true{% else %}false{% endif %}"
+                                   aria-controls="uomMenu">
+                                    <i class="fas fa-ruler"></i>
+                                    <span>{% trans "وحدات القياس" %}</span>
+                                    <i class="fas fa-chevron-down ms-auto"></i>
                                 </a>
+                                <div class="collapse {% if 'uom' in request.resolver_match.url_name or 'unit' in request.resolver_match.url_name %}show{% endif %}" id="uomMenu">
+                                    <ul class="nav flex-column ms-3">
+                                        <li class="nav-item">
+                                            <a class="nav-link {% if 'unit_list' in request.resolver_match.url_name %}active{% endif %}"
+                                               href="{% url 'core:unit_list' %}">
+                                                <i class="fas fa-list text-primary"></i> {% trans "جميع الوحدات" %}
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link {% if 'uom_group' in request.resolver_match.url_name %}active{% endif %}"
+                                               href="{% url 'core:uom_group_list' %}">
+                                                <i class="fas fa-layer-group text-info"></i> {% trans "مجموعات الوحدات" %}
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link {% if 'uom_conversion' in request.resolver_match.url_name %}active{% endif %}"
+                                               href="{% url 'core:uom_conversion_list' %}">
+                                                <i class="fas fa-exchange-alt text-success"></i> {% trans "تحويلات الوحدات" %}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </li>
                         {% endif %}
 
@@ -609,30 +634,145 @@
                             </li>
                         {% endif %}
 
-                    <!-- قوائم الأسعار -->
-<li class="nav-item">
-    <a class="nav-link collapsed" href="#" data-bs-toggle="collapse"
-       data-bs-target="#pricelistsCollapse" aria-expanded="false">
-        <i class="fas fa-tags"></i>
-        <span>قوائم الأسعار</span>
-    </a>
-    <div id="pricelistsCollapse" class="collapse" data-bs-parent="#sidebarMenu">
-        <ul class="nav flex-column ms-3">
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'core:price_list_list' %}">
-                    <i class="fas fa-list"></i> جميع القوائم
-                </a>
-            </li>
-            {% if perms.core.add_pricelist %}
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'core:price_list_create' %}">
-                    <i class="fas fa-plus"></i> إضافة قائمة جديدة
-                </a>
+                        <!-- Item Templates -->
+                        {% if perms.core.view_itemtemplate or user.is_superuser %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if 'item_template' in request.resolver_match.url_name %}active{% endif %}"
+                                   href="{% url 'core:item_template_list' %}">
+                                    <i class="fas fa-copy text-warning"></i> {% trans "قوالب المواد" %}
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
             </li>
             {% endif %}
-        </ul>
-    </div>
-</li>
+
+            <!-- إدارة التسعير -->
+            {% if perms.core.view_pricelist or perms.core.view_pricingrule or user.is_superuser %}
+            <li class="nav-item">
+                <a class="nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#pricingMenu"
+                   aria-expanded="{% if 'pricing' in request.resolver_match.url_name or 'price' in request.resolver_match.url_name %}true{% else %}false{% endif %}"
+                   aria-controls="pricingMenu">
+                    <i class="fas fa-tags"></i>
+                    <span>{% trans "إدارة التسعير" %}</span>
+                    <i class="fas fa-chevron-down ms-auto"></i>
+                </a>
+                <div class="collapse {% if 'pricing' in request.resolver_match.url_name or 'price' in request.resolver_match.url_name %}show{% endif %}"
+                     id="pricingMenu">
+                    <ul class="nav flex-column ms-3">
+                        <!-- لوحة التسعير -->
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'pricing_dashboard' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:pricing_dashboard' %}">
+                                <i class="fas fa-chart-line text-success"></i> {% trans "لوحة التسعير" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'enhanced_pricing_dashboard' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:enhanced_pricing_dashboard' %}">
+                                <i class="fas fa-tachometer-alt text-purple"></i> {% trans "اللوحة المحسنة" %}
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- القوائم والقواعد -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">القوائم والقواعد</small>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_list' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_list_list' %}">
+                                <i class="fas fa-list text-primary"></i> {% trans "قوائم الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'pricing_rule_list_dt' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:pricing_rule_list_dt' %}">
+                                <i class="fas fa-sliders-h text-info"></i> {% trans "قواعد التسعير" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_list_items_dt' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_list_items_dt' %}">
+                                <i class="fas fa-tags text-primary"></i> {% trans "عناصر الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- أدوات التسعير -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">أدوات التسعير</small>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'inline_price_editor' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:inline_price_editor' %}">
+                                <i class="fas fa-pen text-danger"></i> {% trans "محرر الأسعار المباشر" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'bulk_price_update' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:bulk_price_update' %}">
+                                <i class="fas fa-edit text-warning"></i> {% trans "تحديث جماعي" %}
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- استيراد وتصدير -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">استيراد وتصدير</small>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_list_import' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_list_import' %}">
+                                <i class="fas fa-file-import text-success"></i> {% trans "استيراد الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_list_export' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_list_export' %}">
+                                <i class="fas fa-file-export text-info"></i> {% trans "تصدير الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_simulator' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_simulator' %}">
+                                <i class="fas fa-calculator text-success"></i> {% trans "محاكي الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_comparison' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_comparison' %}">
+                                <i class="fas fa-balance-scale text-purple"></i> {% trans "مقارنة الأسعار" %}
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- التقارير -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">التقارير</small>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'price_report' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'core:price_report' %}">
+                                <i class="fas fa-file-invoice text-secondary"></i> {% trans "تقرير الأسعار" %}
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </li>

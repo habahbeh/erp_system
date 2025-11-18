@@ -1,0 +1,464 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "محرر الأسعار المباشر" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .price-editor-card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .price-row {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+        transition: background 0.3s;
+    }
+
+    .price-row:hover {
+        background: #f8f9fa;
+    }
+
+    .price-row:last-child {
+        border-bottom: none;
+    }
+
+    .item-info {
+        flex: 2;
+    }
+
+    .price-input-group {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .price-input {
+        max-width: 150px;
+    }
+
+    .price-actions {
+        display: flex;
+        gap: 5px;
+    }
+
+    .quick-actions {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9998;
+    }
+
+    .loading-overlay.active {
+        display: flex;
+    }
+
+    .spinner-container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-edit me-2"></i>{% trans "محرر الأسعار المباشر" %}</h2>
+            <p class="text-muted mb-0">{% trans "تحديث الأسعار بشكل فوري وسهل" %}</p>
+        </div>
+        <div>
+            <button class="btn btn-success" onclick="saveAllChanges()">
+                <i class="fas fa-save"></i> {% trans "حفظ جميع التغييرات" %}
+            </button>
+            <button class="btn btn-secondary" onclick="resetAllChanges()">
+                <i class="fas fa-undo"></i> {% trans "إلغاء التغييرات" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">{% trans "زيادة جماعية (%)" %}</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="bulkIncreasePercent" placeholder="5">
+                    <button class="btn btn-primary" onclick="applyBulkIncrease()">
+                        <i class="fas fa-arrow-up"></i> {% trans "تطبيق" %}
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{% trans "تخفيض جماعي (%)" %}</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="bulkDecreasePercent" placeholder="5">
+                    <button class="btn btn-warning" onclick="applyBulkDecrease()">
+                        <i class="fas fa-arrow-down"></i> {% trans "تطبيق" %}
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{% trans "تصفية" %}</label>
+                <select class="form-select" id="priceListFilter" onchange="filterByPriceList()">
+                    <option value="">{% trans "جميع قوائم الأسعار" %}</option>
+                    {% for pl in price_lists %}
+                    <option value="{{ pl.id }}">{{ pl.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price Editor -->
+    <div class="price-editor-card">
+        <h5 class="mb-3">{% trans "الأسعار" %}</h5>
+        <div id="priceRowsContainer">
+            {% for price_item in price_items %}
+            <div class="price-row" data-price-item-id="{{ price_item.id }}" data-price-list-id="{{ price_item.price_list.id }}">
+                <div class="item-info">
+                    <strong>{{ price_item.item.code }}</strong> - {{ price_item.item.name }}
+                    <br>
+                    <small class="text-muted">
+                        <i class="fas fa-list"></i> {{ price_item.price_list.name }} |
+                        <i class="fas fa-ruler"></i> {{ price_item.uom.name }}
+                    </small>
+                </div>
+                <div class="price-input-group">
+                    <input type="number"
+                           class="form-control price-input"
+                           data-original-price="{{ price_item.price }}"
+                           value="{{ price_item.price }}"
+                           step="0.01"
+                           min="0">
+                    <span class="currency-symbol">{{ currency_symbol }}</span>
+                </div>
+                <div class="price-actions">
+                    <button class="btn btn-sm btn-success save-btn"
+                            onclick="saveSinglePrice({{ price_item.id }})"
+                            style="display: none;">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-secondary cancel-btn"
+                            onclick="cancelSinglePrice({{ price_item.id }})"
+                            style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <button class="btn btn-sm btn-info calc-btn"
+                            onclick="calculatePrice({{ price_item.item.id }}, {{ price_item.id }})"
+                            title="{% trans 'حساب السعر مع القواعد' %}">
+                        <i class="fas fa-calculator"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Changes Summary -->
+    <div class="price-editor-card" id="changesSummary" style="display: none;">
+        <h5 class="mb-3">{% trans "ملخص التغييرات" %}</h5>
+        <div id="changesList"></div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-container">
+        <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>{% trans "جاري المعالجة..." %}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Track changes
+const changes = new Map();
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Add input listeners
+    document.querySelectorAll('.price-input').forEach(input => {
+        input.addEventListener('input', function() {
+            onPriceChange(this);
+        });
+    });
+});
+
+function onPriceChange(input) {
+    const row = input.closest('.price-row');
+    const priceItemId = row.dataset.priceItemId;
+    const originalPrice = parseFloat(input.dataset.originalPrice);
+    const newPrice = parseFloat(input.value);
+
+    if (newPrice !== originalPrice && !isNaN(newPrice)) {
+        // Show save/cancel buttons
+        row.querySelector('.save-btn').style.display = 'inline-block';
+        row.querySelector('.cancel-btn').style.display = 'inline-block';
+
+        // Track change
+        changes.set(priceItemId, {
+            priceItemId: priceItemId,
+            oldPrice: originalPrice,
+            newPrice: newPrice,
+            element: row
+        });
+
+        // Update summary
+        updateChangesSummary();
+    } else {
+        // Hide buttons
+        row.querySelector('.save-btn').style.display = 'none';
+        row.querySelector('.cancel-btn').style.display = 'none';
+
+        // Remove from changes
+        changes.delete(priceItemId);
+        updateChangesSummary();
+    }
+}
+
+async function saveSinglePrice(priceItemId) {
+    const change = changes.get(priceItemId.toString());
+    if (!change) return;
+
+    const row = change.element;
+    const saveBtn = row.querySelector('.save-btn');
+
+    AjaxHelper.showLoading(saveBtn);
+
+    try {
+        const result = await PriceOperations.updatePrice(priceItemId, change.newPrice);
+
+        if (result) {
+            // Update original price
+            const input = row.querySelector('.price-input');
+            input.dataset.originalPrice = change.newPrice;
+
+            // Hide buttons
+            row.querySelector('.save-btn').style.display = 'none';
+            row.querySelector('.cancel-btn').style.display = 'none';
+
+            // Remove from changes
+            changes.delete(priceItemId.toString());
+            updateChangesSummary();
+
+            // Highlight row briefly
+            row.style.background = '#d4edda';
+            setTimeout(() => { row.style.background = ''; }, 2000);
+        }
+    } finally {
+        AjaxHelper.hideLoading(saveBtn);
+    }
+}
+
+function cancelSinglePrice(priceItemId) {
+    const change = changes.get(priceItemId.toString());
+    if (!change) return;
+
+    const row = change.element;
+    const input = row.querySelector('.price-input');
+
+    // Reset to original
+    input.value = change.oldPrice;
+
+    // Hide buttons
+    row.querySelector('.save-btn').style.display = 'none';
+    row.querySelector('.cancel-btn').style.display = 'none';
+
+    // Remove from changes
+    changes.delete(priceItemId.toString());
+    updateChangesSummary();
+}
+
+async function saveAllChanges() {
+    if (changes.size === 0) {
+        toast.warning('لا توجد تغييرات للحفظ');
+        return;
+    }
+
+    const confirmed = await ConfirmDialog.show(
+        `هل تريد حفظ ${changes.size} تغيير؟`,
+        'تأكيد الحفظ'
+    );
+
+    if (!confirmed) return;
+
+    showLoading();
+
+    const updates = Array.from(changes.values()).map(change => ({
+        price_item_id: change.priceItemId,
+        new_price: change.newPrice
+    }));
+
+    try {
+        const result = await PriceOperations.bulkUpdatePrices(updates);
+
+        if (result) {
+            // Update all original prices
+            changes.forEach((change, priceItemId) => {
+                const input = change.element.querySelector('.price-input');
+                input.dataset.originalPrice = change.newPrice;
+
+                // Hide buttons
+                change.element.querySelector('.save-btn').style.display = 'none';
+                change.element.querySelector('.cancel-btn').style.display = 'none';
+            });
+
+            // Clear changes
+            changes.clear();
+            updateChangesSummary();
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+function resetAllChanges() {
+    changes.forEach((change, priceItemId) => {
+        cancelSinglePrice(priceItemId);
+    });
+}
+
+function applyBulkIncrease() {
+    const percent = parseFloat(document.getElementById('bulkIncreasePercent').value);
+    if (isNaN(percent) || percent <= 0) {
+        toast.warning('أدخل نسبة صحيحة');
+        return;
+    }
+
+    applyBulkChange(1 + (percent / 100));
+}
+
+function applyBulkDecrease() {
+    const percent = parseFloat(document.getElementById('bulkDecreasePercent').value);
+    if (isNaN(percent) || percent <= 0) {
+        toast.warning('أدخل نسبة صحيحة');
+        return;
+    }
+
+    applyBulkChange(1 - (percent / 100));
+}
+
+function applyBulkChange(multiplier) {
+    let count = 0;
+
+    document.querySelectorAll('.price-row').forEach(row => {
+        if (isRowVisible(row)) {
+            const input = row.querySelector('.price-input');
+            const originalPrice = parseFloat(input.dataset.originalPrice);
+            const newPrice = (originalPrice * multiplier).toFixed(2);
+
+            input.value = newPrice;
+            onPriceChange(input);
+            count++;
+        }
+    });
+
+    toast.info(`تم تطبيق التغيير على ${count} سعر`);
+}
+
+function filterByPriceList() {
+    const priceListId = document.getElementById('priceListFilter').value;
+
+    document.querySelectorAll('.price-row').forEach(row => {
+        if (!priceListId || row.dataset.priceListId === priceListId) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function isRowVisible(row) {
+    return row.style.display !== 'none';
+}
+
+async function calculatePrice(itemId, priceItemId) {
+    showLoading();
+
+    try {
+        const result = await PriceOperations.calculatePrice(itemId, 1, null, true);
+
+        if (result) {
+            const row = document.querySelector(`[data-price-item-id="${priceItemId}"]`);
+            const input = row.querySelector('.price-input');
+
+            input.value = result.final_price;
+            onPriceChange(input);
+
+            toast.info(`السعر المحسوب: ${result.formatted_final_price}`);
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+function updateChangesSummary() {
+    const summary = document.getElementById('changesSummary');
+    const changesList = document.getElementById('changesList');
+
+    if (changes.size === 0) {
+        summary.style.display = 'none';
+        return;
+    }
+
+    summary.style.display = 'block';
+
+    let html = '<table class="table table-sm"><thead><tr><th>الصنف</th><th>السعر القديم</th><th>السعر الجديد</th><th>التغيير</th></tr></thead><tbody>';
+
+    changes.forEach(change => {
+        const row = change.element;
+        const itemInfo = row.querySelector('.item-info strong').textContent;
+        const diff = change.newPrice - change.oldPrice;
+        const diffPercent = ((diff / change.oldPrice) * 100).toFixed(2);
+        const diffClass = diff > 0 ? 'text-success' : 'text-danger';
+
+        html += `<tr>
+            <td>${itemInfo}</td>
+            <td>${change.oldPrice.toFixed(2)}</td>
+            <td>${change.newPrice.toFixed(2)}</td>
+            <td class="${diffClass}">${diff > 0 ? '+' : ''}${diff.toFixed(2)} (${diffPercent}%)</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    changesList.innerHTML = html;
+}
+
+function showLoading() {
+    document.getElementById('loadingOverlay').classList.add('active');
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,276 @@
+{# apps/core/templates/core/templates/template_list.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة قوالب المواد لإنشاء مواد متشابهة بسرعة" %}</p>
+        </div>
+        {% if can_add %}
+        <div class="btn-group">
+            <a href="{% url 'core:item_template_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "قالب JSON" %}
+            </a>
+            <a href="{% url 'core:item_template_wizard_create' %}" class="btn btn-success">
+                <i class="fas fa-magic"></i> {% trans "معالج القالب" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "إجمالي القوالب" %}</h6>
+                            <h2 class="mb-0">{{ total_templates }}</h2>
+                        </div>
+                        <div class="text-primary">
+                            <i class="fas fa-layer-group fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "مرات الاستخدام" %}</h6>
+                            <h2 class="mb-0">{{ total_usage }}</h2>
+                        </div>
+                        <div class="text-success">
+                            <i class="fas fa-check-double fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">{% trans "قوالب نشطة" %}</h6>
+                            <h2 class="mb-0">{{ object_list|length }}</h2>
+                        </div>
+                        <div class="text-info">
+                            <i class="fas fa-star fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "بحث" %}</label>
+                    <input type="text" name="search" class="form-control"
+                           placeholder="{% trans 'بحث في اسم أو رمز القالب...' %}"
+                           value="{{ request.GET.search }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "التصنيف" %}</label>
+                    <select name="category" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="is_active" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="1" {% if request.GET.is_active == '1' %}selected{% endif %}>{% trans "نشط" %}</option>
+                        <option value="0" {% if request.GET.is_active == '0' %}selected{% endif %}>{% trans "غير نشط" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <a href="{% url 'core:item_template_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if object_list %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رمز القالب" %}</th>
+                            <th>{% trans "اسم القالب" %}</th>
+                            <th>{% trans "التصنيف" %}</th>
+                            <th class="text-center">{% trans "مرات الاستخدام" %}</th>
+                            <th>{% trans "آخر استخدام" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in object_list %}
+                        <tr>
+                            <td>
+                                <code>{{ template.code }}</code>
+                            </td>
+                            <td>
+                                <strong>{{ template.name }}</strong>
+                                {% if template.description %}
+                                <br><small class="text-muted">{{ template.description|truncatewords:8 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if template.category %}
+                                    <span class="badge bg-secondary">{{ template.category.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if template.usage_count > 0 %}
+                                    <span class="badge bg-success fs-6">{{ template.usage_count }}</span>
+                                {% else %}
+                                    <span class="text-muted">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if template.last_used_at %}
+                                    <small>{{ template.last_used_at|date:"Y-m-d H:i" }}</small>
+                                {% else %}
+                                    <span class="text-muted">{% trans "لم يستخدم بعد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if template.is_active %}
+                                    <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'core:item_template_detail' template.pk %}"
+                                       class="btn btn-outline-info" title="{% trans 'عرض' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'core:item_template_use' template.pk %}"
+                                       class="btn btn-outline-success" title="{% trans 'استخدام' %}">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </a>
+                                    {% if can_change %}
+                                    <a href="{% url 'core:item_template_update' template.pk %}"
+                                       class="btn btn-outline-warning" title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'core:item_template_clone' template.pk %}"
+                                       class="btn btn-outline-primary" title="{% trans 'نسخ' %}">
+                                        <i class="fas fa-copy"></i>
+                                    </a>
+                                    {% if can_delete %}
+                                    <a href="{% url 'core:item_template_delete' template.pk %}"
+                                       class="btn btn-outline-danger" title="{% trans 'حذف' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "الأولى" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "السابقة" %}</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "التالية" %}</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.is_active %}&is_active={{ request.GET.is_active }}{% endif %}">{% trans "الأخيرة" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                <p class="mb-0">{% trans "لا توجد قوالب متاحة حالياً" %}</p>
+                {% if can_add %}
+                <div class="mt-2">
+                    <a href="{% url 'core:item_template_wizard_create' %}" class="btn btn-success">
+                        <i class="fas fa-magic"></i> {% trans "إنشاء أول قالب بالمعالج" %}
+                    </a>
+                    <a href="{% url 'core:item_template_create' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-code"></i> {% trans "إنشاء قالب JSON متقدم" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

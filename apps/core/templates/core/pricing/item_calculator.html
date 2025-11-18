@@ -1,0 +1,248 @@
+{# apps/core/templates/core/pricing/item_calculator.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-calculator text-primary"></i> {{ title }}
+        </h1>
+        <p class="text-muted">
+            {% trans "المادة" %}: <strong>{{ item.name }}</strong>
+            <span class="badge bg-secondary">{{ item.code }}</span>
+        </p>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Item Info -->
+        <div class="col-lg-3">
+            <div class="card shadow-sm sticky-top" style="top: 1rem;">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-box"></i> {% trans "معلومات المادة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">{% trans "الرمز" %}:</th>
+                            <td>{{ item.code }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الاسم" %}:</th>
+                            <td>{{ item.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "التصنيف" %}:</th>
+                            <td>{{ item.category.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "وحدة القياس" %}:</th>
+                            <td>{{ item.base_uom.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الحالة" %}:</th>
+                            <td>
+                                <span class="badge bg-{% if item.is_active %}success{% else %}secondary{% endif %}">
+                                    {% if item.is_active %}{% trans "نشط" %}{% else %}{% trans "غير نشط" %}{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Variant Selector -->
+                    {% if variants %}
+                    <hr>
+                    <div>
+                        <label class="form-label">{% trans "اختر متغير" %}</label>
+                        <form method="get">
+                            <select name="variant" class="form-select" onchange="this.form.submit()">
+                                <option value="">{% trans "المادة الأساسية" %}</option>
+                                {% for v in variants %}
+                                <option value="{{ v.id }}" {% if variant and variant.id == v.id %}selected{% endif %}>
+                                    {{ v.sku }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    <!-- Options -->
+                    <hr>
+                    <form method="get">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="include_uoms"
+                                   id="include_uoms" {% if include_uoms %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="form-check-label" for="include_uoms">
+                                {% trans "تضمين جميع وحدات القياس" %}
+                            </label>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Price Calculations -->
+        <div class="col-lg-9">
+            {% if calculation_result %}
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <h3 class="text-primary mb-1">{{ calculation_result.total_price_lists }}</h3>
+                            <small class="text-muted">{% trans "قوائم أسعار" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <h3 class="text-success mb-1">{{ calculation_result.total_prices }}</h3>
+                            <small class="text-muted">{% trans "أسعار محسوبة" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <h3 class="text-info mb-1">{{ calculation_result.total_rules_applied }}</h3>
+                            <small class="text-muted">{% trans "قواعد مطبقة" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prices by Price List -->
+            {% for price_list_data in calculation_result.prices_by_list %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list"></i> {{ price_list_data.price_list_name }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "وحدة القياس" %}</th>
+                                    <th class="text-end">{% trans "السعر الأساسي" %}</th>
+                                    <th class="text-end">{% trans "السعر بالقواعد" %}</th>
+                                    <th class="text-end">{% trans "الفرق" %}</th>
+                                    <th>{% trans "القواعد المطبقة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for uom_price in price_list_data.uom_prices %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ uom_price.uom_name }}</strong>
+                                        {% if uom_price.is_base %}
+                                        <span class="badge bg-primary">{% trans "أساسي" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ uom_price.base_price|floatformat:2 }}</td>
+                                    <td class="text-end fw-bold text-success">{{ uom_price.final_price|floatformat:2 }}</td>
+                                    <td class="text-end">
+                                        {% if uom_price.difference != 0 %}
+                                        <span class="badge bg-{% if uom_price.difference < 0 %}danger{% else %}success{% endif %}">
+                                            {% if uom_price.difference > 0 %}+{% endif %}{{ uom_price.difference|floatformat:2 }}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if uom_price.applied_rules %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for rule in uom_price.applied_rules %}
+                                            <span class="badge bg-secondary" title="{{ rule.description }}">
+                                                {{ rule.name }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted">{% trans "بدون قواعد" %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Price History (if available) -->
+            {% if calculation_result.price_history %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-history"></i> {% trans "سجل الأسعار" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "التاريخ" %}</th>
+                                    <th>{% trans "قائمة الأسعار" %}</th>
+                                    <th class="text-end">{% trans "السعر القديم" %}</th>
+                                    <th class="text-end">{% trans "السعر الجديد" %}</th>
+                                    <th>{% trans "المستخدم" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for history in calculation_result.price_history %}
+                                <tr>
+                                    <td>{{ history.date|date:"Y-m-d H:i" }}</td>
+                                    <td>{{ history.price_list }}</td>
+                                    <td class="text-end">{{ history.old_price|floatformat:2 }}</td>
+                                    <td class="text-end">{{ history.new_price|floatformat:2 }}</td>
+                                    <td>{{ history.user }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-calculator fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد أسعار محسوبة" %}</h5>
+                    <p class="text-muted">{% trans "لم يتم العثور على أسعار لهذه المادة" %}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

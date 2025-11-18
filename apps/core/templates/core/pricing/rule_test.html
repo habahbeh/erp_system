@@ -1,0 +1,219 @@
+{# apps/core/templates/core/pricing/rule_test.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-1">{{ title }}</h1>
+        {% if rule %}
+        <p class="text-muted">
+            {% trans "اختبار قاعدة" %}: <strong>{{ rule.name }}</strong>
+            <span class="badge bg-info">{{ rule.get_rule_type_display }}</span>
+        </p>
+        {% else %}
+        <p class="text-muted">{% trans "اختر قاعدة تسعير ومادة لحساب السعر المتوقع" %}</p>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Test Form Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-flask"></i> {% trans "اختبار القاعدة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.pricing_rule.id_for_label }}" class="form-label required">
+                                    {{ form.pricing_rule.label }}
+                                </label>
+                                {{ form.pricing_rule|add_class:"form-select" }}
+                                {% if form.pricing_rule.errors %}
+                                    <div class="text-danger">{{ form.pricing_rule.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.item.id_for_label }}" class="form-label required">
+                                    {{ form.item.label }}
+                                </label>
+                                {{ form.item|add_class:"form-select" }}
+                                {% if form.item.errors %}
+                                    <div class="text-danger">{{ form.item.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.quantity.id_for_label }}" class="form-label">
+                                    {{ form.quantity.label }}
+                                </label>
+                                {{ form.quantity|add_class:"form-control" }}
+                                {% if form.quantity.errors %}
+                                    <div class="text-danger">{{ form.quantity.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.cost_price.id_for_label }}" class="form-label">
+                                    {{ form.cost_price.label }}
+                                </label>
+                                {{ form.cost_price|add_class:"form-control" }}
+                                <small class="text-muted">{% trans "اتركه فارغاً لاستخدام سعر تكلفة المادة" %}</small>
+                                {% if form.cost_price.errors %}
+                                    <div class="text-danger">{{ form.cost_price.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-calculator"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Test Result Card -->
+            {% if result %}
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-check-circle"></i> {% trans "نتيجة الاختبار" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "قاعدة التسعير" %}</label>
+                            <p class="fw-bold">{{ result.rule_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "المادة" %}</label>
+                            <p class="fw-bold">{{ result.item_name }}</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "الكمية" %}</label>
+                            <p class="fw-bold">{{ result.quantity }}</p>
+                        </div>
+                        {% if result.cost_price %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">{% trans "سعر التكلفة" %}</label>
+                            <p class="fw-bold">{{ result.cost_price }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+
+                    <div class="text-center py-3">
+                        <label class="text-muted">{% trans "السعر المحسوب" %}</label>
+                        <h1 class="display-4 text-success fw-bold mb-0">{{ result.calculated_price }}</h1>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="col-lg-4">
+            <!-- Rule Info (if selected) -->
+            {% if rule %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> {% trans "معلومات القاعدة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">{% trans "النوع" %}:</th>
+                            <td>{{ rule.get_rule_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "الأولوية" %}:</th>
+                            <td>{{ rule.priority }}</td>
+                        </tr>
+                        {% if rule.percentage_value %}
+                        <tr>
+                            <th>{% trans "النسبة" %}:</th>
+                            <td class="fw-bold text-primary">{{ rule.percentage_value }}%</td>
+                        </tr>
+                        {% endif %}
+                        {% if rule.min_quantity %}
+                        <tr>
+                            <th>{% trans "الحد الأدنى" %}:</th>
+                            <td>{{ rule.min_quantity }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>{% trans "الحالة" %}:</th>
+                            <td>
+                                <span class="badge bg-{% if rule.is_active %}success{% else %}secondary{% endif %}">
+                                    {% if rule.is_active %}{% trans "نشط" %}{% else %}{% trans "غير نشط" %}{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Help Card -->
+            <div class="card shadow-sm bg-light">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-question-circle"></i> {% trans "كيفية الاستخدام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ol class="small mb-0">
+                        <li>{% trans "اختر قاعدة التسعير المراد اختبارها" %}</li>
+                        <li>{% trans "اختر المادة التي ستطبق عليها القاعدة" %}</li>
+                        <li>{% trans "أدخل الكمية (اختياري)" %}</li>
+                        <li>{% trans "أدخل سعر التكلفة (اختياري)" %}</li>
+                        <li>{% trans "اضغط حساب السعر لرؤية النتيجة" %}</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

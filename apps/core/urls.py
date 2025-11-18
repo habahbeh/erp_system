@@ -163,7 +163,99 @@ urlpatterns = [
     path('ajax/price-lists/datatable/', views.price_list_datatable_ajax, name='price_list_datatable_ajax'),
     path('price-lists/<int:pk>/items/ajax/', views.price_list_items_ajax, name='price_list_items_ajax'),
 
+    # ==================== NEW Week 2: UoM Groups ====================
+    path('uom-groups/', views.UoMGroupListView.as_view(), name='uom_group_list'),
+    path('uom-groups/<int:pk>/', views.UoMGroupDetailView.as_view(), name='uom_group_detail'),
+    path('uom-groups/create/', views.UoMGroupCreateView.as_view(), name='uom_group_create'),
+    path('uom-groups/<int:pk>/update/', views.UoMGroupUpdateView.as_view(), name='uom_group_update'),
+    path('uom-groups/<int:pk>/delete/', views.UoMGroupDeleteView.as_view(), name='uom_group_delete'),
 
+    # ==================== NEW: UoM Conversions ====================
+    path('uom-conversions/', views.UoMConversionListView.as_view(), name='uom_conversion_list'),
+    path('uom-conversions/<int:pk>/', views.UoMConversionDetailView.as_view(), name='uom_conversion_detail'),
+    path('uom-conversions/create/', views.UoMConversionCreateView.as_view(), name='uom_conversion_create'),
+    path('uom-conversions/<int:pk>/update/', views.UoMConversionUpdateView.as_view(), name='uom_conversion_update'),
+    path('uom-conversions/<int:pk>/delete/', views.UoMConversionDeleteView.as_view(), name='uom_conversion_delete'),
+    path('uom-conversions/bulk-create/', views.UoMConversionBulkCreateView.as_view(), name='uom_conversion_bulk_create'),
+
+    # ==================== NEW Week 2 Day 4: Import/Export ====================
+    path('uom-conversions/export/', views.ExportConversionsView.as_view(), name='uom_conversion_export'),
+    path('uom-conversions/import/', views.ImportConversionsView.as_view(), name='uom_conversion_import'),
+    path('uom-conversions/download-template/', views.DownloadTemplateView.as_view(), name='uom_conversion_download_template'),
+    path('uom-conversions/import-results/', views.ImportResultsView.as_view(), name='uom_conversion_import_results'),
+
+    # ==================== NEW: Pricing Dashboard ====================
+    path('pricing/dashboard/', views.PricingDashboardView.as_view(), name='pricing_dashboard'),
+
+    # ==================== WEEK 4 DAY 4: Enhanced Dashboards with Widgets ====================
+    path('pricing/enhanced-dashboard/', views.EnhancedPricingDashboardView.as_view(), name='enhanced_pricing_dashboard'),
+    path('main-dashboard/', views.MainDashboardView.as_view(), name='main_dashboard'),
+
+    # ==================== NEW: Pricing Rules ====================
+    path('pricing-rules/', views.PricingRuleListView.as_view(), name='pricing_rule_list'),
+    path('pricing-rules/<int:pk>/', views.PricingRuleDetailView.as_view(), name='pricing_rule_detail'),
+    path('pricing-rules/create/', views.PricingRuleCreateView.as_view(), name='pricing_rule_create'),
+    path('pricing-rules/<int:pk>/update/', views.PricingRuleUpdateView.as_view(), name='pricing_rule_update'),
+    path('pricing-rules/<int:pk>/delete/', views.PricingRuleDeleteView.as_view(), name='pricing_rule_delete'),
+    path('pricing-rules/<int:pk>/test/', views.PricingRuleTestView.as_view(), name='pricing_rule_test'),
+    path('pricing-rules/<int:pk>/clone/', views.PricingRuleCloneView.as_view(), name='pricing_rule_clone'),
+
+    # ==================== NEW: Price Calculator & Bulk Operations ====================
+    path('pricing/bulk-update/', views.BulkPriceUpdateView.as_view(), name='bulk_price_update'),
+    path('pricing/simulator/', views.PriceSimulatorView.as_view(), name='price_simulator'),
+    path('pricing/comparison/', views.PriceComparisonView.as_view(), name='price_comparison'),
+    path('pricing/report/', views.PriceReportView.as_view(), name='price_report'),
+    path('items/<int:item_id>/price-calculator/', views.ItemPriceCalculatorView.as_view(), name='item_price_calculator'),
+
+    # ==================== WEEK 4 DAY 1: Chart AJAX Endpoints ====================
+    path('charts/price-trend/', views.PriceTrendChartView.as_view(), name='chart_price_trend'),
+    path('charts/price-distribution/', views.PriceDistributionChartView.as_view(), name='chart_price_distribution'),
+    path('charts/category-comparison/', views.CategoryPriceComparisonChartView.as_view(), name='chart_category_comparison'),
+    path('charts/pricelist-comparison/', views.PriceListComparisonChartView.as_view(), name='chart_pricelist_comparison'),
+    path('charts/rules-impact/', views.PricingRulesImpactChartView.as_view(), name='chart_rules_impact'),
+    path('charts/price-statistics/', views.PriceStatisticsSummaryView.as_view(), name='chart_price_statistics'),
+    path('charts/monthly-changes/', views.MonthlyPriceChangesChartView.as_view(), name='chart_monthly_changes'),
+
+    # ==================== WEEK 4 DAY 2: DataTables Server-Side & Export ====================
+    path('datatables/pricing-rules/', views.PricingRuleDatatableView.as_view(), name='dt_pricing_rules'),
+    path('datatables/price-list-items/', views.PriceListItemDatatableView.as_view(), name='dt_price_list_items'),
+    path('datatables/item-prices/', views.ItemPricesDatatableView.as_view(), name='dt_item_prices'),
+    path('export/pricing-rules/', views.ExportPricingRulesView.as_view(), name='export_pricing_rules'),
+    path('export/price-list-items/', views.ExportPriceListItemsView.as_view(), name='export_price_list_items'),
+
+    # ==================== WEEK 4 DAY 2: Enhanced List Views ====================
+    path('pricing-rules-dt/', views.PricingRuleListDTView.as_view(), name='pricing_rule_list_dt'),
+    path('price-list-items-dt/', views.PriceListItemsDTView.as_view(), name='price_list_items_dt'),
+
+    # ==================== WEEK 4 DAY 3: AJAX Price Operations ====================
+    path('ajax/update-price/', views.UpdatePriceAjaxView.as_view(), name='ajax_update_price'),
+    path('ajax/bulk-update-prices/', views.BulkUpdatePricesAjaxView.as_view(), name='ajax_bulk_update_prices'),
+    path('ajax/calculate-price/', views.CalculatePriceAjaxView.as_view(), name='ajax_calculate_price'),
+    path('ajax/validate-rule/', views.ValidatePriceRuleAjaxView.as_view(), name='ajax_validate_rule'),
+    path('ajax/toggle-rule/', views.TogglePriceRuleAjaxView.as_view(), name='ajax_toggle_rule'),
+    path('ajax/get-item-prices/', views.GetItemPricesAjaxView.as_view(), name='ajax_get_item_prices'),
+
+    # ==================== WEEK 4 DAY 3: Inline Price Editor ====================
+    path('pricing/inline-editor/', views.InlinePriceEditorView.as_view(), name='inline_price_editor'),
+
+    # ==================== WEEK 5: Import/Export System ====================
+    path('pricing/export/', views.PriceListExportView.as_view(), name='price_list_export'),
+    path('pricing/import/', views.PriceListImportView.as_view(), name='price_list_import'),
+    path('pricing/import/results/', views.PriceListImportResultsView.as_view(), name='price_list_import_results'),
+    path('pricing/template/', views.PriceListTemplateDownloadView.as_view(), name='price_list_template'),
+    path('pricing-rules/export/', views.PricingRuleExportView.as_view(), name='pricing_rule_export'),
+    path('pricing/bulk-export/', views.BulkPriceExportView.as_view(), name='bulk_price_export'),
+    path('items/export/', views.ItemsExportView.as_view(), name='items_export'),
+
+    # ==================== NEW: Item Templates ====================
+    path('item-templates/', views.ItemTemplateListView.as_view(), name='item_template_list'),
+    path('item-templates/<int:pk>/', views.ItemTemplateDetailView.as_view(), name='item_template_detail'),
+    path('item-templates/create/', views.ItemTemplateCreateView.as_view(), name='item_template_create'),
+    path('item-templates/wizard-create/', views.ItemTemplateWizardCreateView.as_view(), name='item_template_wizard_create'),
+    path('item-templates/<int:pk>/update/', views.ItemTemplateUpdateView.as_view(), name='item_template_update'),
+    path('item-templates/<int:pk>/delete/', views.ItemTemplateDeleteView.as_view(), name='item_template_delete'),
+    path('item-templates/<int:pk>/clone/', views.ItemTemplateCloneView.as_view(), name='item_template_clone'),
+    path('item-templates/<int:pk>/use/', views.ItemTemplateUseView.as_view(), name='item_template_use'),
 
 ]
 

@@ -1,0 +1,235 @@
+{# apps/core/templates/core/pricing/comparison.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .price-cell {
+        min-width: 100px;
+    }
+    .lowest-price {
+        background-color: #d1e7dd;
+        font-weight: bold;
+    }
+    .highest-price {
+        background-color: #f8d7da;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-1">
+            <i class="fas fa-balance-scale text-info"></i> {{ title }}
+        </h1>
+        <p class="text-muted">{% trans "قارن أسعار المواد عبر قوائم الأسعار المختلفة" %}</p>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-3">
+            <!-- Filter Form -->
+            <div class="card shadow-sm mb-4 sticky-top" style="top: 1rem;">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-filter"></i> {% trans "المرشحات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.items.id_for_label }}" class="form-label">
+                                {{ form.items.label }}
+                            </label>
+                            {{ form.items|add_class:"form-select" }}
+                            {% if form.items.help_text %}
+                                <small class="text-muted">{{ form.items.help_text }}</small>
+                            {% endif %}
+                            {% if form.items.errors %}
+                                <div class="text-danger">{{ form.items.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.categories.id_for_label }}" class="form-label">
+                                {{ form.categories.label }}
+                            </label>
+                            {{ form.categories|add_class:"form-select" }}
+                            {% if form.categories.help_text %}
+                                <small class="text-muted">{{ form.categories.help_text }}</small>
+                            {% endif %}
+                            {% if form.categories.errors %}
+                                <div class="text-danger">{{ form.categories.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.price_lists.id_for_label }}" class="form-label">
+                                {{ form.price_lists.label }}
+                            </label>
+                            {{ form.price_lists|add_class:"form-select" }}
+                            {% if form.price_lists.help_text %}
+                                <small class="text-muted">{{ form.price_lists.help_text }}</small>
+                            {% endif %}
+                            {% if form.price_lists.errors %}
+                                <div class="text-danger">{{ form.price_lists.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.include_all_lists|add_class:"form-check-input" }}
+                                <label class="form-check-label" for="{{ form.include_all_lists.id_for_label }}">
+                                    {{ form.include_all_lists.label }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <!-- Comparison Results -->
+            {% if result %}
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <h2 class="text-primary mb-1">{{ result.total_items }}</h2>
+                            <p class="text-muted mb-0">{% trans "مواد" %}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <h2 class="text-info mb-1">{{ result.total_price_lists }}</h2>
+                            <p class="text-muted mb-0">{% trans "قوائم أسعار" %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Table -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-table"></i> {% trans "جدول المقارنة" %}
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-primary sticky-top">
+                                <tr>
+                                    <th class="sticky-start bg-white">{% trans "المادة" %}</th>
+                                    {% for pl in result.price_lists %}
+                                    <th class="text-end price-cell">{{ pl.name }}</th>
+                                    {% endfor %}
+                                    <th class="text-end price-cell bg-success text-white">{% trans "أقل سعر" %}</th>
+                                    <th class="text-end price-cell bg-danger text-white">{% trans "أعلى سعر" %}</th>
+                                    <th class="text-end price-cell bg-info text-white">{% trans "الفرق" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in result.comparison_data %}
+                                <tr>
+                                    <td class="sticky-start bg-white fw-bold">{{ item.item_name }}</td>
+                                    {% for price in item.prices %}
+                                    <td class="text-end price-cell {% if price.is_lowest %}lowest-price{% elif price.is_highest %}highest-price{% endif %}">
+                                        {% if price.value %}
+                                            {{ price.value|floatformat:2 }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-end price-cell fw-bold text-success">
+                                        {{ item.min_price|floatformat:2 }}
+                                    </td>
+                                    <td class="text-end price-cell fw-bold text-danger">
+                                        {{ item.max_price|floatformat:2 }}
+                                    </td>
+                                    <td class="text-end price-cell fw-bold text-info">
+                                        {{ item.variance|floatformat:2 }}
+                                        <small class="text-muted">({{ item.variance_percentage|floatformat:1 }}%)</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="card shadow-sm mt-3 bg-light">
+                <div class="card-body">
+                    <div class="d-flex gap-3 align-items-center">
+                        <span class="badge bg-success">{% trans "أقل سعر" %}</span>
+                        <span class="badge bg-danger">{% trans "أعلى سعر" %}</span>
+                        <span class="text-muted small">
+                            {% trans "الفرق = الفرق بين أعلى وأقل سعر" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-chart-bar fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد نتائج" %}</h5>
+                    <p class="text-muted">{% trans "اختر المواد وقوائم الأسعار من المرشحات لبدء المقارنة" %}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.sticky-start {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+}
+</style>
+{% endblock %}

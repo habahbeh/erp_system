@@ -1,0 +1,511 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "لوحة التحكم - إدارة الأسعار" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+
+    .stat-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 350px;
+        padding: 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .chart-filters {
+        display: flex;
+        gap: 10px;
+    }
+
+    .filter-select {
+        padding: 5px 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.875rem;
+    }
+
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        color: white;
+    }
+
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #2196f3 0%, #1565c0 100%);
+        color: white;
+    }
+
+    .bg-gradient-warning {
+        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        color: white;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 10px;
+        z-index: 10;
+    }
+
+    .quick-action-card {
+        text-align: center;
+        padding: 20px;
+        border-radius: 10px;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .quick-action-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .quick-action-icon {
+        font-size: 3rem;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-chart-line me-2"></i>{% trans "لوحة التحكم - إدارة الأسعار" %}</h2>
+        <div>
+            <button class="btn btn-outline-primary" onclick="refreshAllCharts()">
+                <i class="fas fa-sync-alt"></i> {% trans "تحديث البيانات" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card bg-gradient-primary">
+                <div class="stat-label">{% trans "إجمالي الأصناف" %}</div>
+                <div class="stat-value" id="stat-total-items">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <small><i class="fas fa-box"></i> {% trans "في النظام" %}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-gradient-success">
+                <div class="stat-label">{% trans "متوسط السعر" %}</div>
+                <div class="stat-value" id="stat-avg-price">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <small><i class="fas fa-coins"></i> {{ request.current_company.currency.symbol }}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-gradient-info">
+                <div class="stat-label">{% trans "قوائم الأسعار" %}</div>
+                <div class="stat-value" id="stat-price-lists">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <small><i class="fas fa-list"></i> {% trans "نشطة" %}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-gradient-warning">
+                <div class="stat-label">{% trans "القواعد النشطة" %}</div>
+                <div class="stat-value" id="stat-active-rules">{{ active_rules_count }}</div>
+                <small><i class="fas fa-percentage"></i> {% trans "قواعد تسعير" %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="row">
+        <!-- Pricing Rules Distribution -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-pie text-primary"></i>
+                        {% trans "توزيع قواعد التسعير" %}
+                    </div>
+                </div>
+                <canvas id="rulesImpactChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Category Price Comparison -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-bar text-success"></i>
+                        {% trans "مقارنة أسعار التصنيفات" %}
+                    </div>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="pricelist-filter-category">
+                            <option value="">{% trans "اختر قائمة الأسعار" %}</option>
+                            {% for pl in price_lists %}
+                            <option value="{{ pl.id }}">{{ pl.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <canvas id="categoryComparisonChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="row">
+        <!-- Price Distribution -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-histogram text-info"></i>
+                        {% trans "توزيع الأسعار" %}
+                    </div>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="pricelist-filter-distribution">
+                            <option value="">{% trans "اختر قائمة الأسعار" %}</option>
+                            {% for pl in price_lists %}
+                            <option value="{{ pl.id }}">{{ pl.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <canvas id="priceDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Monthly Changes -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-line text-warning"></i>
+                        {% trans "التغييرات الشهرية" %}
+                    </div>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="months-filter">
+                            <option value="6">{% trans "6 أشهر" %}</option>
+                            <option value="12" selected>{% trans "12 شهراً" %}</option>
+                            <option value="24">{% trans "24 شهراً" %}</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="monthlyChangesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="fas fa-bolt text-warning"></i> {% trans "إجراءات سريعة" %}</h4>
+        </div>
+        <div class="col-md-3">
+            <div class="quick-action-card" onclick="window.location.href='{% url 'core:pricing_rule_create' %}'">
+                <div class="quick-action-icon text-primary">
+                    <i class="fas fa-plus-circle"></i>
+                </div>
+                <h6>{% trans "قاعدة تسعير جديدة" %}</h6>
+                <small class="text-muted">{% trans "إنشاء قاعدة تسعير" %}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="quick-action-card" onclick="window.location.href='{% url 'core:bulk_price_update' %}'">
+                <div class="quick-action-icon text-success">
+                    <i class="fas fa-edit"></i>
+                </div>
+                <h6>{% trans "تحديث جماعي" %}</h6>
+                <small class="text-muted">{% trans "تحديث أسعار متعددة" %}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="quick-action-card" onclick="window.location.href='{% url 'core:price_simulator' %}'">
+                <div class="quick-action-icon text-info">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <h6>{% trans "محاكي الأسعار" %}</h6>
+                <small class="text-muted">{% trans "محاكاة التغييرات" %}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="quick-action-card" onclick="window.location.href='{% url 'core:price_comparison' %}'">
+                <div class="quick-action-icon text-warning">
+                    <i class="fas fa-balance-scale"></i>
+                </div>
+                <h6>{% trans "مقارنة الأسعار" %}</h6>
+                <small class="text-muted">{% trans "مقارنة قوائم الأسعار" %}</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Chart instances storage
+let charts = {};
+
+// Initialize all charts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStatistics();
+    initRulesImpactChart();
+    initMonthlyChangesChart();
+
+    // Set up filter listeners
+    document.getElementById('pricelist-filter-category').addEventListener('change', function() {
+        if (this.value) {
+            initCategoryComparisonChart(this.value);
+        }
+    });
+
+    document.getElementById('pricelist-filter-distribution').addEventListener('change', function() {
+        if (this.value) {
+            initPriceDistributionChart(this.value);
+        }
+    });
+
+    document.getElementById('months-filter').addEventListener('change', function() {
+        initMonthlyChangesChart(this.value);
+    });
+});
+
+// Load statistics
+function loadStatistics() {
+    fetch('{% url "core:chart_price_statistics" %}')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('stat-total-items').textContent = data.total_items.toLocaleString();
+                document.getElementById('stat-avg-price').textContent = data.avg_price.toFixed(2);
+                document.getElementById('stat-price-lists').textContent = data.price_lists_count;
+            }
+        })
+        .catch(error => console.error('Error loading statistics:', error));
+}
+
+// Initialize Pricing Rules Impact Chart
+function initRulesImpactChart() {
+    fetch('{% url "core:chart_rules_impact" %}')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const ctx = document.getElementById('rulesImpactChart').getContext('2d');
+
+                if (charts.rulesImpact) {
+                    charts.rulesImpact.destroy();
+                }
+
+                charts.rulesImpact = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: result.data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                rtl: true
+                            },
+                            title: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error loading rules impact chart:', error));
+}
+
+// Initialize Category Comparison Chart
+function initCategoryComparisonChart(priceListId) {
+    fetch(`{% url "core:chart_category_comparison" %}?price_list_id=${priceListId}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const ctx = document.getElementById('categoryComparisonChart').getContext('2d');
+
+                if (charts.categoryComparison) {
+                    charts.categoryComparison.destroy();
+                }
+
+                charts.categoryComparison = new Chart(ctx, {
+                    type: 'bar',
+                    data: result.data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            },
+                            y1: {
+                                beginAtZero: true,
+                                position: 'left',
+                                grid: {
+                                    drawOnChartArea: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                rtl: true
+                            }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error loading category comparison chart:', error));
+}
+
+// Initialize Price Distribution Chart
+function initPriceDistributionChart(priceListId) {
+    fetch(`{% url "core:chart_price_distribution" %}?price_list_id=${priceListId}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const ctx = document.getElementById('priceDistributionChart').getContext('2d');
+
+                if (charts.priceDistribution) {
+                    charts.priceDistribution.destroy();
+                }
+
+                charts.priceDistribution = new Chart(ctx, {
+                    type: 'bar',
+                    data: result.data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error loading price distribution chart:', error));
+}
+
+// Initialize Monthly Changes Chart
+function initMonthlyChangesChart(months = 12) {
+    fetch(`{% url "core:chart_monthly_changes" %}?months=${months}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const ctx = document.getElementById('monthlyChangesChart').getContext('2d');
+
+                if (charts.monthlyChanges) {
+                    charts.monthlyChanges.destroy();
+                }
+
+                charts.monthlyChanges = new Chart(ctx, {
+                    type: 'line',
+                    data: result.data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error loading monthly changes chart:', error));
+}
+
+// Refresh all charts
+function refreshAllCharts() {
+    loadStatistics();
+    initRulesImpactChart();
+    initMonthlyChangesChart();
+
+    const categoryPL = document.getElementById('pricelist-filter-category').value;
+    if (categoryPL) {
+        initCategoryComparisonChart(categoryPL);
+    }
+
+    const distPL = document.getElementById('pricelist-filter-distribution').value;
+    if (distPL) {
+        initPriceDistributionChart(distPL);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,438 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+{% load widget_tweaks %}
+
+{% block title %}استيراد التحويلات - Import Conversions{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-card {
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .import-icon {
+        font-size: 3rem;
+        color: #007bff;
+    }
+
+    .upload-area {
+        border: 3px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 3rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background-color: #f8f9fa;
+    }
+
+    .upload-area:hover {
+        border-color: #007bff;
+        background-color: #e7f3ff;
+    }
+
+    .upload-area.dragover {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+
+    .file-selected {
+        background-color: #d4edda;
+        border-color: #28a745;
+    }
+
+    .instruction-box {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .warning-box {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .step-number {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+        background-color: #007bff;
+        color: white;
+        border-radius: 50%;
+        text-align: center;
+        font-weight: bold;
+        margin-left: 10px;
+    }
+
+    .file-info {
+        display: none;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="fas fa-file-import text-primary"></i>
+                        استيراد التحويلات
+                    </h2>
+                    <p class="text-muted mb-0">Import UoM Conversions from Excel</p>
+                </div>
+                <div>
+                    <a href="{% url 'core:uom_conversion_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-right"></i>
+                        رجوع
+                    </a>
+                    <a href="{% url 'core:uom_conversion_export' %}" class="btn btn-success">
+                        <i class="fas fa-file-export"></i>
+                        تصدير
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not openpyxl_available %}
+    <!-- Error: openpyxl not available -->
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-danger" role="alert">
+                <h5 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    مكتبة openpyxl غير متوفرة
+                </h5>
+                <p>يجب تثبيت مكتبة openpyxl لاستخدام ميزة الاستيراد من Excel.</p>
+                <hr>
+                <p class="mb-0">
+                    <code>pip install openpyxl</code>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="row">
+        <!-- Instructions Column -->
+        <div class="col-lg-4 mb-4">
+            <div class="card import-card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i>
+                        خطوات الاستيراد
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <span class="step-number">1</span>
+                        <strong>تنزيل القالب</strong>
+                        <p class="text-muted mb-0 mr-5">
+                            احصل على قالب Excel فارغ جاهز للتعبئة
+                        </p>
+                        <a href="{% url 'core:uom_conversion_download_template' %}"
+                           class="btn btn-sm btn-outline-primary mt-2 mr-5">
+                            <i class="fas fa-download"></i>
+                            تنزيل القالب
+                        </a>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <span class="step-number">2</span>
+                        <strong>تعبئة البيانات</strong>
+                        <p class="text-muted mb-0 mr-5">
+                            املأ القالب ببيانات التحويلات
+                        </p>
+                        <small class="text-muted d-block mr-5 mt-1">
+                            الحقول المطلوبة:
+                            <ul class="mt-1">
+                                <li>رمز المجموعة</li>
+                                <li>رمز الوحدة</li>
+                                <li>معامل التحويل</li>
+                            </ul>
+                        </small>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <span class="step-number">3</span>
+                        <strong>رفع الملف</strong>
+                        <p class="text-muted mb-0 mr-5">
+                            اختر الملف من جهازك أو اسحبه إلى منطقة الرفع
+                        </p>
+                    </div>
+
+                    <hr>
+
+                    <div>
+                        <span class="step-number">4</span>
+                        <strong>مراجعة النتائج</strong>
+                        <p class="text-muted mb-0 mr-5">
+                            سيتم عرض نتائج الاستيراد مع أي أخطاء أو تحذيرات
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Warnings -->
+            <div class="card import-card mt-3">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        تنبيهات مهمة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0 small">
+                        <li>تأكد من أن رموز المجموعات والوحدات موجودة في النظام</li>
+                        <li>معامل التحويل يجب أن يكون رقماً موجباً</li>
+                        <li>استخدم النقطة (.) كفاصلة عشرية، مثل: 1000.5</li>
+                        <li>الصفوف الفارغة سيتم تجاهلها</li>
+                        <li>لن يتم حفظ أي شيء إذا كانت هناك أخطاء</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Column -->
+        <div class="col-lg-8 mb-4">
+            <div class="card import-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-upload"></i>
+                        رفع ملف Excel
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        {% csrf_token %}
+
+                        <!-- Upload Area -->
+                        <div class="upload-area" id="uploadArea">
+                            <i class="fas fa-cloud-upload-alt fa-4x text-muted mb-3"></i>
+                            <h5>اسحب الملف هنا أو انقر للاختيار</h5>
+                            <p class="text-muted">
+                                Drag & Drop Excel file or Click to Browse
+                            </p>
+                            <p class="text-muted small mb-0">
+                                <i class="fas fa-file-excel text-success"></i>
+                                Supported: .xlsx, .xls
+                            </p>
+
+                            <input type="file"
+                                   name="{{ form.excel_file.name }}"
+                                   id="id_excel_file"
+                                   accept=".xlsx,.xls"
+                                   style="display: none;"
+                                   required>
+                        </div>
+
+                        <!-- File Info (shown after file selection) -->
+                        <div class="file-info" id="fileInfo">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-file-excel text-success fa-2x"></i>
+                                    <span class="mr-2">
+                                        <strong id="fileName"></strong>
+                                        <br>
+                                        <small class="text-muted" id="fileSize"></small>
+                                    </span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="removeFileBtn">
+                                    <i class="fas fa-times"></i>
+                                    إزالة
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Options -->
+                        <div class="mt-4">
+                            <div class="form-check">
+                                {{ form.skip_duplicates|add_class:"form-check-input" }}
+                                <label class="form-check-label" for="{{ form.skip_duplicates.id_for_label }}">
+                                    {{ form.skip_duplicates.label }}
+                                </label>
+                                <small class="form-text text-muted">
+                                    {{ form.skip_duplicates.help_text }}
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="mt-4 text-center">
+                            <button type="submit" class="btn btn-primary btn-lg px-5" id="submitBtn" disabled>
+                                <i class="fas fa-file-import"></i>
+                                بدء الاستيراد
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-lg px-5" id="cancelBtn">
+                                <i class="fas fa-times"></i>
+                                إلغاء
+                            </button>
+                        </div>
+
+                        <!-- Progress (shown during upload) -->
+                        <div class="mt-4" id="progressArea" style="display: none;">
+                            <div class="progress" style="height: 30px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     role="progressbar"
+                                     style="width: 0%"
+                                     id="progressBar">
+                                    <span id="progressText">جاري الاستيراد...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="row mt-3">
+                <div class="col-md-6 mb-2">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-download fa-2x text-warning mb-2"></i>
+                            <h6>تنزيل القالب</h6>
+                            <a href="{% url 'core:uom_conversion_download_template' %}"
+                               class="btn btn-sm btn-warning">
+                                تنزيل
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-list fa-2x text-info mb-2"></i>
+                            <h6>عرض التحويلات</h6>
+                            <a href="{% url 'core:uom_conversion_list' %}"
+                               class="btn btn-sm btn-info">
+                                عرض
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var uploadArea = $('#uploadArea');
+    var fileInput = $('#id_excel_file');
+    var fileInfo = $('#fileInfo');
+    var submitBtn = $('#submitBtn');
+    var importForm = $('#importForm');
+    var progressArea = $('#progressArea');
+    var progressBar = $('#progressBar');
+
+    // Click to upload
+    uploadArea.click(function() {
+        fileInput.click();
+    });
+
+    // Drag & drop
+    uploadArea.on('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).addClass('dragover');
+    });
+
+    uploadArea.on('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('dragover');
+    });
+
+    uploadArea.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('dragover');
+
+        var files = e.originalEvent.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput[0].files = files;
+            handleFileSelect();
+        }
+    });
+
+    // File selection
+    fileInput.change(function() {
+        handleFileSelect();
+    });
+
+    // Handle file selection
+    function handleFileSelect() {
+        var file = fileInput[0].files[0];
+        if (file) {
+            // Show file info
+            $('#fileName').text(file.name);
+            $('#fileSize').text(formatFileSize(file.size));
+            fileInfo.show();
+            uploadArea.addClass('file-selected');
+
+            // Enable submit button
+            submitBtn.prop('disabled', false);
+        }
+    }
+
+    // Remove file
+    $('#removeFileBtn').click(function() {
+        fileInput.val('');
+        fileInfo.hide();
+        uploadArea.removeClass('file-selected');
+        submitBtn.prop('disabled', true);
+    });
+
+    // Cancel button
+    $('#cancelBtn').click(function() {
+        window.location.href = '{% url "core:uom_conversion_list" %}';
+    });
+
+    // Form submission
+    importForm.submit(function(e) {
+        // Show progress
+        submitBtn.prop('disabled', true);
+        $('#cancelBtn').prop('disabled', true);
+        progressArea.show();
+
+        // Simulate progress (actual progress would require AJAX)
+        var progress = 0;
+        var interval = setInterval(function() {
+            progress += 10;
+            progressBar.css('width', progress + '%');
+
+            if (progress >= 90) {
+                clearInterval(interval);
+            }
+        }, 200);
+    });
+
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+        return (bytes / 1048576).toFixed(2) + ' MB';
+    }
+});
+</script>
+{% endblock %}

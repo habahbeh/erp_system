@@ -123,7 +123,7 @@ def item_datatable_ajax(request):
             # للتجريب - جلب جميع المواد
             queryset = Item.objects.all()
 
-        queryset = queryset.select_related('category', 'brand', 'unit_of_measure', 'currency')
+        queryset = queryset.select_related('category', 'brand', 'base_uom', 'currency')
 
         debug_info['queryset_count'] = queryset.count()
         debug_info['company_filter'] = str(request.current_company)
@@ -171,7 +171,7 @@ def item_datatable_ajax(request):
         order_column = int(request.GET.get('order[0][column]', 0))
         order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        columns = ['item_code', 'name', 'category__name', 'brand__name', 'unit_of_measure__name', 'is_active']
+        columns = ['item_code', 'name', 'category__name', 'brand__name', 'base_uom__name', 'is_active']
 
         if 0 <= order_column < len(columns):
             order_field = columns[order_column]
@@ -246,7 +246,8 @@ def item_datatable_ajax(request):
                 f'<span class="text-dark">{item.brand.name}</span>' if item.brand
                 else '<span class="text-muted">-</span>',
 
-                f'<span class="badge bg-light text-dark">{item.unit_of_measure.name}</span>',
+                f'<span class="badge bg-light text-dark">{item.base_uom.name}</span>' if item.base_uom
+                else '<span class="text-muted">-</span>',
 
                 f'<span class="badge bg-success"><i class="fas fa-check"></i> {_("نشط")}</span>' if item.is_active
                 else f'<span class="badge bg-secondary"><i class="fas fa-times"></i> {_("غير نشط")}</span>',

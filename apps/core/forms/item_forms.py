@@ -18,7 +18,7 @@ class ItemForm(forms.ModelForm):
         fields = [
             # المعلومات الأساسية
             'item_code', 'name', 'name_en', 'catalog_number', 'barcode',
-            'category', 'brand', 'unit_of_measure', 'currency',
+            'category', 'brand', 'base_uom', 'currency',
             'tax_rate',
             # حذف الحسابات المحاسبية مؤقتاً لحل المشاكل
             # 'sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account',
@@ -57,7 +57,7 @@ class ItemForm(forms.ModelForm):
             'brand': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'unit_of_measure': forms.Select(attrs={
+            'base_uom': forms.Select(attrs={
                 'class': 'form-select',
                 'required': True
             }),
@@ -197,7 +197,7 @@ class ItemForm(forms.ModelForm):
 
             from ..models import UnitOfMeasure, Currency, Warehouse
 
-            self.fields['unit_of_measure'].queryset = UnitOfMeasure.objects.filter(
+            self.fields['base_uom'].queryset = UnitOfMeasure.objects.filter(
                 company=company, is_active=True
             ).order_by('name')
 

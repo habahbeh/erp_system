@@ -1,0 +1,309 @@
+{# apps/core/templates/core/pricing/bulk_update.html #}
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-1">{{ title }}</h1>
+        <p class="text-muted">{% trans "قم بتحديث أسعار عدة مواد دفعة واحدة" %}</p>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Update Form Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-edit"></i> {% trans "إعدادات التحديث" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.operation_type.id_for_label }}" class="form-label required">
+                                    {{ form.operation_type.label }}
+                                </label>
+                                {{ form.operation_type|add_class:"form-select" }}
+                                {% if form.operation_type.errors %}
+                                    <div class="text-danger">{{ form.operation_type.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.price_list.id_for_label }}" class="form-label">
+                                    {{ form.price_list.label }}
+                                </label>
+                                {{ form.price_list|add_class:"form-select" }}
+                                {% if form.price_list.help_text %}
+                                    <small class="text-muted">{{ form.price_list.help_text }}</small>
+                                {% endif %}
+                                {% if form.price_list.errors %}
+                                    <div class="text-danger">{{ form.price_list.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.categories.id_for_label }}" class="form-label">
+                                    {{ form.categories.label }}
+                                </label>
+                                {{ form.categories|add_class:"form-select" }}
+                                {% if form.categories.help_text %}
+                                    <small class="text-muted">{{ form.categories.help_text }}</small>
+                                {% endif %}
+                                {% if form.categories.errors %}
+                                    <div class="text-danger">{{ form.categories.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.items.id_for_label }}" class="form-label">
+                                    {{ form.items.label }}
+                                </label>
+                                {{ form.items|add_class:"form-select" }}
+                                {% if form.items.help_text %}
+                                    <small class="text-muted">{{ form.items.help_text }}</small>
+                                {% endif %}
+                                {% if form.items.errors %}
+                                    <div class="text-danger">{{ form.items.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="percentage-field">
+                            <label for="{{ form.percentage_change.id_for_label }}" class="form-label">
+                                {{ form.percentage_change.label }}
+                            </label>
+                            <div class="input-group">
+                                {{ form.percentage_change|add_class:"form-control" }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                            {% if form.percentage_change.help_text %}
+                                <small class="text-info">{{ form.percentage_change.help_text }}</small>
+                            {% endif %}
+                            {% if form.percentage_change.errors %}
+                                <div class="text-danger">{{ form.percentage_change.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                {{ form.apply_rules|add_class:"form-check-input" }}
+                                <label class="form-check-label" for="{{ form.apply_rules.id_for_label }}">
+                                    {{ form.apply_rules.label }}
+                                </label>
+                                {% if form.apply_rules.help_text %}
+                                    <br><small class="text-muted">{{ form.apply_rules.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                {{ form.apply_changes|add_class:"form-check-input" }}
+                                <label class="form-check-label" for="{{ form.apply_changes.id_for_label }}">
+                                    {{ form.apply_changes.label }}
+                                </label>
+                                {% if form.apply_changes.help_text %}
+                                    <br><small class="text-muted">{{ form.apply_changes.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sync-alt"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Preview/Result Card -->
+            {% if result %}
+            <div class="card shadow-sm border-{% if result.applied %}success{% else %}info{% endif %}">
+                <div class="card-header bg-{% if result.applied %}success{% else %}info{% endif %} text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-{% if result.applied %}check-circle{% else %}eye{% endif %}"></i>
+                        {% if result.applied %}
+                            {% trans "تم التحديث بنجاح" %}
+                        {% else %}
+                            {% trans "معاينة التغييرات" %}
+                        {% endif %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if result.applied %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        {% blocktrans count counter=result.updated_count %}
+                            تم تحديث {{ counter }} سعر بنجاح
+                        {% plural %}
+                            تم تحديث {{ counter }} أسعار بنجاح
+                        {% endblocktrans %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        {% blocktrans count counter=result.total_items %}
+                            سيتم تحديث {{ counter }} سعر
+                        {% plural %}
+                            سيتم تحديث {{ counter }} أسعار
+                        {% endblocktrans %}
+                        <br>
+                        <small>{% trans "فعّل 'تطبيق التغييرات فوراً' لحفظ التغييرات" %}</small>
+                    </div>
+                    {% endif %}
+
+                    {% if result.preview %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "المادة" %}</th>
+                                    <th class="text-end">{% trans "السعر القديم" %}</th>
+                                    <th class="text-end">{% trans "السعر الجديد" %}</th>
+                                    <th class="text-end">{% trans "التغيير" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in result.preview %}
+                                <tr>
+                                    <td>{{ item.item }}</td>
+                                    <td class="text-end">
+                                        {% if item.old_price %}
+                                            {{ item.old_price|floatformat:2 }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold">{{ item.new_price|floatformat:2 }}</td>
+                                    <td class="text-end">
+                                        {% if item.change %}
+                                            <span class="badge bg-{% if item.change > 0 %}success{% else %}danger{% endif %}">
+                                                {% if item.change > 0 %}+{% endif %}{{ item.change|floatformat:2 }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-info">{% trans "جديد" %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        {% if result.total_items > result.preview|length %}
+                        <p class="text-muted text-center mb-0">
+                            {% trans "عرض" %} {{ result.preview|length }} {% trans "من أصل" %} {{ result.total_items }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="col-lg-4">
+            <!-- Help Card -->
+            <div class="card shadow-sm bg-light mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-question-circle"></i> {% trans "كيفية الاستخدام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold">{% trans "نوع العملية" %}:</h6>
+                    <ul class="small">
+                        <li><strong>{% trans "تغيير نسبة مئوية" %}</strong>: {% trans "زيادة أو تخفيض الأسعار بنسبة محددة" %}</li>
+                        <li><strong>{% trans "إعادة حساب الأسعار" %}</strong>: {% trans "إعادة حساب الأسعار باستخدام قواعد التسعير" %}</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6 class="fw-bold">{% trans "أمثلة" %}:</h6>
+                    <ul class="small">
+                        <li>{% trans "زيادة 10%: أدخل 10" %}</li>
+                        <li>{% trans "تخفيض 5%: أدخل -5" %}</li>
+                        <li>{% trans "مضاعفة السعر: أدخل 100" %}</li>
+                    </ul>
+
+                    <hr>
+
+                    <div class="alert alert-warning mb-0 small">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "انتبه: التغييرات ستطبق مباشرة على قاعدة البيانات إذا فعّلت 'تطبيق التغييرات فوراً'" %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tips Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-lightbulb"></i> {% trans "نصائح" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="small mb-0">
+                        <li>{% trans "استخدم المعاينة أولاً للتحقق من التغييرات" %}</li>
+                        <li>{% trans "يمكنك تحديد عدة تصنيفات ومواد معاً" %}</li>
+                        <li>{% trans "الحد الأقصى 1000 مادة لكل عملية" %}</li>
+                        <li>{% trans "التحديثات آمنة ومحمية بالـ transactions" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const operationType = document.getElementById('id_operation_type');
+    const percentageField = document.getElementById('percentage-field');
+
+    function togglePercentageField() {
+        if (operationType.value === 'PERCENTAGE_CHANGE') {
+            percentageField.style.display = 'block';
+        } else {
+            percentageField.style.display = 'none';
+        }
+    }
+
+    operationType.addEventListener('change', togglePercentageField);
+    togglePercentageField();
+});
+</script>
+{% endblock %}

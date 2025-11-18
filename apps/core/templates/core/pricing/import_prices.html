@@ -1,0 +1,419 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}استيراد الأسعار{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #dee2e6;
+        border-radius: 0.5rem;
+        padding: 3rem;
+        text-align: center;
+        background: #f8f9fa;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .upload-area:hover {
+        border-color: #007bff;
+        background: #e7f1ff;
+    }
+
+    .upload-area.drag-over {
+        border-color: #28a745;
+        background: #d4edda;
+    }
+
+    .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+
+    .file-info {
+        display: none;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
+    .file-info.show {
+        display: block;
+    }
+
+    .step-indicator {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        padding: 0;
+        list-style: none;
+    }
+
+    .step-indicator li {
+        flex: 1;
+        text-align: center;
+        position: relative;
+        padding: 1rem 0;
+    }
+
+    .step-indicator li::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 0;
+        width: 100%;
+        height: 2px;
+        background: #dee2e6;
+        z-index: -1;
+        transform: translateY(-50%);
+    }
+
+    .step-indicator li:first-child::before {
+        display: none;
+    }
+
+    .step-indicator li.active {
+        color: #007bff;
+        font-weight: bold;
+    }
+
+    .step-indicator li.active::before {
+        background: #007bff;
+    }
+
+    .step-number {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        border-radius: 50%;
+        background: #dee2e6;
+        margin-bottom: 0.5rem;
+    }
+
+    .step-indicator li.active .step-number {
+        background: #007bff;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="fas fa-file-import text-primary me-2"></i>
+                        استيراد الأسعار
+                    </h2>
+                    <p class="text-muted mt-2">استيراد الأسعار من ملفات Excel أو CSV</p>
+                </div>
+                <div>
+                    <a href="{% url 'core:price_list_template' %}?format=excel" class="btn btn-outline-success me-2">
+                        <i class="fas fa-file-excel me-1"></i> تحميل قالب Excel
+                    </a>
+                    <a href="{% url 'core:price_list_template' %}?format=csv" class="btn btn-outline-info me-2">
+                        <i class="fas fa-file-csv me-1"></i> تحميل قالب CSV
+                    </a>
+                    <a href="{% url 'core:price_list_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-right me-1"></i> رجوع
+                    </a>
+                </div>
+            </div>
+
+            <!-- Steps Indicator -->
+            <ul class="step-indicator">
+                <li class="active" id="step1">
+                    <span class="step-number">1</span>
+                    <div>اختيار قائمة الأسعار</div>
+                </li>
+                <li id="step2">
+                    <span class="step-number">2</span>
+                    <div>رفع الملف</div>
+                </li>
+                <li id="step3">
+                    <span class="step-number">3</span>
+                    <div>المعاينة والتأكيد</div>
+                </li>
+            </ul>
+
+            <!-- Import Form -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        {% csrf_token %}
+
+                        <!-- Step 1: Select Price List -->
+                        <div class="step-content" id="stepContent1">
+                            <h5 class="mb-3">
+                                <i class="fas fa-list-alt text-primary me-2"></i>
+                                1. اختيار قائمة الأسعار
+                            </h5>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label for="price_list" class="form-label fw-bold">قائمة الأسعار *</label>
+                                        <select name="price_list" id="price_list" class="form-select" required>
+                                            <option value="">-- اختر قائمة الأسعار --</option>
+                                            {% for pl in price_lists %}
+                                            <option value="{{ pl.id }}">{{ pl.name }} ({{ pl.code }})</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="text-muted">ستتم إضافة الأسعار إلى هذه القائمة</small>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label for="format" class="form-label fw-bold">تنسيق الملف *</label>
+                                        <select name="format" id="format" class="form-select" required>
+                                            <option value="excel">Excel (.xlsx)</option>
+                                            <option value="csv">CSV (.csv)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-end">
+                                <button type="button" class="btn btn-primary" onclick="nextStep(2)">
+                                    التالي <i class="fas fa-arrow-left ms-1"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Upload File -->
+                        <div class="step-content d-none" id="stepContent2">
+                            <h5 class="mb-3">
+                                <i class="fas fa-cloud-upload-alt text-primary me-2"></i>
+                                2. رفع الملف
+                            </h5>
+
+                            <div class="upload-area" id="uploadArea">
+                                <div class="upload-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <h4>اسحب وأفلت الملف هنا</h4>
+                                <p class="text-muted">أو اضغط للاختيار من جهازك</p>
+                                <input type="file" name="import_file" id="import_file" class="d-none" accept=".xlsx,.xls,.csv" required>
+                            </div>
+
+                            <div class="file-info" id="fileInfo">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-file-excel text-success fa-2x me-3"></i>
+                                        <strong id="fileName">filename.xlsx</strong>
+                                        <span class="text-muted ms-2" id="fileSize">0 KB</span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile()">
+                                        <i class="fas fa-times"></i> إزالة
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Instructions -->
+                            <div class="alert alert-info mt-4">
+                                <h6 class="alert-heading">
+                                    <i class="fas fa-info-circle me-2"></i>تعليمات الاستيراد
+                                </h6>
+                                <ul class="mb-0">
+                                    <li>تأكد من أن الملف يحتوي على الأعمدة: رمز الصنف، السعر، تاريخ البدء، تاريخ الانتهاء، الحد الأدنى للكمية، نشط</li>
+                                    <li>رموز الأصناف يجب أن تكون موجودة في النظام</li>
+                                    <li>السعر يجب أن يكون رقم موجب</li>
+                                    <li>التواريخ يجب أن تكون بتنسيق YYYY-MM-DD</li>
+                                    <li>عمود "نشط" يقبل: نعم/لا أو 1/0</li>
+                                </ul>
+                            </div>
+
+                            <div class="text-end mt-3">
+                                <button type="button" class="btn btn-outline-secondary me-2" onclick="previousStep(1)">
+                                    <i class="fas fa-arrow-right me-1"></i> السابق
+                                </button>
+                                <button type="submit" class="btn btn-success" id="submitBtn" disabled>
+                                    <i class="fas fa-check me-1"></i> استيراد الأسعار
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Sample Data -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        مثال على البيانات المطلوبة
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>رمز الصنف</th>
+                                    <th>السعر</th>
+                                    <th>تاريخ البدء</th>
+                                    <th>تاريخ الانتهاء</th>
+                                    <th>الحد الأدنى للكمية</th>
+                                    <th>نشط</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>ITEM001</td>
+                                    <td>100.00</td>
+                                    <td>2025-01-01</td>
+                                    <td>2025-12-31</td>
+                                    <td>1</td>
+                                    <td>نعم</td>
+                                </tr>
+                                <tr>
+                                    <td>ITEM002</td>
+                                    <td>250.50</td>
+                                    <td>2025-01-01</td>
+                                    <td>2025-12-31</td>
+                                    <td>5</td>
+                                    <td>نعم</td>
+                                </tr>
+                                <tr>
+                                    <td>ITEM003</td>
+                                    <td>75.00</td>
+                                    <td>2025-01-01</td>
+                                    <td></td>
+                                    <td>1</td>
+                                    <td>لا</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+
+// Upload area interactions
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('import_file');
+const fileInfo = document.getElementById('fileInfo');
+const submitBtn = document.getElementById('submitBtn');
+
+uploadArea.addEventListener('click', () => {
+    fileInput.click();
+});
+
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('drag-over');
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        displayFileInfo(files[0]);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        displayFileInfo(e.target.files[0]);
+    }
+});
+
+function displayFileInfo(file) {
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+    fileInfo.classList.add('show');
+    submitBtn.disabled = false;
+}
+
+function removeFile() {
+    fileInput.value = '';
+    fileInfo.classList.remove('show');
+    submitBtn.disabled = true;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Step navigation
+function nextStep(step) {
+    // Validate current step
+    if (currentStep === 1) {
+        const priceList = document.getElementById('price_list').value;
+        if (!priceList) {
+            alert('الرجاء اختيار قائمة الأسعار');
+            return;
+        }
+    }
+
+    // Hide current step
+    document.getElementById(`stepContent${currentStep}`).classList.add('d-none');
+    document.getElementById(`step${currentStep}`).classList.remove('active');
+
+    // Show next step
+    currentStep = step;
+    document.getElementById(`stepContent${step}`).classList.remove('d-none');
+    document.getElementById(`step${step}`).classList.add('active');
+}
+
+function previousStep(step) {
+    // Hide current step
+    document.getElementById(`stepContent${currentStep}`).classList.add('d-none');
+    document.getElementById(`step${currentStep}`).classList.remove('active');
+
+    // Show previous step
+    currentStep = step;
+    document.getElementById(`stepContent${step}`).classList.remove('d-none');
+    document.getElementById(`step${step}`).classList.add('active');
+}
+
+// Form submission
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    const priceList = document.getElementById('price_list').value;
+    const file = fileInput.files[0];
+
+    if (!priceList) {
+        e.preventDefault();
+        alert('الرجاء اختيار قائمة الأسعار');
+        return;
+    }
+
+    if (!file) {
+        e.preventDefault();
+        alert('الرجاء اختيار ملف للاستيراد');
+        return;
+    }
+
+    // Show loading
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>جارٍ الاستيراد...';
+    submitBtn.disabled = true;
+});
+</script>
+{% endblock %}

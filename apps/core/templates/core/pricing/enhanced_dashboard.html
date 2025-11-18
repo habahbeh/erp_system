@@ -1,0 +1,333 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load i18n %}
+{% load widget_tags %}
+
+{% block title %}لوحة التحكم المحسنة - إدارة التسعير{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    .widget-section {
+        margin-bottom: 2rem;
+    }
+
+    .widget-section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+        display: inline-block;
+    }
+
+    .row-equal-height > [class*='col-'] {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .row-equal-height > [class*='col-'] > * {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="mb-2">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    لوحة التحكم المحسنة - إدارة التسعير
+                </h2>
+                <p class="mb-0 opacity-75">
+                    عرض شامل لجميع بيانات التسعير والأنشطة الأخيرة
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="text-white">
+                    <i class="fas fa-calendar-alt me-2"></i>
+                    <span id="currentDate"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Widgets Section -->
+    {% if alerts %}
+    <div class="widget-section">
+        <div class="row">
+            {% for alert in alerts %}
+            <div class="col-12 mb-3">
+                {% alert_widget title=alert.title message=alert.message alert_type=alert.alert_type dismissible=alert.dismissible %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Statistics Cards Section -->
+    <div class="widget-section">
+        <h3 class="widget-section-title">
+            <i class="fas fa-chart-line me-2"></i>الإحصائيات الرئيسية
+        </h3>
+        <div class="row row-equal-height">
+            {% for card in stat_cards %}
+            <div class="col-xl-3 col-md-6 mb-4">
+                {% stat_card title=card.title value=card.value icon=card.icon color=card.color subtitle=card.subtitle trend=card.trend url=card.url %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Quick Actions Section -->
+    <div class="widget-section">
+        <h3 class="widget-section-title">
+            <i class="fas fa-bolt me-2"></i>إجراءات سريعة
+        </h3>
+        <div class="row">
+            <div class="col-12">
+                {% quick_actions actions=quick_actions title="الإجراءات السريعة" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Cards Section -->
+    <div class="widget-section">
+        <h3 class="widget-section-title">
+            <i class="fas fa-tasks me-2"></i>مؤشرات التقدم
+        </h3>
+        <div class="row row-equal-height">
+            {% for progress in progress_cards %}
+            <div class="col-lg-6 mb-4">
+                {% progress_card title=progress.title current=progress.current total=progress.total color=progress.color show_percentage=progress.show_percentage %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Charts and Lists Section -->
+    <div class="widget-section">
+        <div class="row row-equal-height">
+            <!-- Mini Chart -->
+            <div class="col-lg-6 mb-4">
+                <h3 class="widget-section-title">
+                    <i class="fas fa-chart-pie me-2"></i>توزيع الأسعار حسب الفئة
+                </h3>
+                {% mini_chart_card title="توزيع الأسعار" chart_id="priceDistributionChart" chart_type="doughnut" data=chart_data.price_distribution height=250 %}
+            </div>
+
+            <!-- Top Items List -->
+            <div class="col-lg-6 mb-4">
+                <h3 class="widget-section-title">
+                    <i class="fas fa-crown me-2"></i>أعلى الأصناف سعراً
+                </h3>
+                {% list_widget title="أعلى الأصناف سعراً" items=top_items icon="fa-box" color="primary" show_more_url="#" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Feed and Recent Changes -->
+    <div class="widget-section">
+        <div class="row row-equal-height">
+            <!-- Activity Feed -->
+            <div class="col-lg-6 mb-4">
+                <h3 class="widget-section-title">
+                    <i class="fas fa-history me-2"></i>النشاطات الأخيرة
+                </h3>
+                {% activity_feed activities=recent_activities title="آخر النشاطات" max_items=10 %}
+            </div>
+
+            <!-- Recent Price Changes -->
+            <div class="col-lg-6 mb-4">
+                <h3 class="widget-section-title">
+                    <i class="fas fa-exchange-alt me-2"></i>تغييرات الأسعار الأخيرة
+                </h3>
+                {% list_widget title="تغييرات الأسعار الأخيرة" items=recent_price_changes icon="fa-edit" color="warning" show_more_url="#" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Mini Charts -->
+    <div class="widget-section">
+        <h3 class="widget-section-title">
+            <i class="fas fa-chart-bar me-2"></i>رسوم بيانية إضافية
+        </h3>
+        <div class="row row-equal-height">
+            <div class="col-lg-4 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-bold">اتجاه الأسعار</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priceTrendMiniChart" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-bold">مقارنة قوائم الأسعار</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priceListComparisonChart" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-bold">نشاط التسعير الشهري</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="monthlyActivityChart" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back to Actions -->
+    <div class="text-center mb-4">
+        <a href="{% url 'core:pricing_dashboard' %}" class="btn btn-outline-primary btn-lg me-2">
+            <i class="fas fa-chart-line me-2"></i>لوحة الرسوم البيانية
+        </a>
+        <a href="{% url 'core:inline_price_editor' %}" class="btn btn-outline-success btn-lg me-2">
+            <i class="fas fa-pen me-2"></i>محرر الأسعار المباشر
+        </a>
+        <a href="{% url 'core:pricing_rule_list_dt' %}" class="btn btn-outline-info btn-lg">
+            <i class="fas fa-table me-2"></i>عرض الجداول
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Display current date
+document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ar-EG', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+});
+
+// Mini Charts Initialization
+document.addEventListener('DOMContentLoaded', function() {
+    // Price Trend Mini Chart
+    const trendCtx = document.getElementById('priceTrendMiniChart');
+    if (trendCtx) {
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
+                datasets: [{
+                    label: 'متوسط السعر',
+                    data: [120, 135, 125, 140, 155, 150],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // Price List Comparison Chart
+    const comparisonCtx = document.getElementById('priceListComparisonChart');
+    if (comparisonCtx) {
+        new Chart(comparisonCtx, {
+            type: 'bar',
+            data: {
+                labels: ['قائمة 1', 'قائمة 2', 'قائمة 3', 'قائمة 4'],
+                datasets: [{
+                    label: 'عدد الأسعار',
+                    data: [450, 380, 520, 290],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.5)',
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // Monthly Activity Chart
+    const activityCtx = document.getElementById('monthlyActivityChart');
+    if (activityCtx) {
+        new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: ['أسبوع 1', 'أسبوع 2', 'أسبوع 3', 'أسبوع 4'],
+                datasets: [{
+                    label: 'التعديلات',
+                    data: [15, 28, 22, 35],
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+});
+
+// Auto-refresh statistics every 60 seconds
+setInterval(function() {
+    // You can implement AJAX refresh here if needed
+    console.log('Auto-refresh triggered');
+}, 60000);
+</script>
+{% endblock %}
