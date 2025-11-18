@@ -231,6 +231,16 @@
                         <span class="badge bg-primary ms-2" id="variantCount">0</span>
                     </button>
                 </li>
+                {% if wizard_mode and enable_inline_prices %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="price-lists-tab" data-bs-toggle="tab"
+                            data-bs-target="#price-lists-content" type="button" role="tab">
+                        <i class="fas fa-tags tab-icon"></i>
+                        {% trans "إدارة الأسعار" %}
+                        <span class="badge bg-success ms-2" id="pricesCount">0</span>
+                    </button>
+                </li>
+                {% endif %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="media-tab" data-bs-toggle="tab"
                             data-bs-target="#media-content" type="button" role="tab">
@@ -617,6 +627,109 @@
         </div>
     </div>
 </div>
+
+                <!-- ✅ Tab جديد: إدارة الأسعار -->
+                {% if wizard_mode and enable_inline_prices %}
+                <div class="tab-pane fade" id="price-lists-content" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h6 class="mb-1 text-success">
+                                <i class="fas fa-tags"></i> {% trans "إدارة أسعار المادة في قوائم الأسعار" %}
+                            </h6>
+                            <small class="text-muted">{% trans "أضف أسعار المادة لكل قائمة أسعار" %}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-info">{% trans "قوائم الأسعار" %}: {{ price_lists.count }}</span>
+                        </div>
+                    </div>
+
+                    {% if price_lists %}
+                        <!-- محتوى الأسعار - يتغير حسب has_variants -->
+                        <div id="pricesContainer">
+
+                            <!-- للمواد بدون متغيرات -->
+                            <div id="simplePricesContainer">
+                                <div class="card border-success">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0 text-dark">
+                                            <i class="fas fa-money-bill-wave"></i> {% trans "الأسعار" %}
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>{% trans "قائمة الأسعار" %}</th>
+                                                        <th width="120">{% trans "افتراضي" %}</th>
+                                                        <th width="200">{% trans "السعر" %}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for price_list in price_lists %}
+                                                    <tr>
+                                                        <td>
+                                                            <div class="d-flex align-items-center">
+                                                                <i class="fas fa-list-alt text-primary me-2"></i>
+                                                                <div>
+                                                                    <div class="fw-bold">{{ price_list.name }}</div>
+                                                                    <small class="text-muted">{{ price_list.currency.symbol }}</small>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            {% if price_list.is_default %}
+                                                                <span class="badge bg-warning text-dark">
+                                                                    <i class="fas fa-star"></i> {% trans "افتراضي" %}
+                                                                </span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="number"
+                                                                       class="form-control price-input"
+                                                                       name="price_{{ price_list.id }}"
+                                                                       placeholder="0.00"
+                                                                       step="0.001"
+                                                                       min="0"
+                                                                       data-price-list-id="{{ price_list.id }}">
+                                                                <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- للمواد بمتغيرات -->
+                            <div id="variantsPricesContainer" style="display: none;">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    {% trans "بعد توليد المتغيرات، ستظهر هنا جداول الأسعار لكل متغير" %}
+                                </div>
+                                <div id="variantsPricesTables">
+                                    <!-- سيتم ملؤها بـ JavaScript -->
+                                </div>
+                            </div>
+
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">{% trans "لا توجد قوائم أسعار" %}</h6>
+                                    <p class="mb-0 small">{% trans "يرجى إنشاء قائمة أسعار أولاً لتتمكن من تحديد أسعار المواد" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
 
                 <!-- Tab 5: Media & Files -->
                 <div class="tab-pane fade" id="media-content" role="tabpanel">
@@ -1588,5 +1701,192 @@ $('.modal').on('hidden.bs.modal', function() {
         '</div>'
     );
 });
+
+// =====================================
+// ✅ إدارة الأسعار (Wizard Mode)
+// =====================================
+
+{% if wizard_mode and enable_inline_prices %}
+
+// البيانات الموجودة للتعديل
+const existingItemPrices = {{ item_prices_data|safe|default:"{}" }};
+const existingVariantsPrices = {{ variants_prices_data|safe|default:"{}" }};
+
+// تعبئة الأسعار الموجودة عند التعديل
+$(document).ready(function() {
+    // تعبئة أسعار المادة العادي
+    if (existingItemPrices && Object.keys(existingItemPrices).length > 0) {
+        for (const [priceListId, price] of Object.entries(existingItemPrices)) {
+            $(`input[name="price_${priceListId}"]`).val(price);
+        }
+    }
+
+    // ✅ للتعديل: إذا كانت هناك متغيرات موجودة، أنشئ جداول الأسعار
+    {% if is_update and existing_variants %}
+    const hasVariants = $('#id_has_variants').is(':checked');
+    if (hasVariants) {
+        $('#simplePricesContainer').hide();
+        $('#variantsPricesContainer').show();
+
+        // تحميل المتغيرات الموجودة
+        const existingVariantsData = [
+            {% for variant in existing_variants %}
+            {
+                id: {{ variant.id }},
+                code: '{{ variant.code }}',
+                description: '{% for attr_val in variant.variant_attribute_values.all %}{{ attr_val.attribute.name }}: {{ attr_val.value.display_value|default:attr_val.value.value }}{% if not forloop.last %}, {% endif %}{% endfor %}'
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        if (existingVariantsData.length > 0) {
+            generateVariantPricesTables(existingVariantsData);
+        }
+    }
+    {% endif %}
+
+    // تحديث عداد الأسعار
+    updatePricesCount();
+});
+
+// التبديل بين أسعار عادية وأسعار متغيرات
+$('#id_has_variants').on('change', function() {
+    const hasVariants = $(this).is(':checked');
+
+    if (hasVariants) {
+        $('#simplePricesContainer').hide();
+        $('#variantsPricesContainer').show();
+    } else {
+        $('#simplePricesContainer').show();
+        $('#variantsPricesContainer').hide();
+    }
+});
+
+// عند توليد المتغيرات - إنشاء جداول الأسعار
+const originalGenerateVariants = window.generateVariants;
+window.generateVariants = function() {
+    // استدعاء الدالة الأصلية
+    if (originalGenerateVariants) {
+        originalGenerateVariants();
+    }
+
+    // إنشاء جداول الأسعار للمتغيرات
+    setTimeout(function() {
+        if (window.generatedVariants && window.generatedVariants.length > 0) {
+            generateVariantPricesTables(window.generatedVariants);
+        }
+    }, 500);
+};
+
+// توليد جداول الأسعار للمتغيرات
+function generateVariantPricesTables(variants) {
+    const container = $('#variantsPricesTables');
+    container.empty();
+
+    const priceLists = {{ price_lists_json|safe|default:"[]" }};
+
+    if (!priceLists || priceLists.length === 0) {
+        container.html(`
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                لا توجد قوائم أسعار متاحة
+            </div>
+        `);
+        return;
+    }
+
+    variants.forEach((variant, index) => {
+        let priceRows = '';
+
+        priceLists.forEach(priceList => {
+            // استخدام strings للمفاتيح
+            const variantId = String(variant.id || variant.tempId);
+            const priceListId = String(priceList.id);
+            const existingPrice = (existingVariantsPrices[variantId] &&
+                                  existingVariantsPrices[variantId][priceListId]) || '';
+
+            priceRows += `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-list-alt text-primary me-2"></i>
+                            <div>
+                                <div class="fw-bold">${priceList.name}</div>
+                                <small class="text-muted">${priceList.currency__symbol || ''}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        ${priceList.is_default ? '<span class="badge bg-warning text-dark"><i class="fas fa-star"></i> افتراضي</span>' : ''}
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <input type="number"
+                                   class="form-control price-input variant-price-input"
+                                   name="price_${priceList.id}_${variant.id || variant.tempId}"
+                                   placeholder="0.00"
+                                   step="0.001"
+                                   min="0"
+                                   value="${existingPrice}"
+                                   data-variant-index="${index}"
+                                   data-price-list-id="${priceList.id}">
+                            <span class="input-group-text">${priceList.currency__symbol || ''}</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        const variantCard = `
+            <div class="card border-primary mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0 text-dark">
+                        <i class="fas fa-cube text-primary"></i>
+                        متغير ${index + 1}: ${variant.code}
+                        <small class="text-muted ms-2">${variant.description || ''}</small>
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>قائمة الأسعار</th>
+                                    <th width="120">افتراضي</th>
+                                    <th width="200">السعر</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${priceRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.append(variantCard);
+    });
+
+    // تحديث العداد
+    updatePricesCount();
+}
+
+// تحديث عداد الأسعار
+function updatePricesCount() {
+    const filledPrices = $('.price-input').filter(function() {
+        return $(this).val() && parseFloat($(this).val()) > 0;
+    }).length;
+
+    $('#pricesCount').text(filledPrices);
+}
+
+// مراقبة تغيير الأسعار
+$(document).on('input', '.price-input', function() {
+    updatePricesCount();
+});
+
+{% endif %}
+
 </script>
 {% endblock %}

@@ -1,0 +1,469 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.css">
+<style>
+    .stat-card {
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .stat-card.primary {
+        border-color: #0d6efd;
+    }
+
+    .stat-card.success {
+        border-color: #198754;
+    }
+
+    .stat-card.info {
+        border-color: #0dcaf0;
+    }
+
+    .stat-card.warning {
+        border-color: #ffc107;
+    }
+
+    .stat-card.danger {
+        border-color: #dc3545;
+    }
+
+    .stat-icon {
+        font-size: 2.5rem;
+        opacity: 0.3;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+
+    .table-sm td, .table-sm th {
+        padding: 0.5rem;
+    }
+
+    .badge-status {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-chart-line text-success"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "نظرة شاملة على أداء المبيعات" %}</p>
+        </div>
+        <div>
+            <span class="badge bg-light text-dark border">
+                <i class="fas fa-calendar-alt"></i>
+                من {{ date_from|date:"Y-m-d" }} إلى {{ today|date:"Y-m-d" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Statistics Cards Row 1: Invoices -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">إجمالي الفواتير</h6>
+                            <h2 class="mb-0">{{ invoice_stats.total_count }}</h2>
+                            <small class="text-success">
+                                <i class="fas fa-check-circle"></i> {{ invoice_stats.posted_count }} معتمدة
+                            </small>
+                        </div>
+                        <i class="fas fa-file-invoice stat-icon text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card success shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">إجمالي المبيعات</h6>
+                            <h2 class="mb-0">{{ invoice_stats.total_amount|floatformat:2 }}</h2>
+                            <small class="text-muted">دينار</small>
+                        </div>
+                        <i class="fas fa-money-bill-wave stat-icon text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">المبلغ المحصل</h6>
+                            <h2 class="mb-0">{{ invoice_stats.total_paid|floatformat:2 }}</h2>
+                            <small class="text-success">
+                                <i class="fas fa-percentage"></i> {{ invoice_stats.collection_rate|floatformat:1 }}%
+                            </small>
+                        </div>
+                        <i class="fas fa-hand-holding-usd stat-icon text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card stat-card warning shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">المبلغ المتبقي</h6>
+                            <h2 class="mb-0">{{ invoice_stats.total_remaining|floatformat:2 }}</h2>
+                            <small class="text-muted">دينار</small>
+                        </div>
+                        <i class="fas fa-hourglass-half stat-icon text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards Row 2: Orders & Quotations -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">أوامر البيع</h6>
+                            <h2 class="mb-0">{{ order_stats.total_count }}</h2>
+                            <small class="text-muted">
+                                معتمد: {{ order_stats.approved_count }} | مسلّم: {{ order_stats.delivered_count }}
+                            </small>
+                        </div>
+                        <i class="fas fa-clipboard-list stat-icon text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card stat-card info shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">عروض الأسعار</h6>
+                            <h2 class="mb-0">{{ quotation_stats.total_count }}</h2>
+                            <small class="text-success">
+                                <i class="fas fa-chart-line"></i> نسبة التحويل: {{ quotation_stats.conversion_rate|floatformat:1 }}%
+                            </small>
+                        </div>
+                        <i class="fas fa-file-alt stat-icon text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <!-- Monthly Sales Chart -->
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-bar text-primary"></i> المبيعات الشهرية
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="monthlySalesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales Summary -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-dollar-sign text-success"></i> ملخص المبيعات
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>الفواتير المعتمدة</span>
+                            <strong>{{ invoice_stats.posted_count }}</strong>
+                        </div>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-success" style="width: {{ invoice_stats.posted_percentage|floatformat:0 }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>المسودات</span>
+                            <strong>{{ invoice_stats.draft_count }}</strong>
+                        </div>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-warning" style="width: {{ invoice_stats.draft_percentage|floatformat:0 }}%"></div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>نسبة التحصيل</span>
+                            <strong class="text-success">{{ invoice_stats.collection_rate|floatformat:1 }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-success" style="width: {{ invoice_stats.collection_rate|floatformat:0 }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="{% url 'sales:invoice_list' %}" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-list"></i> عرض جميع الفواتير
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Products & Customers -->
+    <div class="row g-3 mb-4">
+        <!-- Top Products -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-box text-warning"></i> أفضل 10 منتجات مبيعاً
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>الكود</th>
+                                    <th>المنتج</th>
+                                    <th class="text-end">الكمية</th>
+                                    <th class="text-end">المبلغ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in top_products %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ product.item__code }}</td>
+                                    <td>{{ product.item__name }}</td>
+                                    <td class="text-end">{{ product.total_quantity|floatformat:2 }}</td>
+                                    <td class="text-end"><strong>{{ product.total_amount|floatformat:2 }}</strong></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">لا توجد بيانات</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Customers -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-users text-info"></i> أفضل 10 عملاء
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>الكود</th>
+                                    <th>العميل</th>
+                                    <th class="text-end">الفواتير</th>
+                                    <th class="text-end">المبلغ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for customer in top_customers %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ customer.customer__code }}</td>
+                                    <td>{{ customer.customer__name }}</td>
+                                    <td class="text-end">{{ customer.invoice_count }}</td>
+                                    <td class="text-end"><strong>{{ customer.total_amount|floatformat:2 }}</strong></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">لا توجد بيانات</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Invoices -->
+    <div class="row g-3">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-clock text-primary"></i> آخر الفواتير
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>الرقم</th>
+                                    <th>التاريخ</th>
+                                    <th>العميل</th>
+                                    <th>المبلغ</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for invoice in recent_invoices %}
+                                <tr>
+                                    <td><strong>{{ invoice.number }}</strong></td>
+                                    <td>{{ invoice.date|date:"Y-m-d" }}</td>
+                                    <td>{{ invoice.customer.name }}</td>
+                                    <td class="text-end"><strong>{{ invoice.total_with_tax|floatformat:2 }}</strong></td>
+                                    <td>
+                                        {% if invoice.is_posted %}
+                                            <span class="badge badge-status bg-success">معتمدة</span>
+                                        {% else %}
+                                            <span class="badge badge-status bg-secondary">مسودة</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">لا توجد فواتير</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Monthly Sales Chart
+    const monthlySalesData = {
+        labels: [
+            {% for sale in monthly_sales %}
+                '{{ sale.month|date:"Y-m" }}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'المبيعات',
+            data: [
+                {% for sale in monthly_sales %}
+                    {{ sale.total_amount|default:0 }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ],
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            borderColor: 'rgba(13, 110, 253, 1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
+        }]
+    };
+
+    const monthlySalesConfig = {
+        type: 'line',
+        data: monthlySalesData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    rtl: true,
+                    textDirection: 'rtl'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('ar-JO') + ' د.أ';
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    new Chart(
+        document.getElementById('monthlySalesChart'),
+        monthlySalesConfig
+    );
+});
+</script>
+{% endblock %}
