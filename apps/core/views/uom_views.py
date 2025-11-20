@@ -28,7 +28,7 @@ class UoMConversionListView(LoginRequiredMixin, ListView):
         queryset = UoMConversion.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'from_uom', 'to_uom', 'item', 'variant'
+            'from_uom', 'item', 'variant', 'item__base_uom', 'from_uom__uom_group', 'from_uom__uom_group__base_uom'
         ).order_by('-created_at')
 
         # Search filter
@@ -36,20 +36,16 @@ class UoMConversionListView(LoginRequiredMixin, ListView):
         if search:
             queryset = queryset.filter(
                 Q(from_uom__name__icontains=search) |
-                Q(to_uom__name__icontains=search) |
                 Q(item__name__icontains=search) |
-                Q(variant__code__icontains=search)
+                Q(variant__code__icontains=search) |
+                Q(item__base_uom__name__icontains=search) |
+                Q(from_uom__uom_group__base_uom__name__icontains=search)
             )
 
         # From UoM filter
         from_uom = self.request.GET.get('from_uom')
         if from_uom:
             queryset = queryset.filter(from_uom_id=from_uom)
-
-        # To UoM filter
-        to_uom = self.request.GET.get('to_uom')
-        if to_uom:
-            queryset = queryset.filter(to_uom_id=to_uom)
 
         # Item filter
         item = self.request.GET.get('item')
@@ -105,14 +101,14 @@ class UoMConversionDetailView(LoginRequiredMixin, DetailView):
     Detail view for a single UoM Conversion.
     """
     model = UoMConversion
-    template_name = 'core/uom/conversion_detail.html'
+    template_name = 'core/uom_conversions/conversion_detail.html'
     context_object_name = 'conversion'
 
     def get_queryset(self):
         return UoMConversion.objects.filter(
             company=self.request.current_company
         ).select_related(
-            'from_uom', 'to_uom', 'item', 'variant', 'created_by'
+            'from_uom', 'item', 'variant', 'created_by', 'item__base_uom', 'from_uom__uom_group', 'from_uom__uom_group__base_uom'
         )
 
     def get_context_data(self, **kwargs):
@@ -161,7 +157,7 @@ class UoMConversionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
     """
     model = UoMConversion
     form_class = UoMConversionForm
-    template_name = 'core/uom/conversion_form.html'
+    template_name = 'core/uom_conversions/conversion_form.html'
     permission_required = 'core.add_uomconversion'
 
     def get_form_kwargs(self):
@@ -174,11 +170,20 @@ class UoMConversionCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
         form.instance.created_by = self.request.user
         response = super().form_valid(form)
 
+        # Determine the target UOM (always the base UOM)
+        if self.object.item:
+            to_uom_name = self.object.item.base_uom.name if self.object.item.base_uom else _('الوحدة الأساسية')
+        elif self.object.from_uom.uom_group and self.object.from_uom.uom_group.base_uom:
+            to_uom_name = self.object.from_uom.uom_group.base_uom.name
+        else:
+            to_uom_name = _('الوحدة الأساسية')
+
         messages.success(
             self.request,
-            _('تم إنشاء التحويل بنجاح: %(from)s → %(to)s') % {
+            _('تم إنشاء التحويل بنجاح: %(from)s → %(to)s (معامل: %(factor)s)') % {
                 'from': self.object.from_uom.name,
-                'to': self.object.to_uom.name
+                'to': to_uom_name,
+                'factor': self.object.conversion_factor
             }
         )
 
@@ -209,7 +214,7 @@ class UoMConversionUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Updat
     """
     model = UoMConversion
     form_class = UoMConversionForm
-    template_name = 'core/uom/conversion_form.html'
+    template_name = 'core/uom_conversions/conversion_form.html'
     permission_required = 'core.change_uomconversion'
 
     def get_queryset(self):
@@ -257,7 +262,7 @@ class UoMConversionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
     Delete view for UoM Conversion.
     """
     model = UoMConversion
-    template_name = 'core/uom/conversion_confirm_delete.html'
+    template_name = 'core/uom_conversions/conversion_confirm_delete.html'
     permission_required = 'core.delete_uomconversion'
     success_url = reverse_lazy('core:uom_conversion_list')
 
@@ -268,11 +273,20 @@ class UoMConversionDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
 
     def delete(self, request, *args, **kwargs):
         conversion = self.get_object()
+
+        # Determine the target UOM (always the base UOM)
+        if conversion.item:
+            to_uom_name = conversion.item.base_uom.name if conversion.item.base_uom else _('الوحدة الأساسية')
+        elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom:
+            to_uom_name = conversion.from_uom.uom_group.base_uom.name
+        else:
+            to_uom_name = _('الوحدة الأساسية')
+
         messages.success(
             request,
             _('تم حذف التحويل بنجاح: %(from)s → %(to)s') % {
                 'from': conversion.from_uom.name,
-                'to': conversion.to_uom.name
+                'to': to_uom_name
             }
         )
         return super().delete(request, *args, **kwargs)
@@ -298,7 +312,7 @@ class UoMConversionBulkCreateView(LoginRequiredMixin, PermissionRequiredMixin, F
     Bulk create view for creating multiple UoM conversions at once.
     """
     form_class = UoMConversionBulkForm
-    template_name = 'core/uom/conversion_bulk_form.html'
+    template_name = 'core/uom_conversions/conversion_bulk_form.html'
     permission_required = 'core.add_uomconversion'
     success_url = reverse_lazy('core:uom_conversion_list')
 

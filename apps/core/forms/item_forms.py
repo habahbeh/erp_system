@@ -22,7 +22,8 @@ class ItemForm(forms.ModelForm):
             'tax_rate',
             # حذف الحسابات المحاسبية مؤقتاً لحل المشاكل
             # 'sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account',
-            'short_description', 'description', 'has_variants',
+            'short_description', 'description', 'features',
+            'has_variants',
             'weight', 'length', 'width', 'height',
             'manufacturer', 'model_number',
             'image', 'attachment', 'attachment_name',
@@ -81,6 +82,11 @@ class ItemForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 5,
                 'placeholder': _('الوصف التفصيلي')
+            }),
+            'features': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': _('المميزات (كل ميزة في سطر)')
             }),
             'has_variants': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -205,6 +211,11 @@ class ItemForm(forms.ModelForm):
                 is_active=True
             ).order_by('name')
 
+
+        # تصحيح الإلزامية للحقول
+        self.fields['base_uom'].required = True
+        self.fields['tax_rate'].required = False
+        self.fields['has_variants'].required = False
 
         # إضافة empty_label للخيارات الاختيارية
         self.fields['brand'].empty_label = _('اختر العلامة التجارية')

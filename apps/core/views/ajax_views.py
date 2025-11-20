@@ -18,7 +18,7 @@ from ..models import (
 )
 
 
-from ..decorators import permission_required_with_message
+# Removed old decorator - using @login_required instead for AJAX views
 from django.contrib.auth import get_user_model
 
 
@@ -68,7 +68,6 @@ def smart_search_query(search_fields, value):
 
 
 @login_required
-@permission_required_with_message('core.view_item')
 @require_http_methods(["GET"])
 def item_datatable_ajax(request):
     """Ajax endpoint للـ DataTable مع البحث الذكي للمواد"""
@@ -429,7 +428,6 @@ def check_barcode(request):
 
 
 @login_required
-@permission_required_with_message('core.view_businesspartner')
 @require_http_methods(["GET"])
 def partner_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للعملاء مع البحث الذكي"""
@@ -674,7 +672,6 @@ def partner_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_warehouse')
 @require_http_methods(["GET"])
 def warehouse_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للمستودعات مع البحث الذكي"""
@@ -879,7 +876,6 @@ def warehouse_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_brand')
 @require_http_methods(["GET"])
 def brand_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للعلامات التجارية مع البحث الذكي"""
@@ -1063,7 +1059,6 @@ def brand_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_unitofmeasure')
 @require_http_methods(["GET"])
 def unit_datatable_ajax(request):
     """Ajax endpoint للـ DataTable لوحدات القياس مع البحث الذكي"""
@@ -1218,7 +1213,7 @@ def unit_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_currency')
+@login_required
 @require_http_methods(["GET"])
 def currency_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للعملات مع البحث الذكي"""
@@ -1374,7 +1369,7 @@ def currency_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_branch')
+@login_required
 @require_http_methods(["GET"])
 def branch_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للفروع مع البحث الذكي"""
@@ -1549,7 +1544,7 @@ def branch_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_variantattribute')
+@login_required
 @require_http_methods(["GET"])
 def variant_attribute_datatable_ajax(request):
     """Ajax endpoint للـ DataTable لخصائص المتغيرات مع البحث الذكي"""
@@ -1730,7 +1725,7 @@ def variant_attribute_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('auth.view_user')
+@login_required
 @require_http_methods(["GET"])
 def user_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للمستخدمين مع البحث الذكي"""
@@ -1953,7 +1948,7 @@ def user_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_userprofile')
+@login_required
 @require_http_methods(["GET"])
 def profile_datatable_ajax(request):
     """Ajax endpoint للـ DataTable لملفات المستخدمين مع البحث الذكي"""
@@ -2144,7 +2139,7 @@ def profile_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_custompermission')
+@login_required
 @require_http_methods(["GET"])
 def permission_datatable_ajax(request):
     """Ajax endpoint للـ DataTable للصلاحيات المخصصة مع البحث الذكي"""
@@ -2309,7 +2304,7 @@ def permission_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_permissiongroup')
+@login_required
 @require_http_methods(["GET"])
 def group_datatable_ajax(request):
     """Ajax endpoint للـ DataTable لمجموعات الصلاحيات مع البحث الذكي"""
@@ -2460,7 +2455,7 @@ def group_datatable_ajax(request):
 
 
 @login_required
-@permission_required_with_message('core.view_pricelist')
+@login_required
 @require_http_methods(["GET"])
 def price_list_datatable_ajax(request):
     """Ajax endpoint للـ DataTable لقوائم الأسعار مع البحث الذكي"""

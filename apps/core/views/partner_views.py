@@ -365,10 +365,15 @@ def item_search_ajax(request):
 
         from ..models import Item
 
-        # البحث في المنتجات
+        # البحث في المنتجات مع prefetch للمتغيرات والأسعار
         items = Item.objects.filter(
             company=request.current_company,
             is_active=True
+        ).select_related(
+            'base_uom', 'category'
+        ).prefetch_related(
+            'variants',
+            'price_list_items__price_list'
         )
 
         if search_term:
@@ -395,13 +400,46 @@ def item_search_ajax(request):
         # تحويل النتائج إلى JSON
         results = []
         for item in items:
+            # جمع المتغيرات النشطة
+            variants = []
+            for variant in item.variants.filter(is_active=True):
+                variant_data = {
+                    'id': variant.id,
+                    'code': variant.code,
+                    'name': variant.name if variant.name else '',
+                }
+                # إضافة السمات إذا كانت موجودة
+                if hasattr(variant, 'attribute_values') and variant.attribute_values:
+                    variant_data['attributes'] = variant.attribute_values
+                variants.append(variant_data)
+
+            # جمع الأسعار من قوائم الأسعار النشطة
+            prices = []
+            default_price = None
+            for price_item in item.price_list_items.filter(
+                price_list__is_active=True
+            ).select_related('price_list'):
+                price_data = {
+                    'price_list_name': price_item.price_list.name,
+                    'price': str(price_item.price),
+                    'is_default': price_item.price_list.is_default
+                }
+                prices.append(price_data)
+
+                # حفظ السعر الافتراضي
+                if price_item.price_list.is_default:
+                    default_price = str(price_item.price)
+
             results.append({
                 'id': item.id,
                 'text': f"{item.code} - {item.name}",
                 'name': item.name,
                 'code': item.code,
-                'unit': item.unit_of_measure.name if item.unit_of_measure else '',
-                'unit_id': item.unit_of_measure.id if item.unit_of_measure else None
+                'unit': item.base_uom.name if item.base_uom else '',
+                'unit_id': item.base_uom.id if item.base_uom else None,
+                'variants': variants,
+                'prices': prices,
+                'default_price': default_price
             })
 
         return JsonResponse({

@@ -1,0 +1,226 @@
+{# apps/core/templates/core/uom_conversions/conversion_confirm_delete.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-exclamation-triangle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "تأكيد عملية الحذف" %}</p>
+        </div>
+    </div>
+
+    <!-- Warning Alert -->
+    <div class="alert alert-danger border-0 shadow-sm mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle fa-2x"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h5 class="alert-heading mb-2">{% trans "تحذير!" %}</h5>
+                <p class="mb-1">{% trans "هذا الإجراء لا يمكن التراجع عنه." %}</p>
+                <small>{% trans "سيتم حذف التحويل نهائياً." %}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversion Information -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex align-items-center">
+                    <i class="fas fa-exchange-alt text-primary me-2"></i>
+                    <h6 class="card-title mb-0">{% trans "معلومات التحويل المراد حذفه" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="row g-3">
+                                <!-- النطاق -->
+                                <div class="col-12">
+                                    <label class="text-muted small">{% trans "نطاق التحويل" %}</label>
+                                    <div>
+                                        {% if conversion.variant %}
+                                            <span class="badge bg-danger fs-6">
+                                                <i class="fas fa-cube"></i> {% trans "خاص بالمتغير" %}: {{ conversion.variant }}
+                                            </span>
+                                        {% elif conversion.item %}
+                                            <span class="badge bg-warning fs-6">
+                                                <i class="fas fa-box"></i> {% trans "خاص بالمادة" %}: {{ conversion.item }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-info fs-6">
+                                                <i class="fas fa-globe"></i> {% trans "عام" %}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- من وحدة -->
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "من وحدة" %}</label>
+                                    <h5 class="mb-0">
+                                        <code class="bg-light text-primary fw-bold px-3 py-2 rounded">{{ conversion.from_uom.code }}</code>
+                                        {{ conversion.from_uom.name }}
+                                    </h5>
+                                </div>
+
+                                <!-- إلى وحدة -->
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "إلى وحدة" %}</label>
+                                    <h5 class="mb-0">
+                                        {% if conversion.item and conversion.item.base_uom %}
+                                            <code class="bg-light text-success fw-bold px-3 py-2 rounded">{{ conversion.item.base_uom.code }}</code>
+                                            {{ conversion.item.base_uom.name }}
+                                        {% elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom %}
+                                            <code class="bg-light text-success fw-bold px-3 py-2 rounded">{{ conversion.from_uom.uom_group.base_uom.code }}</code>
+                                            {{ conversion.from_uom.uom_group.base_uom.name }}
+                                        {% else %}
+                                            <span class="text-muted">{% trans "الوحدة الأساسية" %}</span>
+                                        {% endif %}
+                                    </h5>
+                                </div>
+
+                                <!-- معامل التحويل -->
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "معامل التحويل" %}</label>
+                                    <h5 class="mb-0">
+                                        <span class="text-primary fw-bold">× {{ conversion.conversion_factor }}</span>
+                                    </h5>
+                                </div>
+
+                                <!-- صيغة التحويل -->
+                                {% if conversion.formula_expression %}
+                                <div class="col-md-6">
+                                    <label class="text-muted small">{% trans "صيغة التحويل" %}</label>
+                                    <h6 class="mb-0">
+                                        <span class="badge bg-light text-dark">{{ conversion.formula_expression }}</span>
+                                    </h6>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- معلومات إضافية -->
+                    <div class="row g-3 mt-3 pt-3 border-top">
+                        <div class="col-md-6 text-center">
+                            <small class="text-muted d-block">{% trans "تاريخ الإنشاء" %}</small>
+                            <strong>{{ conversion.created_at|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <small class="text-muted d-block">{% trans "آخر تحديث" %}</small>
+                            <strong>{{ conversion.updated_at|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Form -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <form method="post" id="deleteForm">
+                        {% csrf_token %}
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label text-danger" for="confirmDelete">
+                                <strong>
+                                    {% trans "أؤكد أنني أريد حذف هذا التحويل نهائياً" %}
+                                </strong>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                {% trans "إلغاء" %}
+                            </a>
+
+                            <button type="submit" class="btn btn-danger btn-lg" id="deleteBtn" disabled>
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "حذف نهائي" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+
+    // Enable/disable delete button based on checkbox
+    confirmCheckbox.addEventListener('change', function() {
+        deleteBtn.disabled = !this.checked;
+    });
+
+    // Confirmation dialog before submit
+    deleteForm.addEventListener('submit', function(e) {
+        if (!confirm('{% trans "هل أنت متأكد من أنك تريد حذف هذا التحويل؟ هذا الإجراء لا يمكن التراجع عنه." %}')) {
+            e.preventDefault();
+        } else {
+            // Show loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "جاري الحذف..." %}';
+            deleteBtn.disabled = true;
+        }
+    });
+
+    // Auto-focus on confirmation checkbox
+    confirmCheckbox.focus();
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-danger {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+
+    .form-check-input:checked {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+
+    .btn-danger:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    @media print {
+        .btn, .alert, form { display: none !important; }
+    }
+</style>
+{% endblock %}

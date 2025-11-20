@@ -1,0 +1,235 @@
+{# apps/core/templates/core/uom_conversions/conversion_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{% trans "تفاصيل التحويل" %}</h1>
+            <p class="text-muted mb-1">
+                {{ conversion.from_uom.name }} →
+                {% if conversion.item and conversion.item.base_uom %}
+                    {{ conversion.item.base_uom.name }}
+                {% elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom %}
+                    {{ conversion.from_uom.uom_group.base_uom.name }}
+                {% else %}
+                    {% trans "الوحدة الأساسية" %}
+                {% endif %}
+            </p>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary fs-6">
+                    <i class="fas fa-exchange-alt"></i> × {{ conversion.conversion_factor }}
+                </span>
+                {% if conversion.is_active %}
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check"></i> {% trans "نشط" %}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">
+                        <i class="fas fa-times"></i> {% trans "غير نشط" %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_change %}
+            <a href="{{ edit_url }}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> {% trans "تعديل" %}
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{{ delete_url }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'core:uom_conversion_list' %}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> {% trans "العودة للقائمة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- المعلومات الأساسية -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-exchange-alt"></i> {% trans "معلومات التحويل" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <!-- النطاق -->
+                        <div class="col-md-12">
+                            <h6 class="text-muted mb-1">{% trans "نطاق التحويل" %}</h6>
+                            {% if conversion.variant %}
+                                <span class="badge bg-danger fs-6">
+                                    <i class="fas fa-cube"></i> {% trans "خاص بالمتغير" %}: {{ conversion.variant }}
+                                </span>
+                            {% elif conversion.item %}
+                                <span class="badge bg-warning fs-6">
+                                    <i class="fas fa-box"></i> {% trans "خاص بالمادة" %}: {{ conversion.item }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-info fs-6">
+                                    <i class="fas fa-globe"></i> {% trans "عام" %}
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- من وحدة -->
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "من وحدة" %}</h6>
+                            <p class="mb-0">
+                                <code class="bg-light px-3 py-2 rounded fs-5 text-primary fw-bold">{{ conversion.from_uom.code }}</code>
+                                <span class="ms-2">{{ conversion.from_uom.name }}</span>
+                            </p>
+                        </div>
+
+                        <!-- إلى وحدة -->
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "إلى وحدة" %}</h6>
+                            <p class="mb-0">
+                                {% if conversion.item and conversion.item.base_uom %}
+                                    <code class="bg-light px-3 py-2 rounded fs-5 text-success fw-bold">{{ conversion.item.base_uom.code }}</code>
+                                    <span class="ms-2">{{ conversion.item.base_uom.name }}</span>
+                                {% elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom %}
+                                    <code class="bg-light px-3 py-2 rounded fs-5 text-success fw-bold">{{ conversion.from_uom.uom_group.base_uom.code }}</code>
+                                    <span class="ms-2">{{ conversion.from_uom.uom_group.base_uom.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">{% trans "الوحدة الأساسية" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <!-- معامل التحويل -->
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "معامل التحويل" %}</h6>
+                            <p class="mb-0">
+                                <span class="fs-4 text-primary fw-bold">{{ conversion.conversion_factor }}</span>
+                            </p>
+                        </div>
+
+                        <!-- صيغة التحويل -->
+                        {% if conversion.formula_expression %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-1">{% trans "صيغة التحويل" %}</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-light text-dark fs-6">{{ conversion.formula_expression }}</span>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <!-- ملاحظات -->
+                        {% if conversion.notes %}
+                        <div class="col-12">
+                            <h6 class="text-muted mb-1">{% trans "ملاحظات" %}</h6>
+                            <p class="mb-0">{{ conversion.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- أمثلة على التحويل -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-calculator"></i> {% trans "أمثلة على التحويل" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{{ conversion.from_uom.name }}</th>
+                                <th><i class="fas fa-arrow-right"></i></th>
+                                <th>
+                                    {% if conversion.item and conversion.item.base_uom %}
+                                        {{ conversion.item.base_uom.name }}
+                                    {% elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom %}
+                                        {{ conversion.from_uom.uom_group.base_uom.name }}
+                                    {% else %}
+                                        {% trans "الوحدة الأساسية" %}
+                                    {% endif %}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for example in examples %}
+                            <tr>
+                                <td>{{ example.from_qty }} {{ conversion.from_uom.code }}</td>
+                                <td>=</td>
+                                <td>{{ example.to_qty }}
+                                    {% if conversion.item and conversion.item.base_uom %}
+                                        {{ conversion.item.base_uom.code }}
+                                    {% elif conversion.from_uom.uom_group and conversion.from_uom.uom_group.base_uom %}
+                                        {{ conversion.from_uom.uom_group.base_uom.code }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الجانبي -->
+        <div class="col-lg-4">
+            <!-- معلومات النظام -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info"></i> {% trans "معلومات النظام" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "تاريخ الإنشاء" %}:</strong> {{ conversion.created_at|date:"d/m/Y H:i" }}
+                    </small>
+                    {% if conversion.created_by %}
+                    <small class="text-muted d-block mb-1">
+                        <strong>{% trans "أنشئ بواسطة" %}:</strong> {{ conversion.created_by.get_full_name }}
+                    </small>
+                    {% endif %}
+                    <small class="text-muted d-block">
+                        <strong>{% trans "آخر تحديث" %}:</strong> {{ conversion.updated_at|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+
+            <!-- الشركة والفرع -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-building"></i> {% trans "الشركة" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ conversion.company.name }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

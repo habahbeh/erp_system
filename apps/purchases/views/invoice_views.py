@@ -215,8 +215,8 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
                 is_active=True
             ).values(
                 'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
+                'tax_rate', 'base_uom__name',
+                'base_uom__code'
             )
         )
 
@@ -327,8 +327,8 @@ class PurchaseInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
                 is_active=True
             ).values(
                 'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
+                'tax_rate', 'base_uom__name',
+                'base_uom__code'
             )
         )
 

@@ -423,3 +423,15 @@ def approve_purchase(request):
     # User must have permission for the specific amount
     ...
 """
+
+
+# Alias for backward compatibility
+def permission_required_with_message(permission_code: str):
+    """
+    Alias for permission_required with raise_exception=False
+    Shows message instead of raising exception
+
+    This is provided for backward compatibility with older code.
+    New code should use permission_required directly.
+    """
+    return permission_required(permission_code, raise_exception=False)

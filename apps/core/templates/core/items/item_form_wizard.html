@@ -1,0 +1,1874 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Windows Wizard Style */
+:root {
+    --primary-color: #0078d4;
+    --success-color: #107c10;
+    --border-color: #e1e1e1;
+    --bg-light: #f3f3f3;
+}
+
+.wizard-container {
+    max-width: 900px;
+    margin: 30px auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* Progress Steps */
+.wizard-progress {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 30px 50px;
+    background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.wizard-step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.wizard-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 20px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border-color);
+    z-index: 0;
+}
+
+.wizard-step.active:not(:last-child)::after,
+.wizard-step.completed:not(:last-child)::after {
+    background: var(--primary-color);
+}
+
+.step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid var(--border-color);
+    color: #666;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    margin: 0 auto 8px;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+.wizard-step.active .step-circle {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    transform: scale(1.1);
+}
+
+.wizard-step.completed .step-circle {
+    background: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.wizard-step.completed .step-circle::before {
+    content: '\f00c';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+}
+
+.wizard-step.completed .step-circle span {
+    display: none;
+}
+
+.step-label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+}
+
+.wizard-step.active .step-label {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.wizard-step.completed .step-label {
+    color: var(--success-color);
+}
+
+/* Content Area */
+.wizard-content {
+    padding: 40px 50px;
+    min-height: 450px;
+}
+
+.wizard-page {
+    display: none;
+}
+
+.wizard-page.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.page-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.page-description {
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 14px;
+}
+
+/* Form Fields */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-group label.required-field::after {
+    content: ' *';
+    color: #d13438;
+}
+
+.form-control, .form-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+}
+
+.form-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+    display: block;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.checkbox-wrapper:hover {
+    border-color: var(--primary-color);
+    background: #f0f6ff;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.checkbox-label {
+    flex: 1;
+}
+
+.checkbox-label strong {
+    display: block;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.checkbox-label small {
+    color: #666;
+    font-size: 13px;
+}
+
+/* Review Section */
+.review-section {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.review-section h5 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.review-item {
+    display: flex;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.review-item:last-child {
+    border-bottom: none;
+}
+
+.review-label {
+    font-weight: 500;
+    color: #666;
+    min-width: 140px;
+}
+
+.review-value {
+    color: #333;
+    font-weight: 500;
+}
+
+.variant-preview {
+    background: white;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.variant-item {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.variant-item:last-child {
+    margin-bottom: 0;
+}
+
+/* Buttons */
+.wizard-buttons {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 50px;
+    background: #f8f9fa;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-wizard {
+    padding: 10px 30px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-wizard:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-back {
+    background: white;
+    color: #333;
+    border: 1px solid var(--border-color);
+}
+
+.btn-back:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #999;
+}
+
+.btn-next {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-next:hover:not(:disabled) {
+    background: #106ebe;
+}
+
+.btn-save {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-save:hover:not(:disabled) {
+    background: #0e6b0e;
+}
+
+.btn-cancel {
+    background: transparent;
+    color: #666;
+    border: none;
+}
+
+.btn-cancel:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+/* Variants Selection */
+.variants-container {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.attribute-group {
+    margin-bottom: 25px;
+}
+
+.attribute-group h6 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.attribute-values {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.attribute-value {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.attribute-value:hover {
+    border-color: var(--primary-color);
+    background: #f0f6ff;
+}
+
+.attribute-value input[type="checkbox"] {
+    margin-right: 8px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.attribute-value label {
+    margin: 0;
+    cursor: pointer;
+    flex: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.variants-summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 6px;
+    border: 2px solid var(--primary-color);
+}
+
+.variants-summary strong {
+    color: var(--primary-color);
+    font-size: 16px;
+}
+
+/* Loading State */
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-spinner {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .wizard-progress {
+        padding: 20px;
+    }
+
+    .wizard-content {
+        padding: 30px 20px;
+    }
+
+    .wizard-buttons {
+        padding: 15px 20px;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .btn-wizard {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .step-label {
+        font-size: 11px;
+    }
+}
+
+/* Error Messages */
+.error-message {
+    color: #d13438;
+    font-size: 13px;
+    margin-top: 5px;
+    display: none;
+}
+
+.error-message.active {
+    display: block;
+}
+
+.form-control.error, .form-select.error {
+    border-color: #d13438;
+}
+
+.success-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 20px;
+    background: var(--success-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 30px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <form method="post" id="wizardForm" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <!-- Progress Steps -->
+        <div class="wizard-progress">
+            <div class="wizard-step active" data-step="1">
+                <div class="step-circle"><span>1</span></div>
+                <div class="step-label">{% trans "معلومات أساسية" %}</div>
+            </div>
+            <div class="wizard-step" data-step="2">
+                <div class="step-circle"><span>2</span></div>
+                <div class="step-label">{% trans "المتغيرات" %}</div>
+            </div>
+            <div class="wizard-step" data-step="3">
+                <div class="step-circle"><span>3</span></div>
+                <div class="step-label">{% trans "التفاصيل والأسعار" %}</div>
+            </div>
+            <div class="wizard-step" data-step="4">
+                <div class="step-circle"><span>4</span></div>
+                <div class="step-label">{% trans "مراجعة وحفظ" %}</div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="wizard-content">
+
+            <!-- Step 1: Basic Information -->
+            <div class="wizard-page active" data-step="1">
+                <h2 class="page-title">{% trans "المعلومات الأساسية" %}</h2>
+                <p class="page-description">{% trans "الرجاء إدخال المعلومات الأساسية للمادة" %}</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field">{% trans "اسم المادة" %}</label>
+                            {{ form.name|add_class:"form-control" }}
+                            <div class="error-message" id="error-name"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "الاسم الإنجليزي" %}</label>
+                            {{ form.name_en|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field">{% trans "التصنيف" %}</label>
+                            {{ form.category|add_class:"form-select" }}
+                            <div class="error-message" id="error-category"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field">{% trans "وحدة القياس" %}</label>
+                            {{ form.base_uom|add_class:"form-select" }}
+                            <div class="error-message" id="error-base_uom"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field">{% trans "العملة" %}</label>
+                            {{ form.currency|add_class:"form-select" }}
+                            <div class="error-message" id="error-currency"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "العلامة التجارية" %}</label>
+                            {{ form.brand|add_class:"form-select" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Variants -->
+            <div class="wizard-page" data-step="2">
+                <h2 class="page-title">{% trans "المتغيرات" %}</h2>
+                <p class="page-description">{% trans "هل هذه المادة لها متغيرات؟ (مثل: ألوان، مقاسات، إلخ)" %}</p>
+
+                <div class="checkbox-wrapper" onclick="toggleCheckbox('id_has_variants')">
+                    {{ form.has_variants }}
+                    <div class="checkbox-label">
+                        <strong>{% trans "هذه المادة لها متغيرات" %}</strong>
+                        <small>{% trans "مثال: قميص بألوان ومقاسات مختلفة" %}</small>
+                    </div>
+                </div>
+
+                <div id="variantsSelection" class="variants-container" style="display: none;">
+
+                    <!-- عرض المتغيرات الموجودة في وضع التعديل -->
+                    {% if is_update and existing_variants %}
+                    <div class="alert alert-info mb-4">
+                        <h6 class="mb-3">
+                            <i class="fas fa-layer-group"></i> {% trans "المتغيرات الموجودة" %}
+                            <span class="badge bg-primary ms-2">{{ existing_variants|length }}</span>
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered bg-white">
+                                <thead>
+                                    <tr>
+                                        <th width="50">#</th>
+                                        <th>{% trans "الكود" %}</th>
+                                        <th>{% trans "المواصفات" %}</th>
+                                        <th>{% trans "السعر الأساسي" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for variant in existing_variants %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td><code class="bg-light px-2 py-1">{{ variant.code }}</code></td>
+                                        <td>
+                                            {% for attr_val in variant.variant_attribute_values.all %}
+                                                <span class="badge bg-light text-dark border me-1">
+                                                    {{ attr_val.attribute.name }}: <strong>{{ attr_val.value.value }}</strong>
+                                                </span>
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                            {% if variant.base_price %}
+                                                <strong class="text-success">{{ variant.base_price }}</strong>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="alert alert-success mt-3 mb-0" role="alert">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>✅ المتغيرات الموجودة محمية:</strong> عند الحفظ، سيتم الحفاظ على جميع المتغيرات الموجودة وتحديث الأسعار فقط.
+                            <br>
+                            <small class="text-muted">لحذف أو تعديل متغيرات موجودة، يرجى استخدام صفحة إدارة المتغيرات المنفصلة.</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <h6>
+                        {% trans "اختر الخصائص والقيم:" %}
+                        {% if is_update and existing_variants %}
+                        <small class="text-muted">(الخصائص المستخدمة في المتغيرات الموجودة محددة تلقائياً)</small>
+                        {% endif %}
+                    </h6>
+
+                    {% for attribute in variant_attributes %}
+                    <div class="attribute-group">
+                        <h6>{{ attribute.name }}</h6>
+                        <div class="attribute-values">
+                            {% for value in attribute.values.all %}
+                            <div class="attribute-value">
+                                <input type="checkbox"
+                                       id="attr_{{ attribute.id }}_val_{{ value.id }}"
+                                       class="variant-checkbox"
+                                       data-attribute-id="{{ attribute.id }}"
+                                       data-attribute-name="{{ attribute.name }}"
+                                       data-value-id="{{ value.id }}"
+                                       data-value-name="{{ value.value }}">
+                                <label for="attr_{{ attribute.id }}_val_{{ value.id }}">
+                                    {{ value.value }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <div class="variants-summary">
+                        <strong>{% trans "عدد المتغيرات المتوقعة:" %} <span id="variantCount">0</span></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Details & Pricing -->
+            <div class="wizard-page" data-step="3">
+                <h2 class="page-title">{% trans "التفاصيل والأسعار" %}</h2>
+                <p class="page-description">{% trans "معلومات إضافية عن المادة (اختياري)" %}</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "رمز الكود" %}</label>
+                            {{ form.item_code|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "الباركود" %}</label>
+                            {{ form.barcode|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "رقم الكتالوج" %}</label>
+                            {{ form.catalog_number|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "نسبة الضريبة" %} (%)</label>
+                            {{ form.tax_rate|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "الوزن" %} (كجم)</label>
+                            {{ form.weight|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <!-- الأبعاد الفيزيائية -->
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{% trans "الطول" %} (سم)</label>
+                            {{ form.length|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{% trans "العرض" %} (سم)</label>
+                            {{ form.width|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{% trans "الارتفاع" %} (سم)</label>
+                            {{ form.height|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <!-- معلومات الشركة المصنعة -->
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "الشركة المصنعة" %}</label>
+                            {{ form.manufacturer|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "رقم الموديل" %}</label>
+                            {{ form.model_number|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <!-- الوصف والمميزات -->
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>{% trans "وصف مختصر" %}</label>
+                            {{ form.short_description|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>{% trans "الوصف التفصيلي" %}</label>
+                            {{ form.description|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>{% trans "المميزات" %}</label>
+                            {{ form.features|add_class:"form-control" }}
+                            <small class="text-muted">{% trans "كل ميزة في سطر منفصل" %}</small>
+                        </div>
+                    </div>
+
+                    <!-- الملفات والمرفقات -->
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "صورة المادة" %}</label>
+                            {{ form.image|add_class:"form-control" }}
+                            <small class="text-muted">{% trans "صورة توضيحية للمادة" %}</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "ملف مرفق" %}</label>
+                            {{ form.attachment|add_class:"form-control" }}
+                            <small class="text-muted">{% trans "ملف PDF أو مستند" %}</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>{% trans "اسم المرفق" %}</label>
+                            {{ form.attachment_name|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <!-- الملاحظات -->
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "ملاحظات" %}</label>
+                            {{ form.notes|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{% trans "ملاحظات إضافية" %}</label>
+                            {{ form.additional_notes|add_class:"form-control" }}
+                        </div>
+                    </div>
+
+                    <!-- قسم الأسعار -->
+                    <div class="col-md-12">
+                        <div class="pricing-section">
+                            <h5 class="pricing-title">
+                                <i class="fas fa-tags"></i> {% trans "الأسعار" %}
+                            </h5>
+                            <small class="text-muted">{% trans "أضف أسعار المادة لكل قائمة أسعار" %}</small>
+
+                            {% if price_lists %}
+                                <!-- الأسعار للمواد بدون متغيرات -->
+                                <div id="simplePricesSection" style="display: block;">
+                                    <table class="table table-sm table-bordered mt-3">
+                                        <thead>
+                                            <tr>
+                                                <th>{% trans "قائمة السعر" %}</th>
+                                                <th width="150">{% trans "السعر" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for price_list in price_lists %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ price_list.name }}</strong>
+                                                    {% if price_list.is_default %}
+                                                        <span class="badge bg-warning text-dark ms-1">
+                                                            <i class="fas fa-star"></i> {% trans "افتراضي" %}
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="number"
+                                                               class="form-control price-input"
+                                                               name="price_{{ price_list.id }}"
+                                                               id="price_{{ price_list.id }}"
+                                                               placeholder="0.00"
+                                                               step="0.001"
+                                                               min="0">
+                                                        <span class="input-group-text">{{ price_list.currency.symbol }}</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- الأسعار للمتغيرات -->
+                                <div id="variantPricesSection" style="display: none;">
+                                    <div class="alert alert-info mt-3">
+                                        <i class="fas fa-info-circle"></i>
+                                        {% trans "يرجى توليد المتغيرات في الخطوة السابقة أولاً، ثم يمكنك إضافة الأسعار هنا." %}
+                                    </div>
+                                    <div id="variantPricesTables"></div>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    {% trans "لا توجد قوائم أسعار نشطة. يرجى إضافة قائمة أسعار أولاً." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- قسم تحويلات وحدات القياس -->
+                    <div class="col-md-12 mt-4">
+                        <div class="uom-conversions-section">
+                            <h5 class="mb-3">
+                                <i class="fas fa-exchange-alt"></i> {% trans "تحويلات وحدات القياس" %}
+                            </h5>
+                            <small class="text-muted d-block mb-3">
+                                {% trans "أضف التحويلات بين وحدات القياس (مثل: 1 كرتون = 12 قطعة)" %}
+                            </small>
+
+                            <div id="conversionsContainer">
+                                <div class="alert alert-info alert-sm mb-2" role="alert" style="padding: 0.5rem; font-size: 0.875rem;">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>ملاحظة:</strong> التحويل يتم دائماً <strong>إلى وحدة القياس الأساسية</strong> للمادة.
+                                    <br>
+                                    <small>مثال: إذا كانت الوحدة الأساسية "قطعة"، يمكنك إضافة: 1 كرتون = 12 قطعة</small>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered" id="conversionsTable">
+                                        <thead>
+                                            <tr>
+                                                <th width="200">{% trans "من وحدة" %}</th>
+                                                <th width="150">{% trans "المعامل" %}</th>
+                                                <th width="250">{% trans "الصيغة" %}</th>
+                                                <th width="80">{% trans "الإجراء" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="conversionsBody">
+                                            <!-- سيتم إضافة الصفوف هنا ديناميكياً -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddConversion">
+                                    <i class="fas fa-plus"></i> {% trans "إضافة تحويل" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Review -->
+            <div class="wizard-page" data-step="4">
+                <h2 class="page-title">{% trans "مراجعة البيانات" %}</h2>
+                <p class="page-description">{% trans "يرجى مراجعة البيانات قبل الحفظ" %}</p>
+
+                <div class="review-section">
+                    <h5>{% trans "المعلومات الأساسية" %}</h5>
+                    <div class="review-item">
+                        <div class="review-label">{% trans "اسم المادة:" %}</div>
+                        <div class="review-value" id="review-name">-</div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-label">{% trans "التصنيف:" %}</div>
+                        <div class="review-value" id="review-category">-</div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-label">{% trans "وحدة القياس:" %}</div>
+                        <div class="review-value" id="review-base_uom">-</div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-label">{% trans "العملة:" %}</div>
+                        <div class="review-value" id="review-currency">-</div>
+                    </div>
+                </div>
+
+                <div class="review-section" id="variantsReview" style="display: none;">
+                    <h5>{% trans "المتغيرات" %}</h5>
+                    <div class="review-item">
+                        <div class="review-label">{% trans "عدد المتغيرات:" %}</div>
+                        <div class="review-value" id="review-variant-count">0</div>
+                    </div>
+                    <div class="variant-preview" id="variantPreviewList"></div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <div class="success-icon">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <p>{% trans "جميع البيانات جاهزة للحفظ" %}</p>
+                </div>
+            </div>
+
+            <!-- Hidden field for generated variants -->
+            <input type="hidden" name="generated_variants" id="generated_variants" value="[]">
+
+        </div>
+
+        <!-- Buttons -->
+        <div class="wizard-buttons">
+            <div>
+                <button type="button" class="btn-wizard btn-back" id="btnBack" disabled>
+                    <i class="fas fa-chevron-right"></i>
+                    {% trans "السابق" %}
+                </button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="{{ cancel_url }}" class="btn-wizard btn-cancel">
+                    {% trans "إلغاء" %}
+                </a>
+                <button type="button" class="btn-wizard btn-next" id="btnNext">
+                    {% trans "التالي" %}
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button type="submit" class="btn-wizard btn-save" id="btnSave" style="display: none;">
+                    <i class="fas fa-save"></i>
+                    {% trans "حفظ" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>{% trans "جاري الحفظ..." %}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentStep = 1;
+    const totalSteps = 4;
+    let generatedVariants = [];
+
+    const btnBack = document.getElementById('btnBack');
+    const btnNext = document.getElementById('btnNext');
+    const btnSave = document.getElementById('btnSave');
+    const hasVariantsCheckbox = document.getElementById('id_has_variants');
+    const variantsSelection = document.getElementById('variantsSelection');
+
+    // Navigate to step
+    function goToStep(step) {
+        if (step < 1 || step > totalSteps) return;
+
+        // Hide all pages
+        document.querySelectorAll('.wizard-page').forEach(page => {
+            page.classList.remove('active');
+        });
+
+        // Show current page
+        document.querySelector(`.wizard-page[data-step="${step}"]`).classList.add('active');
+
+        // Update progress
+        document.querySelectorAll('.wizard-step').forEach(stepEl => {
+            const stepNum = parseInt(stepEl.dataset.step);
+            stepEl.classList.remove('active', 'completed');
+
+            if (stepNum < step) {
+                stepEl.classList.add('completed');
+            } else if (stepNum === step) {
+                stepEl.classList.add('active');
+            }
+        });
+
+        // Update buttons
+        btnBack.disabled = (step === 1);
+
+        if (step === totalSteps) {
+            btnNext.style.display = 'none';
+            btnSave.style.display = 'inline-flex';
+            updateReview();
+        } else {
+            btnNext.style.display = 'inline-flex';
+            btnSave.style.display = 'none';
+        }
+
+        currentStep = step;
+    }
+
+    // Validation
+    function validateStep(step) {
+        let isValid = true;
+        const errors = [];
+
+        // Clear previous errors
+        document.querySelectorAll('.error-message').forEach(el => {
+            el.classList.remove('active');
+            el.textContent = '';
+        });
+        document.querySelectorAll('.form-control, .form-select').forEach(el => {
+            el.classList.remove('error');
+        });
+
+        if (step === 1) {
+            // Validate basic info
+            const name = document.getElementById('id_name');
+            const category = document.getElementById('id_category');
+            const base_uom = document.getElementById('id_base_uom');
+            const currency = document.getElementById('id_currency');
+
+            if (!name.value.trim()) {
+                showError('name', '{% trans "يرجى إدخال اسم المادة" %}');
+                isValid = false;
+            }
+
+            if (!category.value) {
+                showError('category', '{% trans "يرجى اختيار التصنيف" %}');
+                isValid = false;
+            }
+
+            if (!base_uom.value) {
+                showError('base_uom', '{% trans "يرجى اختيار وحدة القياس" %}');
+                isValid = false;
+            }
+
+            if (!currency.value) {
+                showError('currency', '{% trans "يرجى اختيار العملة" %}');
+                isValid = false;
+            }
+        }
+
+        if (step === 2) {
+            // Generate variants if has_variants is checked
+            if (hasVariantsCheckbox.checked) {
+                generatedVariants = calculateVariants();
+                document.getElementById('generated_variants').value = JSON.stringify(generatedVariants);
+
+                // Generate variant price tables for step 3
+                if (generatedVariants.length > 0) {
+                    generateVariantPricesTables(generatedVariants);
+                }
+            } else {
+                generatedVariants = [];
+                document.getElementById('generated_variants').value = '[]';
+            }
+        }
+
+        return isValid;
+    }
+
+    function showError(fieldName, message) {
+        const field = document.getElementById('id_' + fieldName);
+        const errorEl = document.getElementById('error-' + fieldName);
+
+        if (field) field.classList.add('error');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.add('active');
+        }
+    }
+
+    // Next button
+    btnNext.addEventListener('click', function() {
+        if (validateStep(currentStep)) {
+            goToStep(currentStep + 1);
+        }
+    });
+
+    // Back button
+    btnBack.addEventListener('click', function() {
+        goToStep(currentStep - 1);
+    });
+
+    // Has variants checkbox
+    hasVariantsCheckbox.addEventListener('change', function() {
+        variantsSelection.style.display = this.checked ? 'block' : 'none';
+
+        // Toggle pricing sections
+        const simplePricesSection = document.getElementById('simplePricesSection');
+        const variantPricesSection = document.getElementById('variantPricesSection');
+
+        if (this.checked) {
+            // Show variant prices message, hide simple prices
+            if (simplePricesSection) simplePricesSection.style.display = 'none';
+            if (variantPricesSection) variantPricesSection.style.display = 'block';
+        } else {
+            // Show simple prices, hide variant prices message
+            if (simplePricesSection) simplePricesSection.style.display = 'block';
+            if (variantPricesSection) variantPricesSection.style.display = 'none';
+        }
+
+        if (!this.checked) {
+            document.querySelectorAll('.variant-checkbox').forEach(cb => cb.checked = false);
+            updateVariantCount();
+        }
+    });
+
+    // Variant checkboxes
+    document.querySelectorAll('.variant-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateVariantCount);
+    });
+
+    function updateVariantCount() {
+        const variants = calculateVariants();
+        document.getElementById('variantCount').textContent = variants.length;
+    }
+
+    function calculateVariants() {
+        const attributes = {};
+
+        document.querySelectorAll('.variant-checkbox:checked').forEach(cb => {
+            const attrId = cb.dataset.attributeId;
+            const attrName = cb.dataset.attributeName;
+            const valueId = cb.dataset.valueId;
+            const valueName = cb.dataset.valueName;
+
+            if (!attributes[attrId]) {
+                attributes[attrId] = {
+                    name: attrName,
+                    values: []
+                };
+            }
+
+            attributes[attrId].values.push({
+                id: valueId,
+                name: valueName
+            });
+        });
+
+        const attributeKeys = Object.keys(attributes);
+        if (attributeKeys.length === 0) return [];
+
+        // Calculate cartesian product
+        const combinations = cartesianProduct(
+            attributeKeys.map(key => attributes[key].values)
+        );
+
+        return combinations.map((combo, index) => ({
+            index: index + 1,
+            combination: combo,
+            code: `V${(index + 1).toString().padStart(3, '0')}`,
+            description: combo.map(v => v.name).join(' - ')
+        }));
+    }
+
+    function cartesianProduct(arrays) {
+        return arrays.reduce((acc, curr) => {
+            const result = [];
+            acc.forEach(a => {
+                curr.forEach(b => {
+                    result.push([...a, b]);
+                });
+            });
+            return result;
+        }, [[]]);
+    }
+
+    // Generate variant prices tables
+    function generateVariantPricesTables(variants) {
+        console.log('🎯 generateVariantPricesTables called with:', variants);
+
+        const container = document.getElementById('variantPricesTables');
+        if (!container) {
+            console.error('❌ variantPricesTables container not found!');
+            return;
+        }
+
+        container.innerHTML = '';
+
+        const priceLists = {{ price_lists_json|safe|default:"[]" }};
+        console.log('📋 Price lists:', priceLists);
+
+        // جلب الأسعار الموجودة (للتعديل)
+        let variantsPricesData = {};
+        {% if variants_prices_data %}
+        variantsPricesData = {{ variants_prices_data|safe }};
+        console.log('💰 Loaded variants prices data:', variantsPricesData);
+        console.log('💰 Keys:', Object.keys(variantsPricesData));
+        {% else %}
+        console.log('⚠️ No variants_prices_data available');
+        {% endif %}
+
+        if (!priceLists || priceLists.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {% trans "لا توجد قوائم أسعار نشطة." %}
+                </div>
+            `;
+            return;
+        }
+
+        let tablesHTML = '<div class="variant-prices-tables mt-3">';
+
+        // Create a table for each price list
+        priceLists.forEach(priceList => {
+            tablesHTML += `
+                <div class="price-list-table mb-4">
+                    <h6 class="border-bottom pb-2">
+                        <i class="fas fa-list-alt"></i> ${priceList.name}
+                        ${priceList.is_default ? '<span class="badge bg-warning text-dark ms-2"><i class="fas fa-star"></i> افتراضي</span>' : ''}
+                    </h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th width="120">{% trans "الكود" %}</th>
+                                <th>{% trans "المتغير" %}</th>
+                                <th width="150">{% trans "السعر" %} (${priceList.currency__symbol})</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            variants.forEach((variant, index) => {
+                // جلب السعر الموجود إذا كان متاحاً (للتعديل)
+                let existingPrice = '';
+                const variantIdStr = String(variant.id);
+                const priceListIdStr = String(priceList.id);
+
+                console.log(`   Checking variant ${variantIdStr} (${variant.code}) for price list ${priceListIdStr}`);
+                console.log(`   - Has variant.id? ${!!variant.id}`);
+                console.log(`   - variantsPricesData[${variantIdStr}] exists? ${!!variantsPricesData[variantIdStr]}`);
+
+                if (variant.id && variantsPricesData[variantIdStr]) {
+                    console.log(`   - Available prices for variant:`, variantsPricesData[variantIdStr]);
+                    if (variantsPricesData[variantIdStr][priceListIdStr]) {
+                        existingPrice = variantsPricesData[variantIdStr][priceListIdStr];
+                        console.log(`   ✅ Found price: ${existingPrice}`);
+                    } else {
+                        console.log(`   ⚠️ No price for price list ${priceListIdStr}`);
+                    }
+                } else {
+                    console.log(`   ⚠️ No price data for variant ${variantIdStr}`);
+                }
+
+                tablesHTML += `
+                    <tr>
+                        <td><code>${variant.code}</code></td>
+                        <td><small>${variant.description}</small></td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   name="variant_price_${priceList.id}_${index}"
+                                   data-variant-index="${index}"
+                                   data-price-list-id="${priceList.id}"
+                                   data-variant-id="${variant.id || ''}"
+                                   placeholder="0.00"
+                                   step="0.001"
+                                   min="0"
+                                   value="${existingPrice}">
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tablesHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+
+        tablesHTML += '</div>';
+        container.innerHTML = tablesHTML;
+    }
+
+    // Update review
+    function updateReview() {
+        document.getElementById('review-name').textContent = document.getElementById('id_name').value || '-';
+
+        const category = document.getElementById('id_category');
+        document.getElementById('review-category').textContent =
+            category.options[category.selectedIndex]?.text || '-';
+
+        const base_uom = document.getElementById('id_base_uom');
+        document.getElementById('review-base_uom').textContent =
+            base_uom.options[base_uom.selectedIndex]?.text || '-';
+
+        const currency = document.getElementById('id_currency');
+        document.getElementById('review-currency').textContent =
+            currency.options[currency.selectedIndex]?.text || '-';
+
+        // Variants review
+        if (hasVariantsCheckbox.checked && generatedVariants.length > 0) {
+            document.getElementById('variantsReview').style.display = 'block';
+            document.getElementById('review-variant-count').textContent = generatedVariants.length;
+
+            let variantsHTML = '';
+            generatedVariants.slice(0, 5).forEach(variant => {
+                variantsHTML += `
+                    <div class="variant-item">
+                        <span><strong>${variant.code}</strong></span>
+                        <span>${variant.description}</span>
+                    </div>
+                `;
+            });
+
+            if (generatedVariants.length > 5) {
+                variantsHTML += `<div class="variant-item"><em>... و ${generatedVariants.length - 5} متغير آخر</em></div>`;
+            }
+
+            document.getElementById('variantPreviewList').innerHTML = variantsHTML;
+        } else {
+            document.getElementById('variantsReview').style.display = 'none';
+        }
+    }
+
+    // ============================================
+    // UOM Conversions Management
+    // ============================================
+    const uomList = {{ uom_list_json|safe|default:"[]" }};
+    let conversionIndex = 0;
+
+    console.log('🔍 UOM Conversions initialized');
+    console.log('📊 uomList:', uomList);
+    console.log('📊 uomList length:', uomList.length);
+
+    function addConversionRow() {
+        try {
+            console.log('➕ addConversionRow called');
+            console.log('📊 Current conversionIndex:', conversionIndex);
+
+            // التحقق من وجود tbody
+            const tbody = document.getElementById('conversionsBody');
+            if (!tbody) {
+                console.error('❌ conversionsBody not found in DOM!');
+                console.error('   Checking if table exists:', document.getElementById('conversionsTable'));
+                alert('خطأ: جدول التحويلات غير موجود. تأكد من أنك في الخطوة 3.');
+                return;
+            }
+            console.log('✅ conversionsBody found:', tbody);
+
+            // التحقق من uomList
+            if (!uomList) {
+                console.error('❌ uomList is undefined!');
+                alert('خطأ: قائمة وحدات القياس غير معرّفة.');
+                return;
+            }
+
+            if (uomList.length === 0) {
+                console.error('❌ uomList is empty!');
+                alert('لا توجد وحدات قياس متاحة.\n\nيرجى:\n1. إضافة وحدات قياس أولاً من قائمة الإعدادات\n2. أو التواصل مع المسؤول');
+                return;
+            }
+            console.log('✅ uomList has', uomList.length, 'items');
+
+            // التحقق من base_uom
+            const baseUom = document.getElementById('id_base_uom');
+            if (!baseUom) {
+                console.error('❌ base_uom field not found!');
+                alert('خطأ: حقل الوحدة الأساسية غير موجود.');
+                return;
+            }
+
+            if (!baseUom.value) {
+                console.warn('⚠️ base_uom not selected yet');
+                alert('يرجى اختيار وحدة قياس أساسية أولاً من الخطوة 1.');
+                return;
+            }
+            console.log('✅ base_uom is set to:', baseUom.options[baseUom.selectedIndex].text);
+
+            const currentIndex = conversionIndex;
+            const row = document.createElement('tr');
+            row.dataset.index = currentIndex;
+
+            // Build UOM options (exclude base_uom to prevent meaningless conversions)
+            let uomOptions = '<option value="">اختر الوحدة</option>';
+            // استخدم baseUom المُعرّف في الأعلى - لا تُعرّفه مرة أخرى
+            const baseUomId = baseUom ? baseUom.value : null;
+
+        uomList.forEach(uom => {
+            // Skip base_uom - can't convert from base unit to itself
+            if (baseUomId && uom.id == baseUomId) {
+                return; // skip this iteration
+            }
+
+            const symbol = uom.symbol ? `(${uom.symbol})` : '';
+            uomOptions += `<option value="${uom.id}">${uom.name} ${symbol}</option>`;
+        });
+
+        // Build row HTML
+        row.innerHTML = `
+            <td>
+                <select name="conversion_from_uom_${currentIndex}"
+                        class="form-select form-select-sm conversion-from-uom"
+                        data-index="${currentIndex}">
+                    ${uomOptions}
+                </select>
+            </td>
+            <td>
+                <input type="number"
+                       name="conversion_factor_${currentIndex}"
+                       class="form-control form-control-sm conversion-factor"
+                       placeholder="1.0"
+                       step="0.001"
+                       min="0.001"
+                       data-index="${currentIndex}">
+            </td>
+            <td>
+                <small class="text-muted conversion-formula" id="conversion_formula_${currentIndex}">
+                    -
+                </small>
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-danger btn-remove-conversion">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        `;
+
+        // Append row
+        tbody.appendChild(row);
+
+        // Add event listeners
+        const fromSelect = row.querySelector('.conversion-from-uom');
+        const factorInput = row.querySelector('.conversion-factor');
+        const deleteBtn = row.querySelector('.btn-remove-conversion');
+
+        // Update formula when from_uom or factor changes
+        function updateFormula() {
+            const fromUomId = fromSelect.value;
+            const factor = factorInput.value;
+            // استخدم baseUom من outer scope - لا تُعرّفه مرة أخرى
+            const formulaSpan = document.getElementById(`conversion_formula_${currentIndex}`);
+
+            if (fromUomId && factor && baseUom && baseUom.value) {
+                const fromUomText = fromSelect.options[fromSelect.selectedIndex].text;
+                const baseUomText = baseUom.options[baseUom.selectedIndex].text;
+                formulaSpan.textContent = `1 ${fromUomText} = ${factor} ${baseUomText}`;
+            } else {
+                formulaSpan.textContent = '-';
+            }
+        }
+
+        fromSelect.addEventListener('change', updateFormula);
+        factorInput.addEventListener('input', updateFormula);
+
+        // Delete handler
+        deleteBtn.addEventListener('click', function() {
+            row.remove();
+            console.log('🗑️ Conversion row removed');
+            console.log('📊 Total rows now:', tbody.children.length);
+        });
+
+            conversionIndex++;
+
+            console.log('✅ Conversion row added successfully');
+            console.log('📊 Total rows now:', tbody.children.length);
+
+        } catch (error) {
+            console.error('❌ Error in addConversionRow:', error);
+            console.error('   Error message:', error.message);
+            console.error('   Error stack:', error.stack);
+            alert('حدث خطأ أثناء إضافة صف التحويل:\n' + error.message + '\n\nيرجى فتح Console (F12) لمزيد من التفاصيل.');
+        }
+    }
+
+    // ============================================
+    // Attach button event listener using EVENT DELEGATION
+    // هذه الطريقة تضمن عمل الزر حتى لو تم إعادة إنشاء DOM
+    // ============================================
+
+    // طريقة 1: Event Delegation (الأكثر موثوقية)
+    document.body.addEventListener('click', function(e) {
+        // تحقق إذا كان العنصر المضغوط هو الزر أو داخل الزر
+        const btn = e.target.closest('#btnAddConversion');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🖱️ Add Conversion button clicked (via delegation)');
+            addConversionRow();
+        }
+    });
+
+    // طريقة 2: Direct listener (backup)
+    // محاولة إضافة event listener مباشرة
+    function attachConversionButtonListener() {
+        const btnAddConversion = document.getElementById('btnAddConversion');
+        if (btnAddConversion) {
+            // إزالة أي listeners قديمة
+            const newBtn = btnAddConversion.cloneNode(true);
+            btnAddConversion.parentNode.replaceChild(newBtn, btnAddConversion);
+
+            // إضافة listener جديد
+            newBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🖱️ Add Conversion button clicked (direct)');
+                addConversionRow();
+            });
+            console.log('✅ Add Conversion button event listener attached (direct method)');
+            return true;
+        } else {
+            console.error('❌ btnAddConversion not found!');
+            return false;
+        }
+    }
+
+    // محاولة الإضافة فوراً
+    const listenerAttached = attachConversionButtonListener();
+
+    // إذا فشلت، حاول مرة أخرى بعد تأخير قصير
+    if (!listenerAttached) {
+        console.log('⏳ Retrying to attach listener after delay...');
+        setTimeout(function() {
+            attachConversionButtonListener();
+        }, 500);
+    }
+
+    console.log('✅ Event delegation for conversions button is active');
+
+    // ============================================
+    // تحميل البيانات الموجودة (للتعديل فقط)
+    // ============================================
+    console.log('🔍 Checking is_update status:', {{ is_update|yesno:"true,false,null" }});
+    {% if is_update %}
+    console.log('✅ is_update is TRUE - loading existing data...');
+
+    // 1. تحميل المتغيرات الموجودة
+    {% if existing_variants %}
+    const existingVariants = [
+        {% for variant in existing_variants %}
+        {
+            id: {{ variant.id }},
+            code: "{{ variant.code }}",
+            description: "{{ variant.get_full_name|escapejs }}",
+            attributes: [
+                {% for attr_val in variant.variant_attribute_values.all %}
+                {
+                    attribute_id: {{ attr_val.attribute.id }},
+                    value_id: {{ attr_val.value.id }},
+                    attribute_name: "{{ attr_val.attribute.name|escapejs }}",
+                    value_name: "{{ attr_val.value.value|escapejs }}"
+                }{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ]
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    console.log('📊 Existing variants with attributes:', existingVariants);
+
+    // إذا كان للمادة متغيرات، املأ القائمة وولّد جداول الأسعار
+    if (existingVariants.length > 0) {
+        generatedVariants = existingVariants;
+
+        // ✅ تفعيل checkbox الـ has_variants وإظهار قسم المتغيرات
+        if (hasVariantsCheckbox) {
+            hasVariantsCheckbox.checked = true;
+            // إظهار قسم المتغيرات
+            const variantsSelection = document.getElementById('variantsSelection');
+            if (variantsSelection) {
+                variantsSelection.style.display = 'block';
+            }
+        }
+
+        const generatedVariantsField = document.getElementById('generated_variants');
+        if (generatedVariantsField) {
+            generatedVariantsField.value = JSON.stringify(existingVariants);
+        }
+
+        const variantCountElement = document.getElementById('variantCount');
+        if (variantCountElement) {
+            variantCountElement.textContent = existingVariants.length;
+        }
+
+        const variantPreviewElement = document.getElementById('variantPreview');
+        if (variantPreviewElement) {
+            variantPreviewElement.innerHTML = existingVariants
+                .map(v => `<div class="variant-chip">${v.description}</div>`)
+                .join('');
+        }
+
+        // ✅ توليد جداول الأسعار للمتغيرات الموجودة
+        generateVariantPricesTables(existingVariants);
+
+        // إظهار قسم أسعار المتغيرات وإخفاء الأسعار العادية
+        const simplePricesSection = document.getElementById('simplePricesSection');
+        const variantPricesSection = document.getElementById('variantPricesSection');
+        if (simplePricesSection) simplePricesSection.style.display = 'none';
+        if (variantPricesSection) variantPricesSection.style.display = 'block';
+
+        // ✅ تحديد الـ checkboxes للخصائص المستخدمة في المتغيرات الموجودة
+        // استخدم setTimeout للتأكد من أن DOM جاهز
+        setTimeout(() => {
+            console.log('🔍 Auto-checking variant attribute checkboxes...');
+            const usedAttributeValues = new Set();
+
+            // جمع جميع الخصائص والقيم المستخدمة
+            existingVariants.forEach(variant => {
+                variant.attributes.forEach(attr => {
+                    const key = `${attr.attribute_id}_${attr.value_id}`;
+                    usedAttributeValues.add(key);
+                    console.log(`   - Found: ${attr.attribute_name} = ${attr.value_name} (${key})`);
+                });
+            });
+
+            console.log(`📊 Total unique attribute-value combinations: ${usedAttributeValues.size}`);
+
+            // تحديد الـ checkboxes المناسبة
+            let checkedCount = 0;
+            usedAttributeValues.forEach(key => {
+                const [attrId, valId] = key.split('_');
+                const checkbox = document.getElementById(`attr_${attrId}_val_${valId}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkedCount++;
+                    console.log(`   ✅ Checked: attr_${attrId}_val_${valId}`);
+                } else {
+                    console.warn(`   ⚠️ Checkbox not found: attr_${attrId}_val_${valId}`);
+                }
+            });
+
+            console.log(`✅ Auto-checked ${checkedCount} checkboxes`);
+
+            // تحديث عداد المتغيرات بناءً على الخصائص المحددة
+            const variantCountElement = document.getElementById('variantCount');
+            if (variantCountElement) {
+                variantCountElement.textContent = existingVariants.length;
+                console.log(`📊 Updated variant count display: ${existingVariants.length}`);
+            }
+        }, 500); // انتظر 500ms للتأكد من أن DOM جاهز
+    }
+    {% endif %}
+
+    // 2. تحميل الأسعار الموجودة
+    {% if item_prices_data %}
+    // للمواد بدون متغيرات
+    const itemPrices = {{ item_prices_data|safe }};
+    for (const [priceListId, price] of Object.entries(itemPrices)) {
+        const input = document.querySelector(`input[name="price_${priceListId}"]`);
+        if (input) {
+            input.value = price;
+        }
+    }
+    {% endif %}
+
+    {% if variants_prices_data %}
+    // للمواد بمتغيرات
+    const variantsPrices = {{ variants_prices_data|safe }};
+    // سيتم ملء الأسعار عند توليد جداول المتغيرات
+    {% endif %}
+
+    // 3. تحميل التحويلات الموجودة
+    try {
+        const existingConversionsRaw = '{{ existing_conversions_json|escapejs }}';
+        console.log('🔍 Raw existing_conversions_json:', existingConversionsRaw);
+        console.log('🔍 Length:', existingConversionsRaw.length);
+        console.log('🔍 Is []?', existingConversionsRaw === '[]');
+        console.log('🔍 Is empty?', existingConversionsRaw === '');
+
+        if (existingConversionsRaw && existingConversionsRaw !== '[]' && existingConversionsRaw !== '') {
+            const existingConversions = JSON.parse(existingConversionsRaw);
+            console.log('🔄 Loading existing conversions...');
+            console.log('📊 Existing conversions:', existingConversions);
+            console.log('📊 Count:', existingConversions.length);
+
+            if (existingConversions.length > 0) {
+
+    existingConversions.forEach((conversion, idx) => {
+        console.log(`Loading conversion ${idx + 1}:`, conversion);
+        const tbody = document.getElementById('conversionsBody');
+
+        const currentIndex = conversionIndex;
+        const row = document.createElement('tr');
+        row.dataset.index = currentIndex;
+
+        // Build UOM options (exclude base_uom to prevent meaningless conversions)
+        let uomOptions = '<option value="">اختر الوحدة</option>';
+        const baseUom = document.getElementById('id_base_uom');
+        const baseUomId = baseUom ? baseUom.value : null;
+
+        uomList.forEach(uom => {
+            // Skip base_uom - can't convert from base unit to itself
+            if (baseUomId && uom.id == baseUomId) {
+                return; // skip this iteration
+            }
+
+            const symbol = uom.symbol ? `(${uom.symbol})` : '';
+            uomOptions += `<option value="${uom.id}">${uom.name} ${symbol}</option>`;
+        });
+
+        // Build row HTML
+        row.innerHTML = `
+            <td>
+                <select name="conversion_from_uom_${currentIndex}"
+                        class="form-select form-select-sm conversion-from-uom"
+                        data-index="${currentIndex}">
+                    ${uomOptions}
+                </select>
+            </td>
+            <td>
+                <input type="number"
+                       name="conversion_factor_${currentIndex}"
+                       class="form-control form-control-sm conversion-factor"
+                       placeholder="1.0"
+                       step="0.001"
+                       min="0.001"
+                       value="${conversion.factor}"
+                       data-index="${currentIndex}">
+            </td>
+            <td>
+                <small class="text-muted conversion-formula" id="conversion_formula_${currentIndex}">
+                    ${conversion.formula || '-'}
+                </small>
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-danger btn-remove-conversion">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+
+        // Set selected value
+        const fromSelect = row.querySelector('.conversion-from-uom');
+        const factorInput = row.querySelector('.conversion-factor');
+        const deleteBtn = row.querySelector('.btn-remove-conversion');
+
+        fromSelect.value = conversion.from_uom_id;
+
+        // Update formula function
+        function updateFormula() {
+            const fromUomId = fromSelect.value;
+            const factor = factorInput.value;
+            // استخدم baseUom من outer scope (line 1588) - لا تُعرّفه مرة أخرى
+            const formulaSpan = document.getElementById(`conversion_formula_${currentIndex}`);
+
+            if (fromUomId && factor && baseUom && baseUom.value) {
+                const fromUomText = fromSelect.options[fromSelect.selectedIndex].text;
+                const baseUomText = baseUom.options[baseUom.selectedIndex].text;
+                formulaSpan.textContent = `1 ${fromUomText} = ${factor} ${baseUomText}`;
+            } else {
+                formulaSpan.textContent = '-';
+            }
+        }
+
+        // Add event listeners
+        fromSelect.addEventListener('change', updateFormula);
+        factorInput.addEventListener('input', updateFormula);
+
+        // Delete handler
+        deleteBtn.addEventListener('click', function() {
+            row.remove();
+            console.log('🗑️ Conversion row removed');
+            console.log('📊 Total rows now:', tbody.children.length);
+        });
+
+        // Initial formula update
+        setTimeout(updateFormula, 100);
+
+        conversionIndex++;
+        console.log(`✅ Conversion ${idx + 1} loaded successfully`);
+    });
+
+            console.log(`✅ All ${existingConversions.length} conversions loaded`);
+            console.log('📊 Total conversion rows:', document.getElementById('conversionsBody').children.length);
+            } else {
+                console.log('⚠️ existingConversions array is empty');
+            }
+        } else {
+            console.log('⚠️ No existing conversions to load - raw value is empty or []');
+        }
+    } catch (error) {
+        console.error('❌ Error loading conversions:', error);
+    }
+
+    {% endif %}
+    // ============================================
+    // نهاية تحميل البيانات الموجودة
+    // ============================================
+
+    // Form submission
+    document.getElementById('wizardForm').addEventListener('submit', function(e) {
+        document.getElementById('loadingOverlay').classList.add('active');
+    });
+
+    // Initialize
+    goToStep(1);
+});
+
+function toggleCheckbox(id) {
+    const checkbox = document.getElementById(id);
+    checkbox.checked = !checkbox.checked;
+    checkbox.dispatchEvent(new Event('change'));
+}
+</script>
+{% endblock %}
