@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار زر إضافة تحويل</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            padding: 20px;
+            direction: rtl;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .console-output {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>اختبار زر "إضافة تحويل"</h1>
+        <p class="text-muted">هذا ملف اختبار بسيط للتأكد من أن الكود يعمل بشكل صحيح</p>
+
+        <div class="test-section">
+            <h3>1. محاكاة البيانات</h3>
+            <div class="mb-3">
+                <label>الوحدة الأساسية:</label>
+                <select id="id_base_uom" class="form-select">
+                    <option value="">اختر الوحدة</option>
+                    <option value="1">قطعة (PC)</option>
+                    <option value="2">كرتون (CTN)</option>
+                    <option value="3">كيلو (KG)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. جدول التحويلات</h3>
+            <p class="small text-muted mb-2">
+                <i class="fas fa-info-circle"></i>
+                التحويل يتم إلى وحدة القياس الأساسية للمادة
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered" id="conversionsTable">
+                    <thead>
+                        <tr>
+                            <th width="200">من وحدة</th>
+                            <th width="150">المعامل</th>
+                            <th width="250">الصيغة</th>
+                            <th width="80">الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="conversionsBody">
+                        <!-- سيتم إضافة الصفوف هنا -->
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddConversion">
+                <i class="fas fa-plus"></i> إضافة تحويل
+            </button>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Console Output</h3>
+            <div id="consoleOutput" class="console-output"></div>
+        </div>
+    </div>
+
+    <script>
+        // محاكاة console.log للعرض في الصفحة
+        const originalLog = console.log;
+        const originalError = console.error;
+        const consoleDiv = document.getElementById('consoleOutput');
+
+        function addToConsole(message, type = 'log') {
+            const color = type === 'error' ? '#f00' : '#0f0';
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.textContent = message;
+            consoleDiv.appendChild(line);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole('ERROR: ' + args.join(' '), 'error');
+        };
+
+        // البيانات المحاكاة
+        const uomList = [
+            {id: 1, name: "قطعة", symbol: "PC"},
+            {id: 2, name: "كرتون", symbol: "CTN"},
+            {id: 3, name: "كيلو", symbol: "KG"},
+            {id: 4, name: "جرام", symbol: "GM"},
+            {id: 5, name: "لتر", symbol: "L"}
+        ];
+
+        let conversionIndex = 0;
+
+        console.log('🔍 UOM Conversions initialized');
+        console.log('📊 uomList: ' + JSON.stringify(uomList));
+        console.log('📊 uomList length: ' + uomList.length);
+
+        function addConversionRow() {
+            console.log('➕ addConversionRow called');
+            console.log('📊 Current conversionIndex: ' + conversionIndex);
+
+            const tbody = document.getElementById('conversionsBody');
+            if (!tbody) {
+                console.error('❌ conversionsBody not found!');
+                alert('خطأ: جدول التحويلات غير موجود');
+                return;
+            }
+
+            if (!uomList || uomList.length === 0) {
+                console.error('❌ uomList is empty!');
+                alert('لا توجد وحدات قياس متاحة. يرجى إضافة وحدات قياس أولاً.');
+                return;
+            }
+
+            const currentIndex = conversionIndex;
+            const row = document.createElement('tr');
+            row.dataset.index = currentIndex;
+
+            // Build UOM options
+            let uomOptions = '<option value="">اختر الوحدة</option>';
+            uomList.forEach(uom => {
+                const symbol = uom.symbol ? `(${uom.symbol})` : '';
+                uomOptions += `<option value="${uom.id}">${uom.name} ${symbol}</option>`;
+            });
+
+            // Build row HTML
+            row.innerHTML = `
+                <td>
+                    <select name="conversion_from_uom_${currentIndex}"
+                            class="form-select form-select-sm conversion-from-uom"
+                            data-index="${currentIndex}">
+                        ${uomOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number"
+                           name="conversion_factor_${currentIndex}"
+                           class="form-control form-control-sm conversion-factor"
+                           placeholder="1.0"
+                           step="0.001"
+                           min="0.001"
+                           data-index="${currentIndex}">
+                </td>
+                <td>
+                    <small class="text-muted conversion-formula" id="conversion_formula_${currentIndex}">
+                        -
+                    </small>
+                </td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-danger btn-remove-conversion">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </td>
+            `;
+
+            // Append row
+            tbody.appendChild(row);
+
+            // Add event listeners
+            const fromSelect = row.querySelector('.conversion-from-uom');
+            const factorInput = row.querySelector('.conversion-factor');
+            const deleteBtn = row.querySelector('.btn-remove-conversion');
+
+            // Update formula when from_uom or factor changes
+            function updateFormula() {
+                const fromUomId = fromSelect.value;
+                const factor = factorInput.value;
+                const baseUom = document.getElementById('id_base_uom');
+                const formulaSpan = document.getElementById(`conversion_formula_${currentIndex}`);
+
+                if (fromUomId && factor && baseUom && baseUom.value) {
+                    const fromUomText = fromSelect.options[fromSelect.selectedIndex].text;
+                    const baseUomText = baseUom.options[baseUom.selectedIndex].text;
+                    formulaSpan.textContent = `1 ${fromUomText} = ${factor} ${baseUomText}`;
+                    console.log('✏️ Formula updated: 1 ' + fromUomText + ' = ' + factor + ' ' + baseUomText);
+                } else {
+                    formulaSpan.textContent = '-';
+                }
+            }
+
+            fromSelect.addEventListener('change', updateFormula);
+            factorInput.addEventListener('input', updateFormula);
+
+            // Delete handler
+            deleteBtn.addEventListener('click', function() {
+                row.remove();
+                console.log('🗑️ Conversion row removed');
+                console.log('📊 Total rows now: ' + tbody.children.length);
+            });
+
+            conversionIndex++;
+
+            console.log('✅ Conversion row added successfully');
+            console.log('📊 Total rows now: ' + tbody.children.length);
+        }
+
+        // Attach button event listener
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnAddConversion = document.getElementById('btnAddConversion');
+            if (btnAddConversion) {
+                btnAddConversion.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🖱️ Add Conversion button clicked');
+                    addConversionRow();
+                });
+                console.log('✅ Add Conversion button event listener attached');
+            } else {
+                console.error('❌ btnAddConversion not found!');
+            }
+        });
+    </script>
+</body>
+</html>
