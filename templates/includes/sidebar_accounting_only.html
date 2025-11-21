@@ -1,0 +1,230 @@
+{# templates/includes/sidebar.html #}
+{% load i18n static %}
+
+<div class="sidebar-wrapper">
+    <!-- Header -->
+    <div class="sidebar-header p-3 text-center border-bottom">
+        <h5 class="text-white mb-0">
+            <i class="fas fa-building me-2"></i>
+            {% if request.current_company %}
+                {{ request.current_company.name|truncatechars:15 }}
+            {% else %}
+                {% trans "نظام الإدارة" %}
+            {% endif %}
+        </h5>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+        <ul class="nav flex-column">
+
+            <!-- Dashboard -->
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'main_dashboard' %}active{% endif %}"
+                   href="{% url 'core:main_dashboard' %}">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>{% trans "لوحة التحكم" %}</span>
+                </a>
+            </li>
+
+            <!-- المحاسبة -->
+            {% if perms.accounting.view_journalentry or perms.accounting.view_account or user.is_superuser %}
+            <li class="nav-item">
+                <a class="nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#accountingMenu"
+                   aria-expanded="{% if request.resolver_match.namespace == 'accounting' %}true{% else %}false{% endif %}"
+                   aria-controls="accountingMenu">
+                    <i class="fas fa-calculator"></i>
+                    <span>{% trans "المحاسبة" %}</span>
+                    <i class="fas fa-chevron-down ms-auto"></i>
+                </a>
+                <div class="collapse {% if request.resolver_match.namespace == 'accounting' %}show{% endif %}" id="accountingMenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'accounting' %}active{% endif %}"
+                               href="{% url 'accounting:dashboard' %}">
+                                <i class="fas fa-chart-line text-success"></i> {% trans "لوحة المحاسبة" %}
+                            </a>
+                        </li>
+
+                        <!-- دليل الحسابات والإعداد -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">الإعداد الأساسي</small>
+                        </li>
+
+                        {% if perms.accounting.view_accounttype or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'account_type' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:account_type_list' %}">
+                                <i class="fas fa-tags text-primary"></i> {% trans "أنواع الحسابات" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.view_account or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'account_list' in request.resolver_match.url_name or 'account_create' in request.resolver_match.url_name or 'account_update' in request.resolver_match.url_name or 'account_detail' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:account_list' %}">
+                                <i class="fas fa-sitemap text-info"></i> {% trans "دليل الحسابات" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.view_fiscalyear or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'fiscal_year' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:fiscal_year_list' %}">
+                                <i class="fas fa-calendar-alt text-warning"></i> {% trans "السنوات المالية" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.view_accountingperiod or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'period' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:period_list' %}">
+                                <i class="fas fa-calendar-week text-secondary"></i> {% trans "الفترات المحاسبية" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.view_costcenter or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'cost_center' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:cost_center_list' %}">
+                                <i class="fas fa-building text-purple"></i> {% trans "مراكز التكلفة" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- فاصل -->
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- القيود والعمليات -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">القيود والعمليات</small>
+                        </li>
+
+                        {% if perms.accounting.view_journalentrytemplate or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'template' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:template_list' %}">
+                                <i class="fas fa-copy text-info"></i> {% trans "قوالب القيود" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.view_journalentry or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'journal_entry_list' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:journal_entry_list' %}">
+                                <i class="fas fa-list text-primary"></i> {% trans "القيود اليومية" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if perms.accounting.add_journalentry or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'quick_journal_entry' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:quick_journal_entry' %}">
+                                <i class="fas fa-bolt text-warning"></i> {% trans "قيد سريع" %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'journal_entry_create' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:journal_entry_create' %}">
+                                <i class="fas fa-plus-circle text-success"></i> {% trans "قيد مفصل" %}
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- السندات -->
+                        {% if perms.accounting.view_paymentvoucher or perms.accounting.view_receiptvoucher or user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#vouchersMenu"
+                               aria-expanded="{% if 'voucher' in request.resolver_match.url_name %}true{% else %}false{% endif %}"
+                               aria-controls="vouchersMenu">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                                <span>{% trans "السندات" %}</span>
+                                <i class="fas fa-chevron-down ms-auto"></i>
+                            </a>
+                            <div class="collapse {% if 'voucher' in request.resolver_match.url_name %}show{% endif %}" id="vouchersMenu">
+                                <ul class="nav flex-column ms-3">
+                                    {% if perms.accounting.view_paymentvoucher or user.is_superuser %}
+                                    <li class="nav-item">
+                                        <a class="nav-link {% if 'payment_voucher' in request.resolver_match.url_name %}active{% endif %}"
+                                           href="{% url 'accounting:payment_voucher_list' %}">
+                                            <i class="fas fa-arrow-down text-danger"></i> {% trans "سندات الصرف" %}
+                                        </a>
+                                    </li>
+                                    {% endif %}
+
+                                    {% if perms.accounting.view_receiptvoucher or user.is_superuser %}
+                                    <li class="nav-item">
+                                        <a class="nav-link {% if 'receipt_voucher' in request.resolver_match.url_name %}active{% endif %}"
+                                           href="{% url 'accounting:receipt_voucher_list' %}">
+                                            <i class="fas fa-arrow-up text-success"></i> {% trans "سندات القبض" %}
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </li>
+                        {% endif %}
+
+                        <!-- فاصل -->
+                        <li><hr class="dropdown-divider my-2"></li>
+
+                        <!-- التقارير المالية -->
+                        <li class="nav-item">
+                            <small class="text-muted ms-3 fw-bold">التقارير المالية</small>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'trial_balance' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:trial_balance' %}">
+                                <i class="fas fa-balance-scale text-success"></i> {% trans "ميزان المراجعة" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'general_ledger' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:general_ledger' %}">
+                                <i class="fas fa-book text-info"></i> {% trans "دفتر الأستاذ" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'account_statement' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:account_statement' %}">
+                                <i class="fas fa-file-invoice text-purple"></i> {% trans "كشف الحساب" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'income_statement' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:income_statement' %}">
+                                <i class="fas fa-chart-line text-success"></i> {% trans "قائمة الدخل" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'balance_sheet' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:balance_sheet' %}">
+                                <i class="fas fa-chart-pie text-secondary"></i> {% trans "الميزانية العمومية" %}
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'account_comparison' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounting:account_comparison' %}">
+                                <i class="fas fa-chart-bar text-primary"></i> {% trans "مقارنة الحسابات" %}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+</div>

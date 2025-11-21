@@ -44,6 +44,7 @@ from .item_models import (
 from .partner_models import (
     BusinessPartner,
     PartnerRepresentative,
+    PartnerItemPrice,
 )
 
 # UoM Models (NEW - Updated Week 2)
@@ -96,7 +97,7 @@ __all__ = [
     'VariantAttribute', 'VariantValue', 'ItemVariant', 'ItemVariantAttributeValue',
 
     # Partner models
-    'BusinessPartner', 'PartnerRepresentative',
+    'BusinessPartner', 'PartnerRepresentative', 'PartnerItemPrice',
 
     # UoM models (NEW - Updated Week 2)
     'UoMGroup', 'UnitOfMeasure', 'UoMConversion',

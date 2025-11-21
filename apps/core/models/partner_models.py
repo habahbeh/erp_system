@@ -329,3 +329,132 @@ class PartnerRepresentative(BaseModel):
             ).exclude(pk=self.pk).update(is_primary=False)
 
         super().save(*args, **kwargs)
+
+
+class PartnerItemPrice(BaseModel):
+    """
+    أسعار المواد حسب الشريك التجاري (عميل/مورد)
+    يحفظ آخر سعر شراء/بيع لكل مادة مع كل شريك
+    """
+
+    partner = models.ForeignKey(
+        BusinessPartner,
+        on_delete=models.CASCADE,
+        related_name='item_prices',
+        verbose_name=_('الشريك التجاري')
+    )
+
+    item = models.ForeignKey(
+        'Item',
+        on_delete=models.CASCADE,
+        related_name='partner_prices',
+        verbose_name=_('المادة')
+    )
+
+    item_variant = models.ForeignKey(
+        'ItemVariant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='partner_prices',
+        verbose_name=_('المتغير')
+    )
+
+    # للموردين (Suppliers)
+    last_purchase_price = models.DecimalField(
+        _('آخر سعر شراء'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('آخر سعر شراء من هذا المورد')
+    )
+
+    last_purchase_date = models.DateField(
+        _('تاريخ آخر شراء'),
+        null=True,
+        blank=True
+    )
+
+    last_purchase_quantity = models.DecimalField(
+        _('كمية آخر شراء'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True
+    )
+
+    # للعملاء (Customers)
+    last_sale_price = models.DecimalField(
+        _('آخر سعر بيع'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('آخر سعر بيع لهذا العميل')
+    )
+
+    last_sale_date = models.DateField(
+        _('تاريخ آخر بيع'),
+        null=True,
+        blank=True
+    )
+
+    last_sale_quantity = models.DecimalField(
+        _('كمية آخر بيع'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True
+    )
+
+    # إحصائيات إضافية
+    total_purchased_quantity = models.DecimalField(
+        _('إجمالي الكمية المشتراة'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text=_('إجمالي ما تم شراؤه من هذا المورد')
+    )
+
+    total_sold_quantity = models.DecimalField(
+        _('إجمالي الكمية المباعة'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text=_('إجمالي ما تم بيعه لهذا العميل')
+    )
+
+    notes = models.TextField(_('ملاحظات'), blank=True)
+
+    class Meta:
+        verbose_name = _('سعر المادة للشريك')
+        verbose_name_plural = _('أسعار المواد للشركاء')
+        unique_together = [['company', 'partner', 'item', 'item_variant']]
+        ordering = ['-last_purchase_date', '-last_sale_date']
+        indexes = [
+            models.Index(fields=['partner', 'item']),
+            models.Index(fields=['partner', 'item_variant']),
+            models.Index(fields=['last_purchase_date']),
+            models.Index(fields=['last_sale_date']),
+        ]
+
+    def __str__(self):
+        variant_text = f" - {self.item_variant}" if self.item_variant else ""
+        return f"{self.partner.name} - {self.item.name}{variant_text}"
+
+    def update_purchase_price(self, price, quantity, date):
+        """تحديث آخر سعر شراء"""
+        self.last_purchase_price = price
+        self.last_purchase_date = date
+        self.last_purchase_quantity = quantity
+        self.total_purchased_quantity += quantity
+        self.save()
+
+    def update_sale_price(self, price, quantity, date):
+        """تحديث آخر سعر بيع"""
+        self.last_sale_price = price
+        self.last_sale_date = date
+        self.last_sale_quantity = quantity
+        self.total_sold_quantity += quantity
+        self.save()

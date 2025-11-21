@@ -469,9 +469,9 @@ class SecurityValidator:
         if user.is_superuser:
             return  # Superusers can access all companies
 
-        # Check if user's company matches
-        if hasattr(user, 'profile'):
-            user_company = user.profile.company
+        # Check if user's company matches (company is on User model, not UserProfile)
+        if hasattr(user, 'company'):
+            user_company = user.company
             if user_company and user_company.id != company.id:
                 raise ValidationError({
                     'company': _('ليس لديك صلاحية الوصول لهذه الشركة')

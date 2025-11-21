@@ -1,0 +1,515 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}قوائم الأسعار{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+<style>
+.badge-default {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+}
+
+.status-badge.inactive {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:pricing_dashboard' %}">لوحة التسعير</a></li>
+            <li class="breadcrumb-item active">قوائم الأسعار</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">قوائم الأسعار</h1>
+            <p class="text-muted mb-0">{% trans "إدارة قوائم الأسعار للشركة" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'core:price_list_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "قائمة أسعار جديدة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="listView" value="list" checked>
+                    <label class="btn btn-outline-primary" for="listView">
+                        <i class="fas fa-list"></i> قائمة
+                    </label>
+
+                    <input type="radio" class="btn-check" name="viewMode" id="gridView" value="grid">
+                    <label class="btn btn-outline-primary" for="gridView">
+                        <i class="fas fa-th"></i> بطاقات
+                    </label>
+                </div>
+
+                <span class="text-muted small">
+                    <i class="fas fa-info-circle"></i> اختر طريقة العرض المناسبة
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- List View -->
+    <div id="listViewContainer" class="view-container">
+        <div class="card shadow-sm mb-4" id="filtersCard">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+                </h6>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+            <div class="collapse show" id="filtersCollapse">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "العملة" %}</label>
+                            <select class="form-select" id="currencyFilter">
+                                <option value="">{% trans "جميع العملات" %}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "الحالة" %}</label>
+                            <select class="form-select" id="isActiveFilter">
+                                <option value="">{% trans "الكل" %}</option>
+                                <option value="1">{% trans "نشط" %}</option>
+                                <option value="0">{% trans "موقوف" %}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "افتراضية" %}</label>
+                            <select class="form-select" id="isDefaultFilter">
+                                <option value="">{% trans "الكل" %}</option>
+                                <option value="1">{% trans "افتراضية" %}</option>
+                                <option value="0">{% trans "عادية" %}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "البحث" %}</label>
+                            <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث في الرمز أو الاسم' %}">
+                        </div>
+
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                                <i class="fas fa-times"></i> {% trans "مسح" %}
+                            </button>
+
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
+                                    <i class="fas fa-file-excel"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importModal">
+                                    <i class="fas fa-upload"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped" id="priceListsTable" style="width: 100%">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>{% trans "الرمز" %}</th>
+                                <th>{% trans "الاسم" %}</th>
+                                <th>{% trans "العملة" %}</th>
+                                <th>{% trans "عدد الأصناف" %}</th>
+                                <th>{% trans "افتراضية" %}</th>
+                                <th>{% trans "الحالة" %}</th>
+                                <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                            <option value="10">10 سطر</option>
+                            <option value="25" selected>25 سطر</option>
+                            <option value="50">50 سطر</option>
+                            <option value="100">100 سطر</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid View -->
+    <div id="gridViewContainer" class="view-container" style="display: none;">
+        <div class="row g-4" id="priceListsGrid">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="text-muted mt-3">جاري تحميل قوائم الأسعار...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload"></i> {% trans "استيراد الأسعار" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'core:price_list_import' %}" enctype="multipart/form-data" id="importForm">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_file" class="form-label">{% trans "اختر ملف الاستيراد" %}</label>
+                        <input type="file" class="form-control" id="id_file" name="file" accept=".xlsx,.xls,.csv" required>
+                        <div class="form-text">
+                            يدعم ملفات Excel (.xlsx, .xls) و CSV (.csv)
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="price_list" class="form-label">قائمة الأسعار</label>
+                        <select class="form-select" id="price_list" name="price_list" required>
+                            <option value="">اختر قائمة الأسعار</option>
+                        </select>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="update_existing" name="update_existing">
+                        <label class="form-check-label" for="update_existing">
+                            تحديث الأسعار الموجودة
+                        </label>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> تنسيق الملف المطلوب:</h6>
+                        <p class="mb-1">الأعمدة المطلوبة:</p>
+                        <ul class="mb-0">
+                            <li><strong>item_code:</strong> رمز الصنف</li>
+                            <li><strong>variant_code:</strong> رمز المتغير (اختياري)</li>
+                            <li><strong>uom_code:</strong> رمز وحدة القياس (اختياري)</li>
+                            <li><strong>price:</strong> السعر</li>
+                            <li><strong>min_quantity:</strong> الكمية الأدنى (افتراضي: 1)</li>
+                        </ul>
+                    </div>
+
+                    <div class="text-center">
+                        <a href="{% url 'core:price_list_template' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-download"></i> تحميل نموذج
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload"></i> استيراد
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+var priceListsDataTable = null;
+var currentView = 'list';
+
+function initDataTable() {
+    console.log('🔄 Initializing Price Lists DataTable...');
+
+    if (priceListsDataTable) {
+        console.log('✅ DataTable already initialized');
+        return priceListsDataTable;
+    }
+
+    priceListsDataTable = $('#priceListsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'core:price_list_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.currency = $('#currencyFilter').val();
+                d.is_active = $('#isActiveFilter').val();
+                d.is_default = $('#isDefaultFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            },
+            "error": function(xhr, error, code) {
+                console.error('❌ DataTable AJAX Error:', error, code);
+            }
+        },
+        "columns": [
+            {"data": "code", "name": "code"},
+            {"data": "name", "name": "name"},
+            {"data": "currency", "name": "currency__code"},
+            {"data": "items_count", "name": "items_count", "orderable": false},
+            {"data": "is_default", "name": "is_default"},
+            {"data": "is_active", "name": "is_active"},
+            {"data": "actions", "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [4, 5, 6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = priceListsDataTable.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    console.log('✅ DataTable initialized successfully');
+    return priceListsDataTable;
+}
+
+function updateTableInfo(info) {
+    var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' قائمة';
+    if (info.recordsFiltered !== info.recordsTotal) {
+        infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+    }
+    $('#tableInfo').text(infoText);
+}
+
+window.changePageLength = function(length) {
+    if (priceListsDataTable) {
+        priceListsDataTable.page.len(parseInt(length)).draw();
+    }
+};
+
+window.exportToExcel = function() {
+    window.location.href = '{% url "core:price_list_export" %}';
+};
+
+window.deletePriceList = function(id) {
+    Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: 'سيتم حذف قائمة الأسعار وجميع الأسعار المرتبطة بها',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            var form = $('<form>', {
+                'method': 'POST',
+                'action': '/price-lists/' + id + '/delete/'
+            });
+
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (!csrfToken) {
+                csrfToken = $('<input>', {
+                    'type': 'hidden',
+                    'name': 'csrfmiddlewaretoken',
+                    'value': '{{ csrf_token }}'
+                });
+            }
+
+            form.append(csrfToken);
+            $('body').append(form);
+            form.submit();
+        }
+    });
+};
+
+function loadCurrencies() {
+    $.get('{% url "core:price_list_datatable_ajax" %}?get_currencies=1', function(data) {
+        var select = $('#currencyFilter');
+        select.empty().append('<option value="">جميع العملات</option>');
+        if (data.currencies) {
+            $.each(data.currencies, function(i, currency) {
+                select.append('<option value="' + currency.id + '">' + currency.name + '</option>');
+            });
+        }
+    });
+}
+
+function loadPriceListsForImport() {
+    $.get('{% url "core:price_list_datatable_ajax" %}?get_price_lists=1', function(data) {
+        var select = $('#price_list');
+        select.empty().append('<option value="">اختر قائمة الأسعار</option>');
+        if (data.price_lists) {
+            $.each(data.price_lists, function(i, list) {
+                select.append('<option value="' + list.id + '">' + list.code + ' - ' + list.name + '</option>');
+            });
+        }
+    });
+}
+
+function loadGridView() {
+    $.get('{% url "core:price_list_datatable_ajax" %}?view=grid', function(data) {
+        if (data.data && data.data.length > 0) {
+            var html = '';
+            $.each(data.data, function(i, item) {
+                html += `
+                    <div class="col-lg-3 col-md-4 col-sm-6">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0">${item.name}</h6>
+                                    ${item.is_default ? '<span class="badge badge-default">افتراضية</span>' : ''}
+                                </div>
+                                <p class="text-muted small mb-2">
+                                    <i class="fas fa-code"></i> ${item.code}
+                                </p>
+                                <p class="text-muted small mb-2">
+                                    <i class="fas fa-money-bill"></i> ${item.currency}
+                                </p>
+                                <p class="text-muted small mb-3">
+                                    <i class="fas fa-boxes"></i> ${item.items_count} صنف
+                                </p>
+                                <div class="d-flex gap-1">
+                                    <a href="/price-lists/${item.id}/" class="btn btn-sm btn-outline-primary flex-fill">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="/price-lists/${item.id}/update/" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="/price-lists/${item.id}/items/" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-list"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            $('#priceListsGrid').html(html);
+        } else {
+            $('#priceListsGrid').html(`
+                <div class="col-12 text-center py-5">
+                    <p class="text-muted">لا توجد قوائم أسعار</p>
+                </div>
+            `);
+        }
+    });
+}
+
+$(document).ready(function() {
+    console.log('📄 Document ready - Initializing Price Lists...');
+
+    initDataTable();
+    loadCurrencies();
+    loadPriceListsForImport();
+
+    $('#currencyFilter, #isActiveFilter, #isDefaultFilter').on('change', function() {
+        if (priceListsDataTable) {
+            priceListsDataTable.ajax.reload();
+        }
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            if (priceListsDataTable) {
+                priceListsDataTable.ajax.reload();
+            }
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#currencyFilter, #isActiveFilter, #isDefaultFilter').val('');
+        $('#searchFilter').val('');
+        if (priceListsDataTable) {
+            priceListsDataTable.ajax.reload();
+        }
+    });
+
+    $('input[name="viewMode"]').on('change', function() {
+        currentView = $(this).val();
+        if (currentView === 'list') {
+            $('#listViewContainer').show();
+            $('#gridViewContainer').hide();
+        } else {
+            $('#listViewContainer').hide();
+            $('#gridViewContainer').show();
+            loadGridView();
+        }
+    });
+});
+
+$('#importForm').on('submit', function(e) {
+    var fileInput = $('#id_file')[0];
+    var priceList = $('#price_list').val();
+
+    if (!fileInput.files[0] || !priceList) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'warning',
+            title: 'بيانات مطلوبة',
+            text: 'يرجى اختيار ملف وقائمة أسعار'
+        });
+        return;
+    }
+
+    Swal.fire({
+        title: 'جاري الاستيراد...',
+        html: 'يرجى الانتظار حتى اكتمال عملية الاستيراد',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        willOpen: () => {
+            Swal.showLoading();
+        }
+    });
+});
+</script>
+{% endblock %}

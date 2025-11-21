@@ -417,9 +417,38 @@ class Branch(models.Model):
 class Warehouse(BaseModel):
     """المستودعات"""
 
+    WAREHOUSE_TYPE_CHOICES = [
+        ('main', _('رئيسي')),
+        ('branch', _('فرعي')),
+        ('transit', _('ترانزيت')),
+        ('damaged', _('تالف')),
+        ('returns', _('مرتجعات')),
+        ('quarantine', _('حجر صحي')),
+        ('virtual', _('افتراضي')),
+    ]
+
     code = models.CharField(_('رمز المستودع'), max_length=20)
     name = models.CharField(_('اسم المستودع'), max_length=100)
     name_en = models.CharField(_('الاسم الإنجليزي'), max_length=100, blank=True)
+
+    branch = models.ForeignKey(
+        'Branch',
+        on_delete=models.CASCADE,
+        related_name='warehouses',
+        verbose_name=_('الفرع'),
+        help_text=_('الفرع التابع له المستودع'),
+        null=True,  # nullable for backward compatibility
+        blank=True
+    )
+
+    warehouse_type = models.CharField(
+        _('نوع المستودع'),
+        max_length=20,
+        choices=WAREHOUSE_TYPE_CHOICES,
+        default='branch',
+        help_text=_('تصنيف المستودع حسب الاستخدام')
+    )
+
     address = models.TextField(_('العنوان'), blank=True)
     phone = models.CharField(_('الهاتف'), max_length=20, blank=True)
     is_main = models.BooleanField(_('المستودع الرئيسي'), default=False)
@@ -443,8 +472,26 @@ class Warehouse(BaseModel):
         ordering = ['name']
 
     def save(self, *args, **kwargs):
+        # التحقق من المستودع الرئيسي
         if self.is_main:
             Warehouse.objects.filter(company=self.company, is_main=True).exclude(pk=self.pk).update(is_main=False)
+
+        # منع التعطيل إذا كان هناك رصيد
+        if not self.is_active and self.pk:  # تعديل على مستودع موجود
+            from apps.inventory.models import ItemStock
+            from django.core.exceptions import ValidationError
+
+            stock_exists = ItemStock.objects.filter(
+                warehouse=self,
+                quantity__gt=0
+            ).exists()
+
+            if stock_exists:
+                raise ValidationError(
+                    f'لا يمكن تعطيل المستودع "{self.name}" لأن به أرصدة. '
+                    'يرجى نقل أو إفراغ المخزون أولاً.'
+                )
+
         super().save(*args, **kwargs)
 
     def __str__(self):

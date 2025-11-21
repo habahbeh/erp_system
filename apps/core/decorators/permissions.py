@@ -35,8 +35,12 @@ def company_required(view_func: Callable) -> Callable:
             messages.error(request, 'يجب تسجيل الدخول أولاً')
             return redirect('login')
 
-        # Check if user has company
-        if hasattr(request.user, 'profile') and request.user.profile.company:
+        # Check if user has company (company is on User model, not UserProfile)
+        if hasattr(request.user, 'company') and request.user.company:
+            return view_func(request, *args, **kwargs)
+
+        # Check if current_company is set by middleware
+        if hasattr(request, 'current_company') and request.current_company:
             return view_func(request, *args, **kwargs)
 
         if request.user.is_superuser:
@@ -246,8 +250,8 @@ def company_isolation_required(model_name: str = None, param_name: str = 'pk'):
 
             # Get user's company
             user_company = None
-            if hasattr(request.user, 'profile') and request.user.profile.company:
-                user_company = request.user.profile.company
+            if hasattr(request.user, 'company') and request.user.company:
+                user_company = request.user.company
             elif hasattr(request, 'current_company'):
                 user_company = request.current_company
 

@@ -204,6 +204,11 @@ class Item(BaseModel):
         verbose_name_plural = _('المواد')
         ordering = ['name']
         unique_together = [['code', 'company'], ['barcode', 'company']]
+        indexes = [
+            models.Index(fields=['company', 'is_active']),
+            models.Index(fields=['company', 'code']),
+            models.Index(fields=['category', 'is_active']),
+        ]
 
     def __str__(self):
         """عرض اسم المادة"""
@@ -285,6 +290,25 @@ class Item(BaseModel):
                 changed_by=user
             )
 
+    def delete(self, *args, **kwargs):
+        """منع الحذف إذا كان للمادة رصيد في المخزون"""
+        from apps.inventory.models import ItemStock
+        from django.core.exceptions import ValidationError
+
+        # التحقق من وجود رصيد
+        stock_exists = ItemStock.objects.filter(
+            item=self,
+            quantity__gt=0
+        ).exists()
+
+        if stock_exists:
+            raise ValidationError(
+                f'لا يمكن حذف المادة "{self.name}" لأن لها رصيد في المخزون. '
+                'يرجى إفراغ المخزون أولاً أو استخدام "إيقاف الإنتاج".'
+            )
+
+        super().delete(*args, **kwargs)
+
 
 class VariantAttribute(BaseModel):
     """خصائص المتغيرات - مثل: الحجم، اللون، المادة"""
@@ -359,8 +383,40 @@ class ItemVariant(BaseModel):
         help_text=_('السعر الأساسي قبل تطبيق قوائم الأسعار')
     )
 
-    # الأبعاد الفيزيائية الخاصة
-    weight = models.DecimalField(_('الوزن الخاص'), max_digits=10, decimal_places=3, null=True, blank=True)
+    # الأبعاد الفيزيائية الخاصة بالمتغير
+    # ✅ إذا لم تُحدد، يستخدم أبعاد Item الأساسية
+    weight = models.DecimalField(
+        _('الوزن الخاص'),
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('إذا لم يُحدد، يُستخدم وزن المادة الأساسية')
+    )
+    length = models.DecimalField(
+        _('الطول الخاص (سم)'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('إذا لم يُحدد، يُستخدم طول المادة الأساسية')
+    )
+    width = models.DecimalField(
+        _('العرض الخاص (سم)'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('إذا لم يُحدد، يُستخدم عرض المادة الأساسية')
+    )
+    height = models.DecimalField(
+        _('الارتفاع الخاص (سم)'),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('إذا لم يُحدد، يُستخدم ارتفاع المادة الأساسية')
+    )
 
     # الملفات
     image = models.ImageField(_('صورة المتغير'), upload_to='items/variants/', blank=True, null=True)
@@ -385,6 +441,11 @@ class ItemVariant(BaseModel):
         verbose_name_plural = _('متغيرات المواد')
         ordering = ['item', 'code']
         unique_together = [['item', 'code']]
+        indexes = [
+            models.Index(fields=['item', 'is_active']),
+            models.Index(fields=['item', 'code']),
+            models.Index(fields=['code']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -409,6 +470,208 @@ class ItemVariant(BaseModel):
         if attr_parts:
             return f"{self.item.name} - {' - '.join(attr_parts)}"
         return f"{self.item.name} - {self.code}"
+
+    def get_attribute_values_dict(self):
+        """
+        الحصول على خصائص المتغير كـ dictionary
+
+        Returns:
+            dict: {attribute_name: value}
+        """
+        attributes = self.variant_attribute_values.select_related('attribute', 'value')
+        return {
+            av.attribute.name: av.value.value
+            for av in attributes
+        }
+
+    def get_stock_across_warehouses(self, company=None):
+        """
+        الحصول على الرصيد في كل المستودعات
+
+        Args:
+            company: الشركة (اختياري)
+
+        Returns:
+            QuerySet: أرصدة المادة في كل المستودعات
+        """
+        from apps.inventory.models import ItemStock
+
+        filters = {
+            'item': self.item,
+            'item_variant': self
+        }
+
+        if company:
+            filters['company'] = company
+        elif self.company:
+            filters['company'] = self.company
+
+        return ItemStock.objects.filter(**filters).select_related('warehouse')
+
+    def get_total_stock(self, company=None):
+        """
+        إجمالي الرصيد عبر كل المستودعات
+
+        Args:
+            company: الشركة (اختياري)
+
+        Returns:
+            dict: {
+                'total_quantity': Decimal,
+                'total_reserved': Decimal,
+                'total_available': Decimal,
+                'total_value': Decimal,
+                'warehouses_count': int
+            }
+        """
+        from apps.inventory.models import ItemStock
+
+        return ItemStock.get_total_stock(
+            item=self.item,
+            item_variant=self,
+            company=company or self.company
+        )
+
+    def get_average_cost(self, company=None):
+        """
+        متوسط التكلفة عبر كل المستودعات
+
+        Args:
+            company: الشركة (اختياري)
+
+        Returns:
+            Decimal: متوسط التكلفة الموزون
+        """
+        from decimal import Decimal
+
+        stocks = self.get_stock_across_warehouses(company)
+
+        total_value = sum(s.total_value for s in stocks)
+        total_quantity = sum(s.quantity for s in stocks)
+
+        if total_quantity > 0:
+            return total_value / total_quantity
+
+        # إذا لم يوجد رصيد، أرجع cost_price إذا كان موجوداً
+        return self.cost_price or Decimal('0')
+
+    def get_total_available(self, company=None):
+        """
+        إجمالي الكمية المتاحة (غير المحجوزة)
+
+        Args:
+            company: الشركة (اختياري)
+
+        Returns:
+            Decimal: الكمية المتاحة
+        """
+        stocks = self.get_stock_across_warehouses(company)
+        return sum(s.get_available_quantity() for s in stocks)
+
+    def check_stock_availability(self, quantity, warehouse=None, company=None):
+        """
+        التحقق من توفر كمية معينة
+
+        Args:
+            quantity: الكمية المطلوبة
+            warehouse: المستودع (اختياري - إذا لم يحدد، يتحقق من كل المستودعات)
+            company: الشركة (اختياري)
+
+        Returns:
+            dict: {
+                'available': bool,
+                'quantity_available': Decimal,
+                'shortage': Decimal
+            }
+        """
+        from apps.inventory.models import ItemStock
+        from decimal import Decimal
+
+        if warehouse:
+            # التحقق من مستودع محدد
+            try:
+                stock = ItemStock.objects.get(
+                    item=self.item,
+                    item_variant=self,
+                    warehouse=warehouse,
+                    company=company or self.company
+                )
+                available = stock.get_available_quantity()
+            except ItemStock.DoesNotExist:
+                available = Decimal('0')
+        else:
+            # التحقق من كل المستودعات
+            available = self.get_total_available(company)
+
+        return {
+            'available': available >= quantity,
+            'quantity_available': available,
+            'shortage': max(quantity - available, Decimal('0'))
+        }
+
+    def get_dimensions(self):
+        """
+        الحصول على الأبعاد الفيزيائية للمتغير
+
+        إذا لم تُحدد أبعاد خاصة بالمتغير، يُستخدم أبعاد المادة الأساسية
+
+        Returns:
+            dict: {
+                'weight': Decimal,
+                'length': Decimal,
+                'width': Decimal,
+                'height': Decimal,
+                'volume': Decimal  # (length * width * height) / 1,000,000 = m³
+            }
+        """
+        from decimal import Decimal
+
+        # استخدم أبعاد المتغير أو أبعاد Item كـ fallback
+        weight = self.weight if self.weight is not None else self.item.weight
+        length = self.length if self.length is not None else self.item.length
+        width = self.width if self.width is not None else self.item.width
+        height = self.height if self.height is not None else self.item.height
+
+        # حساب الحجم (m³) = (length × width × height) / 1,000,000
+        volume = None
+        if length and width and height:
+            volume = (length * width * height) / Decimal('1000000')
+
+        return {
+            'weight': weight,
+            'length': length,
+            'width': width,
+            'height': height,
+            'volume': volume
+        }
+
+    def calculate_shipping_weight(self):
+        """
+        حساب الوزن القابل للشحن (Dimensional Weight)
+
+        يُستخدم في الشحن - يأخذ الأكبر بين:
+        - الوزن الفعلي
+        - الوزن الحجمي = (Length × Width × Height) / 5000
+
+        Returns:
+            Decimal: الوزن القابل للشحن بالكيلو
+        """
+        from decimal import Decimal
+
+        dimensions = self.get_dimensions()
+        actual_weight = dimensions['weight'] or Decimal('0')
+
+        # حساب الوزن الحجمي (معامل 5000 هو المعيار في الشحن)
+        volumetric_weight = Decimal('0')
+        if dimensions['length'] and dimensions['width'] and dimensions['height']:
+            volumetric_weight = (
+                dimensions['length'] *
+                dimensions['width'] *
+                dimensions['height']
+            ) / Decimal('5000')
+
+        # أرجع الأكبر
+        return max(actual_weight, volumetric_weight)
 
 
 class ItemVariantAttributeValue(BaseModel):

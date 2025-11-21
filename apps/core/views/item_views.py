@@ -86,27 +86,8 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             is_active=True
         ).prefetch_related('values').order_by('sort_order', 'name')
 
-        # ✅ إضافة قوائم الأسعار للـ wizard mode
-        price_lists_qs = PriceList.objects.filter(
-            company=company,
-            is_active=True
-        ).select_related('currency').order_by('is_default', 'name')
-
-        context['price_lists'] = price_lists_qs
-
-        # تحويل قوائم الأسعار إلى JSON للـ JavaScript
-        import json
-        price_lists_data = []
-        for pl in price_lists_qs:
-            price_lists_data.append({
-                'id': pl.id,
-                'name': pl.name,
-                'is_default': pl.is_default,
-                'currency__symbol': pl.currency.symbol if pl.currency else '',
-            })
-        context['price_lists_json'] = json.dumps(price_lists_data)
-
         # ✅ إضافة وحدات القياس للـ UOM Conversions
+        import json
         uom_qs = UnitOfMeasure.objects.filter(
             company=company,
             is_active=True
@@ -135,7 +116,6 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             'cancel_url': reverse('core:item_list'),
             'is_update': False,  # للتمييز بين إضافة وتعديل
             'wizard_mode': True,  # ✅ تفعيل وضع الـ wizard
-            'enable_inline_prices': True,  # ✅ تفعيل الأسعار المدمجة
         })
         return context
 
@@ -153,21 +133,18 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                 generated_variants_json = self.request.POST.get('generated_variants', '[]')
 
                 try:
+                    import json
                     generated_variants = json.loads(generated_variants_json)
 
                     if generated_variants:
                         # توليد المتغيرات
                         created_variants = self.create_variants_from_json(generated_variants)
 
-                        # ✅ حفظ أسعار المتغيرات
-                        prices_saved = self.save_variant_prices(created_variants)
-
                         messages.success(
                             self.request,
-                            _('تم إضافة المادة "%(name)s" مع %(count)d متغير و %(prices)d سعر بنجاح') % {
+                            _('تم إضافة المادة "%(name)s" مع %(count)d متغير بنجاح') % {
                                 'name': self.object.name,
-                                'count': len(created_variants),
-                                'prices': prices_saved
+                                'count': len(created_variants)
                             }
                         )
                     else:
@@ -183,14 +160,11 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         _('خطأ في بيانات المتغيرات. تم حفظ المادة بدون متغيرات.')
                     )
             else:
-                # ✅ حفظ أسعار المادة العادي (بدون متغيرات)
-                prices_saved = self.save_item_prices()
-
+                # مادة عادية بدون متغيرات
                 messages.success(
                     self.request,
-                    _('تم إضافة المادة "%(name)s" مع %(prices)d سعر بنجاح') % {
-                        'name': self.object.name,
-                        'prices': prices_saved
+                    _('تم إضافة المادة "%(name)s" بنجاح') % {
+                        'name': self.object.name
                     }
                 )
 
@@ -249,138 +223,6 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
         return created_variants
 
-    def save_item_prices(self):
-        """حفظ أسعار مادة بدون متغيرات"""
-        from decimal import Decimal
-
-        saved_count = 0
-
-        # حذف الأسعار القديمة إذا كانت موجودة
-        PriceListItem.objects.filter(item=self.object, variant__isnull=True).delete()
-
-        for key, value in self.request.POST.items():
-            if not key.startswith('price_'):
-                continue
-
-            try:
-                price_list_id = int(key.split('_')[1])
-
-                if not value or value.strip() == '':
-                    continue
-
-                price_value = Decimal(value.strip())
-
-                if price_value <= 0:
-                    continue
-
-                price_list = PriceList.objects.get(
-                    pk=price_list_id,
-                    company=self.request.current_company
-                )
-
-                PriceListItem.objects.create(
-                    price_list=price_list,
-                    item=self.object,
-                    variant=None,
-                    price=price_value
-                )
-                saved_count += 1
-
-            except (ValueError, PriceList.DoesNotExist, IndexError):
-                continue
-
-        return saved_count
-
-    def save_variant_prices(self, variants):
-        """حفظ أسعار المتغيرات - استخدام update_or_create للحفاظ على الأسعار الموجودة"""
-        from decimal import Decimal
-        import logging
-        logger = logging.getLogger(__name__)
-
-        saved_count = 0
-        updated_count = 0
-
-        logger.info(f"💾 Saving/updating variant prices for {len(variants)} variants...")
-
-        for key, value in self.request.POST.items():
-            # دعم كلا التنسيقين:
-            # 1. price_<price_list_id>_<variant_id> (للتعديل - المتغيرات موجودة)
-            # 2. variant_price_<price_list_id>_<variant_index> (للإضافة - المتغيرات جديدة)
-
-            variant_obj = None
-            price_list_id = None
-
-            try:
-                if key.startswith('variant_price_'):
-                    # تنسيق جديد: variant_price_<price_list_id>_<variant_index>
-                    parts = key.split('_')
-                    if len(parts) != 4:
-                        continue
-
-                    price_list_id = int(parts[2])
-                    variant_index = int(parts[3])
-
-                    # الحصول على المتغير من القائمة بالترتيب
-                    if variant_index < len(variants):
-                        variant_obj = variants[variant_index]
-
-                elif key.startswith('price_'):
-                    # تنسيق قديم: price_<price_list_id>_<variant_id>
-                    parts = key.split('_')
-                    if len(parts) != 3:
-                        continue
-
-                    price_list_id = int(parts[1])
-                    variant_id = int(parts[2])
-
-                    # البحث عن المتغير في قاعدة البيانات
-                    variant_obj = ItemVariant.objects.get(
-                        pk=variant_id,
-                        item=self.object
-                    )
-                else:
-                    continue
-
-                if not variant_obj or not price_list_id:
-                    continue
-
-                if not value or value.strip() == '':
-                    continue
-
-                price_value = Decimal(value.strip())
-
-                if price_value <= 0:
-                    continue
-
-                # التحقق من وجود قائمة الأسعار
-                price_list = PriceList.objects.get(
-                    pk=price_list_id,
-                    company=self.request.current_company
-                )
-
-                # ✅ استخدام update_or_create بدلاً من create
-                price_item, created = PriceListItem.objects.update_or_create(
-                    price_list=price_list,
-                    item=self.object,
-                    variant=variant_obj,
-                    uom__isnull=True,  # الأسعار الأساسية بدون UoM
-                    defaults={'price': price_value}
-                )
-
-                if created:
-                    saved_count += 1
-                    logger.debug(f"   ✅ Created price: {variant_obj.code} - {price_list.name} = {price_value}")
-                else:
-                    updated_count += 1
-                    logger.debug(f"   🔄 Updated price: {variant_obj.code} - {price_list.name} = {price_value}")
-
-            except (ValueError, PriceList.DoesNotExist, ItemVariant.DoesNotExist, IndexError) as e:
-                logger.warning(f"   ⚠️ Error processing price {key}: {e}")
-                continue
-
-        logger.info(f"✅ Prices saved: {saved_count} created, {updated_count} updated")
-        return saved_count + updated_count
-
     def save_uom_conversions(self):
         """
         حفظ تحويلات وحدات القياس
@@ -393,11 +235,9 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
         logger = logging.getLogger(__name__)
         saved_count = 0
+        deleted_count = 0
 
         logger.info(f"🔄 save_uom_conversions called for item {self.object.id}")
-
-        # ✅ لا نحذف التحويلات القديمة - سنستخدم update_or_create
-        logger.info("💾 Using update_or_create to preserve existing conversions...")
 
         # الحصول على وحدة القياس الأساسية للمادة
         base_uom = self.object.base_uom
@@ -406,6 +246,9 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             return 0
 
         logger.info(f"✅ base_uom: {base_uom.name}")
+
+        # ✅ تتبع وحدات القياس الموجودة في POST data
+        kept_from_uom_ids = []
 
         # فحص جميع حقول POST
         conversion_fields = [key for key in self.request.POST.keys() if key.startswith('conversion_from_uom_')]
@@ -446,6 +289,9 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         logger.warning(f"    ⚠️ Skipping - from_uom same as base_uom")
                         continue
 
+                    # ✅ إضافة هذه الوحدة إلى قائمة المحفوظات
+                    kept_from_uom_ids.append(from_uom_id)
+
                     # إنشاء الصيغة: 1 [from_uom] = [factor] [base_uom]
                     formula = f'1 {from_uom.name} = {factor} {base_uom.name}'
 
@@ -470,7 +316,32 @@ class ItemCreateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     logger.error(f"    ❌ Error saving conversion {index}: {e}")
                     continue
 
+        # ✅ حذف التحويلات التي لم تعد موجودة في الـ form
+        logger.info(f"🗑️ Checking for conversions to delete...")
+        logger.info(f"   - Kept from_uom_ids: {kept_from_uom_ids}")
+
+        # جلب جميع التحويلات الموجودة
+        old_conversions = UoMConversion.objects.filter(
+            item=self.object,
+            company=self.request.current_company
+        )
+
+        # التحويلات المطلوب حذفها = التي ليست في قائمة المحفوظات
+        if kept_from_uom_ids:
+            conversions_to_delete = old_conversions.exclude(from_uom_id__in=kept_from_uom_ids)
+        else:
+            # إذا كانت قائمة المحفوظات فارغة، احذف جميع التحويلات
+            conversions_to_delete = old_conversions
+
+        deleted_count = conversions_to_delete.count()
+        if deleted_count > 0:
+            logger.info(f"   - Deleting {deleted_count} conversions...")
+            for conv in conversions_to_delete:
+                logger.info(f"     ❌ Deleting: {conv.from_uom.name} → {base_uom.name}")
+            conversions_to_delete.delete()
+
         logger.info(f"✅ Total conversions saved: {saved_count}")
+        logger.info(f"✅ Total conversions deleted: {deleted_count}")
         return saved_count
 
     def form_invalid(self, form):
@@ -532,61 +403,8 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             'variant_attribute_values__value'
         ).all()
 
-        # ✅ إضافة قوائم الأسعار للـ wizard mode
-        price_lists_qs = PriceList.objects.filter(
-            company=company,
-            is_active=True
-        ).select_related('currency').order_by('is_default', 'name')
-
-        context['price_lists'] = price_lists_qs
-
-        # تحويل قوائم الأسعار إلى JSON للـ JavaScript
-        import json
-        price_lists_data = []
-        for pl in price_lists_qs:
-            price_lists_data.append({
-                'id': pl.id,
-                'name': pl.name,
-                'is_default': pl.is_default,
-                'currency__symbol': pl.currency.symbol if pl.currency else '',
-            })
-        context['price_lists_json'] = json.dumps(price_lists_data)
-
-        # ✅ جلب الأسعار الحالية للمادة
-        if self.object.has_variants:
-            # للمواد بمتغيرات - جلب أسعار كل متغير
-            variants_with_prices = {}
-            for variant in context['existing_variants']:
-                variant_prices = PriceListItem.objects.filter(
-                    item=self.object,
-                    variant=variant
-                ).select_related('price_list')
-
-                prices_dict = {}
-                for price_item in variant_prices:
-                    prices_dict[price_item.price_list.id] = str(price_item.price)
-
-                variants_with_prices[str(variant.id)] = prices_dict
-                logger.info(f"   Variant {variant.id} ({variant.code}): {len(prices_dict)} prices")
-
-            # ✅ تحويل إلى JSON
-            context['variants_prices_data'] = json.dumps(variants_with_prices)
-            logger.info(f"📊 Variants prices JSON: {context['variants_prices_data']}")
-        else:
-            # للمواد بدون متغيرات
-            item_prices = PriceListItem.objects.filter(
-                item=self.object,
-                variant__isnull=True
-            ).select_related('price_list')
-
-            prices_dict = {}
-            for price_item in item_prices:
-                prices_dict[str(price_item.price_list.id)] = str(price_item.price)
-
-            # ✅ تحويل إلى JSON
-            context['item_prices_data'] = json.dumps(prices_dict)
-
         # ✅ إضافة وحدات القياس للـ UOM Conversions
+        import json
         uom_qs = UnitOfMeasure.objects.filter(
             company=company,
             is_active=True
@@ -637,6 +455,29 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         logger.info(f"   - Conversions count: {existing_conversions.count()}")
         logger.info(f"   - Conversions JSON: {context['existing_conversions_json']}")
 
+        # إضافة قوائم الأسعار المتاحة
+        from ..models import PriceList, PriceListItem
+        context['price_lists'] = PriceList.objects.filter(
+            company=company,
+            is_active=True
+        ).order_by('name')
+
+        # إضافة الأسعار الموجودة كـ JSON
+        existing_prices = PriceListItem.objects.filter(
+            item=self.object
+        ).values('id', 'price_list_id', 'variant_id', 'price')
+
+        existing_prices_dict = {}
+        for price in existing_prices:
+            variant_id = price['variant_id'] or ''
+            key = f"{variant_id}_{price['price_list_id']}"
+            existing_prices_dict[key] = {
+                'id': price['id'],
+                'price': str(price['price'])
+            }
+
+        context['existing_prices_json'] = json.dumps(existing_prices_dict)
+
         context.update({
             'title': _('تعديل المادة: %(name)s') % {'name': self.object.name},
             'breadcrumbs': [
@@ -648,7 +489,6 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             'cancel_url': reverse('core:item_list'),
             'is_update': True,
             'wizard_mode': True,  # ✅ تفعيل وضع الـ wizard
-            'enable_inline_prices': True,  # ✅ تفعيل الأسعار المدمجة
         })
         return context
 
@@ -660,21 +500,20 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
         if form.is_valid():
             response = super().form_valid(form)
 
+            # حفظ الأسعار من JSON
+            self.save_pricing_from_json()
+
             # إذا كان المادة له متغيرات
             if self.object.has_variants:
-                # ✅ في وضع التعديل: نحافظ على المتغيرات الموجودة ونحفظ الأسعار فقط
+                # ✅ في وضع التعديل: نحافظ على المتغيرات الموجودة
                 existing_variants = list(self.object.variants.all())
 
                 if existing_variants:
-                    # ✅ حفظ أسعار المتغيرات الموجودة
-                    prices_saved = self.save_variant_prices(existing_variants)
-
                     messages.success(
                         self.request,
-                        _('تم تحديث المادة "%(name)s" مع %(count)d متغير و %(prices)d سعر') % {
+                        _('تم تحديث المادة "%(name)s" مع %(count)d متغير') % {
                             'name': self.object.name,
-                            'count': len(existing_variants),
-                            'prices': prices_saved
+                            'count': len(existing_variants)
                         }
                     )
                 else:
@@ -686,30 +525,25 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         }
                     )
             else:
-                # إلغاء تفعيل المتغيرات - احذف جميع المتغيرات وحفظ أسعار المادة العادي
+                # إلغاء تفعيل المتغيرات - احذف جميع المتغيرات
                 deleted_count = 0
                 if self.object.variants.exists():
                     deleted_count = self.object.variants.count()
                     self.object.variants.all().delete()
 
-                # ✅ حفظ أسعار المادة العادي
-                prices_saved = self.save_item_prices()
-
                 if deleted_count > 0:
                     messages.success(
                         self.request,
-                        _('تم تحديث المادة "%(name)s" وحذف %(count)d متغير مع %(prices)d سعر') % {
+                        _('تم تحديث المادة "%(name)s" وحذف %(count)d متغير') % {
                             'name': self.object.name,
-                            'count': deleted_count,
-                            'prices': prices_saved
+                            'count': deleted_count
                         }
                     )
                 else:
                     messages.success(
                         self.request,
-                        _('تم تحديث المادة "%(name)s" مع %(prices)d سعر') % {
-                            'name': self.object.name,
-                            'prices': prices_saved
+                        _('تم تحديث المادة "%(name)s" بنجاح') % {
+                            'name': self.object.name
                         }
                     )
 
@@ -765,138 +599,6 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
         return created_variants
 
-    def save_item_prices(self):
-        """حفظ أسعار مادة بدون متغيرات"""
-        from decimal import Decimal
-
-        saved_count = 0
-
-        # حذف الأسعار القديمة إذا كانت موجودة
-        PriceListItem.objects.filter(item=self.object, variant__isnull=True).delete()
-
-        for key, value in self.request.POST.items():
-            if not key.startswith('price_'):
-                continue
-
-            try:
-                price_list_id = int(key.split('_')[1])
-
-                if not value or value.strip() == '':
-                    continue
-
-                price_value = Decimal(value.strip())
-
-                if price_value <= 0:
-                    continue
-
-                price_list = PriceList.objects.get(
-                    pk=price_list_id,
-                    company=self.request.current_company
-                )
-
-                PriceListItem.objects.create(
-                    price_list=price_list,
-                    item=self.object,
-                    variant=None,
-                    price=price_value
-                )
-                saved_count += 1
-
-            except (ValueError, PriceList.DoesNotExist, IndexError):
-                continue
-
-        return saved_count
-
-    def save_variant_prices(self, variants):
-        """حفظ أسعار المتغيرات - استخدام update_or_create للحفاظ على الأسعار الموجودة"""
-        from decimal import Decimal
-        import logging
-        logger = logging.getLogger(__name__)
-
-        saved_count = 0
-        updated_count = 0
-
-        logger.info(f"💾 Saving/updating variant prices for {len(variants)} variants...")
-
-        for key, value in self.request.POST.items():
-            # دعم كلا التنسيقين:
-            # 1. price_<price_list_id>_<variant_id> (للتعديل - المتغيرات موجودة)
-            # 2. variant_price_<price_list_id>_<variant_index> (للإضافة - المتغيرات جديدة)
-
-            variant_obj = None
-            price_list_id = None
-
-            try:
-                if key.startswith('variant_price_'):
-                    # تنسيق جديد: variant_price_<price_list_id>_<variant_index>
-                    parts = key.split('_')
-                    if len(parts) != 4:
-                        continue
-
-                    price_list_id = int(parts[2])
-                    variant_index = int(parts[3])
-
-                    # الحصول على المتغير من القائمة بالترتيب
-                    if variant_index < len(variants):
-                        variant_obj = variants[variant_index]
-
-                elif key.startswith('price_'):
-                    # تنسيق قديم: price_<price_list_id>_<variant_id>
-                    parts = key.split('_')
-                    if len(parts) != 3:
-                        continue
-
-                    price_list_id = int(parts[1])
-                    variant_id = int(parts[2])
-
-                    # البحث عن المتغير في قاعدة البيانات
-                    variant_obj = ItemVariant.objects.get(
-                        pk=variant_id,
-                        item=self.object
-                    )
-                else:
-                    continue
-
-                if not variant_obj or not price_list_id:
-                    continue
-
-                if not value or value.strip() == '':
-                    continue
-
-                price_value = Decimal(value.strip())
-
-                if price_value <= 0:
-                    continue
-
-                # التحقق من وجود قائمة الأسعار
-                price_list = PriceList.objects.get(
-                    pk=price_list_id,
-                    company=self.request.current_company
-                )
-
-                # ✅ استخدام update_or_create بدلاً من create
-                price_item, created = PriceListItem.objects.update_or_create(
-                    price_list=price_list,
-                    item=self.object,
-                    variant=variant_obj,
-                    uom__isnull=True,  # الأسعار الأساسية بدون UoM
-                    defaults={'price': price_value}
-                )
-
-                if created:
-                    saved_count += 1
-                    logger.debug(f"   ✅ Created price: {variant_obj.code} - {price_list.name} = {price_value}")
-                else:
-                    updated_count += 1
-                    logger.debug(f"   🔄 Updated price: {variant_obj.code} - {price_list.name} = {price_value}")
-
-            except (ValueError, PriceList.DoesNotExist, ItemVariant.DoesNotExist, IndexError) as e:
-                logger.warning(f"   ⚠️ Error processing price {key}: {e}")
-                continue
-
-        logger.info(f"✅ Prices saved: {saved_count} created, {updated_count} updated")
-        return saved_count + updated_count
-
     def save_uom_conversions(self):
         """
         حفظ تحويلات وحدات القياس
@@ -909,11 +611,9 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
 
         logger = logging.getLogger(__name__)
         saved_count = 0
+        deleted_count = 0
 
         logger.info(f"🔄 save_uom_conversions called for item {self.object.id}")
-
-        # ✅ لا نحذف التحويلات القديمة - سنستخدم update_or_create
-        logger.info("💾 Using update_or_create to preserve existing conversions...")
 
         # الحصول على وحدة القياس الأساسية للمادة
         base_uom = self.object.base_uom
@@ -922,6 +622,9 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
             return 0
 
         logger.info(f"✅ base_uom: {base_uom.name}")
+
+        # ✅ تتبع وحدات القياس الموجودة في POST data
+        kept_from_uom_ids = []
 
         # فحص جميع حقول POST
         conversion_fields = [key for key in self.request.POST.keys() if key.startswith('conversion_from_uom_')]
@@ -962,6 +665,9 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                         logger.warning(f"    ⚠️ Skipping - from_uom same as base_uom")
                         continue
 
+                    # ✅ إضافة هذه الوحدة إلى قائمة المحفوظات
+                    kept_from_uom_ids.append(from_uom_id)
+
                     # إنشاء الصيغة: 1 [from_uom] = [factor] [base_uom]
                     formula = f'1 {from_uom.name} = {factor} {base_uom.name}'
 
@@ -986,8 +692,146 @@ class ItemUpdateView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, 
                     logger.error(f"    ❌ Error saving conversion {index}: {e}")
                     continue
 
+        # ✅ حذف التحويلات التي لم تعد موجودة في الـ form
+        logger.info(f"🗑️ Checking for conversions to delete...")
+        logger.info(f"   - Kept from_uom_ids: {kept_from_uom_ids}")
+
+        # جلب جميع التحويلات الموجودة
+        old_conversions = UoMConversion.objects.filter(
+            item=self.object,
+            company=self.request.current_company
+        )
+
+        # التحويلات المطلوب حذفها = التي ليست في قائمة المحفوظات
+        if kept_from_uom_ids:
+            conversions_to_delete = old_conversions.exclude(from_uom_id__in=kept_from_uom_ids)
+        else:
+            # إذا كانت قائمة المحفوظات فارغة، احذف جميع التحويلات
+            conversions_to_delete = old_conversions
+
+        deleted_count = conversions_to_delete.count()
+        if deleted_count > 0:
+            logger.info(f"   - Deleting {deleted_count} conversions...")
+            for conv in conversions_to_delete:
+                logger.info(f"     ❌ Deleting: {conv.from_uom.name} → {base_uom.name}")
+            conversions_to_delete.delete()
+
         logger.info(f"✅ Total conversions saved: {saved_count}")
+        logger.info(f"✅ Total conversions deleted: {deleted_count}")
         return saved_count
+
+    def save_pricing_from_json(self):
+        """
+        حفظ بيانات الأسعار من JSON بدلاً من formset
+        """
+        import json
+        import logging
+        from decimal import Decimal
+        from apps.core.models import PriceListItem, PriceList, ItemVariant
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"💰 save_pricing_from_json called for item {self.object.id}")
+
+        # الحصول على بيانات الأسعار من JSON
+        pricing_data_json = self.request.POST.get('pricing_data', '[]')
+
+        try:
+            pricing_data = json.loads(pricing_data_json)
+            logger.info(f"📊 Received {len(pricing_data)} price entries")
+
+            saved_count = 0
+            updated_count = 0
+
+            # جمع IDs للأسعار التي تم حفظها (للحفاظ عليها)
+            processed_ids = []
+
+            for price_entry in pricing_data:
+                try:
+                    price_list_id = int(price_entry['price_list_id'])
+                    price = Decimal(str(price_entry['price']))
+                    variant_id = price_entry.get('variant_id')
+                    existing_id = price_entry.get('existing_id')
+
+                    # التحقق من صحة السعر
+                    if price <= 0:
+                        continue
+
+                    # الحصول على قائمة الأسعار
+                    price_list = PriceList.objects.get(
+                        pk=price_list_id,
+                        company=self.request.current_company
+                    )
+
+                    # الحصول على المتغير إن وجد
+                    variant = None
+                    if variant_id and variant_id != '':
+                        variant = ItemVariant.objects.get(
+                            pk=int(variant_id),
+                            company=self.request.current_company
+                        )
+
+                    # حفظ أو تحديث السعر
+                    if existing_id:
+                        # تحديث سعر موجود
+                        try:
+                            price_item = PriceListItem.objects.get(pk=int(existing_id))
+                            price_item.price = price
+                            price_item.save()
+                            processed_ids.append(price_item.id)
+                            updated_count += 1
+                            logger.info(f"  🔄 Updated price: PriceList={price_list.name}, Variant={variant.code if variant else 'N/A'}, Price={price}")
+                        except PriceListItem.DoesNotExist:
+                            # إذا لم يوجد السعر القديم، أنشئ واحد جديد
+                            price_item, created = PriceListItem.objects.get_or_create(
+                                item=self.object,
+                                price_list=price_list,
+                                variant=variant,
+                                defaults={'price': price}
+                            )
+                            if not created:
+                                price_item.price = price
+                                price_item.save()
+                            processed_ids.append(price_item.id)
+                            saved_count += 1
+                            logger.info(f"  ✅ Created price: PriceList={price_list.name}, Variant={variant.code if variant else 'N/A'}, Price={price}")
+                    else:
+                        # إنشاء سعر جديد
+                        price_item, created = PriceListItem.objects.get_or_create(
+                            item=self.object,
+                            price_list=price_list,
+                            variant=variant,
+                            defaults={'price': price}
+                        )
+                        if not created:
+                            price_item.price = price
+                            price_item.save()
+                            updated_count += 1
+                        else:
+                            saved_count += 1
+                        processed_ids.append(price_item.id)
+                        logger.info(f"  ✅ {'Created' if created else 'Updated'} price: PriceList={price_list.name}, Variant={variant.code if variant else 'N/A'}, Price={price}")
+
+                except (ValueError, PriceList.DoesNotExist, ItemVariant.DoesNotExist) as e:
+                    logger.error(f"  ❌ Error saving price entry: {e}")
+                    continue
+
+            # حذف الأسعار التي لم تعد موجودة في البيانات الجديدة
+            if processed_ids:
+                deleted_count = PriceListItem.objects.filter(
+                    item=self.object
+                ).exclude(id__in=processed_ids).delete()[0]
+            else:
+                # إذا لم يكن هناك أسعار جديدة، احذف كل الأسعار القديمة
+                deleted_count = PriceListItem.objects.filter(
+                    item=self.object
+                ).delete()[0]
+
+            logger.info(f"✅ Pricing saved: {saved_count} new, {updated_count} updated, {deleted_count} deleted")
+            return saved_count + updated_count
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Error parsing pricing JSON: {e}")
+            return 0
 
     def form_invalid(self, form):
         messages.error(self.request, _('يرجى تصحيح الأخطاء أدناه'))

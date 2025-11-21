@@ -20,8 +20,8 @@ class ItemForm(forms.ModelForm):
             'item_code', 'name', 'name_en', 'catalog_number', 'barcode',
             'category', 'brand', 'base_uom', 'currency',
             'tax_rate',
-            # حذف الحسابات المحاسبية مؤقتاً لحل المشاكل
-            # 'sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account',
+            # ✅ إعادة تفعيل الحسابات المحاسبية
+            'sales_account', 'purchase_account', 'inventory_account', 'cost_of_goods_account',
             'short_description', 'description', 'features',
             'has_variants',
             'weight', 'length', 'width', 'height',
@@ -144,6 +144,23 @@ class ItemForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': _('ملاحظات إضافية')
             }),
+            # ✅ إضافة widgets للحسابات المحاسبية
+            'sales_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-placeholder': _('اختر حساب المبيعات (اختياري)')
+            }),
+            'purchase_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-placeholder': _('اختر حساب المشتريات (اختياري)')
+            }),
+            'inventory_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-placeholder': _('اختر حساب المخزون (اختياري)')
+            }),
+            'cost_of_goods_account': forms.Select(attrs={
+                'class': 'form-select',
+                'data-placeholder': _('اختر حساب تكلفة البضاعة (اختياري)')
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -211,6 +228,58 @@ class ItemForm(forms.ModelForm):
                 is_active=True
             ).order_by('name')
 
+            # ✅ إضافة queryset للحسابات المحاسبية
+            try:
+                from apps.accounting.models import Account
+
+                # ✅ حسابات المبيعات (الإيرادات)
+                # account_type هو ForeignKey لـ AccountType، وtype_category هو الحقل الذي يحتوي على القيمة
+                self.fields['sales_account'].queryset = Account.objects.filter(
+                    company=company,
+                    is_active=True,
+                    account_type__type_category='revenue'  # ✅ استخدام العلاقة الصحيحة
+                ).order_by('code', 'name')
+
+                # ✅ حسابات المشتريات (المصروفات)
+                self.fields['purchase_account'].queryset = Account.objects.filter(
+                    company=company,
+                    is_active=True,
+                    account_type__type_category='expenses'  # ✅ لاحظ: expenses بصيغة الجمع
+                ).order_by('code', 'name')
+
+                # ✅ حسابات المخزون (الأصول)
+                self.fields['inventory_account'].queryset = Account.objects.filter(
+                    company=company,
+                    is_active=True,
+                    account_type__type_category='assets'  # ✅ لاحظ: assets بصيغة الجمع
+                ).order_by('code', 'name')
+
+                # ✅ حسابات تكلفة البضاعة المباعة (مصروفات)
+                self.fields['cost_of_goods_account'].queryset = Account.objects.filter(
+                    company=company,
+                    is_active=True,
+                    account_type__type_category='expenses'  # ✅ لاحظ: expenses بصيغة الجمع
+                ).order_by('code', 'name')
+
+                # جعلها اختيارية
+                self.fields['sales_account'].required = False
+                self.fields['purchase_account'].required = False
+                self.fields['inventory_account'].required = False
+                self.fields['cost_of_goods_account'].required = False
+
+                # إضافة empty_label
+                self.fields['sales_account'].empty_label = _('-- اختياري --')
+                self.fields['purchase_account'].empty_label = _('-- اختياري --')
+                self.fields['inventory_account'].empty_label = _('-- اختياري --')
+                self.fields['cost_of_goods_account'].empty_label = _('-- اختياري --')
+
+            except ImportError:
+                # إذا لم يكن accounting module موجوداً، اخف الحقول
+                self.fields['sales_account'].widget = forms.HiddenInput()
+                self.fields['purchase_account'].widget = forms.HiddenInput()
+                self.fields['inventory_account'].widget = forms.HiddenInput()
+                self.fields['cost_of_goods_account'].widget = forms.HiddenInput()
+
 
         # تصحيح الإلزامية للحقول
         self.fields['base_uom'].required = True
@@ -220,6 +289,26 @@ class ItemForm(forms.ModelForm):
         # إضافة empty_label للخيارات الاختيارية
         self.fields['brand'].empty_label = _('اختر العلامة التجارية')
 
+    def clean_base_uom(self):
+        """
+        ✅ التحقق من أن base_uom مطلوب
+        هذا ضروري لنظام المخزون والتحويلات
+        """
+        base_uom = self.cleaned_data.get('base_uom')
+        if not base_uom:
+            raise forms.ValidationError(_('الوحدة الأساسية مطلوبة. يرجى اختيار وحدة قياس أساسية للمادة.'))
+        return base_uom
+
+    def clean(self):
+        """التحقق من صحة البيانات العامة"""
+        cleaned_data = super().clean()
+
+        # التحقق من has_variants مع الحسابات المحاسبية
+        has_variants = cleaned_data.get('has_variants')
+
+        # يمكن إضافة validations إضافية هنا إذا لزم الأمر
+
+        return cleaned_data
 
 
 class ItemCategoryForm(forms.ModelForm):
@@ -371,3 +460,69 @@ class VariantAttributeSelectionForm(forms.Form):
                     required=False,
                     label=attribute.display_name or attribute.name
                 )
+
+
+# ============================================================================
+# نماذج الأسعار - Pricing Forms
+# ============================================================================
+
+class PriceListItemForm(forms.ModelForm):
+    """نموذج لإدخال الأسعار في قوائم الأسعار"""
+
+    class Meta:
+        from ..models import PriceListItem
+        model = PriceListItem
+        fields = ['price_list', 'variant', 'price']
+        widgets = {
+            'price_list': forms.Select(attrs={
+                'class': 'form-select form-select-sm price-list-select',
+                'required': True
+            }),
+            'variant': forms.Select(attrs={
+                'class': 'form-select form-select-sm variant-select'
+            }),
+            'price': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm',
+                'step': '0.001',
+                'min': '0',
+                'placeholder': _('السعر'),
+                'required': True
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop('company', None)
+        item = kwargs.pop('item', None)
+        super().__init__(*args, **kwargs)
+
+        if company:
+            from ..models import PriceList
+            self.fields['price_list'].queryset = PriceList.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('name')
+
+        if item:
+            # إذا كانت المادة لها متغيرات، نظهر قائمة المتغيرات
+            if item.has_variants:
+                self.fields['variant'].queryset = item.variants.filter(is_active=True)
+                self.fields['variant'].required = True
+            else:
+                # إذا لم يكن لها متغيرات، نخفي حقل المتغير
+                self.fields['variant'].widget = forms.HiddenInput()
+                self.fields['variant'].required = False
+
+
+# FormSet للأسعار
+def get_price_list_item_formset():
+    """الحصول على FormSet للأسعار"""
+    from ..models import PriceListItem
+    return inlineformset_factory(
+        Item,
+        PriceListItem,
+        form=PriceListItemForm,
+        extra=3,  # 3 صفوف فارغة لإضافة أسعار جديدة
+        can_delete=True,
+        max_num=20,  # حد أقصى 20 سعر
+        fk_name='item'
+    )

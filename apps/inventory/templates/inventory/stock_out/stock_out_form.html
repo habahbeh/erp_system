@@ -1,0 +1,210 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+.formset-row {
+    border-bottom: 1px solid #dee2e6;
+    padding: 10px 0;
+    margin-bottom: 10px;
+}
+.delete-row {
+    background-color: #ffebee;
+    opacity: 0.6;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- Basic Info Card -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "معلومات أساسية" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "التاريخ" %} *</label>
+                            {{ form.date|add_class:"form-control" }}
+                            {% if form.date.errors %}
+                                <div class="text-danger">{{ form.date.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "المستودع" %} *</label>
+                            {{ form.warehouse|add_class:"form-select" }}
+                            {% if form.warehouse.errors %}
+                                <div class="text-danger">{{ form.warehouse.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "مصدر الإدخال" %} *</label>
+                            {{ form.source_type|add_class:"form-select" }}
+                            {% if form.source_type.errors %}
+                                <div class="text-danger">{{ form.source_type.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "المورد" %}</label>
+                            {{ form.supplier|add_class:"form-select" }}
+                            {% if form.supplier.errors %}
+                                <div class="text-danger">{{ form.supplier.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "المرجع" %}</label>
+                            {{ form.reference|add_class:"form-control" }}
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "ملاحظات" %}</label>
+                            {{ form.notes|add_class:"form-control" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Card -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-boxes"></i>
+                    {% trans "المواد" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {{ lines_formset.management_form }}
+                <div id="formset-container">
+                    {% for form in lines_formset %}
+                    <div class="formset-row row">
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "المادة" %} *</label>
+                            {{ form.item|add_class:"form-select" }}
+                            {{ form.id }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "الكمية" %} *</label>
+                            {{ form.quantity|add_class:"form-control" }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "التكلفة/الوحدة" %} *</label>
+                            {{ form.unit_cost|add_class:"form-control" }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "رقم الدفعة" %}</label>
+                            {{ form.batch_number|add_class:"form-control" }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">{% trans "تاريخ الانتهاء" %}</label>
+                            {{ form.expiry_date|add_class:"form-control" }}
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-danger btn-sm delete-formset-row">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {{ form.DELETE }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-success" id="add-formset-row">
+                    <i class="fas fa-plus"></i> {% trans "إضافة مادة" %}
+                </button>
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ cancel_url }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {{ submit_text }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.form-select').select2({
+        dir: 'rtl',
+        language: 'ar'
+    });
+
+    // Formset management
+    var formCount = parseInt($('#id_form-TOTAL_FORMS').val());
+
+    $('#add-formset-row').click(function() {
+        var newForm = $('.formset-row:first').clone(true);
+        newForm.find('input,select').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                name = name.replace(/form-\d+-/, 'form-' + formCount + '-');
+                $(this).attr('name', name).attr('id', 'id_' + name);
+                $(this).val('');
+            }
+        });
+        newForm.find('label').remove(); // Remove duplicated labels
+        $('#formset-container').append(newForm);
+        formCount++;
+        $('#id_form-TOTAL_FORMS').val(formCount);
+    });
+
+    $(document).on('click', '.delete-formset-row', function() {
+        var row = $(this).closest('.formset-row');
+        if ($('.formset-row').length > 1) {
+            row.find('input[name*="DELETE"]').prop('checked', true);
+            row.addClass('delete-row');
+            row.hide();
+        } else {
+            alert('{% trans "يجب أن يحتوي السند على مادة واحدة على الأقل" %}');
+        }
+    });
+});
+</script>
+{% endblock %}

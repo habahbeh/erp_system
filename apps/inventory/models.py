@@ -137,6 +137,9 @@ class StockIn(StockDocument):
         verbose_name_plural = _('سندات الإدخال')
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
+        permissions = [
+            ('can_post_stock_document', _('يمكنه ترحيل سندات المخزون')),
+        ]
 
     def save(self, *args, **kwargs):
         """توليد رقم السند"""
@@ -206,6 +209,32 @@ class StockIn(StockDocument):
             stock.last_movement_date = timezone.now()
             stock.save()
 
+            # تحديث معلومات آخر شراء
+            stock.update_last_purchase(
+                price=line.unit_cost,
+                total=line.total_cost,
+                date=self.date,
+                supplier=self.supplier if hasattr(self, 'supplier') else None
+            )
+
+            # تحديث آخر سعر شراء للمورد
+            if self.supplier:
+                from apps.core.models import PartnerItemPrice
+                partner_price, created = PartnerItemPrice.objects.get_or_create(
+                    company=self.company,
+                    partner=self.supplier,
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    defaults={
+                        'created_by': user or self.created_by
+                    }
+                )
+                partner_price.update_purchase_price(
+                    price=line.unit_cost,
+                    quantity=line.quantity,
+                    date=self.date
+                )
+
             # إنشاء حركة المادة
             StockMovement.objects.create(
                 company=self.company,
@@ -218,6 +247,7 @@ class StockIn(StockDocument):
                 quantity=line.quantity,
                 unit_cost=line.unit_cost,
                 total_cost=line.total_cost,
+                balance_before=old_quantity,
                 balance_quantity=stock.quantity,
                 balance_value=stock.total_value,
                 reference_type='stock_in',
@@ -536,11 +566,23 @@ class StockOut(StockDocument):
 
             # التحقق من الكمية المتاحة
             available_quantity = stock.quantity - stock.reserved_quantity
-            if available_quantity < line.quantity:
-                raise ValidationError(
-                    f'الكمية المتاحة من {line.item.name} ({available_quantity}) '
-                    f'أقل من المطلوب ({line.quantity})'
-                )
+
+            # التحقق من السماح بالرصيد السالب
+            if not self.warehouse.allow_negative_stock:
+                if available_quantity < line.quantity:
+                    raise ValidationError(
+                        f'الكمية المتاحة من {line.item.name} ({available_quantity}) '
+                        f'أقل من المطلوب ({line.quantity}). '
+                        f'المستودع "{self.warehouse.name}" لا يسمح بالرصيد السالب.'
+                    )
+            else:
+                # تحذير فقط
+                if available_quantity < line.quantity:
+                    logger.warning(
+                        f'Negative stock will occur for {line.item.name} '
+                        f'in warehouse {self.warehouse.name}. '
+                        f'Available: {available_quantity}, Required: {line.quantity}'
+                    )
 
             # حساب القيمة (بمتوسط التكلفة)
             line.unit_cost = stock.average_cost
@@ -570,6 +612,7 @@ class StockOut(StockDocument):
                 quantity=-line.quantity,  # سالب للإخراج
                 unit_cost=line.unit_cost,
                 total_cost=-line.total_cost,
+                balance_before=old_quantity,
                 balance_quantity=stock.quantity,
                 balance_value=stock.total_value,
                 reference_type='stock_out',
@@ -577,6 +620,38 @@ class StockOut(StockDocument):
                 reference_number=self.number,
                 created_by=user or self.created_by
             )
+
+            # تحديث آخر سعر بيع للعميل
+            if self.customer:
+                from apps.core.models import PartnerItemPrice
+                # استخدام السعر من قائمة الأسعار إذا كان موجوداً
+                sale_price = line.unit_cost  # Default to cost price
+                if self.customer.default_price_list:
+                    from apps.core.models import get_item_price
+                    price_info = get_item_price(
+                        item=line.item,
+                        variant=line.item_variant,
+                        price_list=self.customer.default_price_list,
+                        quantity=line.quantity,
+                        check_date=self.date
+                    )
+                    if price_info:
+                        sale_price = price_info['price']
+
+                partner_price, created = PartnerItemPrice.objects.get_or_create(
+                    company=self.company,
+                    partner=self.customer,
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    defaults={
+                        'created_by': user or self.created_by
+                    }
+                )
+                partner_price.update_sale_price(
+                    price=sale_price,
+                    quantity=line.quantity,
+                    date=self.date
+                )
 
         # إنشاء القيد المحاسبي (إذا كان مطلوباً)
         if not self.journal_entry:
@@ -935,6 +1010,9 @@ class StockTransfer(StockDocument):
         verbose_name_plural = _('التحويلات المخزنية')
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
+        permissions = [
+            ('can_approve_transfer', _('يمكنه اعتماد التحويلات')),
+        ]
 
     def save(self, *args, **kwargs):
         """توليد رقم السند"""
@@ -1042,6 +1120,7 @@ class StockTransfer(StockDocument):
                 quantity=-line.quantity,  # سالب للإخراج
                 unit_cost=line.unit_cost,
                 total_cost=-line.total_cost,
+                balance_before=old_quantity,
                 balance_quantity=source_stock.quantity,
                 balance_value=source_stock.total_value,
                 reference_type='stock_transfer',
@@ -1118,6 +1197,7 @@ class StockTransfer(StockDocument):
                 quantity=received_qty,
                 unit_cost=line.unit_cost,
                 total_cost=received_cost,
+                balance_before=old_quantity,
                 balance_quantity=dest_stock.quantity,
                 balance_value=dest_stock.total_value,
                 reference_type='stock_transfer',
@@ -1372,7 +1452,15 @@ class StockMovement(BaseModel):
         decimal_places=3
     )
 
-    # الرصيد بعد الحركة
+    # الرصيد قبل وبعد الحركة
+    balance_before = models.DecimalField(
+        _('رصيد الكمية قبل الحركة'),
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        help_text=_('الرصيد قبل تطبيق هذه الحركة')
+    )
+
     balance_quantity = models.DecimalField(
         _('رصيد الكمية'),
         max_digits=12,
@@ -1422,6 +1510,7 @@ class StockMovement(BaseModel):
         indexes = [
             models.Index(fields=['item', 'warehouse', '-date']),
             models.Index(fields=['reference_type', 'reference_id']),
+            models.Index(fields=['movement_type', '-date']),
         ]
 
     def __str__(self):
@@ -1712,6 +1801,93 @@ class ItemStock(BaseModel):
         blank=True
     )
 
+    # الرصيد الافتتاحي
+    opening_balance = models.DecimalField(
+        _('الرصيد الافتتاحي'),
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        help_text=_('الرصيد عند بداية الفترة المالية')
+    )
+
+    opening_value = models.DecimalField(
+        _('قيمة الرصيد الافتتاحي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0
+    )
+
+    # معلومات آخر عملية شراء
+    last_purchase_price = models.DecimalField(
+        _('آخر سعر شراء للوحدة'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('سعر الوحدة في آخر عملية شراء')
+    )
+
+    last_purchase_total = models.DecimalField(
+        _('آخر سعر شراء إجمالي'),
+        max_digits=15,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('إجمالي تكلفة آخر عملية شراء')
+    )
+
+    last_purchase_date = models.DateField(
+        _('تاريخ آخر شراء'),
+        null=True,
+        blank=True
+    )
+
+    last_supplier = models.ForeignKey(
+        'core.BusinessPartner',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('آخر مورد'),
+        related_name='last_supplied_stocks',
+        limit_choices_to={'partner_type__in': ['supplier', 'both']}
+    )
+
+    # حدود المخزون
+    min_level = models.DecimalField(
+        _('الحد الأدنى للمخزون'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('عند الوصول لهذا الحد يتم التنبيه')
+    )
+
+    max_level = models.DecimalField(
+        _('الحد الأقصى للمخزون'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('الحد الأقصى المسموح للتخزين')
+    )
+
+    reorder_point = models.DecimalField(
+        _('نقطة إعادة الطلب'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text=_('عند الوصول لهذه النقطة يتم طلب المزيد')
+    )
+
+    # موقع التخزين
+    storage_location = models.CharField(
+        _('موقع التخزين'),
+        max_length=100,
+        blank=True,
+        help_text=_('الرف أو المنطقة في المستودع')
+    )
+
     class Meta:
         verbose_name = _('رصيد مادة')
         verbose_name_plural = _('أرصدة المواد')
@@ -1747,9 +1923,66 @@ class ItemStock(BaseModel):
     def is_below_reorder_level(self, reorder_level=None):
         """هل الكمية أقل من حد إعادة الطلب"""
         if reorder_level is None:
-            # يمكن إضافة حقل reorder_level في Item
+            # استخدام reorder_point من الحقل الجديد
+            reorder_level = self.reorder_point
+        if reorder_level is None:
             return False
         return self.quantity <= reorder_level
+
+    def update_last_purchase(self, price, total, date, supplier=None):
+        """
+        تحديث معلومات آخر عملية شراء
+
+        Args:
+            price: سعر الوحدة
+            total: الإجمالي
+            date: تاريخ الشراء
+            supplier: المورد (اختياري)
+        """
+        self.last_purchase_price = price
+        self.last_purchase_total = total
+        self.last_purchase_date = date
+        if supplier:
+            self.last_supplier = supplier
+        self.save(update_fields=[
+            'last_purchase_price',
+            'last_purchase_total',
+            'last_purchase_date',
+            'last_supplier'
+        ])
+
+    def check_reorder_needed(self):
+        """
+        التحقق من الحاجة لإعادة الطلب
+
+        Returns:
+            bool: True إذا كانت الكمية أقل من نقطة إعادة الطلب
+        """
+        if self.reorder_point:
+            return self.quantity <= self.reorder_point
+        return False
+
+    def is_below_min_level(self):
+        """
+        التحقق من أن الرصيد أقل من الحد الأدنى
+
+        Returns:
+            bool: True إذا كانت الكمية أقل من الحد الأدنى
+        """
+        if self.min_level:
+            return self.quantity < self.min_level
+        return False
+
+    def is_above_max_level(self):
+        """
+        التحقق من أن الرصيد أعلى من الحد الأقصى
+
+        Returns:
+            bool: True إذا كانت الكمية أعلى من الحد الأقصى
+        """
+        if self.max_level:
+            return self.quantity > self.max_level
+        return False
 
     @classmethod
     def get_total_stock(cls, item, item_variant=None, company=None):
