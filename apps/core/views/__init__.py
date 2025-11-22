@@ -144,7 +144,7 @@ from .ajax_views import (
     brand_datatable_ajax, unit_datatable_ajax, currency_datatable_ajax,
     branch_datatable_ajax, variant_attribute_datatable_ajax, user_datatable_ajax,
     profile_datatable_ajax, permission_datatable_ajax, group_datatable_ajax,
-    price_list_datatable_ajax  , price_list_items_ajax
+    price_list_datatable_ajax, price_list_items_ajax, get_item_variants
 )
 
 
@@ -284,6 +284,7 @@ __all__ = [
     'group_datatable_ajax',
     'price_list_datatable_ajax',
     'price_list_items_ajax',
+    'get_item_variants',
 
     # ✅ Week 1 Day 4: UoM Conversion Views (6)
     'UoMConversionListView',

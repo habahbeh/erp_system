@@ -103,7 +103,7 @@ StockInLineFormSet = inlineformset_factory(
     StockIn,
     StockDocumentLine,
     form=StockDocumentLineForm,
-    extra=1,
+    extra=5,
     can_delete=True,
     min_num=1,
     validate_min=True
@@ -293,27 +293,30 @@ class StockCountForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
+        self.company = kwargs.pop('company', None)
         super().__init__(*args, **kwargs)
 
-        if self.request:
+        # Get company from request or passed parameter
+        company = self.company
+        if not company and self.request:
             company = getattr(self.request, 'current_company', None)
 
-            if company:
-                from apps.core.models import User
+        if company:
+            from apps.core.models import User
 
-                self.fields['warehouse'].queryset = Warehouse.objects.filter(
-                    company=company,
-                    is_active=True
-                ).order_by('name')
+            self.fields['warehouse'].queryset = Warehouse.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('name')
 
-                # المستخدمون النشطون في الشركة
-                users = User.objects.filter(
-                    profile__company=company,
-                    is_active=True
-                ).order_by('first_name', 'last_name')
+            # المستخدمون النشطون في الشركة
+            users = User.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('first_name', 'last_name')
 
-                self.fields['supervisor'].queryset = users
-                self.fields['count_team'].queryset = users
+            self.fields['supervisor'].queryset = users
+            self.fields['count_team'].queryset = users
 
 
 class StockCountLineForm(forms.ModelForm):
@@ -376,3 +379,69 @@ class ItemStockForm(forms.ModelForm):
             }),
             'storage_location': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+
+class BatchForm(forms.ModelForm):
+    """نموذج إضافة/تعديل دفعة"""
+
+    class Meta:
+        model = Batch
+        fields = [
+            'item', 'item_variant', 'warehouse', 'batch_number',
+            'manufacturing_date', 'expiry_date', 'quantity', 'unit_cost',
+            'source_document', 'source_id', 'received_date'
+        ]
+        widgets = {
+            'item': forms.Select(attrs={'class': 'form-select'}),
+            'item_variant': forms.Select(attrs={'class': 'form-select'}),
+            'warehouse': forms.Select(attrs={'class': 'form-select'}),
+            'batch_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'manufacturing_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'expiry_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.001',
+                'min': '0'
+            }),
+            'unit_cost': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.001',
+                'min': '0'
+            }),
+            'source_document': forms.TextInput(attrs={'class': 'form-control'}),
+            'source_id': forms.NumberInput(attrs={'class': 'form-control'}),
+            'received_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if self.request:
+            company = getattr(self.request, 'current_company', None)
+
+            if company:
+                # تصفية المواد والمستودعات حسب الشركة
+                self.fields['item'].queryset = Item.objects.filter(
+                    company=company,
+                    is_active=True
+                ).order_by('name')
+
+                self.fields['warehouse'].queryset = Warehouse.objects.filter(
+                    company=company,
+                    is_active=True
+                ).order_by('name')
+
+                # جعل بعض الحقول اختيارية
+                self.fields['item_variant'].required = False
+                self.fields['manufacturing_date'].required = False
+                self.fields['expiry_date'].required = False

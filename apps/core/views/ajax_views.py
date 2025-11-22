@@ -2806,3 +2806,62 @@ def price_list_items_ajax(request, pk):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def get_item_variants(request, item_id):
+    """
+    Get variants for a specific item
+    """
+    try:
+        item = get_object_or_404(Item, id=item_id)
+
+        # Check if item has variants
+        variants = ItemVariant.objects.filter(
+            item=item,
+            is_active=True
+        ).select_related('item').prefetch_related('variant_attribute_values__attribute', 'variant_attribute_values__value')
+
+        has_variants = variants.exists()
+
+        variant_list = []
+        for variant in variants:
+            # Get variant attributes
+            attributes = []
+            for attr_value in variant.variant_attribute_values.all():
+                attributes.append({
+                    'attribute': attr_value.attribute.name,
+                    'value': attr_value.value.value
+                })
+
+            # Build variant display name from attributes
+            variant_display = ''
+            if attributes:
+                variant_display = ' - '.join([av['value'] for av in attributes])
+
+            variant_list.append({
+                'id': variant.id,
+                'code': variant.code,
+                'name': variant_display,
+                'attributes': attributes
+            })
+
+        return JsonResponse({
+            'success': True,
+            'has_variants': has_variants,
+            'variants': variant_list,
+            'item_code': item.code,
+            'item_name': item.name
+        })
+
+    except Item.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'المادة غير موجودة'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -350,37 +350,97 @@ class StockIn(StockDocument):
             line_number += 1
 
         # الطرف الدائن (حسب المصدر)
-        if self.source_type == 'purchase' and self.supplier:
-            # حساب المورد (دائن)
-            from apps.accounting.models import Account
+        from apps.accounting.models import Account
 
-            # محاولة الحصول على حساب المورد
-            supplier_account = None
-            if hasattr(self.supplier, 'supplier_account') and self.supplier.supplier_account:
-                supplier_account = self.supplier.supplier_account
-            else:
-                # استخدام حساب الموردين الافتراضي
+        credit_account = None
+        credit_description = ""
+        partner_type = None
+        partner_id = None
+        total_amount = sum(data['debit'] for data in inventory_accounts.values())
+
+        if self.source_type == 'purchase':
+            # حساب المورد (دائن)
+            if self.supplier:
+                # محاولة الحصول على حساب المورد
+                if hasattr(self.supplier, 'supplier_account') and self.supplier.supplier_account:
+                    credit_account = self.supplier.supplier_account
+                else:
+                    # استخدام حساب الموردين الافتراضي
+                    try:
+                        credit_account = Account.objects.get(company=self.company, code='210000')
+                    except Account.DoesNotExist:
+                        pass
+
+                if credit_account:
+                    credit_description = f"شراء من {self.supplier.name}"
+                    partner_type = 'supplier'
+                    partner_id = self.supplier.pk
+
+        elif self.source_type == 'opening':
+            # حساب الأرباح المحتجزة (رصيد افتتاحي)
+            try:
+                credit_account = Account.objects.get(company=self.company, code='320101')
+                credit_description = "رصيد افتتاحي للمخزون"
+            except Account.DoesNotExist:
+                # استخدام حساب حقوق الملكية العام
                 try:
-                    supplier_account = Account.objects.get(
-                        company=self.company,
-                        code='210000'
-                    )
+                    credit_account = Account.objects.get(company=self.company, code='3')
+                    credit_description = "رصيد افتتاحي للمخزون"
                 except Account.DoesNotExist:
                     pass
 
-            if supplier_account:
-                JournalEntryLine.objects.create(
-                    journal_entry=journal_entry,
-                    line_number=line_number,
-                    account=supplier_account,
-                    description=f"شراء من {self.supplier.name}",
-                    debit_amount=0,
-                    credit_amount=sum(data['debit'] for data in inventory_accounts.values()),
-                    currency=self.company.base_currency,
-                    reference=self.number,
-                    partner_type='supplier',
-                    partner_id=self.supplier.pk
-                )
+        elif self.source_type == 'return':
+            # حساب العملاء (مرتجع مبيعات)
+            try:
+                credit_account = Account.objects.get(company=self.company, code='1102')
+                credit_description = "مرتجع مبيعات"
+            except Account.DoesNotExist:
+                pass
+
+        elif self.source_type == 'production':
+            # حساب تكلفة الإنتاج
+            try:
+                credit_account = Account.objects.get(company=self.company, code='5')
+                credit_description = "إنتاج"
+            except Account.DoesNotExist:
+                pass
+
+        elif self.source_type == 'adjustment':
+            # حساب فروقات جرد (تسوية)
+            try:
+                credit_account = Account.objects.get(company=self.company, code='5')
+                credit_description = "تسوية مخزون"
+            except Account.DoesNotExist:
+                pass
+
+        else:  # other
+            # حساب افتراضي
+            try:
+                credit_account = Account.objects.get(company=self.company, code='3')
+                credit_description = "إدخال مخزون - أخرى"
+            except Account.DoesNotExist:
+                pass
+
+        # إنشاء سطر القيد الدائن
+        if credit_account:
+            line_data = {
+                'journal_entry': journal_entry,
+                'line_number': line_number,
+                'account': credit_account,
+                'description': credit_description,
+                'debit_amount': 0,
+                'credit_amount': total_amount,
+                'currency': self.company.base_currency,
+                'reference': self.number,
+            }
+
+            # إضافة معلومات الشريك إذا كانت موجودة
+            if partner_type:
+                line_data['partner_type'] = partner_type
+            if partner_id:
+                line_data['partner_id'] = partner_id
+
+            JournalEntryLine.objects.create(**line_data)
 
         # ترحيل القيد
         journal_entry.post(user=user)
@@ -2173,6 +2233,31 @@ class Batch(BaseModel):
             return False
         from django.utils import timezone
         return timezone.now().date() > self.expiry_date
+
+    def days_to_expiry(self):
+        """عدد الأيام حتى انتهاء الصلاحية"""
+        if not self.expiry_date:
+            return None
+        from django.utils import timezone
+        today = timezone.now().date()
+        delta = self.expiry_date - today
+        return delta.days
+
+    def get_expiry_status(self):
+        """حالة الدفعة حسب تاريخ الانتهاء"""
+        if not self.expiry_date:
+            return 'no_expiry'
+
+        days = self.days_to_expiry()
+
+        if days < 0:
+            return 'expired'
+        elif days <= 30:
+            return 'expiring_soon'
+        elif days <= 90:
+            return 'warning'
+        else:
+            return 'good'
 
     def get_available_quantity(self):
         """الكمية المتاحة"""

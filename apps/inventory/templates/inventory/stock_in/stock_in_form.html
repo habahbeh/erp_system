@@ -4,16 +4,513 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
-.formset-row {
-    border-bottom: 1px solid #dee2e6;
-    padding: 10px 0;
-    margin-bottom: 10px;
+html {
+    scroll-behavior: smooth;
 }
-.delete-row {
-    background-color: #ffebee;
-    opacity: 0.6;
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+}
+
+/* Compact basic info section */
+.card-body .form-label {
+    font-size: 0.8rem;
+    margin-bottom: 0.15rem;
+}
+
+.card-body .form-control-sm {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Autocomplete Dropdown - Oracle Desktop Style */
+.autocomplete-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+.autocomplete-search-input {
+    flex: 1;
+    border-top-left-radius: 0.375rem !important;
+    border-bottom-left-radius: 0.375rem !important;
+    border-left: none !important;
+    padding-left: 35px !important;
+}
+
+.autocomplete-clear-btn {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 5;
+    padding: 0;
+    line-height: 1;
+}
+
+.autocomplete-clear-btn:hover {
+    background: #c82333;
+}
+
+.autocomplete-clear-btn.show {
+    display: flex;
+}
+
+.autocomplete-dropdown-btn {
+    width: 32px;
+    padding: 0;
+    border: 1px solid #dee2e6;
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.autocomplete-dropdown-btn:hover {
+    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+    border-color: #0078d4;
+}
+
+.autocomplete-dropdown-btn:active {
+    background: #dee2e6;
+}
+
+.autocomplete-dropdown-btn i {
+    font-size: 11px;
+    color: #495057;
+    transition: transform 0.2s;
+}
+
+.autocomplete-dropdown-btn:hover i {
+    color: #0078d4;
+}
+
+.autocomplete-wrapper.open .autocomplete-dropdown-btn i {
+    transform: rotate(180deg);
+}
+
+.autocomplete-list {
+    position: fixed;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999 !important;
+    display: none;
+}
+
+.autocomplete-list.show {
+    display: block;
+}
+
+.autocomplete-list-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    text-align: right;
+    direction: rtl;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.autocomplete-list-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-list-item.selected {
+    background-color: #e3f2fd !important;
+    border-right: 3px solid #0078d4;
+    font-weight: 500;
+}
+
+.autocomplete-list-item:hover,
+.autocomplete-list-item.active {
+    background-color: #0078d4 !important;
+    color: white !important;
+}
+
+.autocomplete-list-item:hover {
+    font-weight: 500;
+}
+
+/* Highlight matched text in autocomplete */
+.autocomplete-list-item mark {
+    background-color: #fff3cd;
+    color: #856404;
+    font-weight: 600;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.autocomplete-list-item:hover mark,
+.autocomplete-list-item.active mark {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* Validation Error Styling */
+.is-invalid {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+.autocomplete-wrapper.border-danger {
+    border-width: 2px !important;
+}
+
+.autocomplete-wrapper.border-danger .autocomplete-search-input {
+    border-color: #dc3545 !important;
+}
+
+.rtl-popup {
+    text-align: right !important;
+    direction: rtl !important;
+}
+
+/* Items section emphasis */
+.card:has(.invoice-table) {
+    box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15) !important;
+    border: 2px solid #0d6efd !important;
+}
+
+.card:has(.invoice-table) .card-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
+    color: white !important;
+    font-weight: 700;
+    padding: 0.75rem 1.25rem;
+}
+
+.card:has(.invoice-table) .card-header h5 {
+    color: white !important;
+}
+
+.card:has(.invoice-table) .card-header .btn {
+    border-color: white;
+    color: white;
+}
+
+.card:has(.invoice-table) .card-header .btn:hover {
+    background: white;
+    color: #0d6efd;
+}
+
+/* Compact Totals Badges */
+.total-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.total-badge i {
+    font-size: 1rem;
+}
+
+.total-badge .total-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.total-badge .total-value {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.total-badge-info {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #0277bd;
+}
+
+.total-badge-info i {
+    color: #0277bd;
+}
+
+.total-badge-warning {
+    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+    color: #f57f17;
+}
+
+.total-badge-warning i {
+    color: #f57f17;
+}
+
+.total-badge-success {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    color: #2e7d32;
+    border: 2px solid #4caf50;
+}
+
+.total-badge-success i {
+    color: #2e7d32;
+}
+
+.total-badge-success .total-value {
+    color: #1b5e20;
+    font-size: 1.25rem;
+}
+
+.total-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Responsive totals */
+@media (max-width: 768px) {
+    .card-footer .d-flex {
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    .total-badge {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* Invoice Table Styling */
+.invoice-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.invoice-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    border-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.invoice-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.invoice-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.invoice-table tbody tr.table-active {
+    background-color: #e7f3ff !important;
+    border-left: 3px solid #0d6efd;
+}
+
+.invoice-table tbody tr.table-active td {
+    background-color: #e7f3ff !important;
+}
+
+.invoice-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+    border-right: 1px solid #f0f0f0;
+}
+
+.invoice-table tbody td:last-child {
+    border-right: none;
+}
+
+.invoice-table input,
+.invoice-table select {
+    font-size: 0.875rem;
+    border-color: #dee2e6;
+}
+
+.invoice-table input:focus,
+.invoice-table select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: #0d6efd;
+    font-size: 0.95rem;
+}
+
+.item-total {
+    color: #198754;
+    font-size: 0.95rem;
+}
+
+.btn-delete-row {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+/* Table responsive wrapper */
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* POS Style Totals Section */
+.pos-totals-section {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.pos-total-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.375rem;
+    border: 1px solid #dee2e6;
+    min-height: 90px;
+}
+
+.pos-total-label {
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.pos-total-value {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.4rem;
+    color: #212529;
+    text-align: center;
+}
+
+.pos-total-final {
+    background: #198754;
+    border-color: #198754;
+}
+
+.pos-total-final .pos-total-label {
+    color: white;
+    font-size: 0.9rem;
+}
+
+.pos-total-final .pos-total-value {
+    font-size: 1.5rem;
+    color: white;
+}
+
+/* Hide DELETE checkbox */
+input[name*="DELETE"] {
+    display: none;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .invoice-table {
+        font-size: 0.75rem;
+    }
+
+    .invoice-table input,
+    .invoice-table select {
+        font-size: 0.75rem;
+        padding: 0.25rem;
+    }
 }
 </style>
 {% endblock %}
@@ -21,144 +518,275 @@
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            {% for breadcrumb in breadcrumbs %}
-                {% if forloop.last %}
-                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
-                {% else %}
-                    <li class="breadcrumb-item">
-                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
-                    </li>
-                {% endif %}
-            {% endfor %}
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'inventory:stock_in_list' %}">إدخال مخزون</a></li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {% if object %}تعديل الإدخال{% else %}إدخال جديد{% endif %}
+            </li>
         </ol>
     </nav>
 
-    <form method="post">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    تعديل بيانات إدخال المخزون
+                {% else %}
+                    إضافة إدخال مخزون جديد
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{{ cancel_url }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <form method="post" id="stockInForm">
         {% csrf_token %}
 
-        <!-- Basic Info Card -->
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-info-circle"></i>
-                    {% trans "معلومات أساسية" %}
-                </h5>
+        <!-- Basic Information Card - Compact -->
+        <div class="card mb-2">
+            <div class="card-header py-2 bg-light">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    المعلومات الأساسية
+                </h6>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "التاريخ" %} *</label>
-                            {{ form.date|add_class:"form-control" }}
-                            {% if form.date.errors %}
-                                <div class="text-danger">{{ form.date.errors }}</div>
-                            {% endif %}
-                        </div>
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label for="{{ form.date.id_for_label }}" class="form-label required-field">
+                            {{ form.date.label }}
+                        </label>
+                        {{ form.date|add_class:"form-control form-control-sm" }}
+                        {% if form.date.errors %}
+                            <ul class="error-list">
+                                {% for error in form.date.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "المستودع" %} *</label>
-                            {{ form.warehouse|add_class:"form-select" }}
-                            {% if form.warehouse.errors %}
-                                <div class="text-danger">{{ form.warehouse.errors }}</div>
-                            {% endif %}
+
+                    <div class="col-md-2">
+                        <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
+                            {{ form.warehouse.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control form-control-sm warehouse-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.warehouse|add_class:"warehouse-select" }}
+                            </div>
                         </div>
+                        {% if form.warehouse.errors %}
+                            <ul class="error-list">
+                                {% for error in form.warehouse.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "مصدر الإدخال" %} *</label>
-                            {{ form.source_type|add_class:"form-select" }}
-                            {% if form.source_type.errors %}
-                                <div class="text-danger">{{ form.source_type.errors }}</div>
-                            {% endif %}
+
+                    <div class="col-md-2">
+                        <label for="{{ form.source_type.id_for_label }}" class="form-label required-field">
+                            {{ form.source_type.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control form-control-sm source-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.source_type|add_class:"source-select" }}
+                            </div>
                         </div>
+                        {% if form.source_type.errors %}
+                            <ul class="error-list">
+                                {% for error in form.source_type.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "المورد" %}</label>
-                            {{ form.supplier|add_class:"form-select" }}
-                            {% if form.supplier.errors %}
-                                <div class="text-danger">{{ form.supplier.errors }}</div>
-                            {% endif %}
+
+                    <div class="col-md-2">
+                        <label for="{{ form.supplier.id_for_label }}" class="form-label">
+                            {{ form.supplier.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control form-control-sm supplier-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.supplier|add_class:"supplier-select" }}
+                            </div>
                         </div>
+                        {% if form.supplier.errors %}
+                            <ul class="error-list">
+                                {% for error in form.supplier.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "المرجع" %}</label>
-                            {{ form.reference|add_class:"form-control" }}
-                        </div>
+
+                    <div class="col-md-4">
+                        <label for="{{ form.reference.id_for_label }}" class="form-label">
+                            {{ form.reference.label }}
+                        </label>
+                        {{ form.reference|add_class:"form-control form-control-sm" }}
                     </div>
+                </div>
+                <div class="row g-2 mt-1">
                     <div class="col-md-12">
-                        <div class="mb-3">
-                            <label class="form-label">{% trans "ملاحظات" %}</label>
-                            {{ form.notes|add_class:"form-control" }}
-                        </div>
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            {{ form.notes.label }}
+                        </label>
+                        {{ form.notes|add_class:"form-control form-control-sm" }}
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Items Card -->
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-success text-white">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="fas fa-boxes"></i>
-                    {% trans "المواد" %}
+                    <i class="fas fa-boxes me-2"></i>
+                    المواد
                 </h5>
-            </div>
-            <div class="card-body">
-                {{ lines_formset.management_form }}
-                <div id="formset-container">
-                    {% for form in lines_formset %}
-                    <div class="formset-row row">
-                        <div class="col-md-3">
-                            <label class="form-label">{% trans "المادة" %} *</label>
-                            {{ form.item|add_class:"form-select" }}
-                            {{ form.id }}
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">{% trans "الكمية" %} *</label>
-                            {{ form.quantity|add_class:"form-control" }}
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">{% trans "التكلفة/الوحدة" %} *</label>
-                            {{ form.unit_cost|add_class:"form-control" }}
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">{% trans "رقم الدفعة" %}</label>
-                            {{ form.batch_number|add_class:"form-control" }}
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">{% trans "تاريخ الانتهاء" %}</label>
-                            {{ form.expiry_date|add_class:"form-control" }}
-                        </div>
-                        <div class="col-md-1 d-flex align-items-end">
-                            <button type="button" class="btn btn-danger btn-sm delete-formset-row">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            {{ form.DELETE }}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-success" id="add-formset-row">
-                    <i class="fas fa-plus"></i> {% trans "إضافة مادة" %}
+                <button type="button" class="btn btn-sm btn-success" id="add-item-btn">
+                    <i class="fas fa-plus me-1"></i> إضافة مادة
                 </button>
             </div>
-        </div>
+            <div class="card-body p-0">
+                {{ lines_formset.management_form }}
 
-        <!-- Submit Buttons -->
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <a href="{{ cancel_url }}" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> {{ submit_text }}
-                    </button>
+                <div class="table-responsive">
+                    <table class="table table-hover invoice-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;" class="text-center">#</th>
+                                <th style="width: 25%;">المادة</th>
+                                <th style="width: 15%; display: none;" class="variant-column">المتغير</th>
+                                <th style="width: 10%;">الكمية</th>
+                                <th style="width: 12%;">التكلفة/الوحدة</th>
+                                <th style="width: 12%;">الإجمالي</th>
+                                <th style="width: 11%;">رقم الدفعة</th>
+                                <th style="width: 11%;">تاريخ الانتهاء</th>
+                                <th style="width: 60px;">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-tbody">
+                            {% for form in lines_formset %}
+                            <tr class="item-row">
+                                <td class="row-number">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="autocomplete-wrapper">
+                                        <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                                        <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="autocomplete-list"></div>
+                                        <div style="display: none;">
+                                            {{ form.item|add_class:"item-select" }}
+                                        </div>
+                                    </div>
+                                    {{ form.id }}
+                                </td>
+                                <td class="variant-column" style="display: none;">
+                                    <div class="autocomplete-wrapper">
+                                        <input type="text" class="form-control form-control-sm variant-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                                        <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="autocomplete-list"></div>
+                                        <div style="display: none;">
+                                            {{ form.item_variant|add_class:"variant-select" }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {{ form.quantity|add_class:"form-control form-control-sm text-end quantity-input" }}
+                                </td>
+                                <td>
+                                    {{ form.unit_cost|add_class:"form-control form-control-sm text-end cost-input" }}
+                                </td>
+                                <td class="text-end fw-bold item-total">0.000</td>
+                                <td>
+                                    {{ form.batch_number|add_class:"form-control form-control-sm" }}
+                                </td>
+                                <td>
+                                    {{ form.expiry_date|add_class:"form-control form-control-sm date-input" }}
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    <div style="display:none;">{{ form.DELETE }}</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Compact Totals in Card Footer -->
+                <div class="card-footer bg-light py-2">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <div class="total-badge total-badge-info">
+                                <i class="fas fa-box me-1"></i>
+                                <span class="total-label">عدد المواد:</span>
+                                <span class="total-value" id="items-count">0</span>
+                            </div>
+                            <div class="total-badge total-badge-warning">
+                                <i class="fas fa-cubes me-1"></i>
+                                <span class="total-label">إجمالي الكمية:</span>
+                                <span class="total-value" id="total-quantity">0.000</span>
+                            </div>
+                            <div class="total-badge total-badge-success">
+                                <i class="fas fa-dollar-sign me-1"></i>
+                                <span class="total-label">إجمالي التكلفة:</span>
+                                <span class="total-value fw-bold fs-5" id="grand-total">0.000</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check me-1"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -167,44 +795,834 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize Select2
-    $('.form-select').select2({
-        dir: 'rtl',
-        language: 'ar'
+    // Remove 'required' attribute from all form elements to prevent browser validation conflicts
+    // We handle validation manually via JavaScript with better UX
+    $('.autocomplete-wrapper select').removeAttr('required');
+    $('.item-row select.item-select').removeAttr('required');
+    $('.item-row .quantity-input').removeAttr('required');
+    $('.item-row .cost-input').removeAttr('required');
+    $('input[name="date"]').removeAttr('required');
+
+    let formCount = parseInt($('#id_form-TOTAL_FORMS').val());
+    const emptyFormHtml = $('.item-row:first').clone();
+
+    // ===== Autocomplete Functionality =====
+    function initSelectAutocomplete($input, $select) {
+        if ($input.data('autocomplete-initialized')) return;
+        $input.data('autocomplete-initialized', true);
+
+        var $wrapper = $input.closest('.autocomplete-wrapper');
+        var $list = $wrapper.find('.autocomplete-list');
+        var $clearBtn = $wrapper.find('.autocomplete-clear-btn');
+        var $dropdownBtn = $wrapper.find('.autocomplete-dropdown-btn');
+        var filteredOptions = [];
+        var activeIndex = -1;
+
+        // Add unique ID to list for identification after moving to body
+        var uniqueId = 'autocomplete-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        $list.attr('data-autocomplete-id', uniqueId);
+        $wrapper.attr('data-autocomplete-id', uniqueId);
+
+        // Collect all options
+        function collectOptions() {
+            var options = [];
+            $select.find('option').each(function() {
+                if ($(this).val()) {
+                    options.push({
+                        value: $(this).val(),
+                        text: $(this).text().trim()
+                    });
+                }
+            });
+            return options;
+        }
+
+        var allOptions = collectOptions();
+
+        // Update clear button visibility
+        function updateClearButton() {
+            if ($select.val()) {
+                $clearBtn.addClass('show');
+            } else {
+                $clearBtn.removeClass('show');
+            }
+        }
+
+        // Set active item
+        function setActiveItem(index) {
+            activeIndex = index;
+            $list.find('.autocomplete-list-item').removeClass('active');
+
+            if (index >= 0 && index < filteredOptions.length) {
+                var $activeItem = $list.find('.autocomplete-list-item').eq(index);
+                $activeItem.addClass('active');
+
+                // Scroll into view
+                var listHeight = $list.height();
+                var itemTop = $activeItem.position().top;
+                var itemHeight = $activeItem.outerHeight();
+                var scrollTop = $list.scrollTop();
+
+                if (itemTop < 0) {
+                    $list.scrollTop(scrollTop + itemTop);
+                } else if (itemTop + itemHeight > listHeight) {
+                    $list.scrollTop(scrollTop + itemTop + itemHeight - listHeight);
+                }
+            }
+        }
+
+        // Highlight matching text
+        function highlightText(text, searchText) {
+            if (!searchText) return text;
+
+            var searchWords = searchText.toLowerCase().trim().split(/\s+/);
+            var highlightedText = text;
+
+            searchWords.forEach(function(word) {
+                if (word.length > 0) {
+                    var regex = new RegExp('(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                    highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+                }
+            });
+
+            return highlightedText;
+        }
+
+        // Render list
+        function renderList() {
+            $list.empty();
+            activeIndex = -1;
+
+            var searchText = $input.val();
+
+            filteredOptions.forEach(function(option, index) {
+                var displayText = highlightText(option.text, searchText);
+
+                var $item = $('<div class="autocomplete-list-item"></div>')
+                    .data('value', option.value)
+                    .data('index', index)
+                    .html(displayText);
+
+                if (option.value == $select.val()) {
+                    $item.addClass('selected');
+                }
+
+                $item.on('click', function() {
+                    selectOption(option.value, option.text);
+                });
+
+                $list.append($item);
+            });
+        }
+
+        // Select option
+        function selectOption(value, text) {
+            $select.val(value).trigger('change');
+            $input.val(text);
+            closeList();
+            updateClearButton();
+        }
+
+        // Clear selection
+        function clearSelection() {
+            $select.val('').trigger('change');
+            $input.val('');
+            updateClearButton();
+            filteredOptions = allOptions;
+            renderList();
+            openList();
+            $input.focus();
+        }
+
+        // Open list
+        function openList() {
+            // Close any other open lists first
+            $('.autocomplete-list.show').each(function() {
+                if ($(this).attr('data-autocomplete-id') !== uniqueId) {
+                    $(this).removeClass('show');
+                    var otherId = $(this).attr('data-autocomplete-id');
+                    $('.autocomplete-wrapper[data-autocomplete-id="' + otherId + '"]').removeClass('open');
+                }
+            });
+
+            // Move list to body if not already there
+            if ($list.parent()[0] !== document.body) {
+                $list.appendTo('body');
+            }
+
+            // Calculate position relative to viewport
+            var wrapperRect = $wrapper[0].getBoundingClientRect();
+
+            $list.css({
+                'top': wrapperRect.bottom + 'px',
+                'left': wrapperRect.left + 'px',
+                'width': wrapperRect.width + 'px'
+            });
+
+            $list.addClass('show');
+            $wrapper.addClass('open');
+            activeIndex = -1;
+        }
+
+        // Close list
+        function closeList() {
+            $list.removeClass('show');
+            $wrapper.removeClass('open');
+            activeIndex = -1;
+
+            // Move list back to wrapper on close for cleaner DOM
+            if ($list.parent()[0] === document.body) {
+                $wrapper.append($list);
+            }
+        }
+
+        // Filter options with multi-word smart search
+        function filterOptions(searchText) {
+            if (!searchText) {
+                filteredOptions = allOptions;
+                renderList();
+                return;
+            }
+
+            searchText = searchText.toLowerCase().trim();
+
+            // Split search text into words
+            var searchWords = searchText.split(/\s+/);
+
+            filteredOptions = allOptions.filter(function(option) {
+                var optionText = option.text.toLowerCase();
+                var optionWords = optionText.split(/\s+/);
+
+                // Method 1: Direct substring match (current behavior)
+                var directMatch = searchWords.every(function(word) {
+                    return optionText.indexOf(word) !== -1;
+                });
+
+                if (directMatch) return true;
+
+                // Method 2: Smart first-letters match
+                // Check if search words match the beginning of option words
+                if (searchWords.length <= optionWords.length) {
+                    var smartMatch = searchWords.every(function(searchWord, index) {
+                        // Try to match with any word in the option
+                        return optionWords.some(function(optionWord) {
+                            return optionWord.indexOf(searchWord) === 0;
+                        });
+                    });
+
+                    if (smartMatch) return true;
+                }
+
+                return false;
+            });
+
+            // Sort results: exact matches first, then partial matches
+            filteredOptions.sort(function(a, b) {
+                var aText = a.text.toLowerCase();
+                var bText = b.text.toLowerCase();
+
+                // Exact match at start gets highest priority
+                var aStartsWith = aText.indexOf(searchText) === 0;
+                var bStartsWith = bText.indexOf(searchText) === 0;
+
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+
+                // Then sort by overall position of match
+                var aIndex = aText.indexOf(searchText);
+                var bIndex = bText.indexOf(searchText);
+
+                if (aIndex !== -1 && bIndex !== -1) {
+                    return aIndex - bIndex;
+                }
+
+                return 0;
+            });
+
+            renderList();
+        }
+
+        // Input events
+        $input.on('input', function() {
+            var searchText = $(this).val();
+            filterOptions(searchText);
+            openList();
+        });
+
+        $input.on('focus', function() {
+            filteredOptions = allOptions;
+            renderList();
+            openList();
+        });
+
+        // Keyboard navigation
+        $input.on('keydown', function(e) {
+            if (!$wrapper.hasClass('open')) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    filteredOptions = allOptions;
+                    renderList();
+                    openList();
+                    setActiveItem(0);
+                }
+                return;
+            }
+
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (activeIndex < filteredOptions.length - 1) {
+                        setActiveItem(activeIndex + 1);
+                    } else {
+                        setActiveItem(0);
+                    }
+                    break;
+
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (activeIndex > 0) {
+                        setActiveItem(activeIndex - 1);
+                    } else {
+                        setActiveItem(filteredOptions.length - 1);
+                    }
+                    break;
+
+                case 'Enter':
+                    e.preventDefault();
+                    if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
+                        var option = filteredOptions[activeIndex];
+                        selectOption(option.value, option.text);
+                    }
+                    break;
+
+                case 'Escape':
+                    e.preventDefault();
+                    closeList();
+                    break;
+            }
+        });
+
+        // Dropdown button click
+        $dropdownBtn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if ($wrapper.hasClass('open')) {
+                closeList();
+            } else {
+                $input.val('');
+                filteredOptions = allOptions;
+                renderList();
+                openList();
+                $input.focus();
+            }
+        });
+
+        // Clear button click
+        $clearBtn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            clearSelection();
+        });
+
+        // Close on outside click
+        var outsideClickHandler = function(e) {
+            var isWrapper = $wrapper.is(e.target) || $wrapper.has(e.target).length > 0;
+            var isList = $list.is(e.target) || $list.has(e.target).length > 0;
+
+            if (!isWrapper && !isList) {
+                closeList();
+            }
+        };
+
+        $(document).on('click', outsideClickHandler);
+
+        // Update position on scroll and resize
+        var updatePositionHandler = function() {
+            if ($wrapper.hasClass('open')) {
+                var wrapperRect = $wrapper[0].getBoundingClientRect();
+
+                // Close if input scrolled out of view
+                if (wrapperRect.top < 0 || wrapperRect.bottom > $(window).height()) {
+                    closeList();
+                    return;
+                }
+
+                $list.css({
+                    'top': wrapperRect.bottom + 'px',
+                    'left': wrapperRect.left + 'px',
+                    'width': wrapperRect.width + 'px'
+                });
+            }
+        };
+
+        $(window).on('scroll resize', updatePositionHandler);
+        $('.table-responsive').on('scroll', updatePositionHandler);
+
+        // Set initial value
+        var selectedText = $select.find('option:selected').text().trim();
+        if (selectedText) {
+            $input.val(selectedText);
+            updateClearButton();
+        }
+    }
+
+    // Initialize autocompletes for main form
+    initSelectAutocomplete($('.warehouse-search-input'), $('.warehouse-select'));
+    initSelectAutocomplete($('.source-search-input'), $('.source-select'));
+    initSelectAutocomplete($('.supplier-search-input'), $('.supplier-select'));
+
+    // Initialize autocompletes for table items
+    $('.item-search-input').each(function() {
+        var $input = $(this);
+        var $select = $input.closest('.autocomplete-wrapper').find('.item-select');
+        initSelectAutocomplete($input, $select);
     });
 
-    // Formset management
-    var formCount = parseInt($('#id_form-TOTAL_FORMS').val());
+    // Check if any row has variants and show/hide column accordingly
+    function updateVariantColumnVisibility() {
+        var hasAnyVariants = false;
+        $('.item-row:visible').each(function() {
+            var $variantCell = $(this).find('.variant-column');
+            var $variantInput = $variantCell.find('.variant-search-input');
+            var $variantSelect = $variantCell.find('.variant-select');
 
-    $('#add-formset-row').click(function() {
-        var newForm = $('.formset-row:first').clone(true);
-        newForm.find('input,select').each(function() {
-            var name = $(this).attr('name');
+            // Check if variant input is enabled and has options
+            if ($variantInput.prop('disabled') === false && $variantSelect.find('option').length > 1) {
+                hasAnyVariants = true;
+                return false; // break
+            }
+        });
+
+        if (hasAnyVariants) {
+            $('.variant-column').show();
+        } else {
+            $('.variant-column').hide();
+        }
+    }
+
+    // Load variants when item is selected
+    $(document).on('change', '.item-select', function() {
+        const $row = $(this).closest('.item-row');
+        const $variantSelect = $row.find('.variant-select');
+        const $variantInput = $row.find('.variant-search-input');
+        const $variantCell = $row.find('.variant-column');
+        const itemId = $(this).val();
+
+        if (itemId) {
+            // Show loading message
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">جاري التحميل...</option>');
+            $variantInput.val('جاري التحميل...').prop('disabled', true);
+
+            // Load variants via AJAX
+            $.ajax({
+                url: '/ajax/items/' + itemId + '/variants/',
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    console.log('Variants loaded:', data);
+                    $variantSelect.empty();
+
+                    if (data.success && data.has_variants) {
+                        // Item has variants - populate dropdown and show column
+                        $variantSelect.append('<option value="">---------</option>');
+                        $.each(data.variants, function(i, variant) {
+                            $variantSelect.append(
+                                $('<option></option>')
+                                    .attr('value', variant.id)
+                                    .text(variant.code + (variant.name ? ' - ' + variant.name : ''))
+                            );
+                        });
+
+                        // Enable and initialize autocomplete for variants
+                        $variantInput.val('').prop('disabled', false);
+                        $variantInput.attr('placeholder', 'اختر متغير...');
+
+                        // Initialize autocomplete for this variant input
+                        var $variantWrapper = $variantInput.closest('.autocomplete-wrapper');
+                        $variantInput.removeData('autocomplete-initialized');
+                        initSelectAutocomplete($variantInput, $variantSelect);
+
+                        // Show variant column for entire table
+                        $('.variant-column').show();
+                    } else {
+                        // Item has no variants - disable dropdown
+                        $variantSelect.append('<option value="">لا توجد متغيرات</option>');
+                        $variantInput.val('لا توجد متغيرات').prop('disabled', true);
+
+                        // Check if we should hide the column
+                        updateVariantColumnVisibility();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading variants:', status, error, xhr.responseText);
+                    $variantSelect.empty();
+                    $variantSelect.append('<option value="">خطأ في تحميل المتغيرات</option>');
+                    $variantInput.val('خطأ في تحميل المتغيرات').prop('disabled', true);
+                    updateVariantColumnVisibility();
+                }
+            });
+        } else {
+            // No item selected - clear variants
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">اختر مادة أولاً</option>');
+            $variantInput.val('').prop('disabled', true);
+            $variantInput.attr('placeholder', 'اختر مادة أولاً');
+            updateVariantColumnVisibility();
+        }
+    });
+
+    // Initialize variant inputs on page load
+    $('.item-row').each(function() {
+        const $row = $(this);
+        const $itemSelect = $row.find('.item-select');
+        const $variantSelect = $row.find('.variant-select');
+        const $variantInput = $row.find('.variant-search-input');
+
+        if (!$itemSelect.val()) {
+            // No item selected yet
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">اختر مادة أولاً</option>');
+            $variantInput.val('').prop('disabled', true);
+            $variantInput.attr('placeholder', 'اختر مادة أولاً');
+        } else {
+            // Trigger change to load variants for existing selection
+            $itemSelect.trigger('change');
+        }
+    });
+
+    // Initialize date pickers
+    $('input[name="date"]').datepicker({
+        dateFormat: 'yy-mm-dd',
+        changeMonth: true,
+        changeYear: true,
+        yearRange: '-10:+10',
+        defaultDate: new Date()
+    });
+
+    $('.date-input').datepicker({
+        dateFormat: 'yy-mm-dd',
+        changeMonth: true,
+        changeYear: true,
+        yearRange: '-100:+10'
+    });
+
+    // Calculate line total
+    function calculateLineTotal($row) {
+        const quantity = parseFloat($row.find('.quantity-input').val()) || 0;
+        const unitCost = parseFloat($row.find('.cost-input').val()) || 0;
+        const total = quantity * unitCost;
+
+        $row.find('.item-total').text(total.toFixed(3));
+        calculateTotals();
+    }
+
+    // Calculate all totals
+    function calculateTotals() {
+        let grandTotal = 0;
+        let totalQuantity = 0;
+        let itemsCount = 0;
+
+        $('.item-row:visible').each(function() {
+            const quantity = parseFloat($(this).find('.quantity-input').val()) || 0;
+            const lineTotal = parseFloat($(this).find('.item-total').text()) || 0;
+
+            if (quantity > 0) {
+                totalQuantity += quantity;
+                grandTotal += lineTotal;
+                itemsCount++;
+            }
+        });
+
+        $('#items-count').text(itemsCount);
+        $('#total-quantity').text(totalQuantity.toFixed(3));
+        $('#grand-total').text(grandTotal.toFixed(3));
+    }
+
+    // Update row numbers
+    function updateRowNumbers() {
+        $('.item-row:visible').each(function(index) {
+            $(this).find('.row-number').text(index + 1);
+        });
+    }
+
+    // Calculate on input change
+    $(document).on('input', '.quantity-input, .cost-input', function() {
+        calculateLineTotal($(this).closest('.item-row'));
+    });
+
+    // Highlight active row on focus
+    $(document).on('focus', '.item-row input, .item-row select', function() {
+        $('.item-row').removeClass('table-active');
+        $(this).closest('.item-row').addClass('table-active');
+    });
+
+    // Add new row
+    $('#add-item-btn').click(function() {
+        const newRow = emptyFormHtml.clone();
+
+        // Update form indices
+        newRow.find('input, select, textarea').each(function() {
+            const name = $(this).attr('name');
+            const id = $(this).attr('id');
+
             if (name) {
-                name = name.replace(/form-\d+-/, 'form-' + formCount + '-');
-                $(this).attr('name', name).attr('id', 'id_' + name);
+                $(this).attr('name', name.replace(/form-\d+-/, 'form-' + formCount + '-'));
+            }
+            if (id) {
+                $(this).attr('id', id.replace(/form-\d+-/, 'form-' + formCount + '-'));
+            }
+
+            // Clear values for all inputs
+            if ($(this).attr('name')?.includes('DELETE')) {
+                // Make sure DELETE checkbox is unchecked for new rows
+                $(this).prop('checked', false);
+            } else {
+                // Clear other values
                 $(this).val('');
             }
         });
-        newForm.find('label').remove(); // Remove duplicated labels
-        $('#formset-container').append(newForm);
+
+        // Clear line total
+        newRow.find('.item-total').text('0.000');
+
+        // Reset autocomplete initialization
+        newRow.find('.autocomplete-search-input').removeData('autocomplete-initialized');
+
+        // Add to table
+        $('#items-tbody').append(newRow);
+
+        // Remove required attributes from new row elements
+        newRow.find('select, input').removeAttr('required');
+
+        // Initialize autocomplete for new row
+        var $newItemInput = newRow.find('.item-search-input');
+        var $newItemSelect = newRow.find('.item-select');
+        initSelectAutocomplete($newItemInput, $newItemSelect);
+
+        // Initialize datepicker for new row
+        newRow.find('.date-input').datepicker({
+            dateFormat: 'yy-mm-dd',
+            changeMonth: true,
+            changeYear: true,
+            yearRange: '-100:+10'
+        });
+
+        // Initialize variant for new row
+        var $newVariantSelect = newRow.find('.variant-select');
+        var $newVariantInput = newRow.find('.variant-search-input');
+        $newVariantSelect.empty();
+        $newVariantSelect.append('<option value="">اختر مادة أولاً</option>');
+        $newVariantInput.val('').prop('disabled', true);
+        $newVariantInput.attr('placeholder', 'اختر مادة أولاً');
+        $newVariantInput.removeData('autocomplete-initialized');
+
         formCount++;
         $('#id_form-TOTAL_FORMS').val(formCount);
+        updateRowNumbers();
+
+        // Focus on first input of new row
+        $newItemInput.focus();
     });
 
-    $(document).on('click', '.delete-formset-row', function() {
-        var row = $(this).closest('.formset-row');
-        if ($('.formset-row').length > 1) {
-            row.find('input[name*="DELETE"]').prop('checked', true);
-            row.addClass('delete-row');
-            row.hide();
+    // Delete row
+    $(document).on('click', '.btn-delete-row', function() {
+        const $row = $(this).closest('.item-row');
+        const visibleRows = $('.item-row:visible').length;
+
+        if (visibleRows > 1) {
+            $row.find('input[name*="DELETE"]').prop('checked', true);
+            $row.fadeOut(300, function() {
+                calculateTotals();
+                updateVariantColumnVisibility();
+                updateRowNumbers();
+            });
         } else {
             alert('{% trans "يجب أن يحتوي السند على مادة واحدة على الأقل" %}');
         }
     });
+
+    // Initial calculations
+    $('.item-row').each(function() {
+        calculateLineTotal($(this));
+    });
+
+    // Real-time validation - remove error styling when user starts fixing
+    $(document).on('change', '.warehouse-select, .source-select', function() {
+        const $input = $(this).closest('.autocomplete-wrapper').find('.autocomplete-search-input');
+        if ($(this).val()) {
+            $input.removeClass('is-invalid');
+            $input.closest('.autocomplete-wrapper').removeClass('border border-danger rounded');
+        }
+    });
+
+    $(document).on('change blur', 'input[name="date"]', function() {
+        if ($(this).val()) {
+            $(this).removeClass('is-invalid');
+        }
+    });
+
+    $(document).on('change', '.item-select', function() {
+        const $input = $(this).closest('.autocomplete-wrapper').find('.item-search-input');
+        if ($(this).val()) {
+            $input.removeClass('is-invalid');
+            $input.closest('.autocomplete-wrapper').removeClass('border border-danger rounded');
+        }
+    });
+
+    $(document).on('input change', '.quantity-input, .cost-input', function() {
+        const value = parseFloat($(this).val()) || 0;
+        if (value > 0) {
+            $(this).removeClass('is-invalid');
+        }
+    });
+
+    // Form validation
+    $('#stockInForm').on('submit', function(e) {
+        // Clear previous validation errors
+        $('.is-invalid').removeClass('is-invalid');
+        $('.autocomplete-wrapper').removeClass('border border-danger rounded');
+
+        let isValid = true;
+        let firstError = null;
+        let errorMessages = [];
+
+        // Validate main fields
+        const warehouse = $('.warehouse-select').val();
+        const source = $('.source-select').val();
+        const stockDate = $('input[name="date"]').val();
+
+        if (!warehouse) {
+            $('.warehouse-search-input').addClass('is-invalid');
+            $('.warehouse-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+            errorMessages.push('يجب اختيار المستودع');
+            if (!firstError) firstError = $('.warehouse-search-input');
+            isValid = false;
+        }
+
+        if (!source) {
+            $('.source-search-input').addClass('is-invalid');
+            $('.source-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+            errorMessages.push('يجب اختيار نوع المصدر');
+            if (!firstError) firstError = $('.source-search-input');
+            isValid = false;
+        }
+
+        if (!stockDate) {
+            $('input[name="date"]').addClass('is-invalid');
+            errorMessages.push('يجب إدخال تاريخ الإدخال');
+            if (!firstError) firstError = $('input[name="date"]');
+            isValid = false;
+        }
+
+        // Validate items
+        let hasValidItems = false;
+        let rowNumber = 1;
+
+        $('.item-row:visible').each(function() {
+            const $row = $(this);
+            const item = $row.find('.item-select').val();
+            const quantity = parseFloat($row.find('.quantity-input').val()) || 0;
+            const unitCost = parseFloat($row.find('.cost-input').val()) || 0;
+
+            // Check if row has any data
+            if (item || quantity > 0 || unitCost > 0) {
+                // Validate item
+                if (!item) {
+                    $row.find('.item-search-input').addClass('is-invalid');
+                    $row.find('.item-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+                    errorMessages.push('الصف ' + rowNumber + ': يجب اختيار المادة');
+                    if (!firstError) firstError = $row.find('.item-search-input');
+                    isValid = false;
+                }
+
+                // Validate quantity
+                if (quantity <= 0) {
+                    $row.find('.quantity-input').addClass('is-invalid');
+                    errorMessages.push('الصف ' + rowNumber + ': الكمية يجب أن تكون أكبر من صفر');
+                    if (!firstError) firstError = $row.find('.quantity-input');
+                    isValid = false;
+                }
+
+                // Validate unit cost
+                if (unitCost <= 0) {
+                    $row.find('.cost-input').addClass('is-invalid');
+                    errorMessages.push('الصف ' + rowNumber + ': التكلفة يجب أن تكون أكبر من صفر');
+                    if (!firstError) firstError = $row.find('.cost-input');
+                    isValid = false;
+                }
+
+                // If all fields are valid, mark as has valid items
+                if (item && quantity > 0 && unitCost > 0) {
+                    hasValidItems = true;
+                }
+            }
+
+            rowNumber++;
+        });
+
+        // Check if at least one valid item exists
+        if (!hasValidItems) {
+            errorMessages.push('يجب إضافة مادة واحدة على الأقل مع الكمية والتكلفة');
+            isValid = false;
+        }
+
+        // If validation failed, show errors and prevent submission
+        if (!isValid) {
+            e.preventDefault();
+
+            // Build error message
+            let errorHtml = '<div style="text-align: right; direction: rtl;">';
+            errorHtml += '<strong style="display: block; margin-bottom: 10px; font-size: 16px;">يرجى تصحيح الأخطاء التالية:</strong>';
+            errorHtml += '<ul style="margin: 0; padding-right: 20px;">';
+            errorMessages.forEach(function(msg) {
+                errorHtml += '<li style="margin-bottom: 5px;">' + msg + '</li>';
+            });
+            errorHtml += '</ul></div>';
+
+            // Show SweetAlert
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ في البيانات',
+                html: errorHtml,
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#dc3545',
+                customClass: {
+                    popup: 'rtl-popup'
+                }
+            });
+
+            // Focus on first error field
+            if (firstError) {
+                firstError.focus();
+                // Scroll to first error
+                $('html, body').animate({
+                    scrollTop: firstError.offset().top - 100
+                }, 500);
+            }
+
+            return false;
+        }
+
+        return true;
+    });
+
+    // Check variant column visibility on page load
+    updateVariantColumnVisibility();
+
+    // Auto-focus and scroll to items section
+    setTimeout(function() {
+        // Scroll to items table
+        $('html, body').animate({
+            scrollTop: $('.invoice-table').offset().top - 80
+        }, 500);
+
+        // Focus on first item input
+        $('.item-row:first .item-search-input').focus();
+    }, 300);
 });
 </script>
 {% endblock %}

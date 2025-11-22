@@ -130,6 +130,7 @@ urlpatterns = [
     # Ajax endpoints
     path('ajax/items/datatable/', views.item_datatable_ajax, name='item_datatable_ajax'),
     path('ajax/items/search/', views.item_search_ajax, name='item_search_ajax'),
+    path('ajax/items/<int:item_id>/variants/', views.get_item_variants, name='get_item_variants'),
     path('ajax/partners/datatable/', views.partner_datatable_ajax, name='partner_datatable_ajax'),
     path('ajax/partners/create/', views.partner_create_ajax, name='partner_create_ajax'),
     path('ajax/warehouses/datatable/', views.warehouse_datatable_ajax, name='warehouse_datatable_ajax'),

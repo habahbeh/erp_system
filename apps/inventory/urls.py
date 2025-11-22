@@ -36,4 +36,18 @@ urlpatterns = [
     # Reports (التقارير)
     path('reports/stock/', views.StockReportView.as_view(), name='stock_report'),
     path('reports/movements/', views.StockMovementReportView.as_view(), name='movement_report'),
+
+    # Stock Count (الجرد)
+    path('stock-count/', views.StockCountListView.as_view(), name='count_list'),
+    path('stock-count/create/', views.StockCountCreateView.as_view(), name='count_create'),
+    path('stock-count/<int:pk>/', views.StockCountDetailView.as_view(), name='count_detail'),
+    path('stock-count/<int:pk>/update/', views.StockCountUpdateView.as_view(), name='count_update'),
+    path('stock-count/<int:pk>/process/', views.StockCountProcessView.as_view(), name='count_process'),
+
+    # Batches (الدفعات)
+    path('batches/', views.BatchListView.as_view(), name='batch_list'),
+    path('batches/create/', views.BatchCreateView.as_view(), name='batch_create'),
+    path('batches/<int:pk>/', views.BatchDetailView.as_view(), name='batch_detail'),
+    path('batches/<int:pk>/update/', views.BatchUpdateView.as_view(), name='batch_update'),
+    path('reports/batches/expired/', views.BatchExpiredReportView.as_view(), name='batch_expired_report'),
 ]
