@@ -176,7 +176,7 @@ class EnhancedPricingDashboardView(LoginRequiredMixin, TemplateView):
         recent_logs = AuditLog.objects.filter(
             company=company,
             model_name__in=['PriceListItem', 'PricingRule', 'PriceList']
-        ).order_by('-created_at')[:10]
+        ).order_by('-timestamp')[:10]
 
         for log in recent_logs:
             icon = 'fa-plus' if log.action == 'CREATE' else 'fa-edit' if log.action == 'UPDATE' else 'fa-trash'
@@ -185,7 +185,7 @@ class EnhancedPricingDashboardView(LoginRequiredMixin, TemplateView):
             activities.append({
                 'title': f'{log.get_action_display()} - {log.model_name}',
                 'description': f'بواسطة {log.user.get_full_name() or log.user.username}',
-                'time': log.created_at,
+                'time': log.timestamp,
                 'icon': icon,
                 'color': color
             })
@@ -255,14 +255,14 @@ class EnhancedPricingDashboardView(LoginRequiredMixin, TemplateView):
             company=company,
             model_name='PriceListItem',
             action='UPDATE'
-        ).order_by('-created_at')[:5]
+        ).order_by('-timestamp')[:5]
 
         items = []
         for change in changes:
             items.append({
                 'title': f'تغيير سعر',
                 'subtitle': f'{change.user.get_full_name() or change.user.username}',
-                'value': change.created_at.strftime('%Y-%m-%d'),
+                'value': change.timestamp.strftime('%Y-%m-%d'),
                 'icon': 'fa-edit',
                 'color': 'info',
                 'badge_color': 'warning'
@@ -365,6 +365,9 @@ class MainDashboardView(LoginRequiredMixin, TemplateView):
         company = self.request.current_company
         branch = self.request.current_branch
 
+        # Add today's date
+        context['today'] = timezone.now()
+
         # Statistics
         context['stat_cards'] = [
             {
@@ -398,30 +401,43 @@ class MainDashboardView(LoginRequiredMixin, TemplateView):
         ]
 
         # Quick actions
+        from django.urls import reverse
         context['quick_actions'] = [
             {
                 'label': 'صنف جديد',
-                'icon': 'fa-plus',
-                'url': '#',
+                'icon': 'fa-box',
+                'url': reverse('core:item_create'),
                 'color': 'primary'
             },
             {
                 'label': 'شريك جديد',
-                'icon': 'fa-user-plus',
-                'url': '#',
+                'icon': 'fa-handshake',
+                'url': reverse('core:partner_create'),
                 'color': 'success'
             },
             {
-                'label': 'قائمة أسعار',
-                'icon': 'fa-list-alt',
-                'url': '#',
+                'label': 'قائمة الأصناف',
+                'icon': 'fa-list',
+                'url': reverse('core:item_list'),
                 'color': 'info'
             },
             {
-                'label': 'التقارير',
-                'icon': 'fa-chart-bar',
-                'url': '#',
-                'color': 'danger'
+                'label': 'قائمة الشركاء',
+                'icon': 'fa-users',
+                'url': reverse('core:partner_list'),
+                'color': 'warning'
+            },
+            {
+                'label': 'المخازن',
+                'icon': 'fa-warehouse',
+                'url': reverse('core:warehouse_list'),
+                'color': 'secondary'
+            },
+            {
+                'label': 'المستخدمين',
+                'icon': 'fa-user-circle',
+                'url': reverse('core:user_list'),
+                'color': 'dark'
             }
         ]
 
@@ -429,7 +445,7 @@ class MainDashboardView(LoginRequiredMixin, TemplateView):
         context['recent_activities'] = []
         recent_logs = AuditLog.objects.filter(
             company=company
-        ).order_by('-created_at')[:10]
+        ).order_by('-timestamp')[:10]
 
         for log in recent_logs:
             icon = 'fa-plus' if log.action == 'CREATE' else 'fa-edit' if log.action == 'UPDATE' else 'fa-trash'
@@ -438,7 +454,7 @@ class MainDashboardView(LoginRequiredMixin, TemplateView):
             context['recent_activities'].append({
                 'title': f'{log.get_action_display()} - {log.model_name}',
                 'description': f'بواسطة {log.user.get_full_name() or log.user.username}',
-                'time': log.created_at,
+                'time': log.timestamp,
                 'icon': icon,
                 'color': color
             })

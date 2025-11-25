@@ -14,15 +14,15 @@ class Command(BaseCommand):
         # جلب جميع العناصر التي لديها مادة
         items = PurchaseQuotationRequestItem.objects.filter(
             item__isnull=False
-        ).select_related('item__unit_of_measure')
+        ).select_related('item__base_uom')
 
         updated_count = 0
         for item in items:
             # التحقق من أن الوحدة فارغة أو تحتوي على whitespace فقط
             unit_is_empty = not item.unit or not item.unit.strip()
 
-            if unit_is_empty and item.item and item.item.unit_of_measure:
-                item.unit = item.item.unit_of_measure.name
+            if unit_is_empty and item.item and item.item.base_uom:
+                item.unit = item.item.base_uom.name
                 item.save(update_fields=['unit'])
                 updated_count += 1
                 self.stdout.write(

@@ -132,7 +132,7 @@ class PurchaseQuotationRequestDetailView(LoginRequiredMixin, PermissionRequiredM
         ).select_related(
             'purchase_request', 'awarded_quotation__supplier', 'created_by', 'currency'
         ).prefetch_related(
-            'items__item__unit_of_measure',
+            'items__item__base_uom',
             'quotations__supplier'
         )
 
@@ -235,6 +235,10 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
             {'title': _('إضافة طلب'), 'url': ''},
         ]
 
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
+
         if self.request.POST:
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 self.request.POST,
@@ -254,8 +258,8 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
                 is_active=True
             ).values(
                 'id', 'name', 'code', 'barcode',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
+                'base_uom__name',
+                'base_uom__code'
             )
         )
 
@@ -378,17 +382,9 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
-            )
-        )
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
 
         # جلب الموردين المحددين مسبقاً
         if not self.request.POST:
@@ -656,17 +652,9 @@ class PurchaseQuotationCreateView(LoginRequiredMixin, PermissionRequiredMixin, C
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
-            )
-        )
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
 
         # إذا كان من طلب عرض أسعار
         rfq_id = self.request.GET.get('from_rfq')
@@ -757,17 +745,9 @@ class PurchaseQuotationUpdateView(LoginRequiredMixin, PermissionRequiredMixin, U
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
-            )
-        )
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
 
         return context
 
@@ -1406,7 +1386,7 @@ def get_purchase_request_items_ajax(request, request_id):
         )
 
         # جلب أصناف طلب الشراء
-        items = purchase_request.lines.select_related('item', 'item__unit_of_measure').all()
+        items = purchase_request.lines.select_related('item', 'item__base_uom').all()
 
         # تحويل البيانات إلى قائمة
         items_data = []
@@ -1417,7 +1397,7 @@ def get_purchase_request_items_ajax(request, request_id):
                 'item_code': item.item.code if item.item else '',
                 'item_description': item.item_description,
                 'quantity': str(item.quantity),
-                'unit': item.unit if item.unit else (item.item.unit_of_measure.name if item.item and item.item.unit_of_measure else ''),
+                'unit': item.unit if item.unit else (item.item.base_uom.name if item.item and item.item.base_uom else ''),
                 'estimated_price': str(item.estimated_price) if item.estimated_price else '0.000',
                 'notes': item.notes if item.notes else '',
             }
@@ -1449,3 +1429,242 @@ def get_purchase_request_items_ajax(request, request_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ============================================================================
+# AJAX Endpoints for RFQs & Quotations - Live Search & Stock Display
+# ============================================================================
+
+@login_required
+@permission_required('purchases.view_purchasequotationrequest', raise_exception=True)
+def rfq_get_item_stock_multi_branch_ajax(request):
+    """جلب رصيد المخزون من جميع الفروع - RFQ"""
+    from apps.inventory.models import ItemStock
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_records = ItemStock.objects.filter(
+            company=request.current_company,
+            item_id=item_id
+        ).select_related('warehouse', 'warehouse__branch').order_by('warehouse__branch__name')
+
+        branches_data = []
+        total_quantity = Decimal('0')
+        total_available = Decimal('0')
+
+        for stock in stock_records:
+            available = stock.quantity - stock.reserved_quantity
+            total_quantity += stock.quantity
+            total_available += available
+            branches_data.append({
+                'branch_name': stock.warehouse.branch.name,
+                'warehouse_name': stock.warehouse.name,
+                'quantity': str(stock.quantity),
+                'reserved': str(stock.reserved_quantity),
+                'available': str(available),
+                'average_cost': str(stock.average_cost),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'has_stock': len(branches_data) > 0,
+            'branches': branches_data,
+            'total_quantity': str(total_quantity),
+            'total_available': str(total_available),
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasequotationrequest', raise_exception=True)
+def rfq_get_item_stock_current_branch_ajax(request):
+    """جلب رصيد الفرع الحالي - RFQ"""
+    from apps.inventory.models import ItemStock
+    from django.db.models import Sum
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_aggregate = ItemStock.objects.filter(
+            company=request.current_company,
+            item_id=item_id,
+            warehouse__branch=request.current_branch
+        ).aggregate(total_qty=Sum('quantity'), total_reserved=Sum('reserved_quantity'))
+
+        total_qty = stock_aggregate['total_qty'] or Decimal('0')
+        total_reserved = stock_aggregate['total_reserved'] or Decimal('0')
+        available = total_qty - total_reserved
+
+        return JsonResponse({
+            'success': True,
+            'quantity': str(total_qty),
+            'reserved': str(total_reserved),
+            'available': str(available),
+            'has_stock': total_qty > 0,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasequotationrequest', raise_exception=True)
+def rfq_item_search_ajax(request):
+    """AJAX Live Search - RFQ"""
+    from apps.core.models import Item
+    from django.db.models import Q, Sum
+
+    term = request.GET.get('term', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    if len(term) < 2:
+        return JsonResponse({'success': False, 'message': 'يرجى إدخال حرفين على الأقل'})
+
+    try:
+        items = Item.objects.filter(
+            company=request.current_company, is_active=True
+        ).filter(
+            Q(name__icontains=term) | Q(code__icontains=term) | Q(barcode__icontains=term)
+        ).annotate(
+            current_branch_stock=Sum('stock_records__quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            current_branch_reserved=Sum('stock_records__reserved_quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            total_stock=Sum('stock_records__quantity'),
+        ).select_related('category', 'base_uom')[:limit]
+
+        items_data = [{
+            'id': item.id, 'name': item.name, 'code': item.code,
+            'barcode': item.barcode or '', 'category_name': item.category.name if item.category else '',
+            'tax_rate': str(item.tax_rate), 'base_uom_name': item.base_uom.name if item.base_uom else '',
+            'base_uom_code': item.base_uom.code if item.base_uom else '',
+            'current_branch_stock': str(item.current_branch_stock or 0),
+            'current_branch_reserved': str(item.current_branch_reserved or 0),
+            'total_stock': str(item.total_stock or 0),
+        } for item in items]
+
+        return JsonResponse({'success': True, 'items': items_data, 'count': len(items_data)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasequotation', raise_exception=True)
+def quotation_get_item_stock_multi_branch_ajax(request):
+    """جلب رصيد المخزون من جميع الفروع - Quotation"""
+    from apps.inventory.models import ItemStock
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_records = ItemStock.objects.filter(
+            company=request.current_company, item_id=item_id
+        ).select_related('warehouse', 'warehouse__branch').order_by('warehouse__branch__name')
+
+        branches_data = []
+        total_quantity = Decimal('0')
+        total_available = Decimal('0')
+
+        for stock in stock_records:
+            available = stock.quantity - stock.reserved_quantity
+            total_quantity += stock.quantity
+            total_available += available
+            branches_data.append({
+                'branch_name': stock.warehouse.branch.name,
+                'warehouse_name': stock.warehouse.name,
+                'quantity': str(stock.quantity),
+                'reserved': str(stock.reserved_quantity),
+                'available': str(available),
+                'average_cost': str(stock.average_cost),
+            })
+
+        return JsonResponse({
+            'success': True, 'has_stock': len(branches_data) > 0,
+            'branches': branches_data,
+            'total_quantity': str(total_quantity),
+            'total_available': str(total_available),
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasequotation', raise_exception=True)
+def quotation_get_item_stock_current_branch_ajax(request):
+    """جلب رصيد الفرع الحالي - Quotation"""
+    from apps.inventory.models import ItemStock
+    from django.db.models import Sum
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_aggregate = ItemStock.objects.filter(
+            company=request.current_company, item_id=item_id,
+            warehouse__branch=request.current_branch
+        ).aggregate(total_qty=Sum('quantity'), total_reserved=Sum('reserved_quantity'))
+
+        total_qty = stock_aggregate['total_qty'] or Decimal('0')
+        total_reserved = stock_aggregate['total_reserved'] or Decimal('0')
+        available = total_qty - total_reserved
+
+        return JsonResponse({
+            'success': True, 'quantity': str(total_qty),
+            'reserved': str(total_reserved), 'available': str(available),
+            'has_stock': total_qty > 0,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasequotation', raise_exception=True)
+def quotation_item_search_ajax(request):
+    """AJAX Live Search - Quotation"""
+    from apps.core.models import Item
+    from django.db.models import Q, Sum
+
+    term = request.GET.get('term', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    if len(term) < 2:
+        return JsonResponse({'success': False, 'message': 'يرجى إدخال حرفين على الأقل'})
+
+    try:
+        items = Item.objects.filter(
+            company=request.current_company, is_active=True
+        ).filter(
+            Q(name__icontains=term) | Q(code__icontains=term) | Q(barcode__icontains=term)
+        ).annotate(
+            current_branch_stock=Sum('stock_records__quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            current_branch_reserved=Sum('stock_records__reserved_quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            total_stock=Sum('stock_records__quantity'),
+        ).select_related('category', 'base_uom')[:limit]
+
+        items_data = [{
+            'id': item.id, 'name': item.name, 'code': item.code,
+            'barcode': item.barcode or '', 'category_name': item.category.name if item.category else '',
+            'tax_rate': str(item.tax_rate), 'base_uom_name': item.base_uom.name if item.base_uom else '',
+            'base_uom_code': item.base_uom.code if item.base_uom else '',
+            'current_branch_stock': str(item.current_branch_stock or 0),
+            'current_branch_reserved': str(item.current_branch_reserved or 0),
+            'total_stock': str(item.total_stock or 0),
+        } for item in items]
+
+        return JsonResponse({'success': True, 'items': items_data, 'count': len(items_data)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

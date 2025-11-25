@@ -30,6 +30,7 @@ urlpatterns = [
     # العملاء
     path('partners/', views.BusinessPartnerListView.as_view(), name='partner_list'),
     path('partners/<int:pk>/', views.BusinessPartnerDetailView.as_view(), name='partner_detail'),
+    path('partners/<int:pk>/prices/', views.PartnerItemPricesView.as_view(), name='partner_prices'),
     path('partners/create/', views.BusinessPartnerCreateView.as_view(), name='partner_create'),
     path('partners/<int:pk>/update/', views.BusinessPartnerUpdateView.as_view(), name='partner_update'),
     path('partners/<int:pk>/delete/', views.BusinessPartnerDeleteView.as_view(), name='partner_delete'),

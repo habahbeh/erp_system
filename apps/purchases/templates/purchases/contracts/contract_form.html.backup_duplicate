@@ -1,62 +1,675 @@
-<!-- apps/purchases/templates/purchases/orders/order_form.html -->
+<!-- apps/purchases/templates/purchases/contracts/contract_form.html -->
 {% extends 'base/base.html' %}
 {% load i18n static widget_tweaks %}
 
-{% block title %}{{ title }}
-<!-- Multi-Branch Stock Modal -->
-<div class="modal fade" id="multiBranchStockModal" tabindex="-1" aria-labelledby="multiBranchStockModalLabel" aria-hidden="true">
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    bcontract-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+    bcontract-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+/* Contract Items Table */
+.contract-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.contract-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    bcontract-bottom: 2px solid #dee2e6;
+    bcontract-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.contract-table tbody tr {
+    bcontract-bottom: 1px solid #e9ecef;
+}
+
+.contract-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    bcontract-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Select2 Item Display */
+.select2-result-item {
+    padding: 5px;
+}
+
+.select2-result-item .item-code {
+    font-size: 0.85em;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.select2-result-item .item-name {
+    font-size: 0.95em;
+    color: #212529;
+    margin-top: 2px;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted .item-code,
+.select2-container--bootstrap-5 .select2-results__option--highlighted .item-name {
+    color: white !important;
+}
+
+
+    /* ========== Enhanced Styles from Orders ========== */
+.col-stock {
+    min-width: 100px;
+}
+
+.stock-info-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.stock-badge {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.6rem;
+    bcontract-radius: 0.25rem;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.stock-badge i {
+    font-size: 0.75rem;
+}
+
+/* ========================================
+   Multi-Branch Stock Modal - NEW
+======================================== */
+#multiBranchStockModal .modal-content {
+    bcontract-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+#multiBranchStockModal .modal-header {
+    bcontract-top-left-radius: 0.5rem;
+    bcontract-top-right-radius: 0.5rem;
+}
+
+#multi-branch-stock-loading {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========================================
+   Autocomplete Enhancements - NEW
+======================================== */
+.autocomplete-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+}
+
+.autocomplete-search-input {
+    flex: 1;
+    bcontract-top-left-radius: 0.375rem !important;
+    bcontract-bottom-left-radius: 0.375rem !important;
+    bcontract-left: none !important;
+}
+
+.autocomplete-dropdown-btn {
+    width: 28px;
+    padding: 0;
+    border: 1px solid #dee2e6;
+    background: #f8f9fa;
+    bcontract-top-right-radius: 0.375rem;
+    bcontract-bottom-right-radius: 0.375rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.autocomplete-dropdown-btn:hover {
+    background: #e9ecef;
+    bcontract-color: #86b7fe;
+}
+
+.autocomplete-dropdown-btn i {
+    font-size: 10px;
+    color: #6c757d;
+}
+
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 1050;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #dee2e6;
+    bcontract-top: none;
+    bcontract-radius: 0 0 0.375rem 0.375rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    display: none;
+}
+
+.autocomplete-list.show {
+    display: block;
+}
+
+.autocomplete-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    bcontract-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.1s;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.autocomplete-item:last-child {
+    bcontract-bottom: none;
+}
+
+.autocomplete-item small {
+    display: block;
+    opacity: 0.8;
+    font-size: 0.75rem;
+}
+
+.autocomplete-loading {
+    padding: 0.5rem 0.75rem;
+    text-align: center;
+    color: #6c757d;
+}
+
+/* ========================================
+   Column Settings - NEW
+======================================== */
+.column-settings-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.5rem;
+    bcontract-radius: 0.375rem;
+    background: #fff;
+}
+
+.column-settings-item .column-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.column-settings-item.column-hidden {
+    opacity: 0.5;
+    background: #f8f9fa;
+}
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if breadcrumb.url %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% else %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    تعديل بيانات عقد الشراء رقم {{ object.number }}
+                {% else %}
+                    إضافة عقد شراء جديد
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'purchases:contract_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="contractForm" novalidate>
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <div class="row">
+            <div class="col-12">
+                <!-- Contract Header Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-contract me-2"></i>
+                            معلومات العقد الأساسية
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Supplier -->
+                            <div class="col-md-4">
+                                <label for="{{ form.supplier.id_for_label }}" class="form-label required-field">
+                                    {{ form.supplier.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.supplier }}
+                                    <button type="button" class="btn btn-outline-success" id="btn-add-supplier" title="إضافة مورد جديد">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                {% if form.supplier.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.supplier.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Contract Date -->
+                            <div class="col-md-4">
+                                <label for="{{ form.contract_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.contract_date.label }}
+                                </label>
+                                {{ form.contract_date }}
+                                {% if form.contract_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.contract_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Currency -->
+                            <div class="col-md-4">
+                                <label for="{{ form.currency.id_for_label }}" class="form-label required-field">
+                                    {{ form.currency.label }}
+                                </label>
+                                {{ form.currency }}
+                                {% if form.currency.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.currency.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Start Date -->
+                            <div class="col-md-6">
+                                <label for="{{ form.start_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.start_date.label }}
+                                </label>
+                                {{ form.start_date }}
+                                {% if form.start_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.start_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- End Date -->
+                            <div class="col-md-6">
+                                <label for="{{ form.end_date.id_for_label }}" class="form-label required-field">
+                                    {{ form.end_date.label }}
+                                </label>
+                                {{ form.end_date }}
+                                {% if form.end_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.end_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contract Terms -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-alt me-2"></i>
+                            شروط العقد
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Payment Terms -->
+                            <div class="col-md-6">
+                                <label for="{{ form.payment_terms.id_for_label }}" class="form-label">
+                                    {{ form.payment_terms.label }}
+                                </label>
+                                {{ form.payment_terms }}
+                            </div>
+
+                            <!-- Delivery Terms -->
+                            <div class="col-md-6">
+                                <label for="{{ form.delivery_terms.id_for_label }}" class="form-label">
+                                    {{ form.delivery_terms.label }}
+                                </label>
+                                {{ form.delivery_terms }}
+                            </div>
+
+                            <!-- Quality Standards -->
+                            <div class="col-md-6">
+                                <label for="{{ form.quality_standards.id_for_label }}" class="form-label">
+                                    {{ form.quality_standards.label }}
+                                </label>
+                                {{ form.quality_standards }}
+                            </div>
+
+                            <!-- Penalty Terms -->
+                            <div class="col-md-6">
+                                <label for="{{ form.penalty_terms.id_for_label }}" class="form-label">
+                                    {{ form.penalty_terms.label }}
+                                </label>
+                                {{ form.penalty_terms }}
+                            </div>
+
+                            <!-- Termination Terms -->
+                            <div class="col-md-6">
+                                <label for="{{ form.termination_terms.id_for_label }}" class="form-label">
+                                    {{ form.termination_terms.label }}
+                                </label>
+                                {{ form.termination_terms }}
+                            </div>
+
+                            <!-- Renewal Terms -->
+                            <div class="col-md-6">
+                                <label for="{{ form.renewal_terms.id_for_label }}" class="form-label">
+                                    {{ form.renewal_terms.label }}
+                                </label>
+                                {{ form.renewal_terms }}
+                            </div>
+
+                            <!-- Attachment -->
+                            <div class="col-md-6">
+                                <label for="{{ form.attachment.id_for_label }}" class="form-label">
+                                    {{ form.attachment.label }}
+                                </label>
+                                {{ form.attachment }}
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-md-6">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contract Items -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            بنود العقد
+                        </h5>
+                        <button type="button" class="btn btn-sm btn-primary" id="btn-add-line">
+                            <i class="fas fa-plus me-1"></i> إضافة سطر
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover contract-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th style="width: 180px;">الصنف</th>
+                                        <th style="width: 200px;">البيان</th>
+                                        <th style="width: 100px;">الوحدة</th>
+                                        <th style="width: 100px;">الكمية</th>
+                                        <th style="width: 100px;">السعر</th>
+                                        <th style="width: 70px;">الخصم %</th>
+                                        <th style="width: 100px;">الإجمالي</th>
+                                        <th style="width: 60px;">حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-tbody">
+                                    {% for item_form in formset %}
+                                        <tr class="item-row">
+                                            <td class="text-center">{{ forloop.counter }}</td>
+                                            <td>
+                                                {{ item_form.item }}
+                                                {{ item_form.id }}
+                                            </td>
+                                            <td>{{ item_form.item_description }}</td>
+                                            <td>{{ item_form.unit }}</td>
+                                            <td>{{ item_form.contracted_quantity }}</td>
+                                            <td>{{ item_form.unit_price }}</td>
+                                            <td>{{ item_form.discount_percentage }}</td>
+                                            <td class="text-end fw-bold item-total">0.000</td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                                <div style="display:none;">
+                                                    {{ item_form.DELETE }}
+                                                    {{ item_form.specifications }}
+                                                    {{ item_form.min_order_quantity }}
+                                                    {{ item_form.max_order_quantity }}
+                                                    {{ item_form.notes }}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'purchases:contract_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>
+                                {% if object %}تحديث العقد{% else %}حفظ العقد{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Add Supplier Modal -->
+<div class="modal fade" id="addSupplierModal" tabindex="-1" aria-labelledby="addSupplierModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                <h5 class="modal-title" id="multiBranchStockModalLabel">
-                    <i class="fas fa-building me-2"></i>
-                    رصيد المخزون في كل الفروع
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSupplierModalLabel">
+                    <i class="fas fa-user-plus me-2"></i>
+                    إضافة مورد جديد
                 </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
             </div>
             <div class="modal-body">
-                <!-- Loading Spinner -->
-                <div id="multi-branch-stock-loading" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">جاري التحميل...</span>
+                <form id="supplierForm">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="supplier_name" class="form-label required-field">اسم المورد</label>
+                            <input type="text" class="form-control" id="supplier_name" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="supplier_code" class="form-label">رمز المورد</label>
+                            <input type="text" class="form-control" id="supplier_code" name="code">
+                            <small class="text-muted">سيتم إنشاؤه تلقائياً إن لم يُدخل</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="supplier_email" class="form-label">البريد الإلكتروني</label>
+                            <input type="email" class="form-control" id="supplier_email" name="email">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="supplier_phone" class="form-label">رقم الهاتف</label>
+                            <input type="text" class="form-control" id="supplier_phone" name="phone">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="supplier_mobile" class="form-label">رقم الجوال</label>
+                            <input type="text" class="form-control" id="supplier_mobile" name="mobile">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="supplier_tax_number" class="form-label">الرقم الضريبي</label>
+                            <input type="text" class="form-control" id="supplier_tax_number" name="tax_number">
+                        </div>
+                        <div class="col-12">
+                            <label for="supplier_address" class="form-label">العنوان</label>
+                            <textarea class="form-control" id="supplier_address" name="address" rows="2"></textarea>
+                        </div>
                     </div>
-                    <p class="mt-2 text-muted">جاري جلب البيانات...</p>
-                </div>
-
-                <!-- Content -->
-                <div id="multi-branch-stock-content" style="display: none;">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>الفرع</th>
-                                    <th>المخزن</th>
-                                    <th class="text-end">الكمية</th>
-                                    <th class="text-end">محجوز</th>
-                                    <th class="text-end">متاح</th>
-                                    <th class="text-end">متوسط التكلفة</th>
-                                </tr>
-                            </thead>
-                            <tbody id="multi-branch-stock-tbody">
-                                <!-- سيتم ملؤها بالـ JavaScript -->
-                            </tbody>
-                            <tfoot id="multi-branch-stock-footer" class="table-secondary fw-bold">
-                                <!-- سيتم ملؤها بالـ JavaScript -->
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- No Data Message -->
-                <div id="multi-branch-stock-no-data" style="display: none;" class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    لا توجد بيانات مخزون لهذه المادة
-                </div>
+                    <div id="supplier-form-errors" class="alert alert-danger mt-3 d-none"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>إلغاء
+                </button>
+                <button type="button" class="btn btn-success" id="btn-save-supplier">
+                    <i class="fas fa-save me-1"></i>حفظ المورد
+                </button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Empty Row Template -->
+<script type="text/template" id="empty-row-template">
+    <tr class="item-row">
+        <td class="text-center">0</td>
+        <td>
+            <select class="form-select form-select-sm item-select" name="lines-__prefix__-item" id="id_lines-__prefix__-item">
+                <option value="">اختر الصنف...</option>
+            </select>
+            <input type="hidden" name="lines-__prefix__-id" id="id_lines-__prefix__-id">
+        </td>
+        <td><input type="text" class="form-control form-control-sm" name="lines-__prefix__-item_description" required></td>
+        <td>
+            <select class="form-select form-select-sm" name="lines-__prefix__-unit" id="id_lines-__prefix__-unit" required>
+                <option value="">-</option>
+            </select>
+        </td>
+        <td><input type="number" class="form-control form-control-sm text-end quantity-input" name="lines-__prefix__-contracted_quantity" step="0.001" placeholder="0.000" required></td>
+        <td><input type="number" class="form-control form-control-sm text-end price-input" name="lines-__prefix__-unit_price" step="0.001" placeholder="0.000"></td>
+        <td><input type="number" class="form-control form-control-sm text-end discount-input" name="lines-__prefix__-discount_percentage" step="0.01" placeholder="0.00" min="0" max="100" value="0"></td>
+        <td class="text-end fw-bold item-total">0.000</td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <input type="checkbox" name="lines-__prefix__-DELETE" id="id_lines-__prefix__-DELETE" style="display:none;">
+            <textarea name="lines-__prefix__-specifications" style="display:none;"></textarea>
+            <input type="number" name="lines-__prefix__-min_order_quantity" style="display:none;">
+            <input type="number" name="lines-__prefix__-max_order_quantity" style="display:none;">
+            <textarea name="lines-__prefix__-notes" style="display:none;"></textarea>
+        </td>
+    </tr>
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ar.js"></script>
 
 <script>
 $(document).ready(function() {
@@ -85,7 +698,7 @@ $(document).ready(function() {
         const $stockValue = $row.find('.stock-value');
 
         $.ajax({
-            url: '{% url "purchases:order_get_item_stock_current_branch_ajax" %}',
+            url: '{% url "purchases:contract_get_item_stock_current_branch_ajax" %}',
             data: {
                 item_id: itemId,
                 variant_id: variantId || ''
@@ -139,7 +752,7 @@ $(document).ready(function() {
         }
 
         $.ajax({
-            url: '{% url "purchases:order_get_supplier_item_price_ajax" %}',
+            url: '{% url "purchases:contract_get_supplier_item_price_ajax" %}',
             data: {
                 supplier_id: supplierId,
                 item_id: itemId,
@@ -202,7 +815,7 @@ $(document).ready(function() {
 
         // جلب البيانات
         $.ajax({
-            url: '{% url "purchases:order_get_item_stock_multi_branch_ajax" %}',
+            url: '{% url "purchases:contract_get_item_stock_multi_branch_ajax" %}',
             data: {
                 item_id: itemId,
                 variant_id: variantId || ''
@@ -294,7 +907,7 @@ $(document).ready(function() {
 
                 searchTimeout = setTimeout(function() {
                     $.ajax({
-                        url: '{% url "purchases:order_item_search_ajax" %}',
+                        url: '{% url "purchases:contract_item_search_ajax" %}',
                         data: { term: term, limit: 20 },
                         success: function(response) {
                             if (response.success) {
@@ -446,7 +1059,7 @@ $(document).ready(function() {
 
 .card-header {
     background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
+    bcontract-bottom: 1px solid #dee2e6;
     font-weight: 600;
     padding: 1rem 1.25rem;
 }
@@ -458,7 +1071,7 @@ $(document).ready(function() {
 }
 
 .form-control:focus, .form-select:focus {
-    border-color: #86b7fe;
+    bcontract-color: #86b7fe;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
@@ -468,7 +1081,7 @@ $(document).ready(function() {
 }
 
 .is-invalid {
-    border-color: #dc3545 !important;
+    bcontract-color: #dc3545 !important;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: left calc(0.375em + 0.1875rem) center;
@@ -513,9 +1126,9 @@ select[data-select2-id] {
 }
 
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
-    border-color: #6c757d transparent transparent transparent;
-    border-style: solid;
-    border-width: 5px 4px 0 4px;
+    bcontract-color: #6c757d transparent transparent transparent;
+    bcontract-style: solid;
+    bcontract-width: 5px 4px 0 4px;
     height: 0;
     width: 0;
     position: absolute;
@@ -526,8 +1139,8 @@ select[data-select2-id] {
 }
 
 .select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
-    border-color: transparent transparent #6c757d transparent;
-    border-width: 0 4px 5px 4px;
+    bcontract-color: transparent transparent #6c757d transparent;
+    bcontract-width: 0 4px 5px 4px;
 }
 
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
@@ -539,7 +1152,7 @@ select[data-select2-id] {
 }
 
 .select2-container--bootstrap-5 .select2-dropdown {
-    border-color: #dee2e6;
+    bcontract-color: #dee2e6;
     direction: rtl;
     text-align: right;
 }
@@ -560,15 +1173,15 @@ select[data-select2-id] {
 }
 
 /* Order Table Styling */
-.order-table {
+.contract-table {
     font-size: 0.875rem;
     margin-bottom: 0 !important;
 }
 
-.order-table thead th {
+.contract-table thead th {
     background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-    border-bottom: 2px solid #dee2e6;
-    border-top: 1px solid #dee2e6;
+    bcontract-bottom: 2px solid #dee2e6;
+    bcontract-top: 1px solid #dee2e6;
     font-weight: 600;
     padding: 0.75rem 0.5rem;
     vertical-align: middle;
@@ -579,37 +1192,37 @@ select[data-select2-id] {
     z-index: 10;
 }
 
-.order-table tbody tr {
-    border-bottom: 1px solid #e9ecef;
+.contract-table tbody tr {
+    bcontract-bottom: 1px solid #e9ecef;
     transition: background-color 0.15s ease-in-out;
 }
 
-.order-table tbody tr:hover {
+.contract-table tbody tr:hover {
     background-color: #f8f9fa;
 }
 
-.order-table tbody td {
+.contract-table tbody td {
     padding: 0.5rem;
     vertical-align: middle;
-    border-right: 1px solid #f0f0f0;
+    bcontract-right: 1px solid #f0f0f0;
 }
 
-.order-table tbody td:last-child {
-    border-right: none;
+.contract-table tbody td:last-child {
+    bcontract-right: none;
 }
 
-.order-table input,
-.order-table select,
-.order-table textarea {
+.contract-table input,
+.contract-table select,
+.contract-table textarea {
     font-size: 0.875rem;
-    border-color: #dee2e6;
+    bcontract-color: #dee2e6;
 }
 
-.order-table input:focus,
-.order-table select:focus,
-.order-table textarea:focus,
-.order-table .select2-container--open {
-    border-color: #86b7fe;
+.contract-table input:focus,
+.contract-table select:focus,
+.contract-table textarea:focus,
+.contract-table .select2-container--open {
+    bcontract-color: #86b7fe;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
 }
 
@@ -641,7 +1254,7 @@ select[data-select2-id] {
 /* Table responsive wrapper */
 .table-responsive {
     border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
+    bcontract-radius: 0.375rem;
     max-height: 500px;
     overflow-y: auto;
 }
@@ -654,12 +1267,12 @@ select[data-select2-id] {
 
 .table-responsive::-webkit-scrollbar-track {
     background: #f1f1f1;
-    border-radius: 10px;
+    bcontract-radius: 10px;
 }
 
 .table-responsive::-webkit-scrollbar-thumb {
     background: #888;
-    border-radius: 10px;
+    bcontract-radius: 10px;
 }
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
@@ -670,7 +1283,7 @@ select[data-select2-id] {
 .summary-box {
     background: #f8f9fa;
     border: 2px solid #dee2e6;
-    border-radius: 0.5rem;
+    bcontract-radius: 0.5rem;
     padding: 1.5rem;
 }
 
@@ -681,7 +1294,7 @@ select[data-select2-id] {
     justify-content: center;
     padding: 1rem;
     background: white;
-    border-radius: 0.375rem;
+    bcontract-radius: 0.375rem;
     border: 1px solid #dee2e6;
     min-height: 90px;
 }
@@ -705,7 +1318,7 @@ select[data-select2-id] {
 
 .summary-total {
     background: #0d6efd;
-    border-color: #0d6efd;
+    bcontract-color: #0d6efd;
 }
 
 .summary-total .summary-label {
@@ -736,14 +1349,14 @@ select[data-select2-id] {
     padding: 0.5rem;
     background-color: #f8d7da;
     border: 1px solid #f5c2c7;
-    border-radius: 0.375rem;
+    bcontract-radius: 0.375rem;
     margin-bottom: 0.5rem;
 }
 
 .kbd {
     background-color: #f8f9fa;
     border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
+    bcontract-radius: 0.25rem;
     padding: 0.1rem 0.4rem;
     font-size: 0.75rem;
     font-family: monospace;
@@ -767,7 +1380,7 @@ select[data-select2-id] {
 .stock-badge {
     font-size: 0.85rem;
     padding: 0.35rem 0.6rem;
-    border-radius: 0.25rem;
+    bcontract-radius: 0.25rem;
     white-space: nowrap;
     cursor: help;
 }
@@ -780,13 +1393,13 @@ select[data-select2-id] {
    Multi-Branch Stock Modal - NEW
 ======================================== */
 #multiBranchStockModal .modal-content {
-    border-radius: 0.5rem;
+    bcontract-radius: 0.5rem;
     box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
 }
 
 #multiBranchStockModal .modal-header {
-    border-top-left-radius: 0.5rem;
-    border-top-right-radius: 0.5rem;
+    bcontract-top-left-radius: 0.5rem;
+    bcontract-top-right-radius: 0.5rem;
 }
 
 #multi-branch-stock-loading {
@@ -807,9 +1420,9 @@ select[data-select2-id] {
 
 .autocomplete-search-input {
     flex: 1;
-    border-top-left-radius: 0.375rem !important;
-    border-bottom-left-radius: 0.375rem !important;
-    border-left: none !important;
+    bcontract-top-left-radius: 0.375rem !important;
+    bcontract-bottom-left-radius: 0.375rem !important;
+    bcontract-left: none !important;
 }
 
 .autocomplete-dropdown-btn {
@@ -817,8 +1430,8 @@ select[data-select2-id] {
     padding: 0;
     border: 1px solid #dee2e6;
     background: #f8f9fa;
-    border-top-right-radius: 0.375rem;
-    border-bottom-right-radius: 0.375rem;
+    bcontract-top-right-radius: 0.375rem;
+    bcontract-bottom-right-radius: 0.375rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -829,7 +1442,7 @@ select[data-select2-id] {
 
 .autocomplete-dropdown-btn:hover {
     background: #e9ecef;
-    border-color: #86b7fe;
+    bcontract-color: #86b7fe;
 }
 
 .autocomplete-dropdown-btn i {
@@ -847,8 +1460,8 @@ select[data-select2-id] {
     overflow-y: auto;
     background: white;
     border: 1px solid #dee2e6;
-    border-top: none;
-    border-radius: 0 0 0.375rem 0.375rem;
+    bcontract-top: none;
+    bcontract-radius: 0 0 0.375rem 0.375rem;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     display: none;
 }
@@ -860,7 +1473,7 @@ select[data-select2-id] {
 .autocomplete-item {
     padding: 0.5rem 0.75rem;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    bcontract-bottom: 1px solid #f0f0f0;
     transition: background-color 0.1s;
 }
 
@@ -871,7 +1484,7 @@ select[data-select2-id] {
 }
 
 .autocomplete-item:last-child {
-    border-bottom: none;
+    bcontract-bottom: none;
 }
 
 .autocomplete-item small {
@@ -895,7 +1508,7 @@ select[data-select2-id] {
     padding: 0.75rem 1rem;
     border: 1px solid #dee2e6;
     margin-bottom: 0.5rem;
-    border-radius: 0.375rem;
+    bcontract-radius: 0.375rem;
     background: #fff;
 }
 
@@ -918,7 +1531,7 @@ select[data-select2-id] {
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'purchases:order_list' %}">أوامر الشراء</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'purchases:order_list' %}">العقود</a></li>
             <li class="breadcrumb-item active" aria-current="page">
                 {% if object %}تعديل الأمر{% else %}أمر جديد{% endif %}
             </li>
@@ -931,7 +1544,7 @@ select[data-select2-id] {
             <h1 class="h3 mb-1">{{ title }}</h1>
             <p class="text-muted mb-0">
                 {% if object %}
-                    تعديل بيانات أمر الشراء رقم {{ object.number }}
+                    تعديل بيانات العقد رقم {{ object.number }}
                 {% else %}
                     إضافة أمر شراء جديد
                 {% endif %}
@@ -944,7 +1557,7 @@ select[data-select2-id] {
         </div>
     </div>
 
-    <form method="post" id="orderForm" novalidate>
+    <form method="post" id="contractForm" novalidate>
         {% csrf_token %}
         {{ formset.management_form }}
 
@@ -1073,16 +1686,16 @@ select[data-select2-id] {
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div class="alert alert-info mb-0 rounded-0 border-0 border-bottom">
+                        <div class="alert alert-info mb-0 rounded-0 bcontract-0 bcontract-bottom">
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>ملاحظة:</strong>
                             يجب إدخال <strong>الصنف</strong> و<strong>الكمية</strong> و<strong>السعر</strong> لكل بند.
                             البيان اختياري (يمكن إدخال وصف إضافي للصنف).
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-hover order-table mb-0">
+                            <table class="table table-hover contract-table mb-0">
                                 <thead>
-                                    <tr id="order-table-header">
+                                    <tr id="contract-table-header">
                                         <th style="width: 40px;" class="text-center">#</th>
                                         <th style="width: 250px;">الصنف <span class="text-danger">*</span></th>
                                         <th style="width: 300px;">البيان <small class="text-muted">(اختياري)</small></th>
@@ -1390,7 +2003,7 @@ $(document).ready(function() {
         // F9 or Ctrl+S - Save
         if (e.key === 'F9' || (e.ctrlKey && e.key === 's')) {
             e.preventDefault();
-            $('#orderForm').submit();
+            $('#contractForm').submit();
             return false;
         }
 
@@ -1404,7 +2017,7 @@ $(document).ready(function() {
     });
 
     // Tab Navigation in Grid
-    $(document).on('keydown', '.order-table input, .order-table select, .order-table textarea', function(e) {
+    $(document).on('keydown', '.contract-table input, .contract-table select, .contract-table textarea', function(e) {
         // Enter key - Move to next row same column
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -1437,7 +2050,7 @@ $(document).ready(function() {
     // ============================================
     // Form Validation
     // ============================================
-    $('#orderForm').on('submit', function(e) {
+    $('#contractForm').on('submit', function(e) {
         var errors = [];
 
         // إزالة جميع الأخطاء السابقة

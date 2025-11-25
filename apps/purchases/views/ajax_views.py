@@ -361,3 +361,97 @@ def ajax_supplier_info(request):
             'is_active': supplier.is_active
         }
     })
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_get_item_price_by_uom(request):
+    """
+    الحصول على سعر المادة حسب الوحدة
+    Get item price based on unit of measure
+    """
+    try:
+        from apps.core.models import UnitOfMeasure, UoMConversion
+
+        item_id = request.GET.get('item_id')
+        variant_id = request.GET.get('variant_id')
+        uom_id = request.GET.get('uom_id')
+        supplier_id = request.GET.get('supplier_id')
+
+        if not item_id or not uom_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'يجب تحديد المادة والوحدة'
+            }, status=400)
+        # Get item
+        item = Item.objects.get(id=item_id, company=request.current_company)
+
+        # Get UOM
+        uom = UnitOfMeasure.objects.get(id=uom_id, company=request.current_company)
+
+        # Get variant if provided
+        variant = None
+        if variant_id:
+            variant = ItemVariant.objects.get(id=variant_id, item=item)
+
+        # Get price from price list
+        from apps.core.models import PriceList, PriceListItem
+
+        price = None
+        price_source = None
+
+        # Try to get price from default price list
+        price_list = PriceList.objects.filter(
+            company=request.current_company,
+            is_default=True,
+            is_active=True
+        ).first()
+
+        if price_list:
+            price_item = PriceListItem.objects.filter(
+                price_list=price_list,
+                item=item,
+                variant=variant,
+                uom=uom,
+                is_active=True
+            ).order_by('min_quantity').first()
+
+            if price_item:
+                price = price_item.price
+                price_source = 'price_list'
+
+        # If no price found, try to get last purchase price
+        if not price:
+            last_purchase = PurchaseInvoiceItem.objects.filter(
+                invoice__company=request.current_company,
+                invoice__is_posted=True,
+                item=item,
+                unit_id=uom_id
+            ).order_by('-invoice__date').first()
+
+            if last_purchase:
+                price = last_purchase.unit_price
+                price_source = 'last_purchase'
+
+        return JsonResponse({
+            'success': True,
+            'price': str(price) if price else None,
+            'price_source': price_source,
+            'uom': {
+                'id': uom.id,
+                'code': uom.code,
+                'name': uom.name,
+                'name_english': getattr(uom, 'name_english', '') or ''
+            },
+            'conversion_factor': None,
+            'last_purchase': None
+        })
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+

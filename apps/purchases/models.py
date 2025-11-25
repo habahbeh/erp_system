@@ -281,12 +281,19 @@ class PurchaseInvoice(DocumentBaseModel):
 
         self.subtotal_after_discount = lines_total - self.discount_amount
 
-        # مجموع الضرائب
+        # مجموع الضرائب (للعرض فقط)
         self.tax_amount = sum(line.tax_amount for line in self.lines.all())
 
-        # الإجماليات
+        # مجموع الضرائب المضافة فقط (غير الشاملة)
+        added_tax = sum(
+            line.tax_amount for line in self.lines.all()
+            if not line.tax_included
+        )
+
+        # الإجمالي النهائي = المجموع بعد الخصم + الضرائب المضافة فقط
+        # (الضرائب الشاملة موجودة في subtotal بالفعل)
         self.total_amount = self.subtotal_after_discount
-        self.total_with_tax = self.total_amount + self.tax_amount
+        self.total_with_tax = self.total_amount + added_tax
 
     @transaction.atomic
     def post(self, user=None):
@@ -367,8 +374,9 @@ class PurchaseInvoice(DocumentBaseModel):
                     expiry_date=invoice_line.expiry_date
                 )
 
-            # 3. ترحيل سند الإدخال (يحدث المخزون تلقائياً)
-            stock_in.post(user=user)
+            # 3. ترحيل سند الإدخال بدون إنشاء قيد محاسبي
+            # القيد المحاسبي سيتم إنشاؤه من الفاتورة فقط
+            stock_in.post(user=user, create_journal_entry=False)
 
         # 4. إنشاء القيد المحاسبي
         try:
@@ -440,7 +448,13 @@ class PurchaseInvoice(DocumentBaseModel):
             line_number += 1
 
         # سطر الضريبة (مدين - قابلة للخصم)
-        if self.tax_amount > 0:
+        # فقط الضرائب المضافة (غير الشاملة) - الضرائب الشاملة موجودة في تكلفة المخزون
+        added_tax = sum(
+            line.tax_amount for line in self.lines.all()
+            if not line.tax_included
+        )
+
+        if added_tax > 0:
             tax_account = get_default_account(
                 self.company, '120400', 'ضريبة المشتريات القابلة للخصم', fallback_required=False
             )
@@ -449,8 +463,8 @@ class PurchaseInvoice(DocumentBaseModel):
                     journal_entry=journal_entry,
                     line_number=line_number,
                     account=tax_account,
-                    description=f"ضريبة المشتريات",
-                    debit_amount=self.tax_amount,
+                    description=f"ضريبة المشتريات (المضافة)",
+                    debit_amount=added_tax,
                     credit_amount=0,
                     currency=self.currency,
                     reference=self.number
@@ -621,6 +635,47 @@ class PurchaseInvoiceItem(models.Model):
         validators=[MinValueValidator(0)]
     )
 
+    # ✅ **UoM Conversion Fields - تحويل الوحدات:**
+    purchase_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('وحدة الشراء'),
+        related_name='purchase_invoice_items_purchase_uom',
+        help_text=_('الوحدة التي يتم الشراء بها (مثل: كرتونة، صندوق)')
+    )
+
+    purchase_quantity = models.DecimalField(
+        _('كمية الشراء'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text=_('الكمية بوحدة الشراء')
+    )
+
+    purchase_unit_price = models.DecimalField(
+        _('سعر وحدة الشراء'),
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text=_('السعر بوحدة الشراء (مثل: 100$ للكرتونة)')
+    )
+
+    conversion_rate = models.DecimalField(
+        _('معامل التحويل'),
+        max_digits=12,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.000001'))],
+        help_text=_('كم وحدة أساسية في وحدة الشراء (مثل: 1 كرتونة = 100 قطعة)')
+    )
+
     # ✅ **إضافة معلومات الدفعة:**
     batch_number = models.CharField(
         _('رقم الدفعة'),
@@ -748,7 +803,7 @@ class PurchaseInvoiceItem(models.Model):
             self.name_latin = self.item.name_en or ''
 
         if self.item and not self.unit_id:
-            self.unit = self.item.unit_of_measure
+            self.unit = self.item.base_uom
 
         # الإجمالي قبل الخصم
         gross_total = self.quantity * self.unit_price
@@ -779,6 +834,16 @@ class PurchaseInvoiceItem(models.Model):
         if self.invoice and self.invoice.discount_affects_cost:
             # سيتم تطويرها مع نظام المخزون
             pass
+
+    @property
+    def total(self):
+        """حساب الإجمالي النهائي للسطر (شامل الضريبة المضافة)"""
+        if self.tax_included:
+            # الضريبة مشمولة في السعر، الإجمالي = الإجمالي بعد الخصم
+            return self.subtotal
+        else:
+            # الضريبة غير مشمولة، يجب إضافتها
+            return self.subtotal + self.tax_amount
 
     def __str__(self):
         return f"{self.item.name} - {self.quantity}"
@@ -1068,7 +1133,7 @@ class PurchaseOrder(DocumentBaseModel):
                 item=line.item,
                 description=line.description,
                 quantity=line.quantity,
-                unit=line.item.unit_of_measure,
+                unit=line.item.base_uom,
                 unit_price=line.unit_price
             )
 

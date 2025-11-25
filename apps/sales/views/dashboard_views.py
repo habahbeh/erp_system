@@ -177,6 +177,10 @@ def sales_dashboard(request):
         {'title': _('لوحة المبيعات'), 'url': ''},
     ]
 
+    # TODO: إضافة إحصائيات نقاط البيع (POS) والحملات التسويقية لاحقاً
+    pos_stats = {}
+    active_campaigns = []
+
     context = {
         'title': _('لوحة تحكم المبيعات'),
         'breadcrumbs': breadcrumbs,

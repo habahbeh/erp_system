@@ -368,7 +368,7 @@ class InvoiceItemForm(forms.ModelForm):
             self.fields['item'].queryset = Item.objects.filter(
                 company=self.company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure')
+            ).select_related('category', 'base_uom')
 
             # تصفية الوحدات
             self.fields['unit'].queryset = UnitOfMeasure.objects.filter(
@@ -438,12 +438,12 @@ class InvoiceItemForm(forms.ModelForm):
         # التحقق من أن الوحدة تنتمي إلى المادة
         if item and unit:
             # إذا كانت المادة لها وحدة قياس افتراضية، تأكد من أن الوحدة المختارة صحيحة
-            if item.unit_of_measure and not unit:
-                cleaned_data['unit'] = item.unit_of_measure
+            if item.base_uom and not unit:
+                cleaned_data['unit'] = item.base_uom
         elif item and not unit:
             # تعيين الوحدة الافتراضية من المادة
-            if item.unit_of_measure:
-                cleaned_data['unit'] = item.unit_of_measure
+            if item.base_uom:
+                cleaned_data['unit'] = item.base_uom
             else:
                 raise ValidationError(_('يجب تحديد وحدة القياس'))
 

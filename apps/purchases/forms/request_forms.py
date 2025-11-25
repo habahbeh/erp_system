@@ -153,7 +153,7 @@ class PurchaseRequestItemForm(forms.ModelForm):
             self.fields['item'].queryset = Item.objects.filter(
                 company=self.company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure')
+            ).select_related('category', 'base_uom')
 
         # جعل الحقول اختيارية
         self.fields['item'].required = False

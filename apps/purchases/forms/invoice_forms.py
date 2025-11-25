@@ -238,7 +238,8 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         model = PurchaseInvoiceItem
         fields = [
             'item', 'item_variant', 'description', 'quantity', 'unit',
-            'unit_price', 'discount_percentage', 'discount_amount',
+            'unit_price', 'purchase_uom', 'purchase_quantity', 'purchase_unit_price',
+            'conversion_rate', 'discount_percentage', 'discount_amount',
             'tax_included', 'tax_rate', 'batch_number', 'expiry_date',
             'expense_account'
         ]
@@ -269,6 +270,29 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
                 'placeholder': '0.000',
                 'inputmode': 'decimal',
                 'pattern': '[0-9٠-٩.,]*'
+            }),
+            'purchase_uom': forms.Select(attrs={
+                'class': 'form-select form-select-sm purchase-uom-select',
+                'data-placeholder': 'وحدة الشراء...',
+            }),
+            'purchase_quantity': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm text-end purchase-qty-input',
+                'placeholder': '0.000',
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
+            }),
+            'purchase_unit_price': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm text-end purchase-price-input',
+                'placeholder': '0.000',
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*'
+            }),
+            'conversion_rate': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm text-end conversion-rate-input',
+                'placeholder': '1.000000',
+                'inputmode': 'decimal',
+                'pattern': '[0-9٠-٩.,]*',
+                'readonly': 'readonly'
             }),
             'discount_percentage': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-end discount-pct-input',
@@ -314,6 +338,8 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         self.fields['item'].required = False
         self.fields['item_variant'].required = False
         self.fields['unit'].required = False
+        self.fields['unit_price'].required = False
+        self.fields['quantity'].required = False
         self.fields['expense_account'].required = False
 
         # Set empty querysets by default to avoid errors
@@ -376,6 +402,20 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         """تنظيف البيانات قبل الحفظ"""
         cleaned_data = super().clean()
 
+        item = cleaned_data.get('item')
+        unit_price = cleaned_data.get('unit_price')
+        quantity = cleaned_data.get('quantity')
+        unit = cleaned_data.get('unit')
+
+        # إذا تم اختيار مادة، تأكد من وجود السعر والكمية والوحدة
+        if item:
+            if not unit_price:
+                raise ValidationError({'unit_price': 'السعر مطلوب عند اختيار المادة'})
+            if not quantity:
+                raise ValidationError({'quantity': 'الكمية مطلوبة عند اختيار المادة'})
+            if not unit:
+                raise ValidationError({'unit': 'الوحدة مطلوبة عند اختيار المادة'})
+
         # تنظيف item_variant - إذا كان فارغاً اجعله None
         item_variant = cleaned_data.get('item_variant')
         if item_variant == '' or item_variant is None:
@@ -387,6 +427,15 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
             cleaned_data['expense_account'] = None
 
         return cleaned_data
+
+    def save(self, commit=True):
+        """حفظ البيانات - تخطي الحفظ إذا لم يتم اختيار مادة"""
+        # إذا لم يتم اختيار مادة، لا تحفظ هذا السطر (سطر فارغ)
+        if not self.cleaned_data.get('item') and not self.instance.pk:
+            # هذا سطر جديد فارغ، لا نحفظه
+            return None
+
+        return super().save(commit=commit)
 
 
 class BasePurchaseInvoiceItemFormSet(BaseInlineFormSet):
@@ -416,6 +465,32 @@ class BasePurchaseInvoiceItemFormSet(BaseInlineFormSet):
 
         if valid_forms < 1:
             raise ValidationError('⚠️ يرجى إضافة سطر واحد على الأقل للفاتورة. لا يمكن حفظ فاتورة فارغة.')
+
+    def save(self, commit=True):
+        """حفظ السطور - تخطي السطور الفارغة (بدون مادة)"""
+        # إنشاء قائمة بالسطور الصحيحة فقط
+        forms_to_save = []
+
+        for form in self.forms:
+            # تخطي إذا لم يكن هناك cleaned_data
+            if not hasattr(form, 'cleaned_data') or not form.cleaned_data:
+                continue
+
+            # تخطي السطور المحذوفة
+            if form.cleaned_data.get('DELETE', False):
+                continue
+
+            # تخطي السطور الفارغة (بدون مادة)
+            if not form.cleaned_data.get('item'):
+                continue
+
+            forms_to_save.append(form)
+
+        # استبدال قائمة النماذج بالنماذج الصحيحة فقط
+        self.forms = forms_to_save
+
+        # استدعاء save الأصلي
+        return super().save(commit=commit)
 
 
 # إنشاء Inline Formset لسطور الفاتورة

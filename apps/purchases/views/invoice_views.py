@@ -179,6 +179,28 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
     template_name = 'purchases/invoices/invoice_form.html'
     permission_required = 'purchases.add_purchaseinvoice'
 
+    def post(self, request, *args, **kwargs):
+        """Override post to debug the entire flow"""
+        import sys
+        sys.stdout.write("\n" + "="*100 + "\n")
+        sys.stdout.write("🔥 POST METHOD CALLED - Starting invoice creation\n")
+        sys.stdout.write(f"POST keys: {list(request.POST.keys())[:10]}...\n")
+        sys.stdout.write(f"Number of POST items: {len(request.POST)}\n")
+
+        # Check if there are any invoice items
+        item_count = 0
+        for key in request.POST.keys():
+            if 'items-' in key and '-item' in key and '-DELETE' not in key:
+                item_count += 1
+                sys.stdout.write(f"Found item field: {key} = {request.POST.get(key)}\n")
+
+        sys.stdout.write(f"Total item-related fields: {item_count}\n")
+        sys.stdout.write("="*100 + "\n")
+        sys.stdout.flush()
+
+        # Call parent post method
+        return super().post(request, *args, **kwargs)
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['company'] = self.request.current_company
@@ -187,7 +209,7 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         context['title'] = _('إضافة فاتورة مشتريات')
         context['breadcrumbs'] = [
             {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
@@ -200,30 +222,31 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
             context['formset'] = PurchaseInvoiceItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
         else:
             context['formset'] = PurchaseInvoiceItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'tax_rate', 'base_uom__name',
-                'base_uom__code'
-            )
-        )
+        # ✅ PERFORMANCE IMPROVEMENT: No longer loading all items
+        # Now using AJAX Live Search instead
+        context['items_data'] = []  # Empty - will use AJAX search
+        context['use_live_search'] = True  # Flag for JavaScript
 
         return context
 
     @transaction.atomic
     def form_valid(self, form):
+        import sys
+        sys.stdout.write("\n" + "=" * 80 + "\n")
+        sys.stdout.write("🔍 form_valid called!\n")
+        sys.stdout.write(f"POST data keys: {list(self.request.POST.keys())}\n")
+        sys.stdout.flush()
+
         context = self.get_context_data()
         formset = context['formset']
 
@@ -231,6 +254,15 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
         form.instance.company = self.request.current_company
         form.instance.branch = self.request.current_branch
         form.instance.created_by = self.request.user
+
+        sys.stdout.write(f"✅ Form is valid: {form.is_valid()}\n")
+        sys.stdout.write(f"📋 Formset is valid: {formset.is_valid()}\n")
+        sys.stdout.flush()
+
+        if not formset.is_valid():
+            sys.stdout.write(f"❌ Formset errors: {formset.errors}\n")
+            sys.stdout.write(f"❌ Non-form errors: {formset.non_form_errors()}\n")
+            sys.stdout.flush()
 
         if formset.is_valid():
             self.object = form.save()
@@ -274,6 +306,26 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
                 )
 
             return self.render_to_response(self.get_context_data(form=form))
+
+    def form_invalid(self, form):
+        """Called when main form validation fails"""
+        import sys
+        sys.stdout.write("\n" + "=" * 80 + "\n")
+        sys.stdout.write("❌ form_invalid called - Main form has validation errors!\n")
+        sys.stdout.write(f"Form errors: {dict(form.errors)}\n")
+        sys.stdout.flush()
+
+        context = self.get_context_data(form=form)
+        formset = context['formset']
+
+        sys.stdout.write(f"Formset is valid: {formset.is_valid()}\n")
+        if not formset.is_valid():
+            sys.stdout.write(f"Formset errors: {formset.errors}\n")
+            sys.stdout.write(f"Formset non-form errors: {formset.non_form_errors()}\n")
+        sys.stdout.write("=" * 80 + "\n")
+        sys.stdout.flush()
+
+        return super().form_invalid(form)
 
 
 class PurchaseInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
@@ -320,17 +372,10 @@ class PurchaseInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'tax_rate', 'base_uom__name',
-                'base_uom__code'
-            )
-        )
+        # ✅ PERFORMANCE IMPROVEMENT: No longer loading all items
+        # Now using AJAX Live Search instead
+        context['items_data'] = []  # Empty - will use AJAX search
+        context['use_live_search'] = True  # Flag for JavaScript
 
         return context
 
@@ -673,3 +718,444 @@ def export_invoices_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     return response
+
+
+# ============================================
+# AJAX Endpoints for Invoice Form Enhancements
+# ============================================
+
+@login_required
+@permission_required('purchases.view_purchaseinvoice', raise_exception=True)
+def get_supplier_item_price_ajax(request):
+    """
+    جلب آخر سعر شراء من المورد لمادة معينة
+    يستخدم في فاتورة المشتريات للتعبئة التلقائية للسعر
+    """
+    supplier_id = request.GET.get('supplier_id')
+    item_id = request.GET.get('item_id')
+    variant_id = request.GET.get('variant_id')
+
+    if not supplier_id or not item_id:
+        return JsonResponse({'error': 'Missing required parameters'}, status=400)
+
+    try:
+        from apps.core.models import PartnerItemPrice
+
+        # البحث عن آخر سعر شراء
+        filter_params = {
+            'company': request.current_company,
+            'partner_id': supplier_id,
+            'item_id': item_id,
+        }
+
+        if variant_id:
+            filter_params['item_variant_id'] = variant_id
+
+        price_record = PartnerItemPrice.objects.filter(
+            **filter_params
+        ).first()
+
+        if price_record and price_record.last_purchase_price:
+            return JsonResponse({
+                'success': True,
+                'has_price': True,
+                'last_price': str(price_record.last_purchase_price),
+                'last_date': price_record.last_purchase_date.strftime('%Y-%m-%d') if price_record.last_purchase_date else None,
+                'last_quantity': str(price_record.last_purchase_quantity) if price_record.last_purchase_quantity else None,
+                'total_purchased': str(price_record.total_purchased_quantity),
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'has_price': False,
+                'message': 'لا توجد مشتريات سابقة من هذا المورد لهذه المادة'
+            })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaseinvoice', raise_exception=True)
+def get_item_stock_multi_branch_ajax(request):
+    """
+    جلب رصيد المخزون لمادة معينة من جميع الفروع
+    يعرض الكميات المتوفرة في كل مخزن مع تفاصيل الفرع
+    """
+    item_id = request.GET.get('item_id')
+    variant_id = request.GET.get('variant_id')
+
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        from apps.inventory.models import ItemStock
+
+        # البحث عن الكميات في جميع المخازن
+        filter_params = {
+            'company': request.current_company,
+            'item_id': item_id,
+        }
+
+        if variant_id:
+            filter_params['item_variant_id'] = variant_id
+
+        stock_records = ItemStock.objects.filter(
+            **filter_params
+        ).select_related(
+            'warehouse', 'warehouse__branch'
+        ).order_by('warehouse__branch__name', 'warehouse__name')
+
+        # تجميع البيانات
+        branches_data = []
+        total_quantity = Decimal('0')
+        total_available = Decimal('0')
+
+        for stock in stock_records:
+            available = stock.quantity - stock.reserved_quantity
+            total_quantity += stock.quantity
+            total_available += available
+
+            branches_data.append({
+                'branch_name': stock.warehouse.branch.name,
+                'warehouse_name': stock.warehouse.name,
+                'quantity': str(stock.quantity),
+                'reserved': str(stock.reserved_quantity),
+                'available': str(available),
+                'average_cost': str(stock.average_cost),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'has_stock': len(branches_data) > 0,
+            'branches': branches_data,
+            'total_quantity': str(total_quantity),
+            'total_available': str(total_available),
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaseinvoice', raise_exception=True)
+def get_item_stock_current_branch_ajax(request):
+    """
+    جلب رصيد المخزون لمادة معينة في الفرع الحالي فقط
+    يستخدم للعرض السريع في جدول الفاتورة
+    """
+    item_id = request.GET.get('item_id')
+    variant_id = request.GET.get('variant_id')
+
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        from apps.inventory.models import ItemStock
+
+        # البحث في الفرع الحالي
+        filter_params = {
+            'company': request.current_company,
+            'item_id': item_id,
+            'warehouse__branch': request.current_branch,
+        }
+
+        if variant_id:
+            filter_params['item_variant_id'] = variant_id
+
+        # حساب الإجمالي في الفرع الحالي
+        stock_aggregate = ItemStock.objects.filter(
+            **filter_params
+        ).aggregate(
+            total_qty=Sum('quantity'),
+            total_reserved=Sum('reserved_quantity')
+        )
+
+        total_qty = stock_aggregate['total_qty'] or Decimal('0')
+        total_reserved = stock_aggregate['total_reserved'] or Decimal('0')
+        available = total_qty - total_reserved
+
+        return JsonResponse({
+            'success': True,
+            'quantity': str(total_qty),
+            'reserved': str(total_reserved),
+            'available': str(available),
+            'has_stock': total_qty > 0,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaseinvoice', raise_exception=True)
+def item_search_ajax(request):
+    """
+    AJAX Live Search للمواد
+    يُستخدم للبحث المباشر بدلاً من تحميل جميع المواد
+    """
+    term = request.GET.get('term', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    if len(term) < 2:
+        return JsonResponse({
+            'success': False,
+            'message': 'يرجى إدخال حرفين على الأقل للبحث'
+        })
+
+    try:
+        from apps.core.models import ItemVariant, PartnerItemPrice
+
+        # البحث في المتغيرات بدلاً من المواد الأساسية
+        variants = ItemVariant.objects.filter(
+            item__company=request.current_company,
+            item__is_active=True,
+            is_active=True
+        ).filter(
+            Q(item__name__icontains=term) |
+            Q(item__code__icontains=term) |
+            Q(item__barcode__icontains=term) |
+            Q(code__icontains=term) |
+            Q(barcode__icontains=term)
+        ).annotate(
+            # كمية المخزون في الفرع الحالي للمتغير
+            current_branch_stock=Sum(
+                'stock_records__quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)
+            ),
+            # الكمية المحجوزة في الفرع الحالي
+            current_branch_reserved=Sum(
+                'stock_records__reserved_quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)
+            ),
+            # إجمالي المخزون في كل الفروع
+            total_stock=Sum('stock_records__quantity'),
+        ).select_related(
+            'item__category', 'item__base_uom', 'item'
+        )[:limit]
+
+        items_data = []
+        for variant in variants:
+            item = variant.item
+
+            # Get last purchase price from PartnerItemPrice if available
+            last_purchase_price = None
+            try:
+                # 1. البحث عن آخر سعر شراء فعلي
+                price_record = PartnerItemPrice.objects.filter(
+                    company=request.current_company,
+                    item=item,
+                    item_variant=variant,
+                    last_purchase_price__isnull=False
+                ).order_by('-last_purchase_date').first()
+
+                if price_record:
+                    last_purchase_price = str(price_record.last_purchase_price)
+                elif variant.cost_price:
+                    # 2. استخدم سعر التكلفة من المتغير إذا لم يكن هناك سعر شراء
+                    last_purchase_price = str(variant.cost_price)
+                elif variant.base_price:
+                    # 3. أو السعر الأساسي
+                    last_purchase_price = str(variant.base_price)
+                else:
+                    # 4. البحث في قوائم الأسعار (أول سعر متوفر)
+                    from apps.core.models import PriceListItem
+                    from datetime import date
+
+                    price_list_item = PriceListItem.objects.filter(
+                        item=item,
+                        variant=variant,
+                        price__isnull=False
+                    ).filter(
+                        Q(start_date__isnull=True) | Q(start_date__lte=date.today())
+                    ).filter(
+                        Q(end_date__isnull=True) | Q(end_date__gte=date.today())
+                    ).order_by('price').first()
+
+                    if price_list_item:
+                        last_purchase_price = str(price_list_item.price)
+            except Exception as e:
+                # Fallback في حالة حدوث خطأ
+                if variant.cost_price:
+                    last_purchase_price = str(variant.cost_price)
+                elif variant.base_price:
+                    last_purchase_price = str(variant.base_price)
+                else:
+                    try:
+                        from apps.core.models import PriceListItem
+                        from datetime import date
+
+                        price_list_item = PriceListItem.objects.filter(
+                            item=item,
+                            variant=variant,
+                            price__isnull=False
+                        ).order_by('price').first()
+
+                        if price_list_item:
+                            last_purchase_price = str(price_list_item.price)
+                    except:
+                        pass
+
+            # بناء اسم مركب: المادة + المتغير
+            display_name = item.name
+            if variant.code and variant.code != item.code:
+                display_name += f" - {variant.code}"
+
+            items_data.append({
+                'id': item.id,
+                'variant_id': variant.id,
+                'name': display_name,  # الاسم المركب
+                'item_name': item.name,  # اسم المادة فقط
+                'variant_code': variant.code,  # كود المتغير
+                'code': item.code,
+                'barcode': variant.barcode or item.barcode or '',
+                'description': item.description or '',
+                'category_name': item.category.name if item.category else '',
+                'tax_rate': str(item.tax_rate),
+                'base_uom_name': item.base_uom.name if item.base_uom else '',
+                'base_uom_code': item.base_uom.code if item.base_uom else '',
+                'base_uom_id': item.base_uom.id if item.base_uom else None,
+                'last_purchase_price': last_purchase_price,
+                'current_branch_stock': str(variant.current_branch_stock or 0),
+                'current_branch_reserved': str(variant.current_branch_reserved or 0),
+                'total_stock': str(variant.total_stock or 0),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'items': items_data,
+            'count': len(items_data)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.add_purchaseinvoice', raise_exception=True)
+@transaction.atomic
+def save_invoice_draft_ajax(request):
+    """
+    حفظ الفاتورة كمسودة (Auto-save)
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        invoice_id = request.POST.get('invoice_id')
+
+        # بيانات الفاتورة الأساسية
+        invoice_data = {
+            'supplier_id': request.POST.get('supplier'),
+            'warehouse_id': request.POST.get('warehouse'),
+            'date': request.POST.get('date'),
+            'number': request.POST.get('number'),
+            'supplier_invoice_number': request.POST.get('supplier_invoice_number'),
+            'supplier_invoice_date': request.POST.get('supplier_invoice_date'),
+            'reference': request.POST.get('reference'),
+            'notes': request.POST.get('notes'),
+            'discount_type': request.POST.get('discount_type', 'none'),
+            'discount_value': request.POST.get('discount_value', 0),
+        }
+
+        # التحقق من البيانات الأساسية
+        if not invoice_data['supplier_id'] or not invoice_data['warehouse_id']:
+            return JsonResponse({
+                'success': False,
+                'message': 'يرجى اختيار المورد والمخزن'
+            })
+
+        # حفظ أو تحديث الفاتورة
+        if invoice_id:
+            invoice = get_object_or_404(
+                PurchaseInvoice,
+                pk=invoice_id,
+                company=request.current_company,
+                is_posted=False
+            )
+            for key, value in invoice_data.items():
+                if value:
+                    setattr(invoice, key.replace('_id', ''), value)
+            invoice.save()
+        else:
+            invoice = PurchaseInvoice.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                created_by=request.user,
+                **invoice_data
+            )
+
+        # حفظ الأسطر (بسيط - فقط للتجربة)
+        # في production يجب معالجة formset كامل
+
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.number,
+            'message': 'تم حفظ المسودة بنجاح',
+            'saved_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaseinvoice', raise_exception=True)
+def get_item_uom_conversions_ajax(request):
+    """
+    AJAX endpoint للحصول على قائمة تحويلات الوحدات لمادة معينة
+    يُستخدم لملء dropdown وحدة الشراء
+    """
+    from apps.core.models import ItemUoMConversion
+
+    item_id = request.GET.get('item_id')
+
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        # جلب التحويلات من ItemUoMConversion
+        conversions = ItemUoMConversion.objects.filter(
+            item__company=request.current_company,
+            item_id=item_id,
+            is_active=True
+        ).select_related('from_uom', 'to_uom').values(
+            'id',
+            'from_uom_id',
+            'from_uom__name',
+            'from_uom__code',
+            'to_uom_id',
+            'to_uom__name',
+            'to_uom__code',
+            'conversion_rate'
+        )
+
+        conversions_list = list(conversions)
+
+        return JsonResponse({
+            'success': True,
+            'conversions': conversions_list,
+            'count': len(conversions_list)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

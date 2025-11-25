@@ -265,10 +265,9 @@ class Command(BaseCommand):
             for variant in variants:
                 variant_data.append({
                     'id': variant.id,
-                    'sku': variant.sku,
-                    'name_ar': variant.name_ar,
-                    'name_en': variant.name_en,
-                    'cost': float(variant.cost) if variant.cost else 0,
+                    'code': variant.code,
+                    'barcode': variant.barcode or '',
+                    'cost': float(variant.cost_price) if variant.cost_price else 0,
                     'base_price': float(variant.base_price) if variant.base_price else 0,
                     'is_active': variant.is_active,
                 })

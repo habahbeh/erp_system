@@ -64,7 +64,7 @@ class PriceListExportView(LoginRequiredMixin, View):
                 item.price_list.name,
                 item.item.code,
                 item.item.name,
-                item.variant.name if item.variant else '',
+                item.variant.code if item.variant else '',
                 float(item.price),
                 item.currency.code if item.currency else '',
                 item.valid_from.strftime('%Y-%m-%d') if item.valid_from else '',

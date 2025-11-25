@@ -15,7 +15,7 @@ from django.db import transaction
 
 from ..models import BusinessPartner, PartnerRepresentative
 from ..forms.partner_forms import BusinessPartnerForm, PartnerRepresentativeFormSet
-from ..mixins import CompanyBranchMixin, AuditLogMixin
+from ..mixins import CompanyBranchMixin, CompanyMixin, AuditLogMixin
 
 
 class BusinessPartnerListView(LoginRequiredMixin, PermissionRequiredMixin, CompanyBranchMixin, TemplateView):
@@ -406,7 +406,7 @@ def item_search_ajax(request):
                 variant_data = {
                     'id': variant.id,
                     'code': variant.code,
-                    'name': variant.name if variant.name else '',
+                    'barcode': variant.barcode or '',
                 }
                 # إضافة السمات إذا كانت موجودة
                 if hasattr(variant, 'attribute_values') and variant.attribute_values:
@@ -454,3 +454,43 @@ def item_search_ajax(request):
             'results': [],
             'error': str(e)
         }, status=500)
+
+
+class PartnerItemPricesView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, DetailView):
+    """عرض أسعار المواد للشريك التجاري (مورد/عميل)"""
+    model = BusinessPartner
+    template_name = 'core/partners/partner_item_prices.html'
+    context_object_name = 'partner'
+    permission_required = 'core.view_businesspartner'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.core.models import PartnerItemPrice
+
+        # Get all item prices for this partner
+        item_prices = PartnerItemPrice.objects.filter(
+            partner=self.object,
+            company=self.current_company
+        ).select_related(
+            'item', 'item_variant'
+        ).order_by('-last_purchase_date', '-last_sale_date')
+
+        # Separate into purchase and sales prices
+        purchase_prices = item_prices.filter(last_purchase_price__isnull=False)
+        sales_prices = item_prices.filter(last_sale_price__isnull=False)
+
+        context.update({
+            'title': _('أسعار المواد - %(name)s') % {'name': self.object.name},
+            'breadcrumbs': [
+                {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
+                {'title': _('العملاء'), 'url': reverse('core:partner_list')},
+                {'title': self.object.name, 'url': reverse('core:partner_detail', kwargs={'pk': self.object.pk})},
+                {'title': _('أسعار المواد'), 'url': ''}
+            ],
+            'item_prices': item_prices,
+            'purchase_prices': purchase_prices,
+            'sales_prices': sales_prices,
+            'is_supplier': self.object.is_supplier(),
+            'is_customer': self.object.is_customer(),
+        })
+        return context

@@ -6,7 +6,49 @@ URL Configuration for Purchases App
 from django.urls import path
 from .views import *
 from .views.dashboard import PurchaseDashboardView, dashboard_stats_api, monthly_chart_api, top_suppliers_api
-from .views.quotation_views import get_purchase_request_items_ajax
+from .views.quotation_views import (
+    get_purchase_request_items_ajax,
+    rfq_get_item_stock_multi_branch_ajax,
+    rfq_get_item_stock_current_branch_ajax,
+    rfq_item_search_ajax,
+    quotation_get_item_stock_multi_branch_ajax,
+    quotation_get_item_stock_current_branch_ajax,
+    quotation_item_search_ajax
+)
+from .views.invoice_views import (
+    get_supplier_item_price_ajax as invoice_get_supplier_price,
+    get_item_stock_multi_branch_ajax as invoice_get_stock_multi_branch,
+    get_item_stock_current_branch_ajax as invoice_get_stock_current,
+    item_search_ajax as invoice_item_search,
+    save_invoice_draft_ajax,
+    get_item_uom_conversions_ajax
+)
+from .views.ajax_views import ajax_get_item_price_by_uom
+from .views.order_views import (
+    get_supplier_item_price_ajax as order_get_supplier_price,
+    get_item_stock_multi_branch_ajax as order_get_stock_multi_branch,
+    get_item_stock_current_branch_ajax as order_get_stock_current,
+    item_search_ajax as order_item_search,
+    save_order_draft_ajax
+)
+from .views.goods_receipt_views import (
+    get_purchase_order_item_price_ajax as receipt_get_order_price,
+    get_item_stock_multi_branch_ajax as receipt_get_stock_multi_branch,
+    get_item_stock_current_branch_ajax as receipt_get_stock_current,
+    item_search_ajax as receipt_item_search,
+    save_receipt_draft_ajax
+)
+from .views.request_views import (
+    get_item_stock_multi_branch_ajax as request_get_stock_multi_branch,
+    get_item_stock_current_branch_ajax as request_get_stock_current,
+    item_search_ajax as request_item_search,
+    save_request_draft_ajax
+)
+from .views.contract_views import (
+    contract_get_item_stock_multi_branch_ajax,
+    contract_get_item_stock_current_branch_ajax,
+    contract_item_search_ajax
+)
 from .views.report_views import (
     reports_list, purchases_summary_report, supplier_performance_report,
     purchase_orders_report, items_purchases_report, contracts_report,
@@ -40,6 +82,13 @@ urlpatterns = [
 
     # Invoice AJAX & Export
     path('ajax/invoices/datatable/', invoice_datatable_ajax, name='invoice_datatable_ajax'),
+    path('ajax/invoices/get-supplier-price/', invoice_get_supplier_price, name='get_supplier_item_price_ajax'),
+    path('ajax/invoices/get-stock-multi-branch/', invoice_get_stock_multi_branch, name='get_item_stock_multi_branch_ajax'),
+    path('ajax/invoices/get-stock-current/', invoice_get_stock_current, name='get_item_stock_current_branch_ajax'),
+    path('ajax/invoices/item-search/', invoice_item_search, name='item_search_ajax'),
+    path('ajax/invoices/get-price-by-uom/', ajax_get_item_price_by_uom, name='ajax_get_item_price_by_uom'),
+    path('ajax/invoices/save-draft/', save_invoice_draft_ajax, name='save_invoice_draft_ajax'),
+    path('ajax/invoices/uom-conversions/', get_item_uom_conversions_ajax, name='get_item_uom_conversions_ajax'),
     path('invoices/export/', export_invoices_excel, name='export_invoices_excel'),
 
     # ==================== Purchase Orders ====================
@@ -59,6 +108,11 @@ urlpatterns = [
 
     # Order AJAX & Export
     path('ajax/orders/datatable/', order_datatable_ajax, name='order_datatable_ajax'),
+    path('ajax/orders/get-supplier-price/', order_get_supplier_price, name='order_get_supplier_item_price_ajax'),
+    path('ajax/orders/get-stock-multi-branch/', order_get_stock_multi_branch, name='order_get_item_stock_multi_branch_ajax'),
+    path('ajax/orders/get-stock-current/', order_get_stock_current, name='order_get_item_stock_current_branch_ajax'),
+    path('ajax/orders/item-search/', order_item_search, name='order_item_search_ajax'),
+    path('ajax/orders/save-draft/', save_order_draft_ajax, name='save_order_draft_ajax'),
     path('orders/export/', export_orders_excel, name='export_orders_excel'),
 
     # ==================== Goods Receipts ====================
@@ -75,6 +129,11 @@ urlpatterns = [
 
     # Goods Receipt AJAX & Export
     path('ajax/goods-receipts/datatable/', goods_receipt_datatable_ajax, name='goods_receipt_datatable_ajax'),
+    path('ajax/goods-receipts/get-order-price/', receipt_get_order_price, name='receipt_get_purchase_order_item_price_ajax'),
+    path('ajax/goods-receipts/get-stock-multi-branch/', receipt_get_stock_multi_branch, name='receipt_get_item_stock_multi_branch_ajax'),
+    path('ajax/goods-receipts/get-stock-current/', receipt_get_stock_current, name='receipt_get_item_stock_current_branch_ajax'),
+    path('ajax/goods-receipts/item-search/', receipt_item_search, name='receipt_item_search_ajax'),
+    path('ajax/goods-receipts/save-draft/', save_receipt_draft_ajax, name='save_receipt_draft_ajax'),
     path('goods-receipts/export/', export_goods_receipts_excel, name='export_goods_receipts_excel'),
 
     # ==================== Purchase Requests ====================
@@ -92,6 +151,10 @@ urlpatterns = [
 
     # Request AJAX & Export
     path('ajax/requests/datatable/', request_datatable_ajax, name='request_datatable_ajax'),
+    path('ajax/requests/get-stock-multi-branch/', request_get_stock_multi_branch, name='request_get_item_stock_multi_branch_ajax'),
+    path('ajax/requests/get-stock-current/', request_get_stock_current, name='request_get_item_stock_current_branch_ajax'),
+    path('ajax/requests/item-search/', request_item_search, name='request_item_search_ajax'),
+    path('ajax/requests/save-draft/', save_request_draft_ajax, name='save_request_draft_ajax'),
     path('requests/export/', export_requests_excel, name='export_requests_excel'),
 
     # ==================== Quotation Requests (RFQ) ====================
@@ -109,6 +172,9 @@ urlpatterns = [
     # RFQ AJAX & Export
     path('ajax/rfqs/datatable/', rfq_datatable_ajax, name='rfq_datatable_ajax'),
     path('ajax/rfqs/get-purchase-request-items/<int:request_id>/', get_purchase_request_items_ajax, name='get_purchase_request_items_ajax'),
+    path('ajax/rfqs/get-stock-multi-branch/', rfq_get_item_stock_multi_branch_ajax, name='rfq_get_item_stock_multi_branch_ajax'),
+    path('ajax/rfqs/get-stock-current/', rfq_get_item_stock_current_branch_ajax, name='rfq_get_item_stock_current_branch_ajax'),
+    path('ajax/rfqs/item-search/', rfq_item_search_ajax, name='rfq_item_search_ajax'),
     path('rfqs/export/', export_rfqs_excel, name='export_rfqs_excel'),
 
     # ==================== Quotations ====================
@@ -126,6 +192,9 @@ urlpatterns = [
 
     # Quotation AJAX & Export
     path('ajax/quotations/datatable/', quotation_datatable_ajax, name='quotation_datatable_ajax'),
+    path('ajax/quotations/get-stock-multi-branch/', quotation_get_item_stock_multi_branch_ajax, name='quotation_get_item_stock_multi_branch_ajax'),
+    path('ajax/quotations/get-stock-current/', quotation_get_item_stock_current_branch_ajax, name='quotation_get_item_stock_current_branch_ajax'),
+    path('ajax/quotations/item-search/', quotation_item_search_ajax, name='quotation_item_search_ajax'),
     path('quotations/export/', export_quotations_excel, name='export_quotations_excel'),
 
     # ==================== Purchase Contracts ====================
@@ -140,6 +209,11 @@ urlpatterns = [
     path('contracts/<int:pk>/change-status/', contract_change_status, name='contract_change_status'),
     path('contracts/check-expiry/', contract_check_expiry, name='contract_check_expiry'),
     path('contracts/<int:pk>/copy/', contract_copy_or_renew, name='contract_copy_or_renew'),
+
+    # Contract AJAX
+    path('ajax/contracts/get-stock-multi-branch/', contract_get_item_stock_multi_branch_ajax, name='contract_get_item_stock_multi_branch_ajax'),
+    path('ajax/contracts/get-stock-current/', contract_get_item_stock_current_branch_ajax, name='contract_get_item_stock_current_branch_ajax'),
+    path('ajax/contracts/item-search/', contract_item_search_ajax, name='contract_item_search_ajax'),
 
     # ==================== Reports ====================
     path('reports/', reports_list, name='reports_list'),

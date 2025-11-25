@@ -1,0 +1,1247 @@
+<!-- apps/purchases/templates/purchases/goods_receipt/goods_receipt_form.html -->
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Column Settings Modal */
+.column-settings-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.5rem;
+    border-radius: 0.375rem;
+    background: #fff;
+    cursor: move;
+}
+
+.column-settings-item .column-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.column-settings-item .btn-group {
+    margin-right: auto;
+}
+
+.column-settings-item.column-hidden {
+    opacity: 0.5;
+    background: #f8f9fa;
+}
+
+.column-drag-handle {
+    cursor: move;
+    color: #6c757d;
+    margin-left: 0.5rem;
+}
+
+/* Select2 RTL */
+.select2-container--bootstrap-5 .select2-selection--single {
+    background-image: none !important;
+    background-color: #fff !important;
+    padding: 0.375rem 0.75rem !important;
+    direction: rtl;
+    text-align: right;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+}
+
+select[data-select2-id] {
+    background-image: none !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    position: absolute;
+    left: auto !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow b {
+    border-color: #6c757d transparent transparent transparent;
+    border-style: solid;
+    border-width: 5px 4px 0 4px;
+    height: 0;
+    width: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -4px;
+    margin-top: -2px;
+}
+
+.select2-container--bootstrap-5.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #6c757d transparent;
+    border-width: 0 4px 5px 4px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 35px !important;
+    text-align: right;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+    direction: rtl;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__options {
+    text-align: right;
+    direction: rtl;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Receipt Table Styling */
+.receipt-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.receipt-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    border-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.receipt-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.receipt-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.receipt-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+    border-right: 1px solid #f0f0f0;
+}
+
+.receipt-table tbody td:last-child {
+    border-right: none;
+}
+
+.receipt-table input,
+.receipt-table select,
+.receipt-table textarea {
+    font-size: 0.875rem;
+    border-color: #dee2e6;
+}
+
+.receipt-table input:focus,
+.receipt-table select:focus,
+.receipt-table textarea:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: #0d6efd;
+    font-size: 0.95rem;
+}
+
+.btn-delete-row {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Animated Stats Cards */
+.stat-card {
+    transition: all 0.3s ease;
+    border-left: 4px solid;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+.stat-card .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0;
+}
+
+.stat-card .stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 0;
+}
+
+/* Progress indicators */
+.receipt-progress {
+    height: 0.5rem;
+    background-color: #e9ecef;
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.receipt-progress-bar {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+/* Keyboard shortcuts hint */
+.keyboard-hint {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    z-index: 1050;
+    display: none;
+}
+
+.keyboard-hint.show {
+    display: block;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.kbd-key {
+    background: #fff;
+    color: #000;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    margin: 0 0.25rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'purchases:goods_receipt_list' %}">محاضر استلام البضاعة</a></li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {% if object %}تعديل محضر الاستلام{% else %}محضر استلام جديد{% endif %}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-dolly me-2 text-success"></i>
+                {{ title }}
+            </h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    تعديل بيانات محضر استلام البضاعة رقم <strong>{{ object.number }}</strong>
+                {% else %}
+                    إضافة محضر استلام بضاعة جديد
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-outline-info btn-sm me-2" id="btn-column-settings">
+                <i class="fas fa-columns me-1"></i> إعدادات الأعمدة
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="btn-keyboard-shortcuts">
+                <i class="fas fa-keyboard me-1"></i> اختصارات لوحة المفاتيح
+            </button>
+            <a href="{% url 'purchases:goods_receipt_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    {% if object %}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #0d6efd;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="stat-label">الحالة</p>
+                            <p class="stat-value">
+                                {% if object.status == 'draft' %}
+                                    <span class="badge bg-secondary">مسودة</span>
+                                {% elif object.status == 'confirmed' %}
+                                    <span class="badge bg-info">معتمد</span>
+                                {% elif object.status == 'posted' %}
+                                    <span class="badge bg-success">مرحل</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <i class="fas fa-info-circle fa-2x text-muted"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #198754;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="stat-label">عدد الأصناف</p>
+                            <p class="stat-value">{{ object.lines.count }}</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-boxes fa-2x text-muted"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #ffc107;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="stat-label">فحص الجودة</p>
+                            <p class="stat-value">
+                                {% if object.quality_check_status == 'pending' %}
+                                    <span class="badge bg-warning">قيد الفحص</span>
+                                {% elif object.quality_check_status == 'passed' %}
+                                    <span class="badge bg-success">مطابق</span>
+                                {% elif object.quality_check_status == 'failed' %}
+                                    <span class="badge bg-danger">غير مطابق</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <i class="fas fa-clipboard-check fa-2x text-muted"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #dc3545;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="stat-label">أنشئ بواسطة</p>
+                            <p class="stat-value" style="font-size: 1rem;">
+                                {{ object.created_by.get_full_name|default:object.created_by.username }}
+                            </p>
+                        </div>
+                        <div>
+                            <i class="fas fa-user fa-2x text-muted"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" id="goodsReceiptForm" novalidate>
+        {% csrf_token %}
+        {{ lines.management_form }}
+
+        <div class="row">
+            <!-- Main Form Section -->
+            <div class="col-12">
+                <!-- Goods Receipt Header Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            معلومات محضر الاستلام الأساسية
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Receipt Date -->
+                            <div class="col-md-3">
+                                <label for="{{ form.date.id_for_label }}" class="form-label required-field">
+                                    {{ form.date.label }}
+                                </label>
+                                {{ form.date|add_class:"form-control" }}
+                                {% if form.date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Branch -->
+                            <div class="col-md-3">
+                                <label for="{{ form.branch.id_for_label }}" class="form-label required-field">
+                                    {{ form.branch.label }}
+                                </label>
+                                {{ form.branch }}
+                                {% if form.branch.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.branch.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Purchase Order -->
+                            <div class="col-md-6">
+                                <label for="{{ form.purchase_order.id_for_label }}" class="form-label required-field">
+                                    {{ form.purchase_order.label }}
+                                </label>
+                                {{ form.purchase_order }}
+                                {% if form.purchase_order.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.purchase_order.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    سيتم تحميل بنود الأمر تلقائياً
+                                </small>
+                            </div>
+
+                            <!-- Supplier -->
+                            <div class="col-md-4">
+                                <label for="{{ form.supplier.id_for_label }}" class="form-label required-field">
+                                    {{ form.supplier.label }}
+                                </label>
+                                {{ form.supplier }}
+                                {% if form.supplier.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.supplier.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Warehouse -->
+                            <div class="col-md-4">
+                                <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
+                                    {{ form.warehouse.label }}
+                                </label>
+                                {{ form.warehouse }}
+                                {% if form.warehouse.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.warehouse.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Received By -->
+                            <div class="col-md-4">
+                                <label for="{{ form.received_by.id_for_label }}" class="form-label required-field">
+                                    {{ form.received_by.label }}
+                                </label>
+                                {{ form.received_by }}
+                                {% if form.received_by.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.received_by.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Delivery Note Number -->
+                            <div class="col-md-3">
+                                <label for="{{ form.delivery_note_number.id_for_label }}" class="form-label">
+                                    {{ form.delivery_note_number.label }}
+                                </label>
+                                {{ form.delivery_note_number|add_class:"form-control" }}
+                                {% if form.delivery_note_number.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.delivery_note_number.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Delivery Date -->
+                            <div class="col-md-3">
+                                <label for="{{ form.delivery_date.id_for_label }}" class="form-label">
+                                    {{ form.delivery_date.label }}
+                                </label>
+                                {{ form.delivery_date|add_class:"form-control" }}
+                                {% if form.delivery_date.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.delivery_date.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Quality Check Status -->
+                            <div class="col-md-3">
+                                <label for="{{ form.quality_check_status.id_for_label }}" class="form-label">
+                                    {{ form.quality_check_status.label }}
+                                </label>
+                                {{ form.quality_check_status|add_class:"form-select" }}
+                                {% if form.quality_check_status.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.quality_check_status.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Quality Notes -->
+                            <div class="col-md-6">
+                                <label for="{{ form.quality_notes.id_for_label }}" class="form-label">
+                                    {{ form.quality_notes.label }}
+                                </label>
+                                {{ form.quality_notes|add_class:"form-control" }}
+                                {% if form.quality_notes.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.quality_notes.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-md-6">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                    {{ form.notes.label }}
+                                </label>
+                                {{ form.notes|add_class:"form-control" }}
+                                {% if form.notes.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.notes.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Receipt Items -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            بنود محضر الاستلام
+                            <span class="badge bg-primary ms-2" id="items-count">0</span>
+                        </h5>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-success me-2" id="btn-add-line">
+                                <i class="fas fa-plus me-1"></i> إضافة سطر <span class="kbd-key">F2</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-all">
+                                <i class="fas fa-trash me-1"></i> حذف الكل
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover receipt-table mb-0" id="items-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;" class="text-center" data-column="row-number">#</th>
+                                        <th style="width: 200px;" data-column="item">المادة</th>
+                                        <th style="width: 100px;" data-column="ordered-qty">الكمية المطلوبة</th>
+                                        <th style="width: 100px;" data-column="received-qty">الكمية المستلمة</th>
+                                        <th style="width: 100px;" data-column="rejected-qty">الكمية المرفوضة</th>
+                                        <th style="width: 120px;" data-column="batch">رقم الدفعة</th>
+                                        <th style="width: 120px;" data-column="expiry">تاريخ الانتهاء</th>
+                                        <th style="width: 100px;" data-column="quality-status">حالة الجودة</th>
+                                        <th style="width: 150px;" data-column="quality-notes">ملاحظات الجودة</th>
+                                        <th style="width: 150px;" data-column="notes">ملاحظات</th>
+                                        <th style="width: 60px;" data-column="actions">حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-tbody">
+                                    {% for line_form in lines %}
+                                        <tr class="item-row">
+                                            <td class="row-number text-center" data-column="row-number">{{ forloop.counter }}</td>
+                                            <td data-column="item">
+                                                {{ line_form.item|add_class:"form-select form-select-sm" }}
+                                                {{ line_form.id }}
+                                                {{ line_form.purchase_order_line }}
+                                            </td>
+                                            <td class="text-end ordered-qty" data-column="ordered-qty">0.000</td>
+                                            <td data-column="received-qty">
+                                                {{ line_form.received_quantity|add_class:"form-control form-control-sm text-end received-qty-input" }}
+                                            </td>
+                                            <td data-column="rejected-qty">
+                                                {{ line_form.rejected_quantity|add_class:"form-control form-control-sm text-end rejected-qty-input" }}
+                                            </td>
+                                            <td data-column="batch">
+                                                {{ line_form.batch_number|add_class:"form-control form-control-sm" }}
+                                            </td>
+                                            <td data-column="expiry">
+                                                {{ line_form.expiry_date|add_class:"form-control form-control-sm" }}
+                                            </td>
+                                            <td data-column="quality-status">
+                                                {{ line_form.quality_status|add_class:"form-select form-select-sm" }}
+                                            </td>
+                                            <td data-column="quality-notes">
+                                                {{ line_form.quality_notes|add_class:"form-control form-control-sm" }}
+                                            </td>
+                                            <td data-column="notes">
+                                                {{ line_form.notes|add_class:"form-control form-control-sm" }}
+                                            </td>
+                                            <td class="text-center" data-column="actions">
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row" title="حذف السطر">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                                <div style="display:none;">{{ line_form.DELETE }}</div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="p-3 bg-light border-top">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <small class="text-muted">
+                                        <i class="fas fa-keyboard me-1"></i>
+                                        استخدم <span class="kbd-key">Tab</span> للتنقل بين الحقول
+                                        | <span class="kbd-key">F2</span> لإضافة سطر جديد
+                                        | <span class="kbd-key">Ctrl+S</span> للحفظ
+                                    </small>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <small class="text-muted">
+                                        إجمالي الأصناف: <strong id="total-items-display">0</strong>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'purchases:goods_receipt_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> إلغاء <span class="kbd-key">Esc</span>
+                            </a>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary me-2" id="btn-save-draft">
+                                    <i class="fas fa-save me-1"></i> حفظ كمسودة
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="btn-submit-form">
+                                    <i class="fas fa-check me-1"></i>
+                                    {% if object %}تحديث محضر الاستلام{% else %}حفظ محضر الاستلام{% endif %}
+                                    <span class="kbd-key">Ctrl+S</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Column Settings Modal -->
+<div class="modal fade" id="columnSettingsModal" tabindex="-1" aria-labelledby="columnSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="columnSettingsModalLabel">
+                    <i class="fas fa-columns me-2"></i>
+                    إعدادات الأعمدة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    اختر الأعمدة التي تريد إظهارها أو إخفاءها في الجدول
+                </p>
+                <div id="column-settings-list">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-reset-columns">
+                    <i class="fas fa-undo me-1"></i> إعادة تعيين
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                    <i class="fas fa-check me-1"></i> تطبيق
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyboard Shortcuts Hint -->
+<div class="keyboard-hint" id="keyboard-hint">
+    <h6 class="mb-3"><i class="fas fa-keyboard me-2"></i>اختصارات لوحة المفاتيح</h6>
+    <div class="mb-2">
+        <span class="kbd-key">F2</span> - إضافة سطر جديد
+    </div>
+    <div class="mb-2">
+        <span class="kbd-key">Ctrl+S</span> - حفظ النموذج
+    </div>
+    <div class="mb-2">
+        <span class="kbd-key">Esc</span> - إلغاء وعودة للقائمة
+    </div>
+    <div class="mb-2">
+        <span class="kbd-key">Tab</span> - الانتقال للحقل التالي
+    </div>
+    <div class="mb-0">
+        <span class="kbd-key">Shift+Tab</span> - الانتقال للحقل السابق
+    </div>
+</div>
+
+<!-- Empty Row Template -->
+<script type="text/template" id="empty-row-template">
+    <tr class="item-row">
+        <td class="row-number text-center" data-column="row-number">0</td>
+        <td data-column="item">
+            <select class="form-select form-select-sm" name="lines-__prefix__-item" id="id_lines-__prefix__-item">
+                <option value="">اختر المادة...</option>
+            </select>
+            <input type="hidden" name="lines-__prefix__-id" id="id_lines-__prefix__-id">
+            <input type="hidden" name="lines-__prefix__-purchase_order_line" id="id_lines-__prefix__-purchase_order_line">
+        </td>
+        <td class="text-end ordered-qty" data-column="ordered-qty">0.000</td>
+        <td data-column="received-qty">
+            <input type="number" class="form-control form-control-sm text-end received-qty-input"
+                   name="lines-__prefix__-received_quantity" placeholder="0.000" step="0.001"
+                   id="id_lines-__prefix__-received_quantity">
+        </td>
+        <td data-column="rejected-qty">
+            <input type="number" class="form-control form-control-sm text-end rejected-qty-input"
+                   name="lines-__prefix__-rejected_quantity" placeholder="0.000" step="0.001"
+                   id="id_lines-__prefix__-rejected_quantity" value="0">
+        </td>
+        <td data-column="batch">
+            <input type="text" class="form-control form-control-sm"
+                   name="lines-__prefix__-batch_number" id="id_lines-__prefix__-batch_number">
+        </td>
+        <td data-column="expiry">
+            <input type="date" class="form-control form-control-sm"
+                   name="lines-__prefix__-expiry_date" id="id_lines-__prefix__-expiry_date">
+        </td>
+        <td data-column="quality-status">
+            <select class="form-select form-select-sm" name="lines-__prefix__-quality_status"
+                    id="id_lines-__prefix__-quality_status">
+                <option value="pending">قيد الفحص</option>
+                <option value="accepted">مقبول</option>
+                <option value="rejected">مرفوض</option>
+                <option value="partial">جزئي</option>
+            </select>
+        </td>
+        <td data-column="quality-notes">
+            <textarea class="form-control form-control-sm" name="lines-__prefix__-quality_notes"
+                      id="id_lines-__prefix__-quality_notes" rows="1"></textarea>
+        </td>
+        <td data-column="notes">
+            <textarea class="form-control form-control-sm" name="lines-__prefix__-notes"
+                      id="id_lines-__prefix__-notes" rows="1"></textarea>
+        </td>
+        <td class="text-center" data-column="actions">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row" title="حذف السطر">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <input type="checkbox" name="lines-__prefix__-DELETE" id="id_lines-__prefix__-DELETE" style="display:none;">
+        </td>
+    </tr>
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ar.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // ============================================
+    // Initialize Select2
+    // ============================================
+    function initSelect2() {
+        // Initialize Select2 for form selects
+        $('#id_branch, #id_purchase_order, #id_supplier, #id_warehouse, #id_received_by').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dir: "rtl",
+            placeholder: 'اختر...',
+            allowClear: true,
+            language: {
+                noResults: function() { return "لا توجد نتائج"; },
+                searching: function() { return "جاري البحث..."; }
+            }
+        });
+    }
+
+    initSelect2();
+
+    // ============================================
+    // Column Visibility Management
+    // ============================================
+    const COLUMN_STORAGE_KEY = 'goods_receipt_column_settings';
+
+    const defaultColumns = {
+        'row-number': { visible: true, label: '#', order: 0 },
+        'item': { visible: true, label: 'المادة', order: 1 },
+        'ordered-qty': { visible: true, label: 'الكمية المطلوبة', order: 2 },
+        'received-qty': { visible: true, label: 'الكمية المستلمة', order: 3 },
+        'rejected-qty': { visible: true, label: 'الكمية المرفوضة', order: 4 },
+        'batch': { visible: true, label: 'رقم الدفعة', order: 5 },
+        'expiry': { visible: true, label: 'تاريخ الانتهاء', order: 6 },
+        'quality-status': { visible: true, label: 'حالة الجودة', order: 7 },
+        'quality-notes': { visible: false, label: 'ملاحظات الجودة', order: 8 },
+        'notes': { visible: false, label: 'ملاحظات', order: 9 },
+        'actions': { visible: true, label: 'حذف', order: 10 }
+    };
+
+    // Load saved settings or use defaults
+    let columnSettings = JSON.parse(localStorage.getItem(COLUMN_STORAGE_KEY)) || defaultColumns;
+
+    function applyColumnVisibility() {
+        Object.keys(columnSettings).forEach(function(columnKey) {
+            const setting = columnSettings[columnKey];
+            const selector = '[data-column="' + columnKey + '"]';
+
+            if (setting.visible) {
+                $(selector).show();
+            } else {
+                $(selector).hide();
+            }
+        });
+    }
+
+    function saveColumnSettings() {
+        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnSettings));
+    }
+
+    function populateColumnSettings() {
+        const $list = $('#column-settings-list');
+        $list.empty();
+
+        // Sort by order
+        const sortedColumns = Object.keys(columnSettings).sort((a, b) => {
+            return columnSettings[a].order - columnSettings[b].order;
+        });
+
+        sortedColumns.forEach(function(columnKey) {
+            const setting = columnSettings[columnKey];
+            const $item = $('<div class="column-settings-item ' + (setting.visible ? '' : 'column-hidden') + '" data-column-key="' + columnKey + '">');
+
+            $item.html(`
+                <span class="column-drag-handle me-2">
+                    <i class="fas fa-grip-vertical"></i>
+                </span>
+                <span class="column-name">${setting.label}</span>
+                <div class="form-check form-switch">
+                    <input class="form-check-input column-visibility-toggle" type="checkbox"
+                           ${setting.visible ? 'checked' : ''} data-column-key="${columnKey}">
+                </div>
+            `);
+
+            $list.append($item);
+        });
+    }
+
+    // Column visibility toggle
+    $(document).on('change', '.column-visibility-toggle', function() {
+        const columnKey = $(this).data('column-key');
+        columnSettings[columnKey].visible = $(this).is(':checked');
+
+        const $item = $(this).closest('.column-settings-item');
+        if ($(this).is(':checked')) {
+            $item.removeClass('column-hidden');
+        } else {
+            $item.addClass('column-hidden');
+        }
+
+        saveColumnSettings();
+        applyColumnVisibility();
+    });
+
+    // Reset columns button
+    $('#btn-reset-columns').on('click', function() {
+        Swal.fire({
+            title: 'إعادة تعيين الأعمدة؟',
+            text: 'سيتم إعادة جميع الأعمدة إلى الإعدادات الافتراضية',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، إعادة تعيين',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#0d6efd'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                columnSettings = JSON.parse(JSON.stringify(defaultColumns));
+                saveColumnSettings();
+                applyColumnVisibility();
+                populateColumnSettings();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم إعادة التعيين',
+                    text: 'تم إعادة الأعمدة إلى الإعدادات الافتراضية',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        });
+    });
+
+    // Column settings button
+    $('#btn-column-settings').on('click', function() {
+        populateColumnSettings();
+        new bootstrap.Modal(document.getElementById('columnSettingsModal')).show();
+    });
+
+    // Apply initial column visibility
+    applyColumnVisibility();
+
+    // ============================================
+    // Keyboard Shortcuts
+    // ============================================
+    $('#btn-keyboard-shortcuts').on('click', function() {
+        $('#keyboard-hint').toggleClass('show');
+        setTimeout(function() {
+            $('#keyboard-hint').removeClass('show');
+        }, 5000);
+    });
+
+    // Global keyboard shortcuts
+    $(document).on('keydown', function(e) {
+        // F2: Add new line
+        if (e.key === 'F2') {
+            e.preventDefault();
+            $('#btn-add-line').click();
+        }
+
+        // Ctrl+S: Save form
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#goodsReceiptForm').submit();
+        }
+
+        // Esc: Cancel and go back
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (formChanged) {
+                Swal.fire({
+                    title: 'تحذير',
+                    text: 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'نعم، المغادرة',
+                    cancelButtonText: 'إلغاء',
+                    confirmButtonColor: '#dc3545'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = "{% url 'purchases:goods_receipt_list' %}";
+                    }
+                });
+            } else {
+                window.location.href = "{% url 'purchases:goods_receipt_list' %}";
+            }
+        }
+    });
+
+    // ============================================
+    // Update Row Numbers and Item Count
+    // ============================================
+    function updateRowNumbers() {
+        var rowNum = 1;
+        $('#items-tbody tr:visible').each(function() {
+            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!deleteChecked) {
+                $(this).find('.row-number').text(rowNum++);
+            }
+        });
+        updateItemCount();
+    }
+
+    function updateItemCount() {
+        var count = $('#items-tbody tr:visible').filter(function() {
+            return !$(this).find('input[name$="-DELETE"]').is(':checked');
+        }).length;
+
+        $('#items-count').text(count);
+        $('#total-items-display').text(count);
+    }
+
+    // ============================================
+    // Add New Row
+    // ============================================
+    var formIdx = {{ lines.total_form_count }};
+
+    $('#btn-add-line').on('click', function(e) {
+        e.preventDefault();
+
+        // Get template HTML and replace __prefix__
+        var templateHtml = $('#empty-row-template').html();
+        var rowHtml = templateHtml.replace(/__prefix__/g, formIdx);
+        var newRow = $(rowHtml);
+
+        // Append to tbody
+        $('#items-tbody').append(newRow);
+
+        // Update TOTAL_FORMS
+        $('#id_lines-TOTAL_FORMS').val(formIdx + 1);
+        formIdx++;
+
+        updateRowNumbers();
+
+        // Focus on first input in new row
+        newRow.find('select, input').first().focus();
+
+        // Show success toast
+        showToast('success', 'تم إضافة سطر جديد');
+    });
+
+    // ============================================
+    // Delete Row
+    // ============================================
+    $(document).on('click', '.btn-delete-row', function() {
+        var row = $(this).closest('tr');
+        var deleteInput = row.find('input[name$="-DELETE"]');
+
+        if (deleteInput.length && row.find('input[name$="-id"]').val()) {
+            // Mark for deletion if it's an existing record
+            deleteInput.prop('checked', true);
+            row.hide();
+        } else {
+            // Remove completely if it's a new row
+            row.remove();
+        }
+
+        updateRowNumbers();
+        showToast('info', 'تم حذف السطر');
+    });
+
+    // Clear all button
+    $('#btn-clear-all').on('click', function() {
+        Swal.fire({
+            title: 'تأكيد الحذف',
+            text: 'هل أنت متأكد من حذف جميع الأصناف؟',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، حذف الكل',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#dc3545'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $('#items-tbody tr').each(function() {
+                    var deleteInput = $(this).find('input[name$="-DELETE"]');
+                    if (deleteInput.length && $(this).find('input[name$="-id"]').val()) {
+                        deleteInput.prop('checked', true);
+                        $(this).hide();
+                    } else {
+                        $(this).remove();
+                    }
+                });
+                updateRowNumbers();
+                showToast('success', 'تم حذف جميع الأصناف');
+            }
+        });
+    });
+
+    // ============================================
+    // Form Change Tracking
+    // ============================================
+    var formChanged = false;
+
+    $('form input, form select, form textarea').on('change', function() {
+        formChanged = true;
+    });
+
+    $(window).on('beforeunload', function() {
+        if (formChanged) {
+            return 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟';
+        }
+    });
+
+    // ============================================
+    // Form Submit
+    // ============================================
+    $('form').on('submit', function(e) {
+        formChanged = false;
+
+        // Disable submit button
+        $('#btn-submit-form').prop('disabled', true).html(
+            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+        );
+
+        // Remove disabled state from hidden rows to avoid validation issues
+        $('#items-tbody tr:hidden').find('input, select, textarea').prop('disabled', true);
+    });
+
+    // Save as draft button
+    $('#btn-save-draft').on('click', function() {
+        // Set a hidden field or modify status before submit
+        var statusField = $('select[name="status"]');
+        if (statusField.length) {
+            statusField.val('draft');
+        }
+        $('#goodsReceiptForm').submit();
+    });
+
+    // ============================================
+    // Toast Notifications
+    // ============================================
+    function showToast(type, message) {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        });
+
+        Toast.fire({
+            icon: type,
+            title: message
+        });
+    }
+
+    // ============================================
+    // Initial Update
+    // ============================================
+    updateRowNumbers();
+});
+</script>
+{% endblock %}

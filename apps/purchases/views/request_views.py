@@ -209,17 +209,9 @@ class PurchaseRequestCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
-            )
-        )
+        # AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []  # فارغ لأن البحث سيكون عبر AJAX
 
         return context
 
@@ -295,17 +287,9 @@ class PurchaseRequestUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
                 company=self.request.current_company
             )
 
-        # بيانات للجافاسكربت
-        context['items_data'] = list(
-            Item.objects.filter(
-                company=self.request.current_company,
-                is_active=True
-            ).values(
-                'id', 'name', 'code', 'barcode',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
-            )
-        )
+        # AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []  # فارغ لأن البحث سيكون عبر AJAX
 
         return context
 
@@ -645,3 +629,264 @@ def export_requests_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     return response
+
+
+# ============================================================================
+# AJAX Endpoints for Live Search & Stock Display
+# ============================================================================
+
+@login_required
+@permission_required('purchases.view_purchaserequest', raise_exception=True)
+def get_item_stock_multi_branch_ajax(request):
+    """
+    جلب رصيد المخزون لمادة معينة من جميع الفروع
+    يعرض الكميات المتوفرة في كل مخزن مع تفاصيل الفرع
+    """
+    item_id = request.GET.get('item_id')
+    variant_id = request.GET.get('variant_id')
+
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        from apps.inventory.models import ItemStock
+
+        # البحث عن الكميات في جميع المخازن
+        filter_params = {
+            'company': request.current_company,
+            'item_id': item_id,
+        }
+
+        if variant_id:
+            filter_params['item_variant_id'] = variant_id
+
+        stock_records = ItemStock.objects.filter(
+            **filter_params
+        ).select_related(
+            'warehouse', 'warehouse__branch'
+        ).order_by('warehouse__branch__name', 'warehouse__name')
+
+        # تجميع البيانات
+        branches_data = []
+        total_quantity = Decimal('0')
+        total_available = Decimal('0')
+
+        for stock in stock_records:
+            available = stock.quantity - stock.reserved_quantity
+            total_quantity += stock.quantity
+            total_available += available
+
+            branches_data.append({
+                'branch_name': stock.warehouse.branch.name,
+                'warehouse_name': stock.warehouse.name,
+                'quantity': str(stock.quantity),
+                'reserved': str(stock.reserved_quantity),
+                'available': str(available),
+                'average_cost': str(stock.average_cost),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'has_stock': len(branches_data) > 0,
+            'branches': branches_data,
+            'total_quantity': str(total_quantity),
+            'total_available': str(total_available),
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaserequest', raise_exception=True)
+def get_item_stock_current_branch_ajax(request):
+    """
+    جلب رصيد المخزون لمادة معينة في الفرع الحالي فقط
+    يستخدم للعرض السريع في جدول طلب الشراء
+    """
+    item_id = request.GET.get('item_id')
+    variant_id = request.GET.get('variant_id')
+
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        from apps.inventory.models import ItemStock
+
+        # البحث في الفرع الحالي
+        filter_params = {
+            'company': request.current_company,
+            'item_id': item_id,
+            'warehouse__branch': request.current_branch,
+        }
+
+        if variant_id:
+            filter_params['item_variant_id'] = variant_id
+
+        # حساب الإجمالي في الفرع الحالي
+        stock_aggregate = ItemStock.objects.filter(
+            **filter_params
+        ).aggregate(
+            total_qty=Sum('quantity'),
+            total_reserved=Sum('reserved_quantity')
+        )
+
+        total_qty = stock_aggregate['total_qty'] or Decimal('0')
+        total_reserved = stock_aggregate['total_reserved'] or Decimal('0')
+        available = total_qty - total_reserved
+
+        return JsonResponse({
+            'success': True,
+            'quantity': str(total_qty),
+            'reserved': str(total_reserved),
+            'available': str(available),
+            'has_stock': total_qty > 0,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchaserequest', raise_exception=True)
+def item_search_ajax(request):
+    """
+    AJAX Live Search للمواد
+    يُستخدم للبحث المباشر بدلاً من تحميل جميع المواد
+    """
+    term = request.GET.get('term', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    if len(term) < 2:
+        return JsonResponse({
+            'success': False,
+            'message': 'يرجى إدخال حرفين على الأقل للبحث'
+        })
+
+    try:
+        items = Item.objects.filter(
+            company=request.current_company,
+            is_active=True
+        ).filter(
+            Q(name__icontains=term) |
+            Q(code__icontains=term) |
+            Q(barcode__icontains=term)
+        ).annotate(
+            # كمية المخزون في الفرع الحالي
+            current_branch_stock=Sum(
+                'stock_records__quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)
+            ),
+            # الكمية المحجوزة في الفرع الحالي
+            current_branch_reserved=Sum(
+                'stock_records__reserved_quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)
+            ),
+            # إجمالي المخزون في كل الفروع
+            total_stock=Sum('stock_records__quantity'),
+        ).select_related(
+            'category', 'base_uom'
+        )[:limit]
+
+        items_data = []
+        for item in items:
+            items_data.append({
+                'id': item.id,
+                'name': item.name,
+                'code': item.code,
+                'barcode': item.barcode or '',
+                'category_name': item.category.name if item.category else '',
+                'tax_rate': str(item.tax_rate),
+                'base_uom_name': item.base_uom.name if item.base_uom else '',
+                'base_uom_code': item.base_uom.code if item.base_uom else '',
+                'current_branch_stock': str(item.current_branch_stock or 0),
+                'current_branch_reserved': str(item.current_branch_reserved or 0),
+                'total_stock': str(item.total_stock or 0),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'items': items_data,
+            'count': len(items_data)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@permission_required('purchases.add_purchaserequest', raise_exception=True)
+@transaction.atomic
+def save_request_draft_ajax(request):
+    """
+    حفظ طلب الشراء كمسودة (Auto-save)
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        from django.utils import timezone
+
+        request_id = request.POST.get('request_id')
+
+        # بيانات طلب الشراء الأساسية
+        request_data = {
+            'requested_by_id': request.POST.get('requested_by') or request.user.id,
+            'department_id': request.POST.get('department'),
+            'date': request.POST.get('date'),
+            'required_date': request.POST.get('required_date'),
+            'number': request.POST.get('number'),
+            'purpose': request.POST.get('purpose'),
+            'notes': request.POST.get('notes'),
+        }
+
+        # التحقق من البيانات الأساسية
+        if not request_data['department_id']:
+            return JsonResponse({
+                'success': False,
+                'message': 'يرجى اختيار القسم'
+            })
+
+        # حفظ أو تحديث طلب الشراء
+        if request_id:
+            purchase_request = get_object_or_404(
+                PurchaseRequest,
+                pk=request_id,
+                company=request.current_company,
+                status='draft'
+            )
+            for key, value in request_data.items():
+                if value:
+                    setattr(purchase_request, key.replace('_id', ''), value)
+            purchase_request.save()
+        else:
+            purchase_request = PurchaseRequest.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                created_by=request.user,
+                status='draft',
+                **request_data
+            )
+
+        return JsonResponse({
+            'success': True,
+            'request_id': purchase_request.id,
+            'request_number': purchase_request.number,
+            'message': 'تم حفظ المسودة بنجاح',
+            'saved_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

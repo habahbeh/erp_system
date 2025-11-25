@@ -260,6 +260,10 @@ class PurchaseContractCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cr
                 company=self.request.current_company
             )
 
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
+
         return context
 
     @transaction.atomic
@@ -330,6 +334,10 @@ class PurchaseContractUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Up
                 instance=self.object,
                 company=self.request.current_company
             )
+
+        # تفعيل البحث المباشر AJAX Live Search
+        context['use_live_search'] = True
+        context['items_data'] = []
 
         return context
 
@@ -625,3 +633,122 @@ def contract_copy_or_renew(request, pk):
     )
 
     return redirect('purchases:contract_detail', pk=new_contract.pk)
+
+
+# ============================================================================
+# AJAX Endpoints for Contracts - Live Search & Stock Display
+# ============================================================================
+
+@login_required
+@permission_required('purchases.view_purchasecontract', raise_exception=True)
+def contract_get_item_stock_multi_branch_ajax(request):
+    """جلب رصيد المخزون من جميع الفروع - Contract"""
+    from apps.inventory.models import ItemStock
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_records = ItemStock.objects.filter(
+            company=request.current_company, item_id=item_id
+        ).select_related('warehouse', 'warehouse__branch').order_by('warehouse__branch__name')
+
+        branches_data = []
+        total_quantity = Decimal('0')
+        total_available = Decimal('0')
+
+        for stock in stock_records:
+            available = stock.quantity - stock.reserved_quantity
+            total_quantity += stock.quantity
+            total_available += available
+            branches_data.append({
+                'branch_name': stock.warehouse.branch.name,
+                'warehouse_name': stock.warehouse.name,
+                'quantity': str(stock.quantity),
+                'reserved': str(stock.reserved_quantity),
+                'available': str(available),
+                'average_cost': str(stock.average_cost),
+            })
+
+        return JsonResponse({
+            'success': True, 'has_stock': len(branches_data) > 0,
+            'branches': branches_data,
+            'total_quantity': str(total_quantity),
+            'total_available': str(total_available),
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasecontract', raise_exception=True)
+def contract_get_item_stock_current_branch_ajax(request):
+    """جلب رصيد الفرع الحالي - Contract"""
+    from apps.inventory.models import ItemStock
+    from django.db.models import Sum
+    from decimal import Decimal
+
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'Missing item_id'}, status=400)
+
+    try:
+        stock_aggregate = ItemStock.objects.filter(
+            company=request.current_company, item_id=item_id,
+            warehouse__branch=request.current_branch
+        ).aggregate(total_qty=Sum('quantity'), total_reserved=Sum('reserved_quantity'))
+
+        total_qty = stock_aggregate['total_qty'] or Decimal('0')
+        total_reserved = stock_aggregate['total_reserved'] or Decimal('0')
+        available = total_qty - total_reserved
+
+        return JsonResponse({
+            'success': True, 'quantity': str(total_qty),
+            'reserved': str(total_reserved), 'available': str(available),
+            'has_stock': total_qty > 0,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@permission_required('purchases.view_purchasecontract', raise_exception=True)
+def contract_item_search_ajax(request):
+    """AJAX Live Search - Contract"""
+    from apps.core.models import Item
+    from django.db.models import Q, Sum
+
+    term = request.GET.get('term', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    if len(term) < 2:
+        return JsonResponse({'success': False, 'message': 'يرجى إدخال حرفين على الأقل'})
+
+    try:
+        items = Item.objects.filter(
+            company=request.current_company, is_active=True
+        ).filter(
+            Q(name__icontains=term) | Q(code__icontains=term) | Q(barcode__icontains=term)
+        ).annotate(
+            current_branch_stock=Sum('stock_records__quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            current_branch_reserved=Sum('stock_records__reserved_quantity',
+                filter=Q(stock_records__warehouse__branch=request.current_branch)),
+            total_stock=Sum('stock_records__quantity'),
+        ).select_related('category', 'base_uom')[:limit]
+
+        items_data = [{
+            'id': item.id, 'name': item.name, 'code': item.code,
+            'barcode': item.barcode or '', 'category_name': item.category.name if item.category else '',
+            'tax_rate': str(item.tax_rate), 'base_uom_name': item.base_uom.name if item.base_uom else '',
+            'base_uom_code': item.base_uom.code if item.base_uom else '',
+            'current_branch_stock': str(item.current_branch_stock or 0),
+            'current_branch_reserved': str(item.current_branch_reserved or 0),
+            'total_stock': str(item.total_stock or 0),
+        } for item in items]
+
+        return JsonResponse({'success': True, 'items': items_data, 'count': len(items_data)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

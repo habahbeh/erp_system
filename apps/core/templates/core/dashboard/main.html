@@ -1,0 +1,202 @@
+{# templates/core/dashboard/main.html #}
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "لوحة التحكم" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-card {
+    transition: all 0.3s ease;
+    border-right: 4px solid transparent;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card.border-primary { border-right-color: #0d6efd !important; }
+.stat-card.border-success { border-right-color: #198754 !important; }
+.stat-card.border-info { border-right-color: #0dcaf0 !important; }
+.stat-card.border-warning { border-right-color: #ffc107 !important; }
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 24px;
+}
+
+.quick-action-btn {
+    transition: all 0.3s ease;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.activity-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 18px;
+}
+
+.activity-item {
+    transition: background-color 0.2s ease;
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.activity-item:hover {
+    background-color: #f8f9fa;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-tachometer-alt text-primary"></i>
+                        {% trans "لوحة التحكم" %}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-user-circle"></i>
+                        {% trans "مرحباً" %} <strong>{{ user.get_full_name|default:user.username }}</strong>
+                    </p>
+                </div>
+                <div class="text-end">
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-calendar"></i>
+                        {{ today|date:"l, d F Y" }}
+                    </p>
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-clock"></i>
+                        {{ today|time:"H:i" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        {% for card in stat_cards %}
+        <div class="col-xl-3 col-md-6">
+            <div class="card shadow-sm stat-card border-{{ card.color }} h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-{{ card.color }} bg-opacity-10 text-{{ card.color }} me-3">
+                            <i class="fas {{ card.icon }}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <p class="text-muted mb-1 small">{{ card.title }}</p>
+                            <h3 class="mb-0">{{ card.value }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row g-4">
+        <!-- Recent Activities -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history text-primary"></i>
+                            {% trans "الأنشطة الأخيرة" %}
+                        </h5>
+                        <span class="badge bg-primary">{{ recent_activities|length }}</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_activities %}
+                        {% for activity in recent_activities %}
+                        <div class="activity-item">
+                            <div class="d-flex align-items-start">
+                                <div class="activity-icon bg-{{ activity.color }} bg-opacity-10 text-{{ activity.color }} me-3">
+                                    <i class="fas {{ activity.icon }}"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ activity.title }}</h6>
+                                    <p class="mb-0 text-muted small">
+                                        <i class="fas fa-user-circle"></i>
+                                        {{ activity.description }}
+                                    </p>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock"></i>
+                                        {{ activity.time|timesince }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                            <h5 class="text-muted">{% trans "لا توجد أنشطة حديثة" %}</h5>
+                            <p class="text-muted">{% trans "لم يتم تسجيل أي نشاط في النظام بعد" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt text-warning"></i>
+                        {% trans "إجراءات سريعة" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for action in quick_actions %}
+                        <div class="col-6">
+                            <a href="{{ action.url }}" class="btn btn-outline-{{ action.color }} w-100 quick-action-btn">
+                                <i class="fas {{ action.icon }} fa-2x"></i>
+                                <span class="small fw-bold">{{ action.label }}</span>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

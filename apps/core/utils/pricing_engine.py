@@ -553,7 +553,7 @@ class PricingEngine:
             },
             'variant': {
                 'code': variant.code,
-                'name': variant.name
+                'name': variant.code  # ItemVariant doesn't have name field
             } if variant else None,
             'uom': uom.code if uom else None,
             'quantity': float(quantity),

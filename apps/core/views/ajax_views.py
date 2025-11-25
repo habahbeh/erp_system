@@ -339,7 +339,7 @@ def item_autocomplete(request):
         items = Item.objects.filter(
             company=request.current_company,
             is_active=True
-        ).filter(smart_query).select_related('unit_of_measure', 'currency')[:10]
+        ).filter(smart_query).select_related('base_uom', 'currency')[:10]
     else:
         items = Item.objects.filter(
             company=request.current_company,
@@ -350,15 +350,15 @@ def item_autocomplete(request):
             Q(code__icontains=term) |
             Q(barcode__icontains=term) |
             Q(catalog_number__icontains=term)
-        ).select_related('unit_of_measure', 'currency')[:10]
+        ).select_related('base_uom', 'currency')[:10]
 
     results = []
     for item in items:
         results.append({
             'id': item.id,
             'text': f"{item.item_code or item.code} - {item.name}",
-            'unit': item.unit_of_measure.name,
-            'currency': item.currency.symbol
+            'unit': item.base_uom.name if item.base_uom else '',
+            'currency': item.currency.symbol if item.currency else ''
         })
 
     return JsonResponse(results, safe=False)
@@ -369,7 +369,7 @@ def get_item_details(request, item_id):
     """الحصول على تفاصيل مادة معين"""
     try:
         item = Item.objects.select_related(
-            'category', 'brand', 'unit_of_measure', 'currency'
+            'category', 'brand', 'base_uom', 'currency'
         ).get(
             id=item_id,
             company=request.current_company
@@ -384,8 +384,8 @@ def get_item_details(request, item_id):
             'barcode': item.barcode,
             'catalog_number': item.catalog_number,
             'tax_rate': float(item.tax_rate),
-            'unit': item.unit_of_measure.name,
-            'currency_symbol': item.currency.symbol,
+            'unit': item.base_uom.name if item.base_uom else '',
+            'currency_symbol': item.currency.symbol if item.currency else '',
             'category': item.category.name if item.category else None,
             'brand': item.brand.name if item.brand else None,
             'has_variants': item.has_variants,
@@ -2660,7 +2660,7 @@ def price_list_items_ajax(request, pk):
             items = Item.objects.filter(
                 company=request.current_company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure').prefetch_related('variants')
+            ).select_related('category', 'base_uom').prefetch_related('variants')
 
             # البحث
             if search_value:

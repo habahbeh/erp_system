@@ -262,7 +262,7 @@ class PurchaseQuotationRequestItemForm(forms.ModelForm):
             self.fields['item'].queryset = Item.objects.filter(
                 company=self.company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure')
+            ).select_related('category', 'base_uom')
 
         # جعل الحقول اختيارية
         self.fields['item'].required = False
@@ -279,8 +279,8 @@ class PurchaseQuotationRequestItemForm(forms.ModelForm):
 
         # إذا كانت المادة موجودة والوحدة فارغة، املأ الوحدة تلقائياً
         if item and not unit:
-            if item.unit_of_measure:
-                cleaned_data['unit'] = item.unit_of_measure.name
+            if item.base_uom:
+                cleaned_data['unit'] = item.base_uom.name
 
         return cleaned_data
 
@@ -531,7 +531,7 @@ class PurchaseQuotationItemForm(forms.ModelForm):
             self.fields['item'].queryset = Item.objects.filter(
                 company=self.company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure')
+            ).select_related('category', 'base_uom')
 
         # جعل الحقول اختيارية
         self.fields['rfq_item'].required = False

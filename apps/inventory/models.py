@@ -164,8 +164,14 @@ class StockIn(StockDocument):
 
     # ✅ **إضافة دالة الترحيل:**
     @transaction.atomic
-    def post(self, user=None):
-        """ترحيل السند وتحديث المخزون"""
+    def post(self, user=None, create_journal_entry=True):
+        """ترحيل السند وتحديث المخزون
+
+        Args:
+            user: المستخدم الذي يقوم بالترحيل
+            create_journal_entry: إنشاء قيد محاسبي (افتراضي True)
+                                  استخدم False عند الترحيل من فاتورة مشتريات
+        """
         from django.utils import timezone
 
         if self.is_posted:
@@ -257,7 +263,7 @@ class StockIn(StockDocument):
             )
 
         # إنشاء القيد المحاسبي (إذا كان مطلوباً)
-        if not self.journal_entry:
+        if create_journal_entry and not self.journal_entry:
             self.create_journal_entry(user)
 
         # تحديث حالة السند

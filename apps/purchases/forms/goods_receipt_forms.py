@@ -236,7 +236,7 @@ class GoodsReceiptLineForm(forms.ModelForm):
             self.fields['item'].queryset = Item.objects.filter(
                 company=self.company,
                 is_active=True
-            ).select_related('category', 'unit_of_measure')
+            ).select_related('category', 'base_uom')
 
             # تصفية سطور أمر الشراء
             self.fields['purchase_order_line'].queryset = PurchaseOrderItem.objects.filter(

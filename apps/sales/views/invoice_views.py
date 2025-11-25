@@ -241,8 +241,8 @@ class SalesInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Create
             ).values(
                 'id', 'name', 'code', 'barcode',
                 'tax_rate',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
+                'base_uom__name',
+                'base_uom__code'
             )
         )
 
@@ -371,8 +371,8 @@ class SalesInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Update
             ).values(
                 'id', 'name', 'code', 'barcode',
                 'tax_rate',
-                'unit_of_measure__name',
-                'unit_of_measure__code'
+                'base_uom__name',
+                'base_uom__code'
             )
         )
 

@@ -971,7 +971,7 @@ class InvoiceItem(models.Model):
             self.name_latin = self.item.name_en or ''
 
         if not self.unit_id:
-            self.unit = self.item.unit_of_measure
+            self.unit = self.item.base_uom
 
         # الإجمالي قبل الخصم
         gross_total = self.quantity * self.unit_price

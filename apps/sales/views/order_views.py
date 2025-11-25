@@ -169,8 +169,8 @@ class SalesOrderCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateVi
                 is_active=True
             ).values(
                 'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
+                'tax_rate', 'base_uom__name',
+                'base_uom__code'
             )
         )
 
@@ -246,8 +246,8 @@ class SalesOrderUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateVi
                 is_active=True
             ).values(
                 'id', 'name', 'code', 'barcode',
-                'tax_rate', 'unit_of_measure__name',
-                'unit_of_measure__code'
+                'tax_rate', 'base_uom__name',
+                'base_uom__code'
             )
         )
 

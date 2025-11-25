@@ -1,0 +1,287 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                <span class="badge bg-primary">{{ partner.code }}</span>
+                <span class="badge bg-secondary">{{ partner.get_partner_type_display }}</span>
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'core:partner_detail' partner.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3" id="filtersRow">
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "نوع السعر" %}</label>
+                        <select class="form-select" id="priceTypeFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="purchase">{% trans "شراء" %}</option>
+                            <option value="sales">{% trans "بيع" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "كود المادة" %}</label>
+                        <input type="text" class="form-control" id="itemCodeFilter" placeholder="{% trans 'كود المادة' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "اسم المادة" %}</label>
+                        <input type="text" class="form-control" id="itemNameFilter" placeholder="{% trans 'اسم المادة' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "التاريخ من" %}</label>
+                        <input type="date" class="form-control" id="dateFromFilter">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "التاريخ إلى" %}</label>
+                        <input type="date" class="form-control" id="dateToFilter">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DataTable -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="pricesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "نوع السعر" %}</th>
+                            <th>{% trans "كود المادة" %}</th>
+                            <th>{% trans "اسم المادة" %}</th>
+                            <th>{% trans "المتغير" %}</th>
+                            <th>{% trans "آخر سعر" %}</th>
+                            <th>{% trans "آخر كمية" %}</th>
+                            <th>{% trans "آخر تاريخ" %}</th>
+                            <th>{% trans "إجمالي الكمية" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for price in purchase_prices %}
+                        <tr data-price-type="purchase">
+                            <td><span class="badge bg-success">{% trans "شراء" %}</span></td>
+                            <td>{{ price.item.code }}</td>
+                            <td>{{ price.item.name }}</td>
+                            <td>
+                                {% if price.item_variant %}
+                                    <span class="badge bg-secondary">{{ price.item_variant.code }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ price.last_purchase_price|floatformat:3 }}</td>
+                            <td>{{ price.last_purchase_quantity|floatformat:3 }}</td>
+                            <td>{{ price.last_purchase_date|date:"Y-m-d" }}</td>
+                            <td>{{ price.total_purchased_quantity|floatformat:3 }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% for price in sales_prices %}
+                        <tr data-price-type="sales">
+                            <td><span class="badge bg-danger">{% trans "بيع" %}</span></td>
+                            <td>{{ price.item.code }}</td>
+                            <td>{{ price.item.name }}</td>
+                            <td>
+                                {% if price.item_variant %}
+                                    <span class="badge bg-secondary">{{ price.item_variant.code }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ price.last_sale_price|floatformat:3 }}</td>
+                            <td>{{ price.last_sale_quantity|floatformat:3 }}</td>
+                            <td>{{ price.last_sale_date|date:"Y-m-d" }}</td>
+                            <td>{{ price.total_sold_quantity|floatformat:3 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    {% if not item_prices.exists %}
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">{% trans "لا توجد أسعار مسجلة" %}</h4>
+            <p class="text-muted">{% trans "لم يتم تسجيل أي عمليات شراء أو بيع مع هذا الشريك بعد" %}</p>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    var table = $('#pricesTable').DataTable({
+        "order": [[6, "desc"]],  // Sort by date descending
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "{% trans 'الكل' %}"]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "dom": 'Bfrtip',
+        "buttons": [
+            {
+                extend: 'pageLength',
+                className: 'btn btn-outline-secondary btn-sm'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}',
+                className: 'btn btn-outline-success btn-sm'
+            },
+            {
+                extend: 'pdf',
+                text: '<i class="fas fa-file-pdf"></i> {% trans "تصدير PDF" %}',
+                className: 'btn btn-outline-danger btn-sm'
+            }
+        ],
+        "columnDefs": [
+            { "className": "text-center", "targets": [0, 3, 7] }
+        ],
+        "drawCallback": function(settings) {
+            // تفعيل tooltips
+            $('[data-bs-toggle="tooltip"]').tooltip();
+        }
+    });
+
+    // Price type filter
+    $('#priceTypeFilter').on('change', function() {
+        var type = $(this).val();
+
+        if (type === '') {
+            table.column(0).search('').draw();
+        } else if (type === 'purchase') {
+            table.column(0).search('شراء').draw();
+        } else if (type === 'sales') {
+            table.column(0).search('بيع').draw();
+        }
+    });
+
+    // Item code filter
+    $('#itemCodeFilter').on('keyup', debounce(function() {
+        table.column(1).search($(this).val()).draw();
+    }, 500));
+
+    // Item name filter
+    $('#itemNameFilter').on('keyup', debounce(function() {
+        table.column(2).search($(this).val()).draw();
+    }, 500));
+
+    // Custom date range filter
+    $.fn.dataTable.ext.search.push(
+        function(settings, data, dataIndex) {
+            if (settings.nTable.id !== 'pricesTable') {
+                return true;
+            }
+
+            var dateFrom = $('#dateFromFilter').val();
+            var dateTo = $('#dateToFilter').val();
+            var date = data[6]; // Date column
+
+            if (!dateFrom && !dateTo) {
+                return true;
+            }
+
+            if (dateFrom && date < dateFrom) {
+                return false;
+            }
+
+            if (dateTo && date > dateTo) {
+                return false;
+            }
+
+            return true;
+        }
+    );
+
+    $('#dateFromFilter, #dateToFilter').on('change', function() {
+        table.draw();
+    });
+
+    // Clear filters
+    $('#clearFilters').on('click', function() {
+        $('#priceTypeFilter, #itemCodeFilter, #itemNameFilter, #dateFromFilter, #dateToFilter').val('');
+        table.search('').columns().search('').draw();
+    });
+});
+
+// Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+{% endblock %}
