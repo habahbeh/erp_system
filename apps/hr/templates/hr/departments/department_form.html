@@ -1,17 +1,27 @@
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="#">الموارد البشرية</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'hr:department_list' %}">الأقسام</a></li>
-            <li class="breadcrumb-item active">{{ title }}</li>
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
         </ol>
     </nav>
 
@@ -19,103 +29,207 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات القسم" %}</p>
         </div>
         <div>
             <a href="{% url 'hr:department_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right me-1"></i> العودة
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-8 col-md-10 mx-auto">
-            <div class="card">
-                <div class="card-body">
-                    <form method="post" novalidate>
-                        {% csrf_token %}
+        <div class="col-lg-8 mx-auto">
+            <form method="post" novalidate id="departmentForm">
+                {% csrf_token %}
 
-                        {% if form.non_field_errors %}
-                        <div class="alert alert-danger" role="alert">
-                            {{ form.non_field_errors }}
-                        </div>
-                        {% endif %}
-
-                        <!-- Code -->
-                        <div class="mb-3">
-                            <label for="{{ form.code.id_for_label }}" class="form-label">
-                                {{ form.code.label }}
-                                <span class="text-danger">*</span>
-                            </label>
-                            {{ form.code }}
-                            {% if form.code.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.code.errors|first }}
-                                </div>
-                            {% endif %}
-                            <small class="form-text text-muted">رمز فريد للقسم (مثال: ACC, IT, HR)</small>
-                        </div>
-
-                        <!-- Name -->
-                        <div class="mb-3">
-                            <label for="{{ form.name.id_for_label }}" class="form-label">
-                                {{ form.name.label }}
-                                <span class="text-danger">*</span>
-                            </label>
-                            {{ form.name }}
-                            {% if form.name.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.name.errors|first }}
-                                </div>
-                            {% endif %}
-                        </div>
-
-                        <!-- Parent Department -->
-                        <div class="mb-3">
-                            <label for="{{ form.parent.id_for_label }}" class="form-label">
-                                {{ form.parent.label }}
-                            </label>
-                            {{ form.parent }}
-                            {% if form.parent.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.parent.errors|first }}
-                                </div>
-                            {% endif %}
-                            <small class="form-text text-muted">القسم الرئيسي (اختياري)</small>
-                        </div>
-
-                        <!-- Manager (Hidden for now) -->
-                        <input type="hidden" name="manager" value="">
-
-                        <!-- Is Active (only in edit mode) -->
-                        {% if object %}
-                        <div class="mb-3">
-                            <div class="form-check">
-                                {{ form.is_active }}
-                                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                    {{ form.is_active.label }}
-                                </label>
-                            </div>
-                            {% if form.is_active.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.is_active.errors|first }}
-                                </div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        <!-- Submit Buttons -->
-                        <div class="d-flex justify-content-between align-items-center mt-4">
-                            <a href="{% url 'hr:department_list' %}" class="btn btn-light">
-                                <i class="fas fa-times me-1"></i> إلغاء
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> {{ submit_text }}
-                            </button>
-                        </div>
-                    </form>
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
-            </div>
+                {% endif %}
+
+                <!-- البيانات الأساسية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>{% trans "البيانات الأساسية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Code -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    {{ form.code.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.code.errors|first }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "رمز فريد للقسم (مثال: ACC, IT, HR)" %}</small>
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    {{ form.name.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.name.errors|first }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Name EN -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                    {% trans "الاسم بالإنجليزية" %}
+                                </label>
+                                {{ form.name_en }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- التبعية والإدارة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-project-diagram me-2"></i>{% trans "التبعية والإدارة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Parent Department -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.parent.id_for_label }}" class="form-label">
+                                    {{ form.parent.label }}
+                                </label>
+                                {{ form.parent }}
+                                {% if form.parent.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.parent.errors|first }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "القسم الرئيسي (اختياري)" %}</small>
+                            </div>
+
+                            <!-- Manager -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.manager.id_for_label }}" class="form-label">
+                                    {% trans "مدير القسم" %}
+                                </label>
+                                {{ form.manager }}
+                                {% if form.manager.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.manager.errors|first }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "الموظف المسؤول عن القسم (اختياري)" %}</small>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {% trans "الوصف" %}
+                            </label>
+                            {{ form.description }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الحالة -->
+                {% if object %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog me-2"></i>{% trans "الحالة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                        {% if form.is_active.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.is_active.errors|first }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Submit Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'hr:department_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize Select2 for parent department
+    $('#id_parent').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: '{% trans "اختر القسم الرئيسي..." %}',
+        allowClear: true,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; },
+            searching: function() { return "{% trans 'جاري البحث...' %}"; }
+        }
+    });
+
+    // Initialize Select2 for manager
+    $('#id_manager').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: '{% trans "اختر المدير..." %}',
+        allowClear: true,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; },
+            searching: function() { return "{% trans 'جاري البحث...' %}"; }
+        }
+    });
+
+    // Auto-generate code from name
+    $('#id_name').on('blur', function() {
+        var name = $(this).val();
+        var codeField = $('#id_code');
+        if (name && !codeField.val()) {
+            // Take first 3 letters and uppercase
+            var code = name.substring(0, 3).toUpperCase();
+            codeField.val(code);
+        }
+    });
+});
+</script>
 {% endblock %}

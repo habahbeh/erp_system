@@ -1,187 +1,335 @@
 {% extends 'base/base.html' %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="#">الموارد البشرية</a></li>
-            <li class="breadcrumb-item active">الموظفين</li>
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
         </ol>
     </nav>
 
-    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
-            <p class="text-muted mb-0">إدارة بيانات الموظفين</p>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات الموظفين" %}</p>
         </div>
+        {% if can_add %}
         <div>
             <a href="{% url 'hr:employee_create' %}" class="btn btn-primary">
-                <i class="fas fa-plus me-1"></i> إضافة موظف
+                <i class="fas fa-plus"></i> {% trans "إضافة موظف جديد" %}
             </a>
         </div>
+        {% endif %}
     </div>
 
-    <!-- Search and Filters -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-md-6">
-                    <input type="text"
-                           name="search"
-                           class="form-control"
-                           placeholder="ابحث برقم الموظف، الاسم، الهوية، الجوال، أو البريد الإلكتروني..."
-                           value="{{ search }}">
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                            <small>إجمالي الموظفين</small>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-50"></i>
+                    </div>
                 </div>
-                <div class="col-md-3">
-                    <select name="department" class="form-select">
-                        <option value="">كل الأقسام</option>
-                        {% for dept in departments %}
-                            <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"s" %}selected{% endif %}>
-                                {{ dept.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.active|default:0 }}</h3>
+                            <small>نشط</small>
+                        </div>
+                        <i class="fas fa-user-check fa-2x opacity-50"></i>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <select name="status" class="form-select">
-                        <option value="">كل الحالات</option>
-                        <option value="active" {% if selected_status == 'active' %}selected{% endif %}>نشط</option>
-                        <option value="on_leave" {% if selected_status == 'on_leave' %}selected{% endif %}>إجازة</option>
-                        <option value="terminated" {% if selected_status == 'terminated' %}selected{% endif %}>منتهي الخدمة</option>
-                        <option value="suspended" {% if selected_status == 'suspended' %}selected{% endif %}>موقوف</option>
-                    </select>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.on_leave|default:0 }}</h3>
+                            <small>في إجازة</small>
+                        </div>
+                        <i class="fas fa-umbrella-beach fa-2x opacity-50"></i>
+                    </div>
                 </div>
-                <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-search"></i>
-                    </button>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.inactive|default:0 }}</h3>
+                            <small>غير نشط</small>
+                        </div>
+                        <i class="fas fa-user-slash fa-2x opacity-50"></i>
+                    </div>
                 </div>
-            </form>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.terminated|default:0 }}</h3>
+                            <small>منتهي</small>
+                        </div>
+                        <i class="fas fa-user-times fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total_salaries|floatformat:0|default:0 }}</h3>
+                            <small>إجمالي الرواتب</small>
+                        </div>
+                        <i class="fas fa-money-bill-wave fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Employees Table -->
-    <div class="card">
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4" id="filtersCard">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "القسم" %}</label>
+                        <select class="form-select" id="departmentFilter">
+                            <option value="">{% trans "جميع الأقسام" %}</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="active">{% trans "نشط" %}</option>
+                            <option value="inactive">{% trans "غير نشط" %}</option>
+                            <option value="on_leave">{% trans "في إجازة" %}</option>
+                            <option value="terminated">{% trans "منتهي" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث برقم الموظف أو الاسم أو الرقم الوطني...' %}">
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </button>
+
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
         <div class="card-body">
-            {% if employees %}
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
+                <table class="table table-hover table-striped" id="employeesTable" style="width: 100%">
+                    <thead class="table-dark">
                         <tr>
-                            <th>رقم الموظف</th>
-                            <th>الاسم</th>
-                            <th>القسم</th>
-                            <th>المسمى الوظيفي</th>
-                            <th>الجوال</th>
-                            <th>البريد الإلكتروني</th>
-                            <th>الحالة الوظيفية</th>
-                            <th>الحالة</th>
-                            <th>الإجراءات</th>
+                            <th>{% trans "رقم الموظف" %}</th>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "القسم" %}</th>
+                            <th>{% trans "المسمى الوظيفي" %}</th>
+                            <th>{% trans "الراتب الأساسي" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for employee in employees %}
-                        <tr>
-                            <td><strong>{{ employee.employee_number }}</strong></td>
-                            <td>{{ employee.first_name }} {{ employee.last_name }}</td>
-                            <td>
-                                {% if employee.department %}
-                                    <span class="badge bg-info">{{ employee.department.name }}</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if employee.job_title %}
-                                    {{ employee.job_title.name }}
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ employee.mobile|default:"-" }}</td>
-                            <td>{{ employee.email|default:"-" }}</td>
-                            <td>
-                                {% if employee.employment_status == 'active' %}
-                                    <span class="badge bg-success">نشط</span>
-                                {% elif employee.employment_status == 'on_leave' %}
-                                    <span class="badge bg-warning">إجازة</span>
-                                {% elif employee.employment_status == 'terminated' %}
-                                    <span class="badge bg-danger">منتهي الخدمة</span>
-                                {% elif employee.employment_status == 'suspended' %}
-                                    <span class="badge bg-secondary">موقوف</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if employee.is_active %}
-                                    <span class="badge bg-success">نشط</span>
-                                {% else %}
-                                    <span class="badge bg-danger">غير نشط</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <a href="{% url 'hr:employee_update' employee.pk %}"
-                                   class="btn btn-sm btn-outline-primary"
-                                   title="تعديل">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <a href="{% url 'hr:employee_delete' employee.pk %}"
-                                   class="btn btn-sm btn-outline-danger"
-                                   title="حذف">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
-
-            <!-- Pagination -->
-            {% if is_paginated %}
-            <nav aria-label="Page navigation" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">الأولى</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">السابقة</a>
-                        </li>
-                    {% endif %}
-
-                    <li class="page-item active">
-                        <span class="page-link">
-                            صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
-                        </span>
-                    </li>
-
-                    {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">التالية</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">الأخيرة</a>
-                        </li>
-                    {% endif %}
-                </ul>
-            </nav>
-            {% endif %}
-            {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                <p class="text-muted">لا يوجد موظفين حالياً</p>
-                <a href="{% url 'hr:employee_create' %}" class="btn btn-primary">
-                    <i class="fas fa-plus me-1"></i> إضافة موظف الآن
-                </a>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+// Global Variables
+var employeesDataTable = null;
+
+// Initialize DataTable
+function initDataTable() {
+    console.log('Initializing DataTable...');
+
+    if (employeesDataTable) {
+        console.log('DataTable already initialized');
+        return employeesDataTable;
+    }
+
+    employeesDataTable = $('#employeesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:employee_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.department = $('#departmentFilter').val();
+                d.status = $('#statusFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            },
+            "error": function(xhr, error, code) {
+                console.error('DataTable AJAX Error:', error, code);
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "employee_number"},
+            {"data": 1, "name": "name"},
+            {"data": 2, "name": "department"},
+            {"data": 3, "name": "job_title"},
+            {"data": 4, "name": "basic_salary"},
+            {"data": 5, "name": "status"},
+            {"data": 6, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [6] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = employeesDataTable.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    console.log('DataTable initialized successfully');
+    return employeesDataTable;
+}
+
+// Helper Functions
+function updateTableInfo(info) {
+    var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' موظف';
+    if (info.recordsFiltered !== info.recordsTotal) {
+        infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+    }
+    $('#tableInfo').text(infoText);
+}
+
+window.changePageLength = function(length) {
+    if (employeesDataTable) {
+        employeesDataTable.page.len(parseInt(length)).draw();
+    }
+};
+
+window.exportToExcel = function() {
+    alert('سيتم إضافة ميزة التصدير قريباً');
+};
+
+// Document Ready
+$(document).ready(function() {
+    console.log('Document ready - Initializing...');
+
+    // Initialize DataTable
+    initDataTable();
+
+    // Event Listeners for Filters
+    $('#departmentFilter, #statusFilter').on('change', function() {
+        if (employeesDataTable) {
+            employeesDataTable.ajax.reload();
+        }
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            if (employeesDataTable) {
+                employeesDataTable.ajax.reload();
+            }
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#departmentFilter, #statusFilter').val('');
+        $('#searchFilter').val('');
+        if (employeesDataTable) {
+            employeesDataTable.ajax.reload();
+        }
+    });
+});
+</script>
 {% endblock %}

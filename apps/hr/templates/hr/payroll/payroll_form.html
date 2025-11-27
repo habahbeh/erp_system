@@ -1,0 +1,133 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إنشاء أو تعديل مسير الرواتب" %}</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <!-- الفرع -->
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "الفرع" %}</label>
+                        {{ form.branch }}
+                        {% if form.branch.errors %}
+                            <div class="invalid-feedback d-block">{{ form.branch.errors.0 }}</div>
+                        {% endif %}
+                        <small class="text-muted">{% trans "اتركه فارغاً لجميع الفروع" %}</small>
+                    </div>
+
+                    <!-- السنة -->
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "السنة" %} <span class="text-danger">*</span></label>
+                        {{ form.period_year }}
+                        {% if form.period_year.errors %}
+                            <div class="invalid-feedback d-block">{{ form.period_year.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- الشهر -->
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "الشهر" %} <span class="text-danger">*</span></label>
+                        {{ form.period_month }}
+                        {% if form.period_month.errors %}
+                            <div class="invalid-feedback d-block">{{ form.period_month.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- من تاريخ -->
+                    <div class="col-md-6">
+                        <label class="form-label">{% trans "من تاريخ" %} <span class="text-danger">*</span></label>
+                        {{ form.from_date }}
+                        {% if form.from_date.errors %}
+                            <div class="invalid-feedback d-block">{{ form.from_date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- إلى تاريخ -->
+                    <div class="col-md-6">
+                        <label class="form-label">{% trans "إلى تاريخ" %} <span class="text-danger">*</span></label>
+                        {{ form.to_date }}
+                        {% if form.to_date.errors %}
+                            <div class="invalid-feedback d-block">{{ form.to_date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ملاحظات -->
+                    <div class="col-12">
+                        <label class="form-label">{% trans "ملاحظات" %}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">{{ form.notes.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger mt-3">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {{ submit_text }}
+                    </button>
+                    <a href="{% url 'hr:payroll_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Update dates when month/year changes
+    $('#id_period_month, #id_period_year').on('change', function() {
+        var year = $('#id_period_year').val();
+        var month = $('#id_period_month').val();
+
+        if (year && month) {
+            // First day of month
+            var firstDay = new Date(year, month - 1, 1);
+            // Last day of month
+            var lastDay = new Date(year, month, 0);
+
+            $('#id_from_date').val(firstDay.toISOString().split('T')[0]);
+            $('#id_to_date').val(lastDay.toISOString().split('T')[0]);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -906,7 +906,10 @@ def item_search_ajax(request):
     term = request.GET.get('term', '').strip()
     limit = int(request.GET.get('limit', 20))
 
-    if len(term) < 2:
+    # إذا كان term فارغ (dropdown click)، نعرض آخر المواد المستخدمة أو جميع المواد
+    show_all = len(term) == 0
+
+    if not show_all and len(term) < 2:
         return JsonResponse({
             'success': False,
             'message': 'يرجى إدخال حرفين على الأقل للبحث'
@@ -916,17 +919,23 @@ def item_search_ajax(request):
         from apps.core.models import ItemVariant, PartnerItemPrice
 
         # البحث في المتغيرات بدلاً من المواد الأساسية
-        variants = ItemVariant.objects.filter(
+        variants_query = ItemVariant.objects.filter(
             item__company=request.current_company,
             item__is_active=True,
             is_active=True
-        ).filter(
-            Q(item__name__icontains=term) |
-            Q(item__code__icontains=term) |
-            Q(item__barcode__icontains=term) |
-            Q(code__icontains=term) |
-            Q(barcode__icontains=term)
-        ).annotate(
+        )
+
+        # إذا كان هناك term للبحث، نطبق الفلتر
+        if not show_all:
+            variants_query = variants_query.filter(
+                Q(item__name__icontains=term) |
+                Q(item__code__icontains=term) |
+                Q(item__barcode__icontains=term) |
+                Q(code__icontains=term) |
+                Q(barcode__icontains=term)
+            )
+
+        variants = variants_query.annotate(
             # كمية المخزون في الفرع الحالي للمتغير
             current_branch_stock=Sum(
                 'stock_records__quantity',
@@ -1044,6 +1053,114 @@ def item_search_ajax(request):
 
 
 @login_required
+def get_item_all_prices_ajax(request):
+    """
+    جلب جميع أسعار المادة والمتغير لعرضها في Popover
+    """
+    try:
+        item_id = request.GET.get('item_id')
+        variant_id = request.GET.get('variant_id')
+
+        if not item_id or not variant_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'يجب تحديد المادة والمتغير'
+            }, status=400)
+
+        from apps.core.models import Item, ItemVariant, PartnerItemPrice, PriceListItem
+        from datetime import date
+
+        # الحصول على المادة والمتغير
+        item = get_object_or_404(Item, pk=item_id, company=request.current_company)
+        variant = get_object_or_404(ItemVariant, pk=variant_id, item=item)
+
+        # 1. آخر سعر شراء
+        last_purchase = None
+        price_record = PartnerItemPrice.objects.filter(
+            company=request.current_company,
+            item=item,
+            item_variant=variant,
+            last_purchase_price__isnull=False
+        ).order_by('-last_purchase_date').first()
+
+        if price_record:
+            last_purchase = {
+                'price': str(price_record.last_purchase_price),
+                'date': price_record.last_purchase_date.strftime('%Y-%m-%d') if price_record.last_purchase_date else None,
+                'supplier': price_record.partner.name if price_record.partner else 'غير محدد',
+                'quantity': str(price_record.last_purchase_quantity) if price_record.last_purchase_quantity else None
+            }
+
+        # 2. سعر التكلفة والسعر الأساسي
+        cost_price = str(variant.cost_price) if variant.cost_price else None
+        base_price = str(variant.base_price) if variant.base_price else None
+
+        # 3. قوائم الأسعار
+        price_lists = []
+        price_list_items = PriceListItem.objects.filter(
+            item=item,
+            variant=variant,
+            price__isnull=False
+        ).filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=date.today())
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=date.today())
+        ).select_related('price_list').order_by('price')
+
+        for pli in price_list_items:
+            price_lists.append({
+                'name': pli.price_list.name,
+                'price': str(pli.price),
+                'start_date': pli.start_date.strftime('%Y-%m-%d') if pli.start_date else None,
+                'end_date': pli.end_date.strftime('%Y-%m-%d') if pli.end_date else None
+            })
+
+        # 4. معلومات المخزون
+        from django.db.models import Sum
+
+        # المخزون في الفرع الحالي
+        current_branch_stock = variant.stock_records.filter(
+            warehouse__branch=request.current_branch
+        ).aggregate(
+            total=Sum('quantity'),
+            reserved=Sum('reserved_quantity')
+        )
+
+        # إجمالي المخزون
+        total_stock = variant.stock_records.aggregate(
+            total=Sum('quantity')
+        )
+
+        stock_info = {
+            'current_branch': str(current_branch_stock['total'] or 0),
+            'current_branch_reserved': str(current_branch_stock['reserved'] or 0),
+            'current_branch_available': str((current_branch_stock['total'] or 0) - (current_branch_stock['reserved'] or 0)),
+            'all_branches': str(total_stock['total'] or 0)
+        }
+
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'item_name': item.name,
+                'variant_code': variant.code,
+                'item_code': item.code,
+                'last_purchase': last_purchase,
+                'cost_price': cost_price,
+                'base_price': base_price,
+                'price_lists': price_lists,
+                'stock': stock_info,
+                'base_uom': item.base_uom.name if item.base_uom else 'غير محدد'
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
 @permission_required('purchases.add_purchaseinvoice', raise_exception=True)
 @transaction.atomic
 def save_invoice_draft_ajax(request):
@@ -1122,7 +1239,7 @@ def get_item_uom_conversions_ajax(request):
     AJAX endpoint للحصول على قائمة تحويلات الوحدات لمادة معينة
     يُستخدم لملء dropdown وحدة الشراء
     """
-    from apps.core.models import ItemUoMConversion
+    from apps.core.models import UoMConversion, Item
 
     item_id = request.GET.get('item_id')
 
@@ -1130,23 +1247,38 @@ def get_item_uom_conversions_ajax(request):
         return JsonResponse({'error': 'Missing item_id'}, status=400)
 
     try:
-        # جلب التحويلات من ItemUoMConversion
-        conversions = ItemUoMConversion.objects.filter(
-            item__company=request.current_company,
+        # الحصول على المادة والوحدة الأساسية
+        item = Item.objects.select_related('base_uom').get(
+            id=item_id,
+            company=request.current_company
+        )
+
+        # جلب التحويلات من UoMConversion
+        conversions = UoMConversion.objects.filter(
+            company=request.current_company,
             item_id=item_id,
             is_active=True
-        ).select_related('from_uom', 'to_uom').values(
+        ).select_related('from_uom').values(
             'id',
             'from_uom_id',
             'from_uom__name',
             'from_uom__code',
-            'to_uom_id',
-            'to_uom__name',
-            'to_uom__code',
-            'conversion_rate'
+            'conversion_factor'
         )
 
-        conversions_list = list(conversions)
+        # تحويل إلى list وإضافة معلومات الوحدة الأساسية
+        conversions_list = []
+        for conv in conversions:
+            conversions_list.append({
+                'id': conv['id'],
+                'from_uom_id': conv['from_uom_id'],
+                'from_uom__name': conv['from_uom__name'],
+                'from_uom__code': conv['from_uom__code'],
+                'to_uom_id': item.base_uom.id if item.base_uom else None,
+                'to_uom__name': item.base_uom.name if item.base_uom else '',
+                'to_uom__code': item.base_uom.code if item.base_uom else '',
+                'conversion_rate': str(conv['conversion_factor'])
+            })
 
         return JsonResponse({
             'success': True,

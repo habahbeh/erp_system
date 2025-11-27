@@ -1,0 +1,180 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة سلف وقروض الموظفين" %}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'hr:advance_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "طلب سلفة جديد" %}
+            </a>
+            <a href="{% url 'hr:advance_installments' %}" class="btn btn-outline-info">
+                <i class="fas fa-calendar-alt"></i> {% trans "الأقساط المستحقة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                    <small>{% trans "إجمالي السلف" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.pending|default:0 }}</h3>
+                    <small>{% trans "بانتظار الموافقة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.approved|default:0 }}</h3>
+                    <small>{% trans "موافق عليها" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.disbursed|default:0 }}</h3>
+                    <small>{% trans "تم صرفها" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.total_amount|floatformat:0|default:0 }}</h3>
+                    <small>{% trans "إجمالي المبالغ" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.remaining_amount|floatformat:0|default:0 }}</h3>
+                    <small>{% trans "المتبقي" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="statusFilter">
+                        <option value="">{% trans "جميع الحالات" %}</option>
+                        <option value="pending">{% trans "بانتظار الموافقة" %}</option>
+                        <option value="approved">{% trans "موافق عليها" %}</option>
+                        <option value="disbursed">{% trans "تم صرفها" %}</option>
+                        <option value="partially_paid">{% trans "مسددة جزئياً" %}</option>
+                        <option value="paid">{% trans "مسددة بالكامل" %}</option>
+                        <option value="rejected">{% trans "مرفوضة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'بحث بالاسم أو الرقم...' %}">
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="advancesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رقم السلفة" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "المبلغ" %}</th>
+                            <th>{% trans "الأقساط" %}</th>
+                            <th>{% trans "قيمة القسط" %}</th>
+                            <th>{% trans "المتبقي" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+var dataTable = null;
+
+$(document).ready(function() {
+    dataTable = $('#advancesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:advance_datatable_ajax' %}",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0}, {"data": 1}, {"data": 2}, {"data": 3},
+            {"data": 4}, {"data": 5}, {"data": 6}, {"data": 7, "orderable": false}
+        ],
+        "order": [[0, "desc"]],
+        "pageLength": 25,
+        "language": {"url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"}
+    });
+
+    $('#statusFilter').on('change', function() { dataTable.ajax.reload(); });
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() { dataTable.ajax.reload(); }, 500);
+    });
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter, #searchFilter').val('');
+        dataTable.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

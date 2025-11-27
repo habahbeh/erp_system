@@ -105,7 +105,8 @@ class PurchaseInvoiceForm(forms.ModelForm):
         # تخصيص رسائل الخطأ للحقول المطلوبة
         self.fields['invoice_type'].error_messages = {
             'required': 'يرجى اختيار نوع الفاتورة',
-            'invalid': 'نوع الفاتورة غير صحيح'
+            'invalid': 'نوع الفاتورة غير صحيح',
+            'invalid_choice': 'الاختيار غير صحيح لنوع الفاتورة'
         }
         self.fields['date'].error_messages = {
             'required': 'يرجى إدخال تاريخ الفاتورة',
@@ -113,32 +114,44 @@ class PurchaseInvoiceForm(forms.ModelForm):
         }
         self.fields['branch'].error_messages = {
             'required': 'يرجى اختيار الفرع',
-            'invalid': 'الفرع غير صحيح'
+            'invalid': 'الفرع غير صحيح',
+            'invalid_choice': 'الاختيار غير صحيح للفرع'
         }
         self.fields['supplier'].error_messages = {
             'required': 'يرجى اختيار المورد',
-            'invalid': 'المورد غير صحيح'
+            'invalid': 'المورد غير صحيح',
+            'invalid_choice': 'الاختيار غير صحيح للمورد'
         }
         self.fields['warehouse'].error_messages = {
             'required': 'يرجى اختيار المستودع',
-            'invalid': 'المستودع غير صحيح'
+            'invalid': 'المستودع غير صحيح',
+            'invalid_choice': 'الاختيار غير صحيح للمستودع'
         }
         self.fields['payment_method'].error_messages = {
             'required': 'يرجى اختيار طريقة الدفع',
-            'invalid': 'طريقة الدفع غير صحيحة'
+            'invalid': 'طريقة الدفع غير صحيحة',
+            'invalid_choice': 'الاختيار غير صحيح لطريقة الدفع'
         }
         self.fields['currency'].error_messages = {
             'required': 'يرجى اختيار العملة',
-            'invalid': 'العملة غير صحيحة'
+            'invalid': 'العملة غير صحيحة',
+            'invalid_choice': 'الاختيار غير صحيح للعملة'
         }
         self.fields['discount_type'].error_messages = {
             'required': 'يرجى اختيار نوع الخصم',
-            'invalid': 'نوع الخصم غير صحيح'
+            'invalid': 'نوع الخصم غير صحيح',
+            'invalid_choice': 'الاختيار غير صحيح لنوع الخصم'
         }
         self.fields['discount_value'].error_messages = {
             'required': 'يرجى إدخال قيمة الخصم',
             'invalid': 'قيمة الخصم غير صحيحة'
         }
+
+        # جعل بعض الحقول اختيارية مع قيم افتراضية
+        self.fields['discount_type'].required = False
+        self.fields['discount_value'].required = False
+        self.fields['discount_account'].required = False
+        self.fields['supplier_account'].required = False
 
         if self.company:
             # تصفية الفروع
@@ -501,6 +514,6 @@ PurchaseInvoiceItemFormSet = inlineformset_factory(
     formset=BasePurchaseInvoiceItemFormSet,
     extra=5,  # عدد السطور الفارغة الافتراضية
     can_delete=True,
-    min_num=1,
-    validate_min=True,
+    min_num=0,  # لا نطلب حد أدنى هنا - سنتحقق في clean()
+    validate_min=False,  # التحقق المخصص في BasePurchaseInvoiceItemFormSet.clean()
 )

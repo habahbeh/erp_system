@@ -1,0 +1,137 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة أرصدة إجازات الموظفين" %}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'hr:leave_balance_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة رصيد" %}
+            </a>
+            <a href="{% url 'hr:initialize_balances' %}" class="btn btn-outline-success">
+                <i class="fas fa-magic"></i> {% trans "تهيئة الأرصدة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select class="form-select" id="yearFilter">
+                        {% for year in years %}
+                        <option value="{{ year }}" {% if year == current_year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "نوع الإجازة" %}</label>
+                    <select class="form-select" id="leaveTypeFilter">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for lt in leave_types %}
+                        <option value="{{ lt.id }}">{{ lt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "البحث" %}</label>
+                    <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'اسم الموظف...' %}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="balancesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "نوع الإجازة" %}</th>
+                            <th>{% trans "السنة" %}</th>
+                            <th class="text-center">{% trans "الرصيد الافتتاحي" %}</th>
+                            <th class="text-center">{% trans "المكتسب" %}</th>
+                            <th class="text-center">{% trans "المستخدم" %}</th>
+                            <th class="text-center">{% trans "المتبقي" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+var dataTable = null;
+
+$(document).ready(function() {
+    dataTable = $('#balancesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:leave_balance_datatable_ajax' %}",
+            "data": function(d) {
+                d.year = $('#yearFilter').val();
+                d.leave_type = $('#leaveTypeFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0}, {"data": 1}, {"data": 2}, {"data": 3},
+            {"data": 4}, {"data": 5}, {"data": 6}, {"data": 7, "orderable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "language": {"url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"}
+    });
+
+    $('#yearFilter, #leaveTypeFilter').on('change', function() { dataTable.ajax.reload(); });
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() { dataTable.ajax.reload(); }, 500);
+    });
+    $('#clearFilters').on('click', function() {
+        $('#yearFilter').val('{{ current_year }}');
+        $('#leaveTypeFilter, #searchFilter').val('');
+        dataTable.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

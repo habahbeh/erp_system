@@ -1,0 +1,291 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات نوع الإجازة" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'hr:leave_type_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <form method="post" novalidate id="leaveTypeForm">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- البيانات الأساسية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{% trans "البيانات الأساسية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Code -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    {{ form.code.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors|first }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "مثال: ANNUAL, SICK, MATERNITY" %}</small>
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-md-5 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    {{ form.name.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Name EN -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                    {% trans "الاسم بالإنجليزية" %}
+                                </label>
+                                {{ form.name_en }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- خصائص الإجازة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-sliders-h me-2"></i>{% trans "خصائص الإجازة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    {{ form.is_paid }}
+                                    <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
+                                        {% trans "مدفوعة" %}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">{% trans "هل يتم دفع الراتب خلالها؟" %}</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    {{ form.affects_salary }}
+                                    <label class="form-check-label" for="{{ form.affects_salary.id_for_label }}">
+                                        {% trans "تؤثر على الراتب" %}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">{% trans "هل تخصم من الراتب؟" %}</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    {{ form.requires_approval }}
+                                    <label class="form-check-label" for="{{ form.requires_approval.id_for_label }}">
+                                        {% trans "تتطلب موافقة" %}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">{% trans "هل تحتاج موافقة المدير؟" %}</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    {{ form.requires_attachment }}
+                                    <label class="form-check-label" for="{{ form.requires_attachment.id_for_label }}">
+                                        {% trans "تتطلب مرفق" %}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">{% trans "مثل تقرير طبي" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الأرصدة والحدود -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-calculator me-2"></i>{% trans "الأرصدة والحدود" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Default Days -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.default_days.id_for_label }}" class="form-label">
+                                    {{ form.default_days.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.default_days }}
+                                    <span class="input-group-text">{% trans "يوم/سنة" %}</span>
+                                </div>
+                                <small class="form-text text-muted">{% trans "الرصيد السنوي الافتراضي" %}</small>
+                            </div>
+
+                            <!-- Max Consecutive Days -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.max_consecutive_days.id_for_label }}" class="form-label">
+                                    {{ form.max_consecutive_days.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.max_consecutive_days }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                                <small class="form-text text-muted">{% trans "0 = غير محدود" %}</small>
+                            </div>
+
+                            <!-- Allow Negative Balance -->
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label d-block">&nbsp;</label>
+                                <div class="form-check form-switch mt-2">
+                                    {{ form.allow_negative_balance }}
+                                    <label class="form-check-label" for="{{ form.allow_negative_balance.id_for_label }}">
+                                        {% trans "السماح بالرصيد السالب" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Carry Forward -->
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    {{ form.carry_forward }}
+                                    <label class="form-check-label" for="{{ form.carry_forward.id_for_label }}">
+                                        {% trans "قابل للترحيل للسنة التالية" %}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">{% trans "هل يمكن ترحيل الرصيد المتبقي؟" %}</small>
+                            </div>
+
+                            <!-- Max Carry Forward (shown if carry_forward is true) -->
+                            <div class="col-md-6 mb-3" id="maxCarryForwardDiv">
+                                <label for="{{ form.max_carry_forward.id_for_label }}" class="form-label">
+                                    {% trans "الحد الأقصى للترحيل" %}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.max_carry_forward }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                                <small class="form-text text-muted">{% trans "0 = غير محدود" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الوصف -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-align-left me-2"></i>{% trans "معلومات إضافية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {{ form.description.label }}
+                            </label>
+                            {{ form.description }}
+                        </div>
+
+                        {% if object %}
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'hr:leave_type_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Toggle max carry forward visibility
+    function toggleCarryForward() {
+        if ($('#id_carry_forward').is(':checked')) {
+            $('#maxCarryForwardDiv').show();
+        } else {
+            $('#maxCarryForwardDiv').hide();
+        }
+    }
+
+    $('#id_carry_forward').on('change', toggleCarryForward);
+    toggleCarryForward();
+
+    // Auto-generate code from name
+    $('#id_name').on('blur', function() {
+        var name = $(this).val();
+        var codeField = $('#id_code');
+        if (name && !codeField.val()) {
+            // Generate code from name (first letters uppercase)
+            var words = name.split(' ');
+            var code = '';
+            for (var i = 0; i < Math.min(words.length, 3); i++) {
+                code += words[i].substring(0, 1).toUpperCase();
+            }
+            codeField.val(code);
+        }
+    });
+});
+</script>
+{% endblock %}

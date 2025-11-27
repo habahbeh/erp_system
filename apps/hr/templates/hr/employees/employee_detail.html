@@ -1,0 +1,473 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            {% if employee.photo %}
+            <img src="{{ employee.photo.url }}" alt="{{ employee.get_full_name }}"
+                 class="rounded-circle me-3 shadow-sm" style="width: 70px; height: 70px; object-fit: cover;">
+            {% else %}
+            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3 shadow-sm"
+                 style="width: 70px; height: 70px; font-size: 1.5rem;">
+                <i class="fas fa-user"></i>
+            </div>
+            {% endif %}
+            <div>
+                <h1 class="h3 mb-1">{{ employee.get_full_name }}</h1>
+                <p class="text-muted mb-0">
+                    <span class="badge bg-dark me-1">{{ employee.employee_number }}</span>
+                    {% if employee.job_title %}
+                        <span class="badge bg-info me-1">{{ employee.job_title.name }}</span>
+                    {% endif %}
+                    {% if employee.department %}
+                        <span class="badge bg-secondary">{{ employee.department.name }}</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        <div>
+            <a href="{% url 'hr:employee_update' employee.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i> {% trans "تعديل" %}
+            </a>
+            <a href="{% url 'hr:employee_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Cards Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 bg-primary text-white">
+                <div class="card-body text-center py-3">
+                    <h3 class="mb-1">{{ employee.total_salary|floatformat:0 }}</h3>
+                    <small>{% trans "إجمالي الراتب (د.أ)" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 bg-success text-white">
+                <div class="card-body text-center py-3">
+                    <h3 class="mb-1">{{ employee.annual_leave_balance|floatformat:1 }}</h3>
+                    <small>{% trans "رصيد الإجازة السنوية" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 bg-warning text-dark">
+                <div class="card-body text-center py-3">
+                    <h3 class="mb-1">{{ employee.sick_leave_balance|floatformat:1 }}</h3>
+                    <small>{% trans "رصيد الإجازة المرضية" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 {% if employee.status == 'active' %}bg-info{% else %}bg-secondary{% endif %} text-white">
+                <div class="card-body text-center py-3">
+                    <h3 class="mb-1"><i class="fas {% if employee.status == 'active' %}fa-check-circle{% else %}fa-pause-circle{% endif %}"></i></h3>
+                    <small>{{ employee.get_status_display }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- البيانات الشخصية -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-user me-2"></i>{% trans "البيانات الشخصية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th class="text-muted" width="40%">{% trans "الاسم الكامل:" %}</th>
+                            <td>{{ employee.get_full_name }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الرقم الوطني:" %}</th>
+                            <td>{{ employee.national_id|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "تاريخ الميلاد:" %}</th>
+                            <td>{{ employee.date_of_birth|date:"Y-m-d"|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الجنس:" %}</th>
+                            <td>{{ employee.get_gender_display|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الحالة الاجتماعية:" %}</th>
+                            <td>{{ employee.get_marital_status_display|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الجوال:" %}</th>
+                            <td>
+                                {% if employee.mobile %}
+                                    <a href="tel:{{ employee.mobile }}" class="text-decoration-none">
+                                        <i class="fas fa-phone me-1"></i>{{ employee.mobile }}
+                                    </a>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "البريد:" %}</th>
+                            <td>
+                                {% if employee.email %}
+                                    <a href="mailto:{{ employee.email }}" class="text-decoration-none">
+                                        <i class="fas fa-envelope me-1"></i>{{ employee.email }}
+                                    </a>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% if employee.address %}
+                        <tr>
+                            <th class="text-muted">{% trans "العنوان:" %}</th>
+                            <td>{{ employee.address }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- البيانات الوظيفية -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-briefcase me-2"></i>{% trans "البيانات الوظيفية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th class="text-muted" width="40%">{% trans "القسم:" %}</th>
+                            <td>{{ employee.department.name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "المسمى الوظيفي:" %}</th>
+                            <td>{{ employee.job_title.name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الدرجة الوظيفية:" %}</th>
+                            <td>{{ employee.job_grade.name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "الفرع:" %}</th>
+                            <td>{{ employee.branch.name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "المدير المباشر:" %}</th>
+                            <td>
+                                {% if employee.manager %}
+                                    <a href="{% url 'hr:employee_detail' employee.manager.pk %}" class="text-decoration-none">
+                                        {{ employee.manager.get_full_name }}
+                                    </a>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "تاريخ التعيين:" %}</th>
+                            <td>{{ employee.hire_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "نوع العمل:" %}</th>
+                            <td>
+                                <span class="badge bg-outline-secondary">{{ employee.get_employment_status_display }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "ساعات العمل:" %}</th>
+                            <td>{{ employee.working_hours_per_day }} {% trans "ساعة/يوم" %}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "أيام العمل:" %}</th>
+                            <td>{{ employee.working_days_per_month }} {% trans "يوم/شهر" %}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- البيانات المالية -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>{% trans "البيانات المالية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th class="text-muted" width="45%">{% trans "الراتب الأساسي:" %}</th>
+                            <td>{{ employee.basic_salary|floatformat:2 }} {% trans "د.أ" %}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "بدل الوقود:" %}</th>
+                            <td>{{ employee.fuel_allowance|floatformat:2 }} {% trans "د.أ" %}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "بدلات أخرى:" %}</th>
+                            <td>{{ employee.other_allowances|floatformat:2 }} {% trans "د.أ" %}</td>
+                        </tr>
+                        <tr class="table-success">
+                            <th>{% trans "إجمالي الراتب:" %}</th>
+                            <td><strong>{{ employee.total_salary|floatformat:2 }} {% trans "د.أ" %}</strong></td>
+                        </tr>
+                    </table>
+
+                    <hr class="my-3">
+                    <h6 class="text-muted mb-3"><i class="fas fa-shield-alt me-1"></i>{% trans "الضمان الاجتماعي" %}</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th class="text-muted" width="45%">{% trans "راتب الضمان:" %}</th>
+                            <td>{{ employee.social_security_salary|floatformat:2 }} {% trans "د.أ" %}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "رقم الضمان:" %}</th>
+                            <td>{{ employee.social_security_number|default:"-" }}</td>
+                        </tr>
+                    </table>
+
+                    <hr class="my-3">
+                    <h6 class="text-muted mb-3"><i class="fas fa-university me-1"></i>{% trans "البيانات البنكية" %}</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th class="text-muted" width="45%">{% trans "البنك:" %}</th>
+                            <td>{{ employee.bank_name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "رقم الحساب:" %}</th>
+                            <td>{{ employee.bank_account|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">IBAN:</th>
+                            <td style="font-size: 0.85em;">{{ employee.iban|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- العقود -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-file-contract me-2"></i>{% trans "العقود" %}</h6>
+                    <a href="{% url 'hr:contract_create' %}?employee={{ employee.pk }}" class="btn btn-sm btn-light">
+                        <i class="fas fa-plus me-1"></i>{% trans "عقد جديد" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if contracts %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "رقم العقد" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "البداية" %}</th>
+                                    <th>{% trans "النهاية" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for contract in contracts %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'hr:contract_update' contract.pk %}" class="text-decoration-none">
+                                            {{ contract.contract_number|default:"-" }}
+                                        </a>
+                                    </td>
+                                    <td>{{ contract.get_contract_type_display|default:"-" }}</td>
+                                    <td>{{ contract.start_date|date:"Y-m-d" }}</td>
+                                    <td>{{ contract.end_date|date:"Y-m-d"|default:"غير محدد" }}</td>
+                                    <td>
+                                        {% if contract.status == 'active' %}
+                                            <span class="badge bg-success">{{ contract.get_status_display }}</span>
+                                        {% elif contract.status == 'expired' %}
+                                            <span class="badge bg-danger">{{ contract.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ contract.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-contract fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-0">{% trans "لا توجد عقود مسجلة" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- العلاوات -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>{% trans "العلاوات" %}</h6>
+                    <a href="{% url 'hr:increment_create' %}?employee={{ employee.pk }}" class="btn btn-sm btn-dark">
+                        <i class="fas fa-plus me-1"></i>{% trans "علاوة جديدة" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if increments %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "التاريخ" %}</th>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th>{% trans "القيمة" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inc in increments %}
+                                <tr>
+                                    <td>{{ inc.effective_date|date:"Y-m-d" }}</td>
+                                    <td>{{ inc.get_increment_type_display }}</td>
+                                    <td>
+                                        {{ inc.increment_amount|floatformat:2 }}
+                                        {% if inc.is_percentage %}%{% else %}{% trans "د.أ" %}{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if inc.status == 'applied' %}
+                                            <span class="badge bg-success">{{ inc.get_status_display }}</span>
+                                        {% elif inc.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">{{ inc.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ inc.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-0">{% trans "لا توجد علاوات مسجلة" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الإجازات الأخيرة - سيتم تفعيلها في المرحلة 2 -->
+    {% comment %}
+    {% if leaves %}
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{% trans "آخر الإجازات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "نوع الإجازة" %}</th>
+                                    <th>{% trans "من تاريخ" %}</th>
+                                    <th>{% trans "إلى تاريخ" %}</th>
+                                    <th>{% trans "عدد الأيام" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for leave in leaves %}
+                                <tr>
+                                    <td>{{ leave.leave_type.name }}</td>
+                                    <td>{{ leave.start_date|date:"Y-m-d" }}</td>
+                                    <td>{{ leave.end_date|date:"Y-m-d" }}</td>
+                                    <td>{{ leave.days_count }}</td>
+                                    <td>
+                                        {% if leave.status == 'approved' %}
+                                            <span class="badge bg-success">{{ leave.get_status_display }}</span>
+                                        {% elif leave.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">{{ leave.get_status_display }}</span>
+                                        {% elif leave.status == 'rejected' %}
+                                            <span class="badge bg-danger">{{ leave.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ leave.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endcomment %}
+
+    <!-- الملاحظات -->
+    {% if employee.notes %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i>{% trans "ملاحظات" %}</h6>
+                </div>
+                <div class="card-body">
+                    {{ employee.notes|linebreaks }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted me-2">{% trans "إجراءات سريعة:" %}</span>
+                    <a href="{% url 'hr:contract_create' %}?employee={{ employee.pk }}" class="btn btn-outline-secondary btn-sm me-1">
+                        <i class="fas fa-file-contract me-1"></i>{% trans "عقد جديد" %}
+                    </a>
+                    <a href="{% url 'hr:increment_create' %}?employee={{ employee.pk }}" class="btn btn-outline-secondary btn-sm me-1">
+                        <i class="fas fa-chart-line me-1"></i>{% trans "علاوة" %}
+                    </a>
+                </div>
+                <div>
+                    <a href="{% url 'hr:employee_list' %}" class="btn btn-light">
+                        <i class="fas fa-arrow-right me-1"></i>{% trans "العودة للقائمة" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

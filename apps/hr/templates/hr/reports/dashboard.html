@@ -1,0 +1,399 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .report-link-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .report-link-card:hover {
+        transform: scale(1.02);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-chart-line me-2"></i>{{ title }}</h4>
+
+    <!-- قسم الموظفين -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h5 class="text-primary mb-3"><i class="fas fa-users me-2"></i>{% trans "إحصائيات الموظفين" %}</h5>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-primary bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-users text-primary fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1">{{ employee_stats.total|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الموظفين" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-success bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-user-check text-success fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1 text-success">{{ employee_stats.active|default:0 }}</h3>
+                    <small class="text-muted">{% trans "نشط" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-warning bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-user-clock text-warning fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1 text-warning">{{ employee_stats.on_leave|default:0 }}</h3>
+                    <small class="text-muted">{% trans "في إجازة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-info bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-mars text-info fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1 text-info">{{ employee_stats.male|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ذكور" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-pink bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-venus text-danger fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1 text-danger">{{ employee_stats.female|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إناث" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card stat-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-secondary bg-opacity-10 mx-auto mb-2">
+                        <i class="fas fa-user-slash text-secondary fa-lg"></i>
+                    </div>
+                    <h3 class="mb-1 text-secondary">{{ employee_stats.terminated|default:0 }}</h3>
+                    <small class="text-muted">{% trans "منتهية خدماتهم" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- قسم الحضور والإجازات -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-clock me-2 text-info"></i>{% trans "الحضور - " %}{{ current_month }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <h4 class="text-success">{{ attendance_stats.present|default:0 }}</h4>
+                            <small>{% trans "حضور" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-danger">{{ attendance_stats.absent|default:0 }}</h4>
+                            <small>{% trans "غياب" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-warning">{{ attendance_stats.late|default:0 }}</h4>
+                            <small>{% trans "تأخير" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-info">{{ attendance_stats.on_leave|default:0 }}</h4>
+                            <small>{% trans "إجازة" %}</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <span class="text-danger">{{ attendance_stats.total_late_minutes|default:0 }}</span>
+                            <small class="d-block text-muted">{% trans "دقائق تأخير" %}</small>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-success">{{ attendance_stats.total_overtime_hours|floatformat:1|default:0 }}</span>
+                            <small class="d-block text-muted">{% trans "ساعات إضافية" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2 text-success"></i>{% trans "الإجازات - " %}{{ current_month }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <h4>{{ leave_stats.total|default:0 }}</h4>
+                            <small>{% trans "طلبات" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-warning">{{ leave_stats.pending|default:0 }}</h4>
+                            <small>{% trans "معلقة" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-success">{{ leave_stats.approved|default:0 }}</h4>
+                            <small>{% trans "موافق عليها" %}</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-danger">{{ leave_stats.rejected|default:0 }}</h4>
+                            <small>{% trans "مرفوضة" %}</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="text-center">
+                        <h4 class="text-primary">{{ leave_stats.total_days|default:0 }}</h4>
+                        <small class="text-muted">{% trans "إجمالي أيام الإجازات المعتمدة" %}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- قسم الرواتب والسلف -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2 text-success"></i>{% trans "الرواتب - " %}{{ current_month }}</h6>
+                </div>
+                <div class="card-body">
+                    {% if payroll_stats.employee_count %}
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted">{% trans "الراتب الأساسي" %}</small>
+                            <h5>{{ payroll_stats.total_basic|floatformat:2|default:"0.00" }}</h5>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">{% trans "البدلات" %}</small>
+                            <h5 class="text-success">{{ payroll_stats.total_allowances|floatformat:2|default:"0.00" }}</h5>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted">{% trans "الخصومات" %}</small>
+                            <h5 class="text-danger">{{ payroll_stats.total_deductions|floatformat:2|default:"0.00" }}</h5>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">{% trans "صافي الرواتب" %}</small>
+                            <h5 class="text-primary">{{ payroll_stats.total_net|floatformat:2|default:"0.00" }}</h5>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <span class="badge bg-info">{{ payroll_stats.employee_count }} {% trans "موظف" %}</span>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle fa-2x mb-2"></i>
+                        <p>{% trans "لا توجد بيانات رواتب لهذا الشهر" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-hand-holding-usd me-2 text-warning"></i>{% trans "السلف" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% if advance_stats.count %}
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h4>{{ advance_stats.count|default:0 }}</h4>
+                            <small class="text-muted">{% trans "سلف مستحقة" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-primary">{{ advance_stats.total_amount|floatformat:0|default:0 }}</h4>
+                            <small class="text-muted">{% trans "إجمالي السلف" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-danger">{{ advance_stats.remaining|floatformat:0|default:0 }}</h4>
+                            <small class="text-muted">{% trans "المتبقي" %}</small>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                        <p>{% trans "لا توجد سلف مستحقة" %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- توزيع الموظفين حسب القسم -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-building me-2 text-primary"></i>{% trans "توزيع الموظفين حسب القسم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for dept in department_stats %}
+                        <div class="col-md-3 col-sm-4 col-6 mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <span class="badge bg-primary rounded-pill fs-6">{{ dept.emp_count }}</span>
+                                </div>
+                                <div>
+                                    <small class="text-truncate d-block" style="max-width: 150px;">{{ dept.name }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12 text-center text-muted">
+                            {% trans "لا توجد أقسام" %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- روابط التقارير التفصيلية -->
+    <div class="row">
+        <div class="col-12">
+            <h5 class="text-primary mb-3"><i class="fas fa-file-alt me-2"></i>{% trans "التقارير التفصيلية" %}</h5>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_employees' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                        <h6>{% trans "تقرير الموظفين" %}</h6>
+                        <small class="text-muted">{% trans "تفاصيل الموظفين والتوزيعات" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_attendance' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-3x text-info mb-3"></i>
+                        <h6>{% trans "تقرير الحضور" %}</h6>
+                        <small class="text-muted">{% trans "تحليل الحضور والانصراف" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_leaves' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-alt fa-3x text-success mb-3"></i>
+                        <h6>{% trans "تقرير الإجازات" %}</h6>
+                        <small class="text-muted">{% trans "الإجازات والأرصدة" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_payroll_summary' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-money-bill-wave fa-3x text-success mb-3"></i>
+                        <h6>{% trans "تقرير الرواتب" %}</h6>
+                        <small class="text-muted">{% trans "ملخص الرواتب الشهري" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_advances' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-hand-holding-usd fa-3x text-warning mb-3"></i>
+                        <h6>{% trans "تقرير السلف" %}</h6>
+                        <small class="text-muted">{% trans "السلف والأقساط" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_overtime' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-business-time fa-3x text-danger mb-3"></i>
+                        <h6>{% trans "تقرير العمل الإضافي" %}</h6>
+                        <small class="text-muted">{% trans "ساعات العمل الإضافي" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_departments' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-sitemap fa-3x text-primary mb-3"></i>
+                        <h6>{% trans "تحليل الأقسام" %}</h6>
+                        <small class="text-muted">{% trans "تحليل شامل للأقسام" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <a href="{% url 'hr:report_contracts' %}" class="text-decoration-none">
+                <div class="card report-link-card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-contract fa-3x text-secondary mb-3"></i>
+                        <h6>{% trans "انتهاء العقود" %}</h6>
+                        <small class="text-muted">{% trans "العقود القريبة الانتهاء" %}</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "مراجعة والموافقة على طلبات العمل الإضافي" %}</p>
+        </div>
+        <a href="{% url 'hr:overtime_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+        </a>
+    </div>
+
+    <form method="post" id="approvalForm">
+        {% csrf_token %}
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-clock"></i> {% trans "طلبات بانتظار الموافقة" %}</h6>
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-primary" onclick="selectAll()">
+                        <i class="fas fa-check-double"></i> {% trans "تحديد الكل" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="deselectAll()">
+                        <i class="fas fa-times"></i> {% trans "إلغاء التحديد" %}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="checkAll">
+                                </th>
+                                <th>{% trans "التاريخ" %}</th>
+                                <th>{% trans "الموظف" %}</th>
+                                <th>{% trans "الساعات" %}</th>
+                                <th>{% trans "المعدل" %}</th>
+                                <th>{% trans "المبلغ" %}</th>
+                                <th>{% trans "السبب" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for overtime in pending_overtime %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input overtime-check"
+                                           name="overtime_ids" value="{{ overtime.id }}">
+                                </td>
+                                <td>{{ overtime.date }}</td>
+                                <td>
+                                    <strong>{{ overtime.employee.full_name }}</strong>
+                                    <br><small class="text-muted">{{ overtime.employee.employee_number }}</small>
+                                </td>
+                                <td>{{ overtime.hours }}</td>
+                                <td>{{ overtime.rate }}x</td>
+                                <td class="fw-bold">{{ overtime.amount|floatformat:2 }}</td>
+                                <td>{{ overtime.reason|default:"-"|truncatechars:50 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                                    <p>{% trans "لا توجد طلبات بانتظار الموافقة" %}</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% if pending_overtime %}
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span id="selectedCount" class="text-muted">{% trans "لم يتم تحديد أي طلب" %}</span>
+                    <div class="btn-group">
+                        <button type="submit" name="action" value="approve" class="btn btn-success">
+                            <i class="fas fa-check"></i> {% trans "موافقة" %}
+                        </button>
+                        <button type="submit" name="action" value="reject" class="btn btn-danger">
+                            <i class="fas fa-times"></i> {% trans "رفض" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectAll() {
+    $('.overtime-check').prop('checked', true);
+    updateCount();
+}
+
+function deselectAll() {
+    $('.overtime-check').prop('checked', false);
+    updateCount();
+}
+
+function updateCount() {
+    var count = $('.overtime-check:checked').length;
+    $('#selectedCount').text(count > 0 ?
+        '{% trans "تم تحديد" %} ' + count + ' {% trans "طلب" %}' :
+        '{% trans "لم يتم تحديد أي طلب" %}');
+}
+
+$(document).ready(function() {
+    $('#checkAll').on('change', function() {
+        $('.overtime-check').prop('checked', $(this).is(':checked'));
+        updateCount();
+    });
+
+    $('.overtime-check').on('change', updateCount);
+});
+</script>
+{% endblock %}

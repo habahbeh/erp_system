@@ -1,0 +1,85 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-alt me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:self_service_leave_request_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "طلب إجازة جديد" %}
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "نوع الإجازة" %}</th>
+                            <th>{% trans "من" %}</th>
+                            <th>{% trans "إلى" %}</th>
+                            <th>{% trans "عدد الأيام" %}</th>
+                            <th>{% trans "السبب" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th>{% trans "تاريخ الطلب" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request in leave_requests %}
+                        <tr>
+                            <td>{{ request.leave_type.name }}</td>
+                            <td>{{ request.start_date|date:"Y-m-d" }}</td>
+                            <td>{{ request.end_date|date:"Y-m-d" }}</td>
+                            <td>{{ request.days }} {% trans "يوم" %}</td>
+                            <td>{{ request.reason|truncatechars:50 }}</td>
+                            <td>
+                                <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'rejected' %}danger{% elif request.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                    {{ request.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ request.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                {% trans "لا توجد طلبات إجازات" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if page_obj %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">{% trans "السابق" %}</a></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">{% trans "التالي" %}</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

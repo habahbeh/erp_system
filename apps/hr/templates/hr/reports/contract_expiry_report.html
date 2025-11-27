@@ -1,0 +1,286 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .expiry-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+    }
+    .expiry-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    .expired-row { background-color: rgba(231,74,59,0.1); }
+    .expiring-soon-row { background-color: rgba(246,194,62,0.1); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-file-contract me-2"></i>{{ title }}</h4>
+
+    <!-- فلتر الأيام -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "عرض العقود المنتهية خلال" %}</label>
+                    <select name="days" class="form-select">
+                        <option value="30" {% if days_ahead == 30 %}selected{% endif %}>30 {% trans "يوم" %}</option>
+                        <option value="60" {% if days_ahead == 60 %}selected{% endif %}>60 {% trans "يوم" %}</option>
+                        <option value="90" {% if days_ahead == 90 %}selected{% endif %}>90 {% trans "يوم" %}</option>
+                        <option value="180" {% if days_ahead == 180 %}selected{% endif %}>180 {% trans "يوم" %}</option>
+                        <option value="365" {% if days_ahead == 365 %}selected{% endif %}>{% trans "سنة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i>{% trans "تصفية" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- زر التصدير -->
+    <div class="d-flex justify-content-end mb-4">
+        <a href="{% url 'hr:export_contracts_excel' %}?days={{ days_ahead }}" class="btn btn-success">
+            <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+        </a>
+    </div>
+
+    <!-- ملخص الإحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card expiry-card border-0 shadow-sm h-100 border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.expired }}</h3>
+                    <small class="text-muted">{% trans "عقود منتهية" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card expiry-card border-0 shadow-sm h-100 border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.expiring_30 }}</h3>
+                    <small class="text-muted">{% trans "تنتهي خلال 30 يوم" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card expiry-card border-0 shadow-sm h-100 border-start border-info border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-alt fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ stats.expiring_60 }}</h3>
+                    <small class="text-muted">{% trans "تنتهي خلال 31-60 يوم" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card expiry-card border-0 shadow-sm h-100 border-start border-success border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-check fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.expiring_90 }}</h3>
+                    <small class="text-muted">{% trans "تنتهي خلال 61-90 يوم" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- العقود المنتهية -->
+    {% if expired %}
+    <div class="card border-0 shadow-sm mb-4 border-top border-danger border-3">
+        <div class="card-header bg-danger text-white">
+            <h6 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>{% trans "عقود منتهية تتطلب إجراء" %} ({{ expired.count }})</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "القسم" %}</th>
+                            <th>{% trans "نوع العقد" %}</th>
+                            <th class="text-center">{% trans "تاريخ الانتهاء" %}</th>
+                            <th class="text-center">{% trans "منذ" %}</th>
+                            <th class="text-center">{% trans "إجراء" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in expired %}
+                        <tr class="expired-row">
+                            <td>
+                                <a href="{% url 'hr:employee_detail' contract.employee.pk %}">
+                                    {{ contract.employee.first_name }} {{ contract.employee.last_name }}
+                                </a>
+                                <br><small class="text-muted">{{ contract.employee.employee_number }}</small>
+                            </td>
+                            <td>{{ contract.employee.department.name|default:"-" }}</td>
+                            <td>{{ contract.get_contract_type_display }}</td>
+                            <td class="text-center text-danger fw-bold">{{ contract.end_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-danger">
+                                    {{ contract.end_date|timesince:today }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'hr:contract_update' contract.pk %}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-sync"></i> {% trans "تجديد" %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- العقود القريبة الانتهاء (30 يوم) -->
+    {% if expiring_30 %}
+    <div class="card border-0 shadow-sm mb-4 border-top border-warning border-3">
+        <div class="card-header bg-warning text-dark">
+            <h6 class="mb-0"><i class="fas fa-clock me-2"></i>{% trans "تنتهي خلال 30 يوم" %} ({{ expiring_30.count }})</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "القسم" %}</th>
+                            <th>{% trans "نوع العقد" %}</th>
+                            <th class="text-center">{% trans "تاريخ الانتهاء" %}</th>
+                            <th class="text-center">{% trans "المتبقي" %}</th>
+                            <th class="text-center">{% trans "إجراء" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in expiring_30 %}
+                        <tr class="expiring-soon-row">
+                            <td>
+                                <a href="{% url 'hr:employee_detail' contract.employee.pk %}">
+                                    {{ contract.employee.first_name }} {{ contract.employee.last_name }}
+                                </a>
+                                <br><small class="text-muted">{{ contract.employee.employee_number }}</small>
+                            </td>
+                            <td>{{ contract.employee.department.name|default:"-" }}</td>
+                            <td>{{ contract.get_contract_type_display }}</td>
+                            <td class="text-center text-warning fw-bold">{{ contract.end_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-warning text-dark">
+                                    {{ today|timesince:contract.end_date }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'hr:contract_update' contract.pk %}" class="btn btn-sm btn-outline-warning">
+                                    <i class="fas fa-sync"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- جدول جميع العقود -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{% trans "جميع العقود القريبة الانتهاء" %} ({{ stats.total }})</h6>
+            <button class="btn btn-sm btn-success" onclick="exportTable()">
+                <i class="fas fa-file-excel me-1"></i>{% trans "تصدير" %}
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="contractsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الرقم الوظيفي" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "القسم" %}</th>
+                            <th>{% trans "المسمى الوظيفي" %}</th>
+                            <th>{% trans "نوع العقد" %}</th>
+                            <th class="text-center">{% trans "تاريخ البداية" %}</th>
+                            <th class="text-center">{% trans "تاريخ الانتهاء" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in contracts %}
+                        <tr {% if contract.end_date < today %}class="table-danger"{% elif contract.end_date <= expiring_30.0.end_date %}class="table-warning"{% endif %}>
+                            <td>{{ contract.employee.employee_number }}</td>
+                            <td>
+                                <a href="{% url 'hr:employee_detail' contract.employee.pk %}">
+                                    {{ contract.employee.first_name }} {{ contract.employee.last_name }}
+                                </a>
+                            </td>
+                            <td>{{ contract.employee.department.name|default:"-" }}</td>
+                            <td>{{ contract.employee.job_title.name|default:"-" }}</td>
+                            <td>{{ contract.get_contract_type_display }}</td>
+                            <td class="text-center">{{ contract.start_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">{{ contract.end_date|date:"Y-m-d" }}</td>
+                            <td class="text-center">
+                                {% if contract.end_date < today %}
+                                <span class="badge bg-danger">{% trans "منتهي" %}</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{% trans "قريب الانتهاء" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد عقود قريبة الانتهاء" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function exportTable() {
+        let csv = [];
+        const table = document.getElementById('contractsTable');
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+            let rowData = [];
+            row.querySelectorAll('th, td').forEach(cell => {
+                rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+            });
+            csv.push(rowData.join(','));
+        });
+        const blob = new Blob(['\ufeff' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'contract_expiry_report.csv';
+        link.click();
+    }
+</script>
+{% endblock %}

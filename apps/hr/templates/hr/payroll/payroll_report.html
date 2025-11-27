@@ -1,0 +1,213 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تقارير وإحصائيات الرواتب لعام" %} {{ current_year }}</p>
+        </div>
+        <a href="{% url 'hr:payroll_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "العودة للمسيرات" %}
+        </a>
+    </div>
+
+    <!-- Yearly Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ yearly_stats.total_basic|default:0|floatformat:0 }}</h4>
+                            <small>{% trans "إجمالي الرواتب الأساسية" %}</small>
+                        </div>
+                        <i class="fas fa-money-bill-wave fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ yearly_stats.total_allowances|default:0|floatformat:0 }}</h4>
+                            <small>{% trans "إجمالي البدلات" %}</small>
+                        </div>
+                        <i class="fas fa-plus-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ yearly_stats.total_deductions|default:0|floatformat:0 }}</h4>
+                            <small>{% trans "إجمالي الاستقطاعات" %}</small>
+                        </div>
+                        <i class="fas fa-minus-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ yearly_stats.total_net|default:0|floatformat:0 }}</h4>
+                            <small>{% trans "صافي المدفوعات" %}</small>
+                        </div>
+                        <i class="fas fa-wallet fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Monthly Chart -->
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "الرواتب الشهرية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Table -->
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-table"></i> {% trans "ملخص شهري" %}</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>{% trans "الشهر" %}</th>
+                                    <th class="text-end">{% trans "المبلغ" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in monthly_data %}
+                                <tr>
+                                    <td>
+                                        {% if item.period_month == 1 %}{% trans "يناير" %}
+                                        {% elif item.period_month == 2 %}{% trans "فبراير" %}
+                                        {% elif item.period_month == 3 %}{% trans "مارس" %}
+                                        {% elif item.period_month == 4 %}{% trans "أبريل" %}
+                                        {% elif item.period_month == 5 %}{% trans "مايو" %}
+                                        {% elif item.period_month == 6 %}{% trans "يونيو" %}
+                                        {% elif item.period_month == 7 %}{% trans "يوليو" %}
+                                        {% elif item.period_month == 8 %}{% trans "أغسطس" %}
+                                        {% elif item.period_month == 9 %}{% trans "سبتمبر" %}
+                                        {% elif item.period_month == 10 %}{% trans "أكتوبر" %}
+                                        {% elif item.period_month == 11 %}{% trans "نوفمبر" %}
+                                        {% elif item.period_month == 12 %}{% trans "ديسمبر" %}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ item.total|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted py-3">
+                                        {% trans "لا توجد بيانات" %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var monthNames = [
+        '{% trans "يناير" %}', '{% trans "فبراير" %}', '{% trans "مارس" %}',
+        '{% trans "أبريل" %}', '{% trans "مايو" %}', '{% trans "يونيو" %}',
+        '{% trans "يوليو" %}', '{% trans "أغسطس" %}', '{% trans "سبتمبر" %}',
+        '{% trans "أكتوبر" %}', '{% trans "نوفمبر" %}', '{% trans "ديسمبر" %}'
+    ];
+
+    var monthlyData = {{ monthly_data|safe }};
+    var labels = [];
+    var values = [];
+
+    // Create data for all 12 months
+    for (var i = 1; i <= 12; i++) {
+        labels.push(monthNames[i-1]);
+        var found = monthlyData.find(function(item) { return item.period_month === i; });
+        values.push(found ? found.total : 0);
+    }
+
+    var ctx = document.getElementById('monthlyChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '{% trans "صافي الرواتب" %}',
+                data: values,
+                backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                borderColor: 'rgba(102, 126, 234, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

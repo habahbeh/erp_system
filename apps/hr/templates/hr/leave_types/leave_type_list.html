@@ -1,0 +1,269 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة أنواع الإجازات والسياسات" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{% url 'hr:leave_type_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة نوع جديد" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                            <small>إجمالي أنواع الإجازات</small>
+                        </div>
+                        <i class="fas fa-calendar-alt fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.active|default:0 }}</h3>
+                            <small>نشط</small>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.paid|default:0 }}</h3>
+                            <small>مدفوعة</small>
+                        </div>
+                        <i class="fas fa-money-bill-wave fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="isActiveFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "نشط" %}</option>
+                            <option value="0">{% trans "غير نشط" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "مدفوعة" %}</label>
+                        <select class="form-select" id="isPaidFilter">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="1">{% trans "مدفوعة" %}</option>
+                            <option value="0">{% trans "غير مدفوعة" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث برمز أو اسم نوع الإجازة...' %}">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="leaveTypesTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الرمز" %}</th>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "مدفوعة" %}</th>
+                            <th>{% trans "تؤثر على الراتب" %}</th>
+                            <th>{% trans "الرصيد الافتراضي" %}</th>
+                            <th>{% trans "تتطلب موافقة" %}</th>
+                            <th>{% trans "قابلة للترحيل" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+var leaveTypesDataTable = null;
+
+function initDataTable() {
+    if (leaveTypesDataTable) {
+        return leaveTypesDataTable;
+    }
+
+    leaveTypesDataTable = $('#leaveTypesTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:leave_type_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.is_active = $('#isActiveFilter').val();
+                d.is_paid = $('#isPaidFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            },
+            "error": function(xhr, error, code) {
+                console.error('DataTable AJAX Error:', error, code);
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "code"},
+            {"data": 1, "name": "name"},
+            {"data": 2, "name": "is_paid"},
+            {"data": 3, "name": "affects_salary"},
+            {"data": 4, "name": "default_days"},
+            {"data": 5, "name": "requires_approval"},
+            {"data": 6, "name": "carry_forward"},
+            {"data": 7, "name": "is_active"},
+            {"data": 8, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "asc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [2, 3, 5, 6, 8] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = leaveTypesDataTable.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    return leaveTypesDataTable;
+}
+
+function updateTableInfo(info) {
+    var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' نوع';
+    if (info.recordsFiltered !== info.recordsTotal) {
+        infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+    }
+    $('#tableInfo').text(infoText);
+}
+
+window.changePageLength = function(length) {
+    if (leaveTypesDataTable) {
+        leaveTypesDataTable.page.len(parseInt(length)).draw();
+    }
+};
+
+$(document).ready(function() {
+    initDataTable();
+
+    $('#isActiveFilter, #isPaidFilter').on('change', function() {
+        if (leaveTypesDataTable) {
+            leaveTypesDataTable.ajax.reload();
+        }
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            if (leaveTypesDataTable) {
+                leaveTypesDataTable.ajax.reload();
+            }
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#isActiveFilter').val('');
+        $('#isPaidFilter').val('');
+        $('#searchFilter').val('');
+        if (leaveTypesDataTable) {
+            leaveTypesDataTable.ajax.reload();
+        }
+    });
+});
+</script>
+{% endblock %}

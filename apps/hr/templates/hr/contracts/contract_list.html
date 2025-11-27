@@ -1,0 +1,284 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة عقود الموظفين" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{% url 'hr:contract_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة عقد جديد" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                            <small>إجمالي العقود</small>
+                        </div>
+                        <i class="fas fa-file-contract fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.active|default:0 }}</h3>
+                            <small>نشط</small>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.expiring_soon|default:0 }}</h3>
+                            <small>قارب على الانتهاء</small>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.expired|default:0 }}</h3>
+                            <small>منتهي</small>
+                        </div>
+                        <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="filtersCollapse">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "الحالة" %}</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">{% trans "جميع الحالات" %}</option>
+                            <option value="draft">{% trans "مسودة" %}</option>
+                            <option value="active">{% trans "نشط" %}</option>
+                            <option value="expired">{% trans "منتهي" %}</option>
+                            <option value="terminated">{% trans "ملغي" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{% trans "نوع العقد" %}</label>
+                        <select class="form-select" id="contractTypeFilter">
+                            <option value="">{% trans "جميع الأنواع" %}</option>
+                            <option value="permanent">{% trans "دائم" %}</option>
+                            <option value="temporary">{% trans "مؤقت" %}</option>
+                            <option value="part_time">{% trans "دوام جزئي" %}</option>
+                            <option value="freelance">{% trans "حر" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{% trans "البحث" %}</label>
+                        <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'البحث برقم العقد أو اسم الموظف...' %}">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                            <i class="fas fa-times"></i> {% trans "مسح" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="contractsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رقم العقد" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "نوع العقد" %}</th>
+                            <th>{% trans "تاريخ البداية" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th>{% trans "راتب العقد" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="no-sort text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="tableInfo" class="text-muted">جاري التحميل...</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="changePageLength(this.value)">
+                        <option value="10">10 سطر</option>
+                        <option value="25" selected>25 سطر</option>
+                        <option value="50">50 سطر</option>
+                        <option value="100">100 سطر</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+var contractsDataTable = null;
+
+function initDataTable() {
+    if (contractsDataTable) {
+        return contractsDataTable;
+    }
+
+    contractsDataTable = $('#contractsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:contract_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.contract_type = $('#contractTypeFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            },
+            "error": function(xhr, error, code) {
+                console.error('DataTable AJAX Error:', error, code);
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "contract_number"},
+            {"data": 1, "name": "employee"},
+            {"data": 2, "name": "contract_type"},
+            {"data": 3, "name": "start_date"},
+            {"data": 4, "name": "end_date"},
+            {"data": 5, "name": "contract_salary"},
+            {"data": 6, "name": "status"},
+            {"data": 7, "name": "actions", "orderable": false, "searchable": false}
+        ],
+        "order": [[0, "desc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "columnDefs": [
+            { "targets": "no-sort", "orderable": false },
+            { "className": "text-center", "targets": [7] }
+        ],
+        "drawCallback": function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip();
+            var info = contractsDataTable.page.info();
+            updateTableInfo(info);
+        }
+    });
+
+    return contractsDataTable;
+}
+
+function updateTableInfo(info) {
+    var infoText = 'عرض ' + (info.start + 1) + ' إلى ' + info.end + ' من ' + info.recordsTotal + ' عقد';
+    if (info.recordsFiltered !== info.recordsTotal) {
+        infoText += ' (مفلتر من ' + info.recordsTotal + ')';
+    }
+    $('#tableInfo').text(infoText);
+}
+
+window.changePageLength = function(length) {
+    if (contractsDataTable) {
+        contractsDataTable.page.len(parseInt(length)).draw();
+    }
+};
+
+$(document).ready(function() {
+    initDataTable();
+
+    $('#statusFilter, #contractTypeFilter').on('change', function() {
+        if (contractsDataTable) {
+            contractsDataTable.ajax.reload();
+        }
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() {
+            if (contractsDataTable) {
+                contractsDataTable.ajax.reload();
+            }
+        }, 500);
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter').val('');
+        $('#contractTypeFilter').val('');
+        $('#searchFilter').val('');
+        if (contractsDataTable) {
+            contractsDataTable.ajax.reload();
+        }
+    });
+});
+</script>
+{% endblock %}

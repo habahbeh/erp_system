@@ -1,0 +1,85 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle"></i> {{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="fas fa-info-circle"></i> {% trans "ملخص المسير" %}</h6>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>{% trans "رقم المسير" %}:</strong> {{ payroll.number }}</p>
+                                <p class="mb-1"><strong>{% trans "الفترة" %}:</strong> {{ payroll.get_period_month_display }} {{ payroll.period_year }}</p>
+                                <p class="mb-1"><strong>{% trans "عدد الموظفين" %}:</strong> {{ payroll.employee_count }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>{% trans "إجمالي الرواتب" %}:</strong> {{ payroll.total_basic|floatformat:2 }}</p>
+                                <p class="mb-1"><strong>{% trans "إجمالي البدلات" %}:</strong> {{ payroll.total_allowances|floatformat:2 }}</p>
+                                <p class="mb-1"><strong>{% trans "صافي الرواتب" %}:</strong> <span class="text-success fw-bold">{{ payroll.total_net|floatformat:2 }}</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "تحذير: بعد اعتماد المسير لن يمكن تعديله أو حذفه." %}
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-check mb-3">
+                            {{ form.confirm }}
+                            <label class="form-check-label" for="id_confirm">
+                                {% trans "أؤكد اعتماد هذا المسير" %}
+                            </label>
+                            {% if form.confirm.errors %}
+                                <div class="invalid-feedback d-block">{{ form.confirm.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-4">
+                            {{ form.create_journal_entry }}
+                            <label class="form-check-label" for="id_create_journal_entry">
+                                {% trans "إنشاء قيد محاسبي تلقائياً" %}
+                            </label>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check"></i> {% trans "اعتماد المسير" %}
+                            </button>
+                            <a href="{% url 'hr:payroll_detail' payroll.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

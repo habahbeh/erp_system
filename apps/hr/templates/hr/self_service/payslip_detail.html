@@ -1,0 +1,140 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>{{ title }}</h4>
+        <button onclick="window.print()" class="btn btn-primary">
+            <i class="fas fa-print me-1"></i>{% trans "طباعة" %}
+        </button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <!-- معلومات الموظف -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">{% trans "معلومات الموظف" %}</h6>
+                    <p class="mb-1"><strong>{% trans "الاسم:" %}</strong> {{ employee.first_name }} {{ employee.last_name }}</p>
+                    <p class="mb-1"><strong>{% trans "الرقم الوظيفي:" %}</strong> {{ employee.employee_number }}</p>
+                    <p class="mb-1"><strong>{% trans "القسم:" %}</strong> {{ employee.department.name|default:"-" }}</p>
+                    <p class="mb-0"><strong>{% trans "المسمى:" %}</strong> {{ employee.job_title.name|default:"-" }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <h6 class="text-muted mb-2">{% trans "فترة الراتب" %}</h6>
+                    <h4>{{ payslip.payroll.get_month_display }} {{ payslip.payroll.year }}</h4>
+                    <span class="badge bg-success">{{ payslip.payroll.get_status_display }}</span>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="row">
+                <!-- الاستحقاقات -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-success mb-3"><i class="fas fa-plus-circle me-2"></i>{% trans "الاستحقاقات" %}</h6>
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>{% trans "الراتب الأساسي" %}</td>
+                                <td class="text-end">{{ payslip.basic_salary|floatformat:2 }}</td>
+                            </tr>
+                            {% if payslip.housing_allowance %}
+                            <tr>
+                                <td>{% trans "بدل السكن" %}</td>
+                                <td class="text-end">{{ payslip.housing_allowance|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if payslip.transport_allowance %}
+                            <tr>
+                                <td>{% trans "بدل النقل" %}</td>
+                                <td class="text-end">{{ payslip.transport_allowance|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if payslip.overtime_amount %}
+                            <tr>
+                                <td>{% trans "العمل الإضافي" %}</td>
+                                <td class="text-end">{{ payslip.overtime_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-success fw-bold">
+                                <td>{% trans "إجمالي الاستحقاقات" %}</td>
+                                <td class="text-end">{{ payslip.gross_salary|floatformat:2 }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- الاستقطاعات -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-danger mb-3"><i class="fas fa-minus-circle me-2"></i>{% trans "الاستقطاعات" %}</h6>
+                    <table class="table table-sm">
+                        <tbody>
+                            {% if payslip.social_security_employee %}
+                            <tr>
+                                <td>{% trans "الضمان الاجتماعي (الموظف)" %}</td>
+                                <td class="text-end">{{ payslip.social_security_employee|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if payslip.income_tax %}
+                            <tr>
+                                <td>{% trans "ضريبة الدخل" %}</td>
+                                <td class="text-end">{{ payslip.income_tax|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if payslip.advance_deduction %}
+                            <tr>
+                                <td>{% trans "أقساط السلف" %}</td>
+                                <td class="text-end">{{ payslip.advance_deduction|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if payslip.absence_deduction %}
+                            <tr>
+                                <td>{% trans "خصم الغياب" %}</td>
+                                <td class="text-end">{{ payslip.absence_deduction|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-danger fw-bold">
+                                <td>{% trans "إجمالي الاستقطاعات" %}</td>
+                                <td class="text-end">{{ payslip.total_deductions|floatformat:2 }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- صافي الراتب -->
+            <div class="text-center py-4 bg-light rounded">
+                <h5 class="text-muted mb-2">{% trans "صافي الراتب المستحق" %}</h5>
+                <h2 class="text-success mb-0">{{ payslip.net_salary|floatformat:2 }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .breadcrumb, .btn { display: none !important; }
+        .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+    }
+</style>
+{% endblock %}

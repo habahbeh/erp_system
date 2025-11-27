@@ -1,0 +1,353 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        border-radius: 15px;
+    }
+    .filter-card .form-label { color: white; }
+    .filter-card .form-select, .filter-card .form-control {
+        background-color: rgba(255,255,255,0.9);
+    }
+    .stat-box {
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-clock me-2"></i>{{ title }}</h4>
+
+    <!-- الفلاتر -->
+    <div class="card filter-card mb-4 shadow">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "من تاريخ" %}</label>
+                    <input type="date" name="from_date" value="{{ from_date }}" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                    <input type="date" name="to_date" value="{{ to_date }}" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "جميع الأقسام" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"i" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-light w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- الإحصائيات الرئيسية -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body stat-box">
+                    <i class="fas fa-calendar-check fa-2x text-primary mb-2"></i>
+                    <h3>{{ stats.total_records|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي السجلات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                <div class="card-body stat-box">
+                    <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.present|default:0 }}</h3>
+                    <small class="text-muted">{% trans "حضور" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
+                <div class="card-body stat-box">
+                    <i class="fas fa-user-times fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.absent|default:0 }}</h3>
+                    <small class="text-muted">{% trans "غياب" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                <div class="card-body stat-box">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.late|default:0 }}</h3>
+                    <small class="text-muted">{% trans "تأخير" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                <div class="card-body stat-box">
+                    <i class="fas fa-umbrella-beach fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ stats.on_leave|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجازة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body stat-box">
+                    <i class="fas fa-hourglass-half fa-2x text-secondary mb-2"></i>
+                    <h3>{{ stats.total_late_minutes|default:0 }}</h3>
+                    <small class="text-muted">{% trans "دقائق تأخير" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الرسوم البيانية -->
+    <div class="row mb-4">
+        <div class="col-md-8 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "التوزيع اليومي للحضور" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="dailyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "توزيع الحالات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تفصيل حسب القسم -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "الحضور حسب القسم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "القسم" %}</th>
+                                    <th class="text-center">{% trans "إجمالي السجلات" %}</th>
+                                    <th class="text-center text-success">{% trans "حضور" %}</th>
+                                    <th class="text-center text-danger">{% trans "غياب" %}</th>
+                                    <th class="text-center text-warning">{% trans "تأخير" %}</th>
+                                    <th class="text-center">{% trans "نسبة الحضور" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in by_department %}
+                                <tr>
+                                    <td>{{ dept.employee__department__name|default:"غير محدد" }}</td>
+                                    <td class="text-center">{{ dept.total_records }}</td>
+                                    <td class="text-center text-success">{{ dept.present }}</td>
+                                    <td class="text-center text-danger">{{ dept.absent }}</td>
+                                    <td class="text-center text-warning">{{ dept.late }}</td>
+                                    <td class="text-center">
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" style="width: {{ dept.attendance_rate|floatformat:0 }}%">
+                                                {{ dept.attendance_rate|floatformat:0 }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تفصيل حسب الموظف -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{% trans "تفصيل حسب الموظف" %}</h6>
+            <a href="{% url 'hr:export_attendance_excel' %}?from_date={{ from_date }}&to_date={{ to_date }}&department={{ selected_department|default:'' }}" class="btn btn-sm btn-success">
+                <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="employeeTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الرقم الوظيفي" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th class="text-center">{% trans "أيام العمل" %}</th>
+                            <th class="text-center text-success">{% trans "حضور" %}</th>
+                            <th class="text-center text-danger">{% trans "غياب" %}</th>
+                            <th class="text-center text-warning">{% trans "تأخير" %}</th>
+                            <th class="text-center">{% trans "دقائق التأخير" %}</th>
+                            <th class="text-center">{% trans "ساعات إضافية" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in by_employee %}
+                        <tr>
+                            <td>{{ emp.employee__employee_number }}</td>
+                            <td>{{ emp.employee__first_name }} {{ emp.employee__last_name }}</td>
+                            <td class="text-center">{{ emp.total_days }}</td>
+                            <td class="text-center text-success">{{ emp.present_days }}</td>
+                            <td class="text-center text-danger">{{ emp.absent_days }}</td>
+                            <td class="text-center text-warning">{{ emp.late_days }}</td>
+                            <td class="text-center">{{ emp.total_late_minutes|default:0 }}</td>
+                            <td class="text-center text-success">{{ emp.total_overtime_hours|floatformat:1|default:0 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const dailyTrend = {{ daily_trend|safe }};
+    const stats = {
+        present: {{ stats.present|default:0 }},
+        absent: {{ stats.absent|default:0 }},
+        late: {{ stats.late|default:0 }},
+        on_leave: {{ stats.on_leave|default:0 }}
+    };
+
+    // رسم بياني للتوزيع اليومي
+    if (dailyTrend.length > 0) {
+        new Chart(document.getElementById('dailyChart'), {
+            type: 'line',
+            data: {
+                labels: dailyTrend.map(d => d.date),
+                datasets: [
+                    {
+                        label: 'حضور',
+                        data: dailyTrend.map(d => d.present),
+                        borderColor: '#1cc88a',
+                        backgroundColor: 'rgba(28,200,138,0.1)',
+                        fill: true
+                    },
+                    {
+                        label: 'غياب',
+                        data: dailyTrend.map(d => d.absent),
+                        borderColor: '#e74a3b',
+                        backgroundColor: 'rgba(231,74,59,0.1)',
+                        fill: true
+                    },
+                    {
+                        label: 'تأخير',
+                        data: dailyTrend.map(d => d.late),
+                        borderColor: '#f6c23e',
+                        backgroundColor: 'rgba(246,194,62,0.1)',
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // رسم بياني للحالات
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['حضور', 'غياب', 'تأخير', 'إجازة'],
+            datasets: [{
+                data: [stats.present, stats.absent, stats.late, stats.on_leave],
+                backgroundColor: ['#1cc88a', '#e74a3b', '#f6c23e', '#36b9cc']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12 }
+                }
+            }
+        }
+    });
+
+    function exportTable() {
+        let csv = [];
+        const table = document.getElementById('employeeTable');
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+            let rowData = [];
+            row.querySelectorAll('th, td').forEach(cell => {
+                rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+            });
+            csv.push(rowData.join(','));
+        });
+        const blob = new Blob(['\ufeff' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'attendance_report.csv';
+        link.click();
+    }
+</script>
+{% endblock %}

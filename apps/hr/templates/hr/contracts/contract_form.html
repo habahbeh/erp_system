@@ -1,0 +1,347 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات عقد العمل" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'hr:contract_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-11 mx-auto">
+            <form method="post" enctype="multipart/form-data" novalidate id="contractForm">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- بيانات العقد الأساسية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-file-contract me-2"></i>{% trans "بيانات العقد الأساسية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Employee -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.employee.id_for_label }}" class="form-label">
+                                    {{ form.employee.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.employee }}
+                                {% if form.employee.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.employee.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Contract Type -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.contract_type.id_for_label }}" class="form-label">
+                                    {{ form.contract_type.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.contract_type }}
+                                {% if form.contract_type.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.contract_type.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Contract Number -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.contract_number.id_for_label }}" class="form-label">
+                                    {% trans "رقم العقد" %}
+                                </label>
+                                {{ form.contract_number }}
+                                <small class="form-text text-muted">{% trans "يتم توليده تلقائياً إذا ترك فارغاً" %}</small>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.status.id_for_label }}" class="form-label">
+                                    {{ form.status.label }}
+                                </label>
+                                {{ form.status }}
+                            </div>
+
+                            <!-- Contract Salary -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.contract_salary.id_for_label }}" class="form-label">
+                                    {{ form.contract_salary.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    {{ form.contract_salary }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.contract_salary.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.contract_salary.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- فترات العقد -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{% trans "فترات العقد" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Start Date -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.start_date.id_for_label }}" class="form-label">
+                                    {{ form.start_date.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.start_date }}
+                                {% if form.start_date.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.start_date.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- End Date -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.end_date.id_for_label }}" class="form-label">
+                                    {{ form.end_date.label }}
+                                </label>
+                                {{ form.end_date }}
+                                {% if form.end_date.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.end_date.errors|first }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "اتركه فارغاً للعقود غير محددة المدة" %}</small>
+                            </div>
+
+                            <!-- Signed Date -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.signed_date.id_for_label }}" class="form-label">
+                                    {{ form.signed_date.label }}
+                                </label>
+                                {{ form.signed_date }}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Probation Period -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.probation_period.id_for_label }}" class="form-label">
+                                    {{ form.probation_period.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.probation_period }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                                <small class="form-text text-muted">{% trans "فترة التجربة بالأيام (عادة 90 يوم)" %}</small>
+                            </div>
+
+                            <!-- Notice Period -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.notice_period.id_for_label }}" class="form-label">
+                                    {{ form.notice_period.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.notice_period }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                                <small class="form-text text-muted">{% trans "فترة الإشعار قبل الاستقالة (عادة 30 يوم)" %}</small>
+                            </div>
+                        </div>
+
+                        <!-- Contract Duration Info -->
+                        <div class="alert alert-info mb-0" id="contractDurationInfo" style="display: none;">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <span id="durationText"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الملف والشروط -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>{% trans "المرفقات والشروط" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Contract File -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.contract_file.id_for_label }}" class="form-label">
+                                    {{ form.contract_file.label }}
+                                </label>
+                                {{ form.contract_file }}
+                                <small class="form-text text-muted">{% trans "ملف العقد (PDF, DOC, DOCX)" %}</small>
+                                {% if object.contract_file %}
+                                <div class="mt-2">
+                                    <a href="{{ object.contract_file.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-download me-1"></i> {% trans "عرض الملف الحالي" %}
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Terms and Conditions -->
+                        <div class="mb-3">
+                            <label for="{{ form.terms_and_conditions.id_for_label }}" class="form-label">
+                                {{ form.terms_and_conditions.label }}
+                            </label>
+                            {{ form.terms_and_conditions }}
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {{ form.notes }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الحالة -->
+                {% if object %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog me-2"></i>{% trans "الحالة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Submit Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'hr:contract_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize Select2 for employee
+    $('#id_employee').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: '{% trans "اختر الموظف..." %}',
+        allowClear: true,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; },
+            searching: function() { return "{% trans 'جاري البحث...' %}"; }
+        }
+    });
+
+    // Calculate contract duration
+    function calculateDuration() {
+        var startDate = $('#id_start_date').val();
+        var endDate = $('#id_end_date').val();
+
+        if (startDate && endDate) {
+            var start = new Date(startDate);
+            var end = new Date(endDate);
+            var diffTime = Math.abs(end - start);
+            var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            var diffMonths = Math.floor(diffDays / 30);
+            var diffYears = Math.floor(diffMonths / 12);
+            var remainingMonths = diffMonths % 12;
+
+            var text = 'مدة العقد: ';
+            if (diffYears > 0) {
+                text += diffYears + ' سنة ';
+            }
+            if (remainingMonths > 0) {
+                text += remainingMonths + ' شهر ';
+            }
+            text += '(' + diffDays + ' يوم)';
+
+            $('#durationText').text(text);
+            $('#contractDurationInfo').show();
+        } else if (startDate && !endDate) {
+            $('#durationText').text('عقد غير محدد المدة');
+            $('#contractDurationInfo').show();
+        } else {
+            $('#contractDurationInfo').hide();
+        }
+    }
+
+    $('#id_start_date, #id_end_date').on('change', calculateDuration);
+    calculateDuration();
+
+    // Validate end date > start date
+    $('form').on('submit', function(e) {
+        var startDate = $('#id_start_date').val();
+        var endDate = $('#id_end_date').val();
+
+        if (startDate && endDate) {
+            if (new Date(endDate) <= new Date(startDate)) {
+                e.preventDefault();
+                alert('{% trans "تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية" %}');
+                $('#id_end_date').focus();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

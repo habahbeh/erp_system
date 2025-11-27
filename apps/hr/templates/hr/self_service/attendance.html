@@ -1,0 +1,135 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-clipboard-check me-2"></i>{{ title }}</h4>
+
+    <!-- فلتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select name="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الشهر" %}</label>
+                    <select name="month" class="form-select">
+                        {% for m, name in months %}
+                        <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i>{% trans "تصفية" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- إحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body">
+                    <h4 class="text-success">{{ stats.present }}</h4>
+                    <small>{% trans "حضور" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body">
+                    <h4 class="text-danger">{{ stats.absent }}</h4>
+                    <small>{% trans "غياب" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body">
+                    <h4 class="text-warning">{{ stats.late }}</h4>
+                    <small>{% trans "تأخير" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body">
+                    <h4 class="text-info">{{ stats.total_hours|floatformat:1 }}</h4>
+                    <small>{% trans "ساعات عمل" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body">
+                    <h4 class="text-primary">{{ stats.overtime_hours|floatformat:1 }}</h4>
+                    <small>{% trans "ساعات إضافية" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول الحضور -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "الدخول" %}</th>
+                            <th>{% trans "الخروج" %}</th>
+                            <th>{% trans "ساعات العمل" %}</th>
+                            <th>{% trans "التأخير" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in attendance_records %}
+                        <tr>
+                            <td>{{ record.date|date:"Y-m-d" }} <small class="text-muted">({{ record.date|date:"l" }})</small></td>
+                            <td>{{ record.check_in|time:"H:i"|default:"-" }}</td>
+                            <td>{{ record.check_out|time:"H:i"|default:"-" }}</td>
+                            <td>{{ record.working_hours|floatformat:1|default:"-" }}</td>
+                            <td>{% if record.late_minutes > 0 %}<span class="text-warning">{{ record.late_minutes }} {% trans "دقيقة" %}</span>{% else %}-{% endif %}</td>
+                            <td>
+                                <span class="badge bg-{% if record.status == 'present' %}success{% elif record.status == 'absent' %}danger{% else %}secondary{% endif %}">
+                                    {{ record.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">{% trans "لا توجد سجلات حضور" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

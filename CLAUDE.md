@@ -251,3 +251,4 @@ Currently disabled: sales, purchases, inventory, hr
 - Debug toolbar is installed for development (django-debug-toolbar)
 - django-extensions provides enhanced management commands
 - Widget tweaks and django-select2 are used for form rendering
+- اذا كان لدي مواد في الفروع الاخرى هل يحضرها؟ او اقدر اختارها بقائمة المواد؟ جواب مباشر جدا

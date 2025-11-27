@@ -1,17 +1,27 @@
 {% extends 'base/base.html' %}
-{% load i18n widget_tweaks %}
+{% load i18n static %}
 
 {% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="#">الموارد البشرية</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'hr:employee_list' %}">الموظفين</a></li>
-            <li class="breadcrumb-item active">{{ title }}</li>
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
         </ol>
     </nav>
 
@@ -19,234 +29,222 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات الموظف" %}</p>
         </div>
         <div>
             <a href="{% url 'hr:employee_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-right me-1"></i> العودة
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
             </a>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-10 mx-auto">
-            <form method="post" novalidate>
+        <div class="col-lg-11 mx-auto">
+            <form method="post" enctype="multipart/form-data" novalidate id="employeeForm">
                 {% csrf_token %}
 
                 {% if form.non_field_errors %}
-                <div class="alert alert-danger" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
                     {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 {% endif %}
 
-                <!-- Basic Information -->
-                <div class="card mb-4">
+                <!-- البيانات الشخصية الأساسية -->
+                <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>المعلومات الأساسية</h5>
+                        <h6 class="mb-0"><i class="fas fa-user me-2"></i>{% trans "البيانات الشخصية" %}</h6>
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <!-- Employee Number -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.employee_number.id_for_label }}" class="form-label">
-                                    {{ form.employee_number.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                {{ form.employee_number }}
-                                {% if form.employee_number.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.employee_number.errors|first }}
-                                    </div>
-                                {% endif %}
+                            <!-- Photo Upload -->
+                            <div class="col-md-2 mb-3 text-center">
+                                <label class="form-label d-block">{% trans "الصورة" %}</label>
+                                <div class="position-relative d-inline-block">
+                                    {% if object.photo %}
+                                        <img src="{{ object.photo.url }}" alt="Photo" id="photoPreview"
+                                             class="rounded-circle shadow-sm" style="width: 100px; height: 100px; object-fit: cover;">
+                                    {% else %}
+                                        <div id="photoPreview" class="rounded-circle bg-light d-flex align-items-center justify-content-center shadow-sm"
+                                             style="width: 100px; height: 100px; margin: 0 auto;">
+                                            <i class="fas fa-user fa-3x text-muted"></i>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="mt-2">
+                                    {{ form.photo }}
+                                </div>
                             </div>
 
-                            <!-- User Link -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.user.id_for_label }}" class="form-label">
-                                    {{ form.user.label }}
-                                </label>
-                                {{ form.user }}
-                                {% if form.user.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.user.errors|first }}
+                            <div class="col-md-10">
+                                <div class="row">
+                                    <!-- First Name -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                                            {{ form.first_name.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.first_name }}
+                                        {% if form.first_name.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.first_name.errors|first }}</div>
+                                        {% endif %}
                                     </div>
-                                {% endif %}
-                                <small class="form-text text-muted">ربط الموظف بحساب مستخدم (اختياري)</small>
+
+                                    <!-- Middle Name -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.middle_name.id_for_label }}" class="form-label">
+                                            {{ form.middle_name.label }}
+                                        </label>
+                                        {{ form.middle_name }}
+                                        {% if form.middle_name.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.middle_name.errors|first }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Last Name -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.last_name.id_for_label }}" class="form-label">
+                                            {{ form.last_name.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.last_name }}
+                                        {% if form.last_name.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.last_name.errors|first }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Full Name English -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.full_name_en.id_for_label }}" class="form-label">
+                                            {% trans "الاسم بالإنجليزية" %}
+                                        </label>
+                                        {{ form.full_name_en }}
+                                    </div>
+
+                                    <!-- National ID -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.national_id.id_for_label }}" class="form-label">
+                                            {{ form.national_id.label }}
+                                        </label>
+                                        {{ form.national_id }}
+                                        {% if form.national_id.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.national_id.errors|first }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Date of Birth -->
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.date_of_birth.id_for_label }}" class="form-label">
+                                            {{ form.date_of_birth.label }}
+                                        </label>
+                                        {{ form.date_of_birth }}
+                                        {% if form.date_of_birth.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.date_of_birth.errors|first }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Personal Information -->
-                <div class="card mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-user me-2"></i>البيانات الشخصية</h5>
-                    </div>
-                    <div class="card-body">
+                        <hr class="my-3">
+
                         <div class="row">
-                            <!-- First Name -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.first_name.id_for_label }}" class="form-label">
-                                    {{ form.first_name.label }}
-                                    <span class="text-danger">*</span>
+                            <!-- Nationality -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.nationality.id_for_label }}" class="form-label">
+                                    {{ form.nationality.label }}
                                 </label>
-                                {{ form.first_name }}
-                                {% if form.first_name.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.first_name.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- Father Name -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.father_name.id_for_label }}" class="form-label">
-                                    {{ form.father_name.label }}
-                                </label>
-                                {{ form.father_name }}
-                                {% if form.father_name.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.father_name.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- Last Name -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.last_name.id_for_label }}" class="form-label">
-                                    {{ form.last_name.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                {{ form.last_name }}
-                                {% if form.last_name.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.last_name.errors|first }}
-                                    </div>
-                                {% endif %}
+                                {{ form.nationality }}
                             </div>
 
                             <!-- Gender -->
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="{{ form.gender.id_for_label }}" class="form-label">
                                     {{ form.gender.label }}
-                                    <span class="text-danger">*</span>
                                 </label>
                                 {{ form.gender }}
-                                {% if form.gender.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.gender.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- Date of Birth -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.date_of_birth.id_for_label }}" class="form-label">
-                                    {{ form.date_of_birth.label }}
-                                </label>
-                                {{ form.date_of_birth }}
-                                {% if form.date_of_birth.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.date_of_birth.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- National ID -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.national_id.id_for_label }}" class="form-label">
-                                    {{ form.national_id.label }}
-                                </label>
-                                {{ form.national_id }}
-                                {% if form.national_id.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.national_id.errors|first }}
-                                    </div>
-                                {% endif %}
                             </div>
 
                             <!-- Marital Status -->
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="{{ form.marital_status.id_for_label }}" class="form-label">
                                     {{ form.marital_status.label }}
                                 </label>
                                 {{ form.marital_status }}
-                                {% if form.marital_status.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.marital_status.errors|first }}
-                                    </div>
-                                {% endif %}
+                            </div>
+
+                            <!-- User Account -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.user.id_for_label }}" class="form-label">
+                                    {% trans "حساب المستخدم" %}
+                                </label>
+                                {{ form.user }}
+                                <small class="form-text text-muted">{% trans "ربط بحساب نظام (اختياري)" %}</small>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Contact Information -->
-                <div class="card mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="fas fa-phone me-2"></i>معلومات الاتصال</h5>
+                <!-- معلومات الاتصال -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-phone-alt me-2"></i>{% trans "معلومات الاتصال" %}</h6>
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <!-- Phone -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.phone.id_for_label }}" class="form-label">
-                                    {{ form.phone.label }}
-                                </label>
-                                {{ form.phone }}
-                                {% if form.phone.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.phone.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
                             <!-- Mobile -->
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="{{ form.mobile.id_for_label }}" class="form-label">
                                     {{ form.mobile.label }}
                                     <span class="text-danger">*</span>
                                 </label>
-                                {{ form.mobile }}
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-mobile-alt"></i></span>
+                                    {{ form.mobile }}
+                                </div>
                                 {% if form.mobile.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.mobile.errors|first }}
-                                    </div>
+                                    <div class="invalid-feedback d-block">{{ form.mobile.errors|first }}</div>
                                 {% endif %}
+                            </div>
+
+                            <!-- Phone -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.phone.id_for_label }}" class="form-label">
+                                    {{ form.phone.label }}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-phone"></i></span>
+                                    {{ form.phone }}
+                                </div>
                             </div>
 
                             <!-- Email -->
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <label for="{{ form.email.id_for_label }}" class="form-label">
                                     {{ form.email.label }}
                                 </label>
-                                {{ form.email }}
-                                {% if form.email.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.email.errors|first }}
-                                    </div>
-                                {% endif %}
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                    {{ form.email }}
+                                </div>
                             </div>
 
                             <!-- Address -->
-                            <div class="col-md-12 mb-3">
+                            <div class="col-12 mb-3">
                                 <label for="{{ form.address.id_for_label }}" class="form-label">
                                     {{ form.address.label }}
                                 </label>
                                 {{ form.address }}
-                                {% if form.address.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.address.errors|first }}
-                                    </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Employment Information -->
-                <div class="card mb-4">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="fas fa-briefcase me-2"></i>معلومات الوظيفة</h5>
+                <!-- البيانات الوظيفية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-briefcase me-2"></i>{% trans "البيانات الوظيفية" %}</h6>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -258,9 +256,7 @@
                                 </label>
                                 {{ form.department }}
                                 {% if form.department.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.department.errors|first }}
-                                    </div>
+                                    <div class="invalid-feedback d-block">{{ form.department.errors|first }}</div>
                                 {% endif %}
                             </div>
 
@@ -271,10 +267,32 @@
                                 </label>
                                 {{ form.job_title }}
                                 {% if form.job_title.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.job_title.errors|first }}
-                                    </div>
+                                    <div class="invalid-feedback d-block">{{ form.job_title.errors|first }}</div>
                                 {% endif %}
+                            </div>
+
+                            <!-- Job Grade -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.job_grade.id_for_label }}" class="form-label">
+                                    {{ form.job_grade.label }}
+                                </label>
+                                {{ form.job_grade }}
+                            </div>
+
+                            <!-- Branch -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.branch.id_for_label }}" class="form-label">
+                                    {{ form.branch.label }}
+                                </label>
+                                {{ form.branch }}
+                            </div>
+
+                            <!-- Manager -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.manager.id_for_label }}" class="form-label">
+                                    {{ form.manager.label }}
+                                </label>
+                                {{ form.manager }}
                             </div>
 
                             <!-- Hire Date -->
@@ -285,22 +303,7 @@
                                 </label>
                                 {{ form.hire_date }}
                                 {% if form.hire_date.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.hire_date.errors|first }}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- Contract Type -->
-                            <div class="col-md-4 mb-3">
-                                <label for="{{ form.contract_type.id_for_label }}" class="form-label">
-                                    {{ form.contract_type.label }}
-                                </label>
-                                {{ form.contract_type }}
-                                {% if form.contract_type.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.contract_type.errors|first }}
-                                    </div>
+                                    <div class="invalid-feedback d-block">{{ form.hire_date.errors|first }}</div>
                                 {% endif %}
                             </div>
 
@@ -308,45 +311,247 @@
                             <div class="col-md-4 mb-3">
                                 <label for="{{ form.employment_status.id_for_label }}" class="form-label">
                                     {{ form.employment_status.label }}
-                                    <span class="text-danger">*</span>
                                 </label>
                                 {{ form.employment_status }}
-                                {% if form.employment_status.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.employment_status.errors|first }}
-                                    </div>
-                                {% endif %}
                             </div>
 
-                            <!-- Is Active -->
+                            <!-- Status -->
                             <div class="col-md-4 mb-3">
-                                <label class="form-label d-block">&nbsp;</label>
-                                <div class="form-check">
-                                    {{ form.is_active }}
-                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                        {{ form.is_active.label }}
-                                    </label>
-                                </div>
-                                {% if form.is_active.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.is_active.errors|first }}
-                                    </div>
-                                {% endif %}
+                                <label for="{{ form.status.id_for_label }}" class="form-label">
+                                    {% trans "حالة الموظف" %}
+                                </label>
+                                {{ form.status }}
+                            </div>
+
+                            <!-- Social Security Number -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.social_security_number.id_for_label }}" class="form-label">
+                                    {{ form.social_security_number.label }}
+                                </label>
+                                {{ form.social_security_number }}
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- البيانات المالية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>{% trans "البيانات المالية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Basic Salary -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.basic_salary.id_for_label }}" class="form-label">
+                                    {{ form.basic_salary.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    {{ form.basic_salary }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.basic_salary.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.basic_salary.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Fuel Allowance -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.fuel_allowance.id_for_label }}" class="form-label">
+                                    {{ form.fuel_allowance.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.fuel_allowance }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                            </div>
+
+                            <!-- Other Allowances -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.other_allowances.id_for_label }}" class="form-label">
+                                    {{ form.other_allowances.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.other_allowances }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                            </div>
+
+                            <!-- Total Salary Preview -->
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">{% trans "إجمالي الراتب" %}</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control text-end bg-light" id="totalSalaryPreview" readonly value="0.00">
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <div class="row">
+                            <!-- Social Security Salary -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.social_security_salary.id_for_label }}" class="form-label">
+                                    {{ form.social_security_salary.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.social_security_salary }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.social_security_salary.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.social_security_salary.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Currency -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.currency.id_for_label }}" class="form-label">
+                                    {{ form.currency.label }}
+                                </label>
+                                {{ form.currency }}
+                            </div>
+
+                            <!-- Working Hours Per Day -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.working_hours_per_day.id_for_label }}" class="form-label">
+                                    {{ form.working_hours_per_day.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.working_hours_per_day }}
+                                    <span class="input-group-text">{% trans "ساعة" %}</span>
+                                </div>
+                            </div>
+
+                            <!-- Working Days Per Month -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.working_days_per_month.id_for_label }}" class="form-label">
+                                    {{ form.working_days_per_month.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.working_days_per_month }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- أرصدة الإجازات -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{% trans "أرصدة الإجازات" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Annual Leave Balance -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.annual_leave_balance.id_for_label }}" class="form-label">
+                                    {{ form.annual_leave_balance.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.annual_leave_balance }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                            </div>
+
+                            <!-- Sick Leave Balance -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.sick_leave_balance.id_for_label }}" class="form-label">
+                                    {{ form.sick_leave_balance.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.sick_leave_balance }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- البيانات البنكية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h6 class="mb-0"><i class="fas fa-university me-2"></i>{% trans "البيانات البنكية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Bank Name -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.bank_name.id_for_label }}" class="form-label">
+                                    {{ form.bank_name.label }}
+                                </label>
+                                {{ form.bank_name }}
+                            </div>
+
+                            <!-- Bank Branch -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.bank_branch.id_for_label }}" class="form-label">
+                                    {{ form.bank_branch.label }}
+                                </label>
+                                {{ form.bank_branch }}
+                            </div>
+
+                            <!-- Bank Account -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.bank_account.id_for_label }}" class="form-label">
+                                    {{ form.bank_account.label }}
+                                </label>
+                                {{ form.bank_account }}
+                            </div>
+
+                            <!-- IBAN -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.iban.id_for_label }}" class="form-label">
+                                    IBAN
+                                </label>
+                                {{ form.iban }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ملاحظات -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i>{% trans "ملاحظات" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                {{ form.notes }}
+                            </div>
+
+                            {% if object %}
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        {{ form.is_active.label }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Submit Buttons -->
-                <div class="card">
+                <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <a href="{% url 'hr:employee_list' %}" class="btn btn-light">
-                                <i class="fas fa-times me-1"></i> إلغاء
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> {{ submit_text }}
-                            </button>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -354,51 +559,77 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    // Initialize Select2 for dropdown fields
-    $(document).ready(function() {
-        // User field
-        $('#id_user').select2({
+$(document).ready(function() {
+    // Initialize Select2 for dropdowns
+    function initSelect2(selector, placeholder) {
+        $(selector).select2({
             theme: 'bootstrap-5',
             width: '100%',
             dir: "rtl",
-            placeholder: 'اختر المستخدم (اختياري)...',
+            placeholder: placeholder,
             allowClear: true,
             language: {
-                noResults: function() { return "لا توجد نتائج"; },
-                searching: function() { return "جاري البحث..."; }
+                noResults: function() { return "{% trans 'لا توجد نتائج' %}"; },
+                searching: function() { return "{% trans 'جاري البحث...' %}"; }
             }
         });
+    }
 
-        // Department field
-        $('#id_department').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            dir: "rtl",
-            placeholder: 'اختر القسم...',
-            allowClear: true,
-            language: {
-                noResults: function() { return "لا توجد نتائج"; },
-                searching: function() { return "جاري البحث..."; }
-            }
-        });
+    initSelect2('#id_user', '{% trans "اختر المستخدم (اختياري)..." %}');
+    initSelect2('#id_department', '{% trans "اختر القسم..." %}');
+    initSelect2('#id_job_title', '{% trans "اختر المسمى الوظيفي..." %}');
+    initSelect2('#id_job_grade', '{% trans "اختر الدرجة الوظيفية..." %}');
+    initSelect2('#id_manager', '{% trans "اختر المدير المباشر..." %}');
 
-        // Job Title field
-        $('#id_job_title').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            dir: "rtl",
-            placeholder: 'اختر المسمى الوظيفي...',
-            allowClear: true,
-            language: {
-                noResults: function() { return "لا توجد نتائج"; },
-                searching: function() { return "جاري البحث..."; }
-            }
-        });
+    // Calculate total salary
+    function calculateTotalSalary() {
+        var basicSalary = parseFloat($('#id_basic_salary').val()) || 0;
+        var fuelAllowance = parseFloat($('#id_fuel_allowance').val()) || 0;
+        var otherAllowances = parseFloat($('#id_other_allowances').val()) || 0;
+        var total = basicSalary + fuelAllowance + otherAllowances;
+        $('#totalSalaryPreview').val(total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    }
+
+    $('#id_basic_salary, #id_fuel_allowance, #id_other_allowances').on('input', calculateTotalSalary);
+    calculateTotalSalary();
+
+    // Photo preview
+    $('#id_photo').on('change', function(e) {
+        var file = e.target.files[0];
+        if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var preview = $('#photoPreview');
+                if (preview.is('img')) {
+                    preview.attr('src', e.target.result);
+                } else {
+                    preview.html('<img src="' + e.target.result + '" class="rounded-circle" style="width: 100px; height: 100px; object-fit: cover;">');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
     });
+
+    // Auto-fill social security salary with basic salary if empty
+    $('#id_basic_salary').on('blur', function() {
+        var ssField = $('#id_social_security_salary');
+        if (!ssField.val()) {
+            ssField.val($(this).val());
+        }
+    });
+
+    // Update job title options based on department
+    $('#id_department').on('change', function() {
+        var departmentId = $(this).val();
+        if (departmentId) {
+            // Could add AJAX to filter job titles by department if needed
+        }
+    });
+});
 </script>
 {% endblock %}

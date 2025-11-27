@@ -1,0 +1,268 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                {% trans "مسير الرواتب" %}: {{ payroll.number }}
+                {% if payroll.status == 'draft' %}
+                    <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                {% elif payroll.status == 'processing' %}
+                    <span class="badge bg-warning">{% trans "قيد المعالجة" %}</span>
+                {% elif payroll.status == 'calculated' %}
+                    <span class="badge bg-info">{% trans "تم الحساب" %}</span>
+                {% elif payroll.status == 'approved' %}
+                    <span class="badge bg-success">{% trans "معتمد" %}</span>
+                {% elif payroll.status == 'paid' %}
+                    <span class="badge bg-primary">{% trans "مدفوع" %}</span>
+                {% elif payroll.status == 'cancelled' %}
+                    <span class="badge bg-danger">{% trans "ملغي" %}</span>
+                {% endif %}
+            </h1>
+            <p class="text-muted mb-0">{{ payroll.get_period_month_display }} {{ payroll.period_year }}</p>
+        </div>
+        <div class="btn-group">
+            {% if payroll.status == 'draft' %}
+                <a href="{% url 'hr:payroll_update' payroll.pk %}" class="btn btn-outline-primary">
+                    <i class="fas fa-edit"></i> {% trans "تعديل" %}
+                </a>
+                <a href="{% url 'hr:payroll_process' payroll.pk %}" class="btn btn-primary">
+                    <i class="fas fa-cogs"></i> {% trans "معالجة" %}
+                </a>
+                <a href="{% url 'hr:payroll_delete' payroll.pk %}" class="btn btn-outline-danger">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </a>
+            {% elif payroll.status == 'calculated' %}
+                <a href="{% url 'hr:payroll_approve' payroll.pk %}" class="btn btn-success">
+                    <i class="fas fa-check"></i> {% trans "اعتماد" %}
+                </a>
+            {% elif payroll.status == 'approved' %}
+                <a href="{% url 'hr:payroll_payment' payroll.pk %}" class="btn btn-primary">
+                    <i class="fas fa-money-bill"></i> {% trans "صرف الرواتب" %}
+                </a>
+            {% endif %}
+            <button class="btn btn-outline-secondary" onclick="window.print()">
+                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Payroll Info Card -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات المسير" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th class="text-muted">{% trans "رقم المسير" %}:</th>
+                                    <td>{{ payroll.number }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">{% trans "الفترة" %}:</th>
+                                    <td>{{ payroll.get_period_month_display }} {{ payroll.period_year }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">{% trans "من تاريخ" %}:</th>
+                                    <td>{{ payroll.from_date|date:"Y-m-d" }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">{% trans "إلى تاريخ" %}:</th>
+                                    <td>{{ payroll.to_date|date:"Y-m-d" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th class="text-muted">{% trans "الفرع" %}:</th>
+                                    <td>{{ payroll.branch|default:"جميع الفروع" }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">{% trans "الحالة" %}:</th>
+                                    <td>{{ payroll.get_status_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">{% trans "تاريخ الإنشاء" %}:</th>
+                                    <td>{{ payroll.created_at|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% if payroll.approval_date %}
+                                <tr>
+                                    <th class="text-muted">{% trans "تاريخ الاعتماد" %}:</th>
+                                    <td>{{ payroll.approval_date|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-calculator"></i> {% trans "ملخص المسير" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th class="text-muted">{% trans "عدد الموظفين" %}:</th>
+                            <td class="text-end">{{ stats.count|default:0 }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "إجمالي الرواتب" %}:</th>
+                            <td class="text-end">{{ stats.total_basic|default:0|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "إجمالي البدلات" %}:</th>
+                            <td class="text-end">{{ stats.total_allowances|default:0|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">{% trans "إجمالي الخصومات" %}:</th>
+                            <td class="text-end text-danger">{{ stats.total_deductions|default:0|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="border-top">
+                            <th class="fw-bold">{% trans "صافي الرواتب" %}:</th>
+                            <td class="text-end fw-bold text-success fs-5">{{ stats.total_net|default:0|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Details Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="fas fa-users"></i> {% trans "تفاصيل رواتب الموظفين" %}</h6>
+            {% if payroll.status == 'draft' %}
+            <a href="{% url 'hr:payroll_process' payroll.pk %}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> {% trans "إضافة موظفين" %}
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="detailsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th class="text-center">{% trans "الراتب الأساسي" %}</th>
+                            <th class="text-center">{% trans "البدلات" %}</th>
+                            <th class="text-center">{% trans "الإضافي" %}</th>
+                            <th class="text-center">{% trans "الخصومات" %}</th>
+                            <th class="text-center">{% trans "الصافي" %}</th>
+                            <th class="text-center">{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detail in details %}
+                        <tr>
+                            <td>
+                                <strong>{{ detail.employee.get_full_name }}</strong>
+                                <br><small class="text-muted">{{ detail.employee.employee_number }}</small>
+                            </td>
+                            <td class="text-center">{{ detail.basic_salary|floatformat:2 }}</td>
+                            <td class="text-center">{{ detail.total_allowances|floatformat:2 }}</td>
+                            <td class="text-center">{{ detail.overtime_amount|floatformat:2 }}</td>
+                            <td class="text-center text-danger">{{ detail.total_deductions|floatformat:2 }}</td>
+                            <td class="text-center fw-bold text-success">{{ detail.net_salary|floatformat:2 }}</td>
+                            <td class="text-center">
+                                {% if detail.is_paid %}
+                                    <span class="badge bg-success">{% trans "مدفوع" %}</span>
+                                {% else %}
+                                    <span class="badge bg-warning">{% trans "قيد الانتظار" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'hr:payslip' detail.pk %}" class="btn btn-outline-info" title="{% trans 'كشف الراتب' %}">
+                                        <i class="fas fa-file-alt"></i>
+                                    </a>
+                                    {% if payroll.status == 'draft' %}
+                                    <a href="{% url 'hr:payroll_detail_edit' detail.pk %}" class="btn btn-outline-primary" title="{% trans 'تعديل' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'hr:payroll_detail_delete' detail.pk %}" class="btn btn-outline-danger" title="{% trans 'حذف' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                {% trans "لا يوجد موظفين في هذا المسير" %}
+                                {% if payroll.status == 'draft' %}
+                                <br>
+                                <a href="{% url 'hr:payroll_process' payroll.pk %}" class="btn btn-primary mt-2">
+                                    <i class="fas fa-plus"></i> {% trans "إضافة موظفين" %}
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if payroll.notes %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-sticky-note"></i> {% trans "ملاحظات" %}</h6>
+        </div>
+        <div class="card-body">
+            {{ payroll.notes|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#detailsTable').DataTable({
+        "pageLength": 50,
+        "order": [[0, "asc"]],
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        }
+    });
+});
+</script>
+{% endblock %}

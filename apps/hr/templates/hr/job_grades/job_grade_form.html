@@ -1,0 +1,262 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات الدرجة الوظيفية" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'hr:job_grade_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <form method="post" novalidate id="jobGradeForm">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- البيانات الأساسية -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-layer-group me-2"></i>{% trans "البيانات الأساسية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Code -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    {{ form.code.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.code.errors|first }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "مثال: G1, G2, G3" %}</small>
+                            </div>
+
+                            <!-- Level -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.level.id_for_label }}" class="form-label">
+                                    {{ form.level.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.level }}
+                                {% if form.level.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.level.errors|first }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "ترتيب الدرجة (1 = الأعلى)" %}</small>
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    {{ form.name.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.name.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Name EN -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.name_en.id_for_label }}" class="form-label">
+                                    {% trans "الاسم بالإنجليزية" %}
+                                </label>
+                                {{ form.name_en }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- نطاق الراتب -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>{% trans "نطاق الراتب" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Min Salary -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.min_salary.id_for_label }}" class="form-label">
+                                    {{ form.min_salary.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.min_salary }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.min_salary.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.min_salary.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Max Salary -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.max_salary.id_for_label }}" class="form-label">
+                                    {{ form.max_salary.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.max_salary }}
+                                    <span class="input-group-text">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.max_salary.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.max_salary.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Salary Range Preview -->
+                        <div class="alert alert-info mb-0" id="salaryRangePreview" style="display: none;">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <span id="salaryRangeText"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الإجازات -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{% trans "الإجازات السنوية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Annual Leave Days -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.annual_leave_days.id_for_label }}" class="form-label">
+                                    {{ form.annual_leave_days.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.annual_leave_days }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                            </div>
+
+                            <!-- Sick Leave Days -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.sick_leave_days.id_for_label }}" class="form-label">
+                                    {{ form.sick_leave_days.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.sick_leave_days }}
+                                    <span class="input-group-text">{% trans "يوم" %}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الوصف -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-align-left me-2"></i>{% trans "معلومات إضافية" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {{ form.description.label }}
+                            </label>
+                            {{ form.description }}
+                        </div>
+
+                        {% if object %}
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'hr:job_grade_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Update salary range preview
+    function updateSalaryRange() {
+        var minSalary = parseFloat($('#id_min_salary').val()) || 0;
+        var maxSalary = parseFloat($('#id_max_salary').val()) || 0;
+
+        if (minSalary > 0 || maxSalary > 0) {
+            var text = 'نطاق الراتب: ' + minSalary.toLocaleString() + ' - ' + maxSalary.toLocaleString() + ' د.أ';
+            $('#salaryRangeText').text(text);
+            $('#salaryRangePreview').show();
+        } else {
+            $('#salaryRangePreview').hide();
+        }
+    }
+
+    $('#id_min_salary, #id_max_salary').on('input', updateSalaryRange);
+    updateSalaryRange();
+
+    // Validate max > min
+    $('form').on('submit', function(e) {
+        var minSalary = parseFloat($('#id_min_salary').val()) || 0;
+        var maxSalary = parseFloat($('#id_max_salary').val()) || 0;
+
+        if (maxSalary > 0 && maxSalary < minSalary) {
+            e.preventDefault();
+            alert('الحد الأقصى للراتب يجب أن يكون أكبر من الحد الأدنى');
+            $('#id_max_salary').focus();
+        }
+    });
+});
+</script>
+{% endblock %}

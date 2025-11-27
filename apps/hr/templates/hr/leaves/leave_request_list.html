@@ -1,0 +1,185 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة طلبات الإجازات" %}</p>
+        </div>
+        <a href="{% url 'hr:leave_request_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "طلب إجازة جديد" %}
+        </a>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                            <small>{% trans "إجمالي الطلبات" %}</small>
+                        </div>
+                        <i class="fas fa-clipboard-list fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.pending|default:0 }}</h3>
+                            <small>{% trans "بانتظار الموافقة" %}</small>
+                        </div>
+                        <i class="fas fa-hourglass-half fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.approved|default:0 }}</h3>
+                            <small>{% trans "موافق عليها" %}</small>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.rejected|default:0 }}</h3>
+                            <small>{% trans "مرفوضة" %}</small>
+                        </div>
+                        <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="statusFilter">
+                        <option value="">{% trans "جميع الحالات" %}</option>
+                        <option value="pending">{% trans "بانتظار الموافقة" %}</option>
+                        <option value="approved">{% trans "موافق عليها" %}</option>
+                        <option value="rejected">{% trans "مرفوضة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="leaveTypeFilter">
+                        <option value="">{% trans "جميع أنواع الإجازات" %}</option>
+                        {% for lt in leave_types %}
+                        <option value="{{ lt.id }}">{{ lt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" id="searchFilter" placeholder="{% trans 'بحث...' %}">
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح الفلاتر" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="leaveRequestsTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رقم الطلب" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "نوع الإجازة" %}</th>
+                            <th>{% trans "من" %}</th>
+                            <th>{% trans "إلى" %}</th>
+                            <th>{% trans "الأيام" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+var dataTable = null;
+
+$(document).ready(function() {
+    dataTable = $('#leaveRequestsTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:leave_request_datatable_ajax' %}",
+            "data": function(d) {
+                d.status = $('#statusFilter').val();
+                d.leave_type = $('#leaveTypeFilter').val();
+                d.search_filter = $('#searchFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0}, {"data": 1}, {"data": 2}, {"data": 3},
+            {"data": 4}, {"data": 5}, {"data": 6}, {"data": 7, "orderable": false}
+        ],
+        "order": [[0, "desc"]],
+        "pageLength": 25,
+        "language": {"url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"}
+    });
+
+    $('#statusFilter, #leaveTypeFilter').on('change', function() { dataTable.ajax.reload(); });
+    $('#searchFilter').on('keyup', function() {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(function() { dataTable.ajax.reload(); }, 500);
+    });
+    $('#clearFilters').on('click', function() {
+        $('#statusFilter, #leaveTypeFilter, #searchFilter').val('');
+        dataTable.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

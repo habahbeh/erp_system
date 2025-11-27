@@ -1,0 +1,328 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        border-radius: 15px;
+    }
+    .filter-card .form-label { color: white; }
+    .filter-card .form-select, .filter-card .form-control {
+        background-color: rgba(255,255,255,0.9);
+    }
+    .summary-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-money-bill-wave me-2"></i>{{ title }}</h4>
+
+    <!-- الفلاتر -->
+    <div class="card filter-card mb-4 shadow">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select name="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الشهر" %}</label>
+                    <select name="month" class="form-select">
+                        <option value="">{% trans "جميع الشهور" %}</option>
+                        {% for m, name in months %}
+                        <option value="{{ m }}" {% if month == m|stringformat:"i" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "جميع الأقسام" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"i" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-light w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ملخص الرواتب -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100 bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50">{% trans "عدد الموظفين" %}</h6>
+                            <h3>{{ stats.employee_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100 bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50">{% trans "الراتب الأساسي" %}</h6>
+                            <h3>{{ stats.total_basic|floatformat:0|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-money-check fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100 bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50">{% trans "إجمالي البدلات" %}</h6>
+                            <h3>{{ stats.total_allowances|floatformat:0|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-plus-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100 bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-white-50">{% trans "إجمالي الخصومات" %}</h6>
+                            <h3>{{ stats.total_deductions|floatformat:0|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-minus-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "صافي الرواتب" %}</h6>
+                    <h2 class="text-primary">{{ stats.total_net|floatformat:2|default:0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "أيام العمل" %}</h6>
+                    <h2 class="text-warning">{{ stats.total_working_days|default:0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card summary-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "أيام العمل الفعلية" %}</h6>
+                    <h2 class="text-info">{{ stats.total_actual_days|default:0 }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الرسوم البيانية -->
+    <div class="row mb-4">
+        <div class="col-md-8 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "التوزيع الشهري للرواتب" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ملخص البدلات والخصومات -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">{% trans "إجمالي البدلات" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    <h2 class="text-success">{{ stats.total_allowances|floatformat:0|default:0 }}</h2>
+                    <p class="text-muted mb-0">{% trans "إجمالي جميع البدلات المصروفة" %}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0">{% trans "إجمالي الخصومات" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    <h2 class="text-danger">{{ stats.total_deductions|floatformat:0|default:0 }}</h2>
+                    <p class="text-muted mb-0">{% trans "إجمالي جميع الخصومات المطبقة" %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- التفصيل حسب القسم -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{% trans "الرواتب حسب القسم" %}</h6>
+            <a href="{% url 'hr:export_payroll_excel' %}?year={{ year }}&month={{ month|default:'' }}" class="btn btn-sm btn-success">
+                <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="deptTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "القسم" %}</th>
+                            <th class="text-center">{% trans "عدد الموظفين" %}</th>
+                            <th class="text-center">{% trans "الراتب الأساسي" %}</th>
+                            <th class="text-center">{% trans "البدلات" %}</th>
+                            <th class="text-center">{% trans "الخصومات" %}</th>
+                            <th class="text-center">{% trans "صافي الراتب" %}</th>
+                            <th class="text-center">{% trans "متوسط الراتب" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dept in by_department %}
+                        <tr>
+                            <td>{{ dept.employee__department__name|default:"غير محدد" }}</td>
+                            <td class="text-center">{{ dept.employee_count }}</td>
+                            <td class="text-center">{{ dept.total_basic|floatformat:0 }}</td>
+                            <td class="text-center text-success">{{ dept.total_allowances|floatformat:0 }}</td>
+                            <td class="text-center text-danger">{{ dept.total_deductions|floatformat:0 }}</td>
+                            <td class="text-center fw-bold">{{ dept.total_net|floatformat:0 }}</td>
+                            <td class="text-center text-info">{{ dept.avg_salary|floatformat:0 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const monthlyData = {{ monthly_data|safe }};
+    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+    // رسم بياني شهري
+    if (monthlyData.length > 0) {
+        new Chart(document.getElementById('monthlyChart'), {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(d => monthNames[d.payroll__period_month - 1]),
+                datasets: [
+                    {
+                        label: 'الراتب الأساسي',
+                        data: monthlyData.map(d => d.total_basic),
+                        backgroundColor: '#36b9cc'
+                    },
+                    {
+                        label: 'البدلات',
+                        data: monthlyData.map(d => d.total_allowances),
+                        backgroundColor: '#1cc88a'
+                    },
+                    {
+                        label: 'الخصومات',
+                        data: monthlyData.map(d => d.total_deductions),
+                        backgroundColor: '#e74a3b'
+                    },
+                    {
+                        label: 'صافي الراتب',
+                        data: monthlyData.map(d => d.total_net),
+                        backgroundColor: '#4e73df',
+                        type: 'line',
+                        borderColor: '#4e73df',
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    function exportTable() {
+        let csv = [];
+        const table = document.getElementById('deptTable');
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+            let rowData = [];
+            row.querySelectorAll('th, td').forEach(cell => {
+                rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+            });
+            csv.push(rowData.join(','));
+        });
+        const blob = new Blob(['\ufeff' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'payroll_summary.csv';
+        link.click();
+    }
+</script>
+{% endblock %}

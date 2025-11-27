@@ -1,0 +1,118 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة سجلات العمل الإضافي" %}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'hr:overtime_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "تسجيل عمل إضافي" %}
+            </a>
+            <a href="{% url 'hr:overtime_approve' %}" class="btn btn-outline-success">
+                <i class="fas fa-check-double"></i> {% trans "الموافقات" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                    <small>{% trans "إجمالي السجلات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.pending|default:0 }}</h3>
+                    <small>{% trans "بانتظار الموافقة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.total_hours|floatformat:1|default:0 }}</h3>
+                    <small>{% trans "ساعات معتمدة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body py-3 text-center">
+                    <h3 class="mb-0">{{ stats.total_amount|floatformat:0|default:0 }}</h3>
+                    <small>{% trans "قيمة إجمالية" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="overtimeTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "الساعات" %}</th>
+                            <th>{% trans "المعدل" %}</th>
+                            <th>{% trans "المبلغ" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#overtimeTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": "{% url 'hr:overtime_datatable_ajax' %}",
+        "columns": [
+            {"data": 0}, {"data": 1}, {"data": 2}, {"data": 3},
+            {"data": 4}, {"data": 5}, {"data": 6, "orderable": false}
+        ],
+        "order": [[0, "desc"]],
+        "pageLength": 25,
+        "language": {"url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"}
+    });
+});
+</script>
+{% endblock %}

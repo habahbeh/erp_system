@@ -1,0 +1,146 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "معالجة مسير الرواتب" %}: {{ payroll.number }}</p>
+        </div>
+        <a href="{% url 'hr:payroll_detail' payroll.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "العودة للمسير" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Add All Employees -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-users"></i> {% trans "إضافة جميع الموظفين" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{% trans "إضافة جميع الموظفين النشطين إلى المسير وحساب رواتبهم تلقائياً" %}</p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_all">
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "القسم" %}</label>
+                            {{ process_form.department }}
+                            <small class="text-muted">{% trans "اتركه فارغاً لجميع الأقسام" %}</small>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ process_form.include_inactive }}
+                            <label class="form-check-label" for="id_include_inactive">
+                                {% trans "تضمين الموظفين غير النشطين" %}
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> {% trans "إضافة الجميع" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Selected Employees -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-user-plus"></i> {% trans "إضافة موظفين محددين" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{% trans "اختر موظفين محددين لإضافتهم إلى المسير" %}</p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_selected">
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "الموظفين" %}</label>
+                            {{ bulk_form.employees }}
+                        </div>
+
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-plus"></i> {% trans "إضافة المحددين" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recalculate -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h6 class="mb-0"><i class="fas fa-calculator"></i> {% trans "إعادة حساب الرواتب" %}</h6>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">{% trans "إعادة حساب جميع رواتب الموظفين في المسير بناءً على بيانات الحضور والعمل الإضافي والسلف" %}</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="recalculate">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> {% trans "إعادة الحساب" %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-success text-white">
+            <h6 class="mb-0"><i class="fas fa-check-circle"></i> {% trans "إنهاء المعالجة" %}</h6>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">{% trans "عند الانتهاء من إضافة جميع الموظفين ومراجعة الرواتب، يمكنك إنهاء المعالجة" %}</p>
+            <form method="post" action="{% url 'hr:payroll_detail' payroll.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="finish_processing">
+                <a href="{% url 'hr:payroll_detail' payroll.pk %}" class="btn btn-success">
+                    <i class="fas fa-check"></i> {% trans "إنهاء المعالجة ومراجعة المسير" %}
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('.select2-multiple').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "اختر الموظفين..." %}',
+        allowClear: true,
+        dir: 'rtl'
+    });
+});
+</script>
+{% endblock %}

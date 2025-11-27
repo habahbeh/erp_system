@@ -1,0 +1,231 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة سجلات الحضور والانصراف" %}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'hr:attendance_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "تسجيل حضور" %}
+            </a>
+            <a href="{% url 'hr:bulk_attendance' %}" class="btn btn-outline-primary">
+                <i class="fas fa-users"></i> {% trans "تسجيل جماعي" %}
+            </a>
+            <a href="{% url 'hr:attendance_report' %}" class="btn btn-outline-info">
+                <i class="fas fa-chart-bar"></i> {% trans "التقارير" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                            <small>{% trans "إجمالي السجلات" %}</small>
+                        </div>
+                        <i class="fas fa-clipboard-list fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.present|default:0 }}</h3>
+                            <small>{% trans "حضور" %}</small>
+                        </div>
+                        <i class="fas fa-user-check fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.absent|default:0 }}</h3>
+                            <small>{% trans "غياب" %}</small>
+                        </div>
+                        <i class="fas fa-user-times fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.late|default:0 }}</h3>
+                            <small>{% trans "تأخير" %}</small>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الموظف" %}</label>
+                    <select class="form-select" id="employeeFilter">
+                        <option value="">{% trans "جميع الموظفين" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="present">{% trans "حضور" %}</option>
+                        <option value="absent">{% trans "غياب" %}</option>
+                        <option value="late">{% trans "متأخر" %}</option>
+                        <option value="leave">{% trans "إجازة" %}</option>
+                        <option value="holiday">{% trans "عطلة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "من تاريخ" %}</label>
+                    <input type="date" class="form-control" id="fromDate">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                    <input type="date" class="form-control" id="toDate">
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="button" class="btn btn-primary" id="applyFilters">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="attendanceTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "وقت الحضور" %}</th>
+                            <th>{% trans "وقت الانصراف" %}</th>
+                            <th>{% trans "ساعات العمل" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
+<script>
+var attendanceDataTable = null;
+
+$(document).ready(function() {
+    // Set default dates
+    var today = new Date();
+    var firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    $('#fromDate').val(firstDay.toISOString().split('T')[0]);
+    $('#toDate').val(today.toISOString().split('T')[0]);
+
+    attendanceDataTable = $('#attendanceTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:attendance_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.employee = $('#employeeFilter').val();
+                d.status = $('#statusFilter').val();
+                d.from_date = $('#fromDate').val();
+                d.to_date = $('#toDate').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "date"},
+            {"data": 1, "name": "employee"},
+            {"data": 2, "name": "check_in"},
+            {"data": 3, "name": "check_out"},
+            {"data": 4, "name": "working_hours"},
+            {"data": 5, "name": "status"},
+            {"data": 6, "name": "actions", "orderable": false}
+        ],
+        "order": [[0, "desc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        }
+    });
+
+    $('#applyFilters').on('click', function() {
+        attendanceDataTable.ajax.reload();
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#employeeFilter, #statusFilter').val('');
+        var today = new Date();
+        var firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        $('#fromDate').val(firstDay.toISOString().split('T')[0]);
+        $('#toDate').val(today.toISOString().split('T')[0]);
+        attendanceDataTable.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+{% load inventory_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<style>
+    .badge-expired {
+        background-color: #dc3545;
+        color: white;
+    }
+    .badge-expiring-soon {
+        background-color: #fd7e14;
+        color: white;
+    }
+    .badge-warning {
+        background-color: #ffc107;
+        color: #000;
+    }
+    .badge-good {
+        background-color: #198754;
+        color: white;
+    }
+    .batch-alert {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Alerts -->
+    {% if expired_count > 0 %}
+    <div class="alert alert-danger batch-alert d-flex align-items-center" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <div>
+            <strong>تنبيه!</strong> يوجد <strong>{{ expired_count }}</strong> دفعة منتهية الصلاحية.
+            <a href="{% url 'inventory:batch_expired_report' %}" class="alert-link">عرض التقرير</a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if expiring_soon_count > 0 %}
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <i class="fas fa-clock me-2"></i>
+        <div>
+            يوجد <strong>{{ expiring_soon_count }}</strong> دفعة ستنتهي خلال 30 يوم.
+            <a href="?status=expiring_soon" class="alert-link">عرضها</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة دفعات المواد وتتبع صلاحيتها" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'inventory:batch_expired_report' %}" class="btn btn-warning me-2">
+                <i class="fas fa-exclamation-circle"></i> {% trans "الدفعات المنتهية" %}
+            </a>
+            <a href="{% url 'inventory:batch_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "دفعة جديدة" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "بحث" %}</label>
+                    <input type="text" name="search" class="form-control" value="{{ request.GET.search }}"
+                           placeholder="{% trans 'رقم الدفعة، المادة...' %}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "المستودع" %}</label>
+                    <select name="warehouse" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}" {% if request.GET.warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                                {{ warehouse.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>
+                            {% trans "نشط" %}
+                        </option>
+                        <option value="expiring_soon" {% if request.GET.status == 'expiring_soon' %}selected{% endif %}>
+                            {% trans "ينتهي قريباً (30 يوم)" %}
+                        </option>
+                        <option value="expired" {% if request.GET.status == 'expired' %}selected{% endif %}>
+                            {% trans "منتهي" %}
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="batchTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم الدفعة" %}</th>
+                            <th>{% trans "المادة" %}</th>
+                            <th>{% trans "المستودع" %}</th>
+                            <th>{% trans "الكمية" %}</th>
+                            <th>{% trans "القيمة" %}</th>
+                            <th>{% trans "تاريخ الإنتاج" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th>{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for batch in batches %}
+                        <tr {% if batch.is_expired %}class="table-danger"{% elif batch.get_expiry_status == 'expiring_soon' %}class="table-warning"{% endif %}>
+                            <td>
+                                <a href="{% url 'inventory:batch_detail' batch.pk %}" class="fw-bold text-primary">
+                                    {{ batch.batch_number }}
+                                </a>
+                            </td>
+                            <td>
+                                {{ batch.item.name }}
+                                {% if batch.item_variant %}
+                                    <small class="text-muted d-block">{{ batch.item_variant.code }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ batch.warehouse.name }}</td>
+                            <td>
+                                {{ batch.quantity|floatformat:2 }}
+                                {% if batch.reserved_quantity > 0 %}
+                                    <small class="text-muted d-block">محجوز: {{ batch.reserved_quantity|floatformat:2 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ batch.total_value|floatformat:2 }}</td>
+                            <td>{{ batch.manufacturing_date|date:"Y-m-d"|default:"-" }}</td>
+                            <td>
+                                {{ batch.expiry_date|date:"Y-m-d"|default:"-" }}
+                                {% if batch.expiry_date and batch.days_to_expiry is not None %}
+                                    <small class="d-block text-muted">
+                                        {% if batch.days_to_expiry < 0 %}
+                                            <span class="text-danger">منتهي منذ {{ batch.days_to_expiry|abs }} يوم</span>
+                                        {% elif batch.days_to_expiry == 0 %}
+                                            <span class="text-danger">ينتهي اليوم</span>
+                                        {% else %}
+                                            باقي {{ batch.days_to_expiry }} يوم
+                                        {% endif %}
+                                    </small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if batch.is_expired %}
+                                    <span class="badge badge-expired">
+                                        <i class="fas fa-times-circle"></i> {% trans "منتهي" %}
+                                    </span>
+                                {% elif batch.get_expiry_status == 'expiring_soon' %}
+                                    <span class="badge badge-expiring-soon">
+                                        <i class="fas fa-exclamation-triangle"></i> {% trans "ينتهي قريباً" %}
+                                    </span>
+                                {% elif batch.get_expiry_status == 'warning' %}
+                                    <span class="badge badge-warning">
+                                        <i class="fas fa-clock"></i> {% trans "تحذير" %}
+                                    </span>
+                                {% elif batch.get_expiry_status == 'good' %}
+                                    <span class="badge badge-good">
+                                        <i class="fas fa-check-circle"></i> {% trans "جيد" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "بدون صلاحية" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'inventory:batch_detail' batch.pk %}" class="btn btn-sm btn-info" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'inventory:batch_update' batch.pk %}" class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">{% trans "لا توجد دفعات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#batchTable').DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "order": [[6, 'asc']], // Order by expiry date
+        "pageLength": 25
+    });
+});
+</script>
+{% endblock %}

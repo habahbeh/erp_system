@@ -1,0 +1,367 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+    }
+    .filter-card .form-label { color: white; }
+    .filter-card .form-select, .filter-card .form-control {
+        background-color: rgba(255,255,255,0.9);
+    }
+    .chart-container {
+        position: relative;
+        height: 250px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-calendar-alt me-2"></i>{{ title }}</h4>
+
+    <!-- الفلاتر -->
+    <div class="card filter-card mb-4 shadow">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select name="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "جميع الأقسام" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"i" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "نوع الإجازة" %}</label>
+                    <select name="leave_type" class="form-select">
+                        <option value="">{% trans "جميع الأنواع" %}</option>
+                        {% for lt in leave_types %}
+                        <option value="{{ lt.id }}" {% if selected_leave_type == lt.id|stringformat:"i" %}selected{% endif %}>{{ lt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-light w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- الإحصائيات الرئيسية -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
+                    <h3>{{ stats.total_requests|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الطلبات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.pending|default:0 }}</h3>
+                    <small class="text-muted">{% trans "معلقة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.approved|default:0 }}</h3>
+                    <small class="text-muted">{% trans "موافق عليها" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.rejected|default:0 }}</h3>
+                    <small class="text-muted">{% trans "مرفوضة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-ban fa-2x text-secondary mb-2"></i>
+                    <h3 class="text-secondary">{{ stats.cancelled|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ملغاة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-day fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ stats.total_days|default:0 }}</h3>
+                    <small class="text-muted">{% trans "أيام إجازة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الرسوم البيانية -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "التوزيع الشهري للإجازات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "التوزيع حسب نوع الإجازة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- زر التصدير -->
+    <div class="d-flex justify-content-end mb-4">
+        <a href="{% url 'hr:export_leaves_excel' %}?year={{ year }}" class="btn btn-success">
+            <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+        </a>
+    </div>
+
+    <!-- التفصيل حسب نوع الإجازة -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "حسب نوع الإجازة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "النوع" %}</th>
+                                    <th class="text-center">{% trans "الطلبات" %}</th>
+                                    <th class="text-center">{% trans "الأيام" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in by_leave_type %}
+                                <tr>
+                                    <td>{{ item.leave_type__name|default:"غير محدد" }}</td>
+                                    <td class="text-center">{{ item.count }}</td>
+                                    <td class="text-center">{{ item.total_days|default:0 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "حسب القسم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "القسم" %}</th>
+                                    <th class="text-center">{% trans "الطلبات" %}</th>
+                                    <th class="text-center">{% trans "الأيام" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in by_department %}
+                                <tr>
+                                    <td>{{ item.employee__department__name|default:"غير محدد" }}</td>
+                                    <td class="text-center">{{ item.count }}</td>
+                                    <td class="text-center">{{ item.total_days|default:0 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- أرصدة الإجازات -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">{% trans "ملخص أرصدة الإجازات" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "نوع الإجازة" %}</th>
+                            <th class="text-center">{% trans "الرصيد الكلي" %}</th>
+                            <th class="text-center">{% trans "المستخدم" %}</th>
+                            <th class="text-center">{% trans "المتبقي" %}</th>
+                            <th class="text-center">{% trans "نسبة الاستخدام" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bal in balances %}
+                        <tr>
+                            <td>{{ bal.leave_type__name }}</td>
+                            <td class="text-center">{{ bal.total_balance|floatformat:0 }}</td>
+                            <td class="text-center text-danger">{{ bal.used|floatformat:0 }}</td>
+                            <td class="text-center text-success">{{ bal.remaining|floatformat:0 }}</td>
+                            <td class="text-center">
+                                {% if bal.total_balance %}
+                                {% widthratio bal.used bal.total_balance 100 as usage_percent %}
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if usage_percent > 80 %}bg-danger{% elif usage_percent > 50 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ usage_percent }}%">
+                                        {{ usage_percent }}%
+                                    </div>
+                                </div>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const monthlyData = {{ monthly_trend|safe }};
+    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const byLeaveType = {{ by_leave_type|safe }};
+
+    // رسم بياني شهري
+    if (monthlyData.length > 0) {
+        new Chart(document.getElementById('monthlyChart'), {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(d => monthNames[d.month - 1]),
+                datasets: [
+                    {
+                        label: 'عدد الطلبات',
+                        data: monthlyData.map(d => d.count),
+                        backgroundColor: '#4e73df',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'أيام الإجازة',
+                        data: monthlyData.map(d => d.total_days),
+                        backgroundColor: '#1cc88a',
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+    }
+
+    // رسم بياني حسب النوع
+    const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
+    if (byLeaveType.length > 0) {
+        new Chart(document.getElementById('typeChart'), {
+            type: 'pie',
+            data: {
+                labels: byLeaveType.map(d => d.leave_type__name || 'غير محدد'),
+                datasets: [{
+                    data: byLeaveType.map(d => d.total_days),
+                    backgroundColor: colors
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12 }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

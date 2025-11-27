@@ -1,0 +1,337 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border-radius: 15px;
+    }
+    .filter-card .form-label { color: white; }
+    .filter-card .form-select { background-color: rgba(255,255,255,0.9); }
+    .chart-container { position: relative; height: 250px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-hand-holding-usd me-2"></i>{{ title }}</h4>
+
+    <!-- الفلاتر -->
+    <div class="card filter-card mb-4 shadow">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select name="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "جميع الحالات" %}</option>
+                        {% for val, name in status_choices %}
+                        <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "جميع الأقسام" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"i" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-light w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-invoice fa-2x text-primary mb-2"></i>
+                    <h3>{{ stats.total_count|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الطلبات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.pending|default:0 }}</h3>
+                    <small class="text-muted">{% trans "معلق" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-check fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.approved|default:0 }}</h3>
+                    <small class="text-muted">{% trans "معتمد" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ stats.disbursed|default:0 }}</h3>
+                    <small class="text-muted">{% trans "مصروف" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-double fa-2x text-primary mb-2"></i>
+                    <h3 class="text-primary">{{ stats.fully_paid|default:0 }}</h3>
+                    <small class="text-muted">{% trans "مسدد" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <i class="fas fa-times fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.rejected|default:0 }}</h3>
+                    <small class="text-muted">{% trans "مرفوض" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ملخص المبالغ -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "إجمالي السلف المصروفة" %}</h6>
+                    <h2 class="text-primary">{{ stats.total_amount|floatformat:2|default:"0.00" }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{% trans "المبالغ المتبقية" %}</h6>
+                    <h2 class="text-danger">{{ stats.total_remaining|floatformat:2|default:"0.00" }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- زر التصدير -->
+    <div class="d-flex justify-content-end mb-4">
+        <a href="{% url 'hr:export_advances_excel' %}?year={{ year }}&status={{ selected_status|default:'' }}" class="btn btn-success">
+            <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+        </a>
+    </div>
+
+    <!-- الرسوم البيانية -->
+    <div class="row mb-4">
+        <div class="col-md-8 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "التوزيع الشهري للسلف" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "حسب القسم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="deptChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- التفصيل حسب القسم -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">{% trans "السلف حسب القسم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "القسم" %}</th>
+                                    <th class="text-center">{% trans "عدد السلف" %}</th>
+                                    <th class="text-center">{% trans "إجمالي المبلغ" %}</th>
+                                    <th class="text-center">{% trans "المتبقي" %}</th>
+                                    <th class="text-center">{% trans "نسبة السداد" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in by_department %}
+                                <tr>
+                                    <td>{{ dept.employee__department__name|default:"غير محدد" }}</td>
+                                    <td class="text-center">{{ dept.count }}</td>
+                                    <td class="text-center">{{ dept.total_amount|floatformat:2 }}</td>
+                                    <td class="text-center text-danger">{{ dept.remaining|floatformat:2|default:"0.00" }}</td>
+                                    <td class="text-center">
+                                        {% if dept.total_amount %}
+                                        {% widthratio dept.remaining dept.total_amount 100 as remaining_percent %}
+                                        {% with paid_percent=100|add:"-"|add:remaining_percent %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" style="width: {{ paid_percent }}%">
+                                                {{ paid_percent }}%
+                                            </div>
+                                        </div>
+                                        {% endwith %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- السلف المعلقة -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-warning text-dark">
+            <h6 class="mb-0">{% trans "السلف غير المسددة" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "القسم" %}</th>
+                            <th class="text-center">{% trans "مبلغ السلفة" %}</th>
+                            <th class="text-center">{% trans "المتبقي" %}</th>
+                            <th class="text-center">{% trans "عدد الأقساط" %}</th>
+                            <th class="text-center">{% trans "تاريخ الصرف" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adv in pending_advances %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'hr:advance_detail' adv.pk %}">
+                                    {{ adv.employee.first_name }} {{ adv.employee.last_name }}
+                                </a>
+                            </td>
+                            <td>{{ adv.employee.department.name|default:"-" }}</td>
+                            <td class="text-center">{{ adv.amount|floatformat:2 }}</td>
+                            <td class="text-center text-danger fw-bold">{{ adv.remaining_amount|floatformat:2 }}</td>
+                            <td class="text-center">{{ adv.installments_count }}</td>
+                            <td class="text-center">{{ adv.disbursement_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">{% trans "لا توجد سلف معلقة" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const monthlyData = {{ monthly_data|safe }};
+    const byDepartment = {{ by_department|safe }};
+    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
+
+    // رسم بياني شهري
+    if (monthlyData.length > 0) {
+        new Chart(document.getElementById('monthlyChart'), {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(d => monthNames[d.month - 1]),
+                datasets: [{
+                    label: 'مبلغ السلف',
+                    data: monthlyData.map(d => d.total_amount),
+                    backgroundColor: '#f6c23e'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // رسم بياني حسب القسم
+    if (byDepartment.length > 0) {
+        new Chart(document.getElementById('deptChart'), {
+            type: 'pie',
+            data: {
+                labels: byDepartment.map(d => d.employee__department__name || 'غير محدد'),
+                datasets: [{
+                    data: byDepartment.map(d => d.total_amount),
+                    backgroundColor: colors
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12 } }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+{% load inventory_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<style>
+    .report-summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .summary-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        padding: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    @media print {
+        .no-print { display: none; }
+        .card { border: 1px solid #dee2e6 !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3 no-print">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تقرير الدفعات المنتهية أو القريبة من الانتهاء" %}</p>
+        </div>
+        <div class="no-print">
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="fas fa-print"></i> {% trans "طباعة" %}
+            </button>
+            <a href="{% url 'inventory:batch_list' %}" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> {% trans "قائمة الدفعات" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4 no-print">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "المستودع" %}</label>
+                    <select name="warehouse" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}" {% if request.GET.warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                                {{ warehouse.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "عدد الأيام للإنذار" %}</label>
+                    <input type="number" name="days" class="form-control" value="{{ days_threshold }}" min="1">
+                    <small class="text-muted">الدفعات التي ستنتهي خلال هذا العدد من الأيام</small>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-filter"></i> {% trans "تصفية" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="report-summary">
+        <h4 class="mb-4"><i class="fas fa-chart-pie"></i> {% trans "ملخص التقرير" %}</h4>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <i class="fas fa-times-circle fa-3x mb-2"></i>
+                    <h3 class="mb-0">{{ expired_batches.count }}</h3>
+                    <p class="mb-0">{% trans "دفعات منتهية" %}</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-2"></i>
+                    <h3 class="mb-0">{{ expiring_soon_batches.count }}</h3>
+                    <p class="mb-0">{% trans "دفعات ستنتهي قريباً" %}</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <i class="fas fa-dollar-sign fa-3x mb-2"></i>
+                    <h3 class="mb-0">{{ expired_total_value|floatformat:0 }}</h3>
+                    <p class="mb-0">{% trans "قيمة الدفعات المنتهية" %}</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <i class="fas fa-coins fa-3x mb-2"></i>
+                    <h3 class="mb-0">{{ expiring_total_value|floatformat:0 }}</h3>
+                    <p class="mb-0">{% trans "قيمة الدفعات القريبة" %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expired Batches -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-times-circle"></i> {% trans "دفعات منتهية الصلاحية" %}
+                <span class="badge bg-white text-danger">{{ expired_batches.count }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="expiredTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم الدفعة" %}</th>
+                            <th>{% trans "المادة" %}</th>
+                            <th>{% trans "المستودع" %}</th>
+                            <th>{% trans "الكمية" %}</th>
+                            <th>{% trans "القيمة" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th>{% trans "منتهي منذ" %}</th>
+                            <th class="no-print">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for batch in expired_batches %}
+                        <tr>
+                            <td>{{ batch.batch_number }}</td>
+                            <td>
+                                {{ batch.item.name }}
+                                {% if batch.item_variant %}
+                                    <small class="text-muted d-block">{{ batch.item_variant.code }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ batch.warehouse.name }}</td>
+                            <td>{{ batch.quantity|floatformat:2 }}</td>
+                            <td>{{ batch.total_value|floatformat:2 }}</td>
+                            <td>{{ batch.expiry_date|date:"Y-m-d" }}</td>
+                            <td>
+                                <span class="badge bg-danger">{{ batch.days_to_expiry|abs }} يوم</span>
+                            </td>
+                            <td class="no-print">
+                                <a href="{% url 'inventory:batch_detail' batch.pk %}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-success">
+                                <i class="fas fa-check-circle"></i> {% trans "لا توجد دفعات منتهية" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if expired_batches %}
+                    <tfoot>
+                        <tr class="table-secondary fw-bold">
+                            <td colspan="4" class="text-end">{% trans "الإجمالي" %}:</td>
+                            <td>{{ expired_total_value|floatformat:2 }}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expiring Soon Batches -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="fas fa-exclamation-triangle"></i> {% trans "دفعات ستنتهي قريباً" %}
+                (خلال {{ days_threshold }} يوم)
+                <span class="badge bg-dark">{{ expiring_soon_batches.count }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="expiringSoonTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "رقم الدفعة" %}</th>
+                            <th>{% trans "المادة" %}</th>
+                            <th>{% trans "المستودع" %}</th>
+                            <th>{% trans "الكمية" %}</th>
+                            <th>{% trans "القيمة" %}</th>
+                            <th>{% trans "تاريخ الانتهاء" %}</th>
+                            <th>{% trans "باقي (أيام)" %}</th>
+                            <th class="no-print">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for batch in expiring_soon_batches %}
+                        <tr>
+                            <td>{{ batch.batch_number }}</td>
+                            <td>
+                                {{ batch.item.name }}
+                                {% if batch.item_variant %}
+                                    <small class="text-muted d-block">{{ batch.item_variant.code }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ batch.warehouse.name }}</td>
+                            <td>{{ batch.quantity|floatformat:2 }}</td>
+                            <td>{{ batch.total_value|floatformat:2 }}</td>
+                            <td>{{ batch.expiry_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if batch.days_to_expiry == 0 %}
+                                    <span class="badge bg-danger">ينتهي اليوم</span>
+                                {% elif batch.days_to_expiry <= 7 %}
+                                    <span class="badge bg-danger">{{ batch.days_to_expiry }} يوم</span>
+                                {% elif batch.days_to_expiry <= 14 %}
+                                    <span class="badge bg-warning">{{ batch.days_to_expiry }} يوم</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ batch.days_to_expiry }} يوم</span>
+                                {% endif %}
+                            </td>
+                            <td class="no-print">
+                                <a href="{% url 'inventory:batch_detail' batch.pk %}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-success">
+                                <i class="fas fa-check-circle"></i> {% trans "لا توجد دفعات ستنتهي قريباً" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if expiring_soon_batches %}
+                    <tfoot>
+                        <tr class="table-secondary fw-bold">
+                            <td colspan="4" class="text-end">{% trans "الإجمالي" %}:</td>
+                            <td>{{ expiring_total_value|floatformat:2 }}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Footer -->
+    <div class="mt-4 text-center text-muted">
+        <p class="mb-0">
+            {% trans "تم إنشاء التقرير في" %}: {{ "now"|date:"Y-m-d H:i" }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#expiredTable, #expiringSoonTable').DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        },
+        "order": [[5, 'asc']], // Order by expiry date
+        "pageLength": 25,
+        "searching": false,
+        "paging": false,
+        "info": false
+    });
+});
+</script>
+{% endblock %}

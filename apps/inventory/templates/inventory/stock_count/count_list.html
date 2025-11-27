@@ -1,0 +1,223 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة عمليات الجرد الفعلي للمخزون" %}</p>
+        </div>
+        {% if can_add %}
+        <div>
+            <a href="{% url 'inventory:count_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "عملية جرد جديدة" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "بحث" %}</label>
+                    <input type="text" name="search" class="form-control" value="{{ request.GET.search }}" placeholder="{% trans 'رقم الجرد، المرجع...' %}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "المستودع" %}</label>
+                    <select name="warehouse" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}" {% if request.GET.warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                            {{ warehouse.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>{% trans "مسودة" %}</option>
+                        <option value="in_progress" {% if request.GET.status == 'in_progress' %}selected{% endif %}>{% trans "قيد الجرد" %}</option>
+                        <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>{% trans "مكتمل" %}</option>
+                        <option value="processed" {% if request.GET.status == 'processed' %}selected{% endif %}>{% trans "معالج" %}</option>
+                        <option value="cancelled" {% if request.GET.status == 'cancelled' %}selected{% endif %}>{% trans "ملغي" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "نوع الجرد" %}</label>
+                    <select name="count_type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="full" {% if request.GET.count_type == 'full' %}selected{% endif %}>{% trans "جرد شامل" %}</option>
+                        <option value="partial" {% if request.GET.count_type == 'partial' %}selected{% endif %}>{% trans "جرد جزئي" %}</option>
+                        <option value="cycle" {% if request.GET.count_type == 'cycle' %}selected{% endif %}>{% trans "جرد دوري" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if not counts %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <p class="text-muted">{% trans "لا توجد عمليات جرد" %}</p>
+                {% if can_add %}
+                <a href="{% url 'inventory:count_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "إضافة أول عملية جرد" %}
+                </a>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="stockCountTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "الرقم" %}</th>
+                            <th>{% trans "التاريخ" %}</th>
+                            <th>{% trans "المستودع" %}</th>
+                            <th>{% trans "نوع الجرد" %}</th>
+                            <th>{% trans "عدد المواد" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th>{% trans "المرجع" %}</th>
+                            <th>{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for count in counts %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'inventory:count_detail' count.pk %}" class="fw-bold text-primary">
+                                    {{ count.number }}
+                                </a>
+                            </td>
+                            <td>{{ count.date|date:"Y-m-d" }}</td>
+                            <td>{{ count.warehouse.name }}</td>
+                            <td>{{ count.get_count_type_display }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ count.lines.count }}</span>
+                            </td>
+                            <td>
+                                {% if count.status == 'draft' %}
+                                    <span class="badge bg-secondary">{% trans "مسودة" %}</span>
+                                {% elif count.status == 'in_progress' %}
+                                    <span class="badge bg-warning text-dark">{% trans "قيد الجرد" %}</span>
+                                {% elif count.status == 'completed' %}
+                                    <span class="badge bg-primary">{% trans "مكتمل" %}</span>
+                                {% elif count.status == 'processed' %}
+                                    <span class="badge bg-success">{% trans "معالج" %}</span>
+                                {% elif count.status == 'cancelled' %}
+                                    <span class="badge bg-danger">{% trans "ملغي" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ count.reference|default:"-" }}</td>
+                            <td>
+                                <a href="{% url 'inventory:count_detail' count.pk %}" class="btn btn-sm btn-info" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if count.status == 'draft' or count.status == 'in_progress' %}
+                                <a href="{% url 'inventory:count_update' count.pk %}" class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if count.status == 'completed' %}
+                                <button class="btn btn-sm btn-success" title="{% trans 'معالجة' %}" onclick="processCount({{ count.pk }})">
+                                    <i class="fas fa-check-double"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+$(document).ready(function() {
+    // Only initialize DataTable if it exists
+    if ($('#stockCountTable').length) {
+        $('#stockCountTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+            },
+            "order": [[1, 'desc']],
+            "pageLength": 25
+        });
+    }
+});
+
+function processCount(countId) {
+    Swal.fire({
+        title: 'معالجة الجرد',
+        text: 'هل أنت متأكد من معالجة هذا الجرد؟ سيتم تحديث المخزون بناءً على الكميات المجردة.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'نعم، معالجة',
+        cancelButtonText: 'إلغاء',
+        customClass: {
+            popup: 'text-end',
+            confirmButton: 'ms-2'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Submit process request
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{% url "inventory:count_process" 0 %}'.replace('0', countId);
+
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrfmiddlewaretoken';
+            csrfToken.value = '{{ csrf_token }}';
+            form.appendChild(csrfToken);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+</script>
+{% endblock %}

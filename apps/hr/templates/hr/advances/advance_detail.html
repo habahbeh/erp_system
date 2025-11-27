@@ -1,0 +1,192 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Main Info Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> {{ title }}</h5>
+                    <span class="badge bg-{% if advance.status == 'approved' %}success{% elif advance.status == 'pending' %}warning{% elif advance.status == 'disbursed' %}info{% elif advance.status == 'paid' %}primary{% elif advance.status == 'rejected' %}danger{% else %}secondary{% endif %} fs-6">
+                        {{ advance.get_status_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "رقم السلفة" %}</label>
+                            <p class="fw-bold">{{ advance.advance_number }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "الموظف" %}</label>
+                            <p class="fw-bold">{{ advance.employee.full_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "نوع السلفة" %}</label>
+                            <p class="fw-bold">{{ advance.get_advance_type_display }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "المبلغ" %}</label>
+                            <p class="fw-bold text-primary fs-4">{{ advance.amount|floatformat:2 }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted">{% trans "عدد الأقساط" %}</label>
+                            <p class="fw-bold">{{ advance.installments }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted">{% trans "قيمة القسط" %}</label>
+                            <p class="fw-bold">{{ advance.installment_amount|floatformat:2 }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted">{% trans "المتبقي" %}</label>
+                            <p class="fw-bold text-danger">{{ advance.remaining_amount|floatformat:2 }}</p>
+                        </div>
+                        {% if advance.reason %}
+                        <div class="col-12">
+                            <label class="text-muted">{% trans "السبب" %}</label>
+                            <p>{{ advance.reason }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Installments Table -->
+            {% if installments %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-list-ol"></i> {% trans "جدول الأقساط" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "رقم القسط" %}</th>
+                                    <th>{% trans "تاريخ الاستحقاق" %}</th>
+                                    <th>{% trans "المبلغ" %}</th>
+                                    <th>{% trans "الحالة" %}</th>
+                                    <th>{% trans "تاريخ السداد" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inst in installments %}
+                                <tr>
+                                    <td>{{ inst.installment_number }}</td>
+                                    <td>{{ inst.due_date }}</td>
+                                    <td>{{ inst.amount|floatformat:2 }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if inst.status == 'paid' %}success{% elif inst.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                            {{ inst.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ inst.paid_date|default:"-" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Approval Form -->
+            {% if advance.status == 'pending' and approval_form %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning">
+                    <h6 class="mb-0"><i class="fas fa-gavel"></i> {% trans "إجراء الموافقة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "سبب الرفض (في حالة الرفض)" %}</label>
+                            {% render_field approval_form.rejection_reason class="form-control" rows="2" %}
+                        </div>
+                        <input type="hidden" name="action" id="action_field" value="">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success" onclick="$('#action_field').val('approve')">
+                                <i class="fas fa-check"></i> {% trans "موافقة" %}
+                            </button>
+                            <button type="submit" class="btn btn-danger" onclick="$('#action_field').val('reject')">
+                                <i class="fas fa-times"></i> {% trans "رفض" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if advance.status == 'rejected' and advance.rejection_reason %}
+            <div class="alert alert-danger">
+                <strong><i class="fas fa-times-circle"></i> {% trans "سبب الرفض:" %}</strong>
+                <p class="mb-0 mt-2">{{ advance.rejection_reason }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Actions Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-cogs"></i> {% trans "الإجراءات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if advance.status == 'approved' %}
+                        <a href="{% url 'hr:advance_disburse' advance.pk %}" class="btn btn-success">
+                            <i class="fas fa-money-bill-wave"></i> {% trans "صرف السلفة" %}
+                        </a>
+                        {% endif %}
+                        {% if advance.status == 'pending' %}
+                        <a href="{% url 'hr:advance_update' advance.pk %}" class="btn btn-primary">
+                            <i class="fas fa-edit"></i> {% trans "تعديل" %}
+                        </a>
+                        <a href="{% url 'hr:advance_delete' advance.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i> {% trans "حذف" %}
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'hr:advance_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-right"></i> {% trans "رجوع للقائمة" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Card -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات إضافية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "تاريخ الطلب:" %}</strong><br>{{ advance.created_at }}</p>
+                    <p><strong>{% trans "بواسطة:" %}</strong><br>{{ advance.created_by }}</p>
+                    {% if advance.approved_by %}
+                    <p><strong>{% trans "تمت الموافقة بواسطة:" %}</strong><br>{{ advance.approved_by }}</p>
+                    <p><strong>{% trans "تاريخ الموافقة:" %}</strong><br>{{ advance.approved_at }}</p>
+                    {% endif %}
+                    {% if advance.disbursed_at %}
+                    <p><strong>{% trans "تاريخ الصرف:" %}</strong><br>{{ advance.disbursed_at }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

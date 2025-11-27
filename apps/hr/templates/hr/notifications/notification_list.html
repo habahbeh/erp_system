@@ -1,0 +1,375 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .notification-card {
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        border-right: 4px solid transparent;
+    }
+    .notification-card:hover {
+        transform: translateX(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .notification-card.unread {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    .notification-card.priority-urgent {
+        border-right-color: #dc3545;
+    }
+    .notification-card.priority-high {
+        border-right-color: #fd7e14;
+    }
+    .notification-card.priority-medium {
+        border-right-color: #ffc107;
+    }
+    .notification-card.priority-low {
+        border-right-color: #198754;
+    }
+    .notification-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .stats-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+    }
+    .stats-card:hover {
+        transform: translateY(-3px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-bell me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:notification_settings' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-cog me-1"></i>{% trans "الإعدادات" %}
+            </a>
+            <button type="button" class="btn btn-outline-primary" id="markAllReadBtn">
+                <i class="fas fa-check-double me-1"></i>{% trans "تحديد الكل كمقروء" %}
+            </button>
+            <button type="button" class="btn btn-primary" id="generateNotificationsBtn">
+                <i class="fas fa-sync me-1"></i>{% trans "توليد الإشعارات" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- إحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card border-0 shadow-sm h-100 border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-bell fa-2x text-primary mb-2"></i>
+                    <h3 class="text-primary">{{ stats.total }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الإشعارات" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card border-0 shadow-sm h-100 border-start border-info border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-envelope fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ stats.unread }}</h3>
+                    <small class="text-muted">{% trans "غير مقروءة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card border-0 shadow-sm h-100 border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.urgent }}</h3>
+                    <small class="text-muted">{% trans "عاجلة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card border-0 shadow-sm h-100 border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-circle fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.high }}</h3>
+                    <small class="text-muted">{% trans "مهمة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="all" {% if current_status == 'all' %}selected{% endif %}>{% trans "الكل" %}</option>
+                        <option value="unread" {% if current_status == 'unread' %}selected{% endif %}>{% trans "غير مقروءة" %}</option>
+                        <option value="read" {% if current_status == 'read' %}selected{% endif %}>{% trans "مقروءة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "النوع" %}</label>
+                    <select name="type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for type_code, type_name in notification_types %}
+                        <option value="{{ type_code }}" {% if current_type == type_code %}selected{% endif %}>{{ type_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الأولوية" %}</label>
+                    <select name="priority" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for priority_code, priority_name in priority_choices %}
+                        <option value="{{ priority_code }}" {% if current_priority == priority_code %}selected{% endif %}>{{ priority_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i>{% trans "تصفية" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- قائمة الإشعارات -->
+    <div class="notification-list">
+        {% for notification in notifications %}
+        <div class="card notification-card border-0 shadow-sm mb-3 {% if not notification.is_read %}unread{% endif %} priority-{{ notification.priority }}"
+             data-notification-id="{{ notification.id }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <div class="notification-icon bg-{% if notification.priority == 'urgent' %}danger{% elif notification.priority == 'high' %}warning{% elif notification.priority == 'medium' %}info{% else %}success{% endif %} bg-opacity-10 text-{% if notification.priority == 'urgent' %}danger{% elif notification.priority == 'high' %}warning{% elif notification.priority == 'medium' %}info{% else %}success{% endif %}">
+                            {% if notification.notification_type == 'contract_expiry' %}
+                            <i class="fas fa-file-contract"></i>
+                            {% elif notification.notification_type == 'leave_balance_low' %}
+                            <i class="fas fa-calendar-minus"></i>
+                            {% elif notification.notification_type == 'leave_request' %}
+                            <i class="fas fa-calendar-alt"></i>
+                            {% elif notification.notification_type == 'advance_due' %}
+                            <i class="fas fa-money-bill-wave"></i>
+                            {% elif notification.notification_type == 'probation_end' %}
+                            <i class="fas fa-user-clock"></i>
+                            {% else %}
+                            <i class="fas fa-bell"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 {% if not notification.is_read %}fw-bold{% endif %}">
+                                    {{ notification.title }}
+                                </h6>
+                                <p class="mb-1 text-muted small">{{ notification.message }}</p>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-secondary">{{ notification.get_notification_type_display }}</span>
+                                    <span class="badge bg-{% if notification.priority == 'urgent' %}danger{% elif notification.priority == 'high' %}warning{% elif notification.priority == 'medium' %}info{% else %}success{% endif %}">
+                                        {{ notification.get_priority_display }}
+                                    </span>
+                                    {% if notification.employee %}
+                                    <span class="badge bg-light text-dark">
+                                        <i class="fas fa-user me-1"></i>{{ notification.employee }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted d-block">{{ notification.created_at|date:"Y-m-d H:i" }}</small>
+                                <div class="btn-group mt-2">
+                                    {% if notification.action_url %}
+                                    <a href="{{ notification.action_url }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if not notification.is_read %}
+                                    <button type="button" class="btn btn-sm btn-outline-success mark-read-btn" data-id="{{ notification.id }}">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger delete-notification-btn" data-id="{{ notification.id }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">{% trans "لا توجد إشعارات" %}</h5>
+                <p class="text-muted small">{% trans "ستظهر هنا الإشعارات الجديدة عند توفرها" %}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&type={{ current_type }}&priority={{ current_priority }}">
+                    {% trans "السابق" %}
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&type={{ current_type }}&priority={{ current_priority }}">
+                    {% trans "التالي" %}
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // تحديد إشعار كمقروء
+    document.querySelectorAll('.mark-read-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const notificationId = this.dataset.id;
+            fetch(`{% url 'hr:notification_mark_read' 0 %}`.replace('0', notificationId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const card = document.querySelector(`[data-notification-id="${notificationId}"]`);
+                    card.classList.remove('unread');
+                    this.remove();
+                    // تحديث الإحصائيات
+                    location.reload();
+                }
+            });
+        });
+    });
+
+    // تحديد الكل كمقروء
+    document.getElementById('markAllReadBtn').addEventListener('click', function() {
+        if (confirm('{% trans "هل تريد تحديد جميع الإشعارات كمقروءة؟" %}')) {
+            fetch('{% url "hr:notification_mark_all_read" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+        }
+    });
+
+    // حذف إشعار
+    document.querySelectorAll('.delete-notification-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const notificationId = this.dataset.id;
+            if (confirm('{% trans "هل تريد حذف هذا الإشعار؟" %}')) {
+                fetch(`{% url 'hr:notification_delete' 0 %}`.replace('0', notificationId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const card = document.querySelector(`[data-notification-id="${notificationId}"]`);
+                        card.remove();
+                    }
+                });
+            }
+        });
+    });
+
+    // توليد الإشعارات
+    document.getElementById('generateNotificationsBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري التوليد..." %}';
+
+        fetch('{% url "hr:generate_notifications" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('{% trans "حدث خطأ أثناء توليد الإشعارات" %}');
+            }
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-1"></i>{% trans "توليد الإشعارات" %}';
+        });
+    });
+</script>
+{% endblock %}

@@ -315,6 +315,39 @@ kbd {
     color: #6c757d;
 }
 
+/* زر مسح المادة (X) */
+.autocomplete-clear-btn {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    z-index: 5;
+}
+
+.autocomplete-clear-btn:hover {
+    background: #f8f9fa;
+    border-radius: 50%;
+}
+
+.autocomplete-clear-btn i {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.autocomplete-clear-btn:hover i {
+    color: #dc3545;
+}
+
 /* Fix for input-group */
 .input-group .autocomplete-wrapper {
     position: relative;
@@ -865,15 +898,23 @@ kbd {
                                         <tr class="item-row">
                                             <td class="row-number text-center">{{ forloop.counter }}</td>
                                             <td class="col-item">
-                                                <div class="autocomplete-wrapper">
-                                                    <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب لبحث عن المادة..." autocomplete="off" value="{% if item_form.instance.item %}{{ item_form.instance.item.name }}{% endif %}">
-                                                    <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
-                                                        <i class="fas fa-chevron-down"></i>
-                                                    </button>
-                                                    <div class="autocomplete-list"></div>
-                                                    <div style="display: none;">
-                                                        {{ item_form.item|add_class:"item-select" }}
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <div class="autocomplete-wrapper flex-grow-1">
+                                                        <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب لبحث عن المادة..." autocomplete="off" value="{% if item_form.instance.item %}{{ item_form.instance.item.name }}{% endif %}">
+                                                        <button type="button" class="autocomplete-clear-btn" tabindex="-1" style="display: none;" title="مسح المادة">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
+                                                        <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
+                                                            <i class="fas fa-chevron-down"></i>
+                                                        </button>
+                                                        <div class="autocomplete-list"></div>
+                                                        <div style="display: none;">
+                                                            {{ item_form.item|add_class:"item-select" }}
+                                                        </div>
                                                     </div>
+                                                    <button type="button" class="btn btn-sm btn-info item-info-btn" style="padding: 2px 6px; display: none;" title="عرض جميع الأسعار">
+                                                        <i class="fas fa-info-circle"></i>
+                                                    </button>
                                                 </div>
                                                 {{ item_form.id }}
                                                 <div style="display: none;">
@@ -3467,44 +3508,33 @@ $(document).ready(function() {
                 return;
             }
 
-            // Get current search term or trigger search
-            const term = $input.val().trim();
+            // ✅ عند الضغط على زر القائمة، دائماً نمسح الحقل ونعرض جميع المواد
+            console.log("   🔍 Fetching all items...");
 
-            // If we have text and cached results, show them
-            if (term.length >= 2 && itemsCache[term]) {
-                console.log("   📦 Showing cached results");
-                displaySearchResults(itemsCache[term], $autocompleteList, $input);
-                $input.focus();
-            } else if (term.length >= 2) {
-                // Trigger search via input event
-                console.log("   🔍 Triggering search via input event");
-                $input.trigger('input');
-            } else {
-                // No text - trigger a search for all items (empty term)
-                console.log("   🔍 Fetching all items...");
+            // مسح الحقل النصي (لكن لا نمسح القيمة المخفية)
+            $input.val('');
 
-                // Show loading indicator
-                $autocompleteList.html('<div class="p-2 text-center"><span class="spinner-border spinner-border-sm me-2"></span>جاري البحث...</div>').addClass('show');
+            // Show loading indicator
+            $autocompleteList.html('<div class="p-2 text-center"><span class="spinner-border spinner-border-sm me-2"></span>جاري البحث...</div>').addClass('show');
 
-                $.ajax({
-                    url: '{% url "purchases:item_search_ajax" %}',
-                    data: { term: '', limit: 50 },
-                    success: function(response) {
-                        console.log("   ✅ Response:", response);
+            $.ajax({
+                url: '{% url "purchases:item_search_ajax" %}',
+                data: { term: '', limit: 50 },
+                success: function(response) {
+                    console.log("   ✅ Response:", response);
 
-                        if (response.success && response.items.length > 0) {
-                            displaySearchResults(response.items, $autocompleteList, $input);
-                            $input.focus();
-                        } else {
-                            $autocompleteList.html('<div class="p-2 text-muted">لا توجد نتائج</div>').addClass('show');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("   ❌ AJAX Error:", error);
-                        $autocompleteList.html('<div class="p-2 text-danger">حدث خطأ في البحث</div>').addClass('show');
+                    if (response.success && response.items.length > 0) {
+                        displaySearchResults(response.items, $autocompleteList, $input);
+                        $input.focus();
+                    } else {
+                        $autocompleteList.html('<div class="p-2 text-muted">لا توجد نتائج</div>').addClass('show');
                     }
-                });
-            }
+                },
+                error: function(xhr, status, error) {
+                    console.error("   ❌ AJAX Error:", error);
+                    $autocompleteList.html('<div class="p-2 text-danger">حدث خطأ في البحث</div>').addClass('show');
+                }
+            });
         });
 
         function updateHighlight($items, index, $list) {
@@ -3680,6 +3710,20 @@ $(document).ready(function() {
             calculateItemTotal($row);
             calculateTotals();
 
+            // ✅ Show info button for prices
+            const $infoBtn = $row.find('.item-info-btn');
+            if ($infoBtn.length) {
+                $infoBtn.show();
+                console.log("   ✓ Info button shown");
+            }
+
+            // ✅ Show clear button (X) for removing item
+            const $clearBtn = $row.find('.autocomplete-clear-btn');
+            if ($clearBtn.length) {
+                $clearBtn.show();
+                console.log("   ✓ Clear button (X) shown");
+            }
+
             // ⏭️ Move focus to description field
             setTimeout(function() {
                 const $descInput = $row.find('input[name*="description"]');
@@ -3840,9 +3884,274 @@ $(document).ready(function() {
             const itemId = $row.find('.item-select').val();
             if (itemId) {
                 loadUoMConversions($row);
+                // Show info button for existing items
+                $row.find('.item-info-btn').show();
+                // Show clear button (X) for existing items
+                $row.find('.autocomplete-clear-btn').show();
             }
         });
     });
 
+    // ========================================
+    // Item Prices Popover System
+    // ========================================
+
+    // Hide info and clear buttons when item is cleared
+    $(document).on('change', '.item-select', function() {
+        const $row = $(this).closest('.item-row');
+        const itemId = $(this).val();
+        const $infoBtn = $row.find('.item-info-btn');
+        const $clearBtn = $row.find('.autocomplete-clear-btn');
+
+        if (!itemId) {
+            $infoBtn.hide();
+            $clearBtn.hide();
+            // Destroy any existing popover
+            if ($infoBtn.data('bs.popover')) {
+                $infoBtn.popover('dispose');
+            }
+        }
+    });
+
+    // ========================================
+    // Clear Button (X) Handler
+    // ========================================
+
+    $(document).on('click', '.autocomplete-clear-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const $btn = $(this);
+        const $row = $btn.closest('.item-row');
+        const $input = $row.find('.item-search-input');
+        const $itemSelect = $row.find('.item-select');
+        const $variantSelect = $row.find('.variant-select');
+
+        console.log('🗑️ Clear button clicked - clearing item');
+
+        // مسح الحقول
+        $input.val('');
+        $itemSelect.val('').trigger('change');
+        $variantSelect.empty().append('<option value="">اختر المتغير</option>');
+
+        // إخفاء الأزرار
+        $btn.hide();
+        $row.find('.item-info-btn').hide();
+
+        // مسح الحقول المرتبطة
+        $row.find('input[name*="description"]').val('');
+        $row.find('select[name*="purchase_uom"]').empty().append('<option value="">اختر الوحدة</option>');
+        $row.find('input[name*="quantity"]').val('1.000');
+        $row.find('input[name*="unit_price"]').val('0.000');
+        $row.find('input[name*="conversion_rate"]').val('1.000');
+        $row.find('input[name*="tax_rate"]').val('0.00');
+        $row.find('input[name*="discount_percentage"]').val('0.00');
+
+        // إعادة حساب الإجماليات
+        calculateItemTotal($row);
+        calculateTotals();
+
+        console.log('   ✓ Item cleared successfully');
+    });
+
+    // Handle info button click
+    $(document).on('click', '.item-info-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const $btn = $(this);
+        const $row = $btn.closest('.item-row');
+        const itemId = $row.find('.item-select').val();
+        const variantId = $row.find('.variant-select').val();
+
+        console.log('Info button clicked - itemId:', itemId, 'variantId:', variantId);
+
+        if (!itemId || !variantId) {
+            console.error('Missing data - itemId:', itemId, 'variantId:', variantId);
+            alert('يرجى اختيار المادة أولاً');
+            return;
+        }
+
+        // Close any other open popovers
+        $('.item-info-btn').not($btn).popover('hide');
+
+        // If popover already exists and is shown, hide it
+        if ($btn.data('bs.popover') && $('.popover').is(':visible')) {
+            $btn.popover('hide');
+            return;
+        }
+
+        // Show loading state
+        $btn.prop('disabled', true);
+        $btn.find('i').removeClass('fa-info-circle').addClass('fa-spinner fa-spin');
+
+        // Fetch prices
+        $.ajax({
+            url: '{% url "purchases:get_item_all_prices_ajax" %}',
+            method: 'GET',
+            data: {
+                item_id: itemId,
+                variant_id: variantId
+            },
+            success: function(response) {
+                if (response.success) {
+                    const data = response.data;
+                    const content = buildPricePopoverContent(data);
+
+                    // Initialize Bootstrap 5 popover
+                    const popover = new bootstrap.Popover($btn[0], {
+                        content: content,
+                        html: true,
+                        placement: 'left',
+                        trigger: 'manual',
+                        container: 'body',
+                        customClass: 'item-prices-popover',
+                        sanitize: false
+                    });
+
+                    // Store popover instance
+                    $btn.data('bs.popover', popover);
+
+                    // Show popover
+                    popover.show();
+
+                    // Add click outside to close
+                    setTimeout(function() {
+                        $(document).on('click.popover', function(e) {
+                            if (!$(e.target).closest('.item-info-btn, .popover').length) {
+                                $('.item-info-btn').each(function() {
+                                    const pop = $(this).data('bs.popover');
+                                    if (pop) pop.hide();
+                                });
+                                $(document).off('click.popover');
+                            }
+                        });
+                    }, 100);
+                } else {
+                    alert('خطأ في جلب الأسعار: ' + response.error);
+                }
+            },
+            error: function() {
+                alert('حدث خطأ أثناء جلب معلومات الأسعار');
+            },
+            complete: function() {
+                // Restore button state
+                $btn.prop('disabled', false);
+                $btn.find('i').removeClass('fa-spinner fa-spin').addClass('fa-info-circle');
+            }
+        });
+    });
+
+    // Build popover HTML content
+    function buildPricePopoverContent(data) {
+        let html = '<div class="item-prices-content" style="min-width: 320px; max-width: 400px;">';
+
+        // Header
+        html += '<div class="border-bottom pb-2 mb-3">';
+        html += '<h6 class="mb-1 fw-bold text-primary">' + data.item_name + '</h6>';
+        html += '<small class="text-muted">المتغير: ' + data.variant_code + ' | الوحدة: ' + data.base_uom + '</small>';
+        html += '</div>';
+
+        // Last Purchase Price
+        if (data.last_purchase) {
+            html += '<div class="mb-3">';
+            html += '<div class="d-flex align-items-center mb-1">';
+            html += '<i class="fas fa-shopping-cart text-success me-2"></i>';
+            html += '<strong>آخر سعر شراء:</strong>';
+            html += '</div>';
+            html += '<div class="ps-4">';
+            html += '<div class="text-success fs-5 fw-bold">' + parseFloat(data.last_purchase.price).toFixed(3) + ' د.أ</div>';
+            html += '<small class="text-muted">المورد: ' + data.last_purchase.supplier + '</small><br>';
+            if (data.last_purchase.date) {
+                html += '<small class="text-muted">التاريخ: ' + data.last_purchase.date + '</small>';
+            }
+            html += '</div>';
+            html += '</div>';
+        }
+
+        // Cost & Base Prices
+        if (data.cost_price || data.base_price) {
+            html += '<div class="mb-3">';
+            html += '<div class="d-flex align-items-center mb-1">';
+            html += '<i class="fas fa-tags text-info me-2"></i>';
+            html += '<strong>الأسعار المعيارية:</strong>';
+            html += '</div>';
+            html += '<div class="ps-4">';
+            if (data.cost_price) {
+                html += '<div><span class="text-muted">سعر التكلفة:</span> <span class="fw-bold text-info">' + parseFloat(data.cost_price).toFixed(3) + ' د.أ</span></div>';
+            }
+            if (data.base_price) {
+                html += '<div><span class="text-muted">السعر الأساسي:</span> <span class="fw-bold text-info">' + parseFloat(data.base_price).toFixed(3) + ' د.أ</span></div>';
+            }
+            html += '</div>';
+            html += '</div>';
+        }
+
+        // Price Lists
+        if (data.price_lists && data.price_lists.length > 0) {
+            html += '<div class="mb-3">';
+            html += '<div class="d-flex align-items-center mb-2">';
+            html += '<i class="fas fa-list-ul text-warning me-2"></i>';
+            html += '<strong>قوائم الأسعار:</strong>';
+            html += '</div>';
+            html += '<div class="ps-4">';
+            html += '<table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">';
+            data.price_lists.forEach(function(pl) {
+                html += '<tr>';
+                html += '<td class="text-muted py-1">' + pl.name + ':</td>';
+                html += '<td class="text-end fw-bold py-1">' + parseFloat(pl.price).toFixed(3) + ' د.أ</td>';
+                html += '</tr>';
+            });
+            html += '</table>';
+            html += '</div>';
+            html += '</div>';
+        }
+
+        // Stock Info
+        html += '<div class="border-top pt-2">';
+        html += '<div class="d-flex align-items-center mb-1">';
+        html += '<i class="fas fa-boxes text-secondary me-2"></i>';
+        html += '<strong>المخزون:</strong>';
+        html += '</div>';
+        html += '<div class="ps-4">';
+        html += '<small class="text-muted">الفرع الحالي: <span class="fw-bold text-dark">' + data.stock.current_branch_available + '</span> (محجوز: ' + data.stock.current_branch_reserved + ')</small><br>';
+        html += '<small class="text-muted">جميع الفروع: <span class="fw-bold text-dark">' + data.stock.all_branches + '</span></small>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
 </script>
+
+<style>
+    /* Custom styles for price popover */
+    .item-prices-popover {
+        max-width: 450px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        border: 1px solid #dee2e6;
+    }
+
+    .item-prices-popover .popover-body {
+        padding: 1rem;
+        color: #333;
+    }
+
+    .item-prices-content {
+        direction: rtl;
+        text-align: right;
+    }
+
+    .item-info-btn {
+        transition: all 0.2s;
+        opacity: 0.7;
+    }
+
+    .item-info-btn:hover {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+</style>
+
 {% endblock %}

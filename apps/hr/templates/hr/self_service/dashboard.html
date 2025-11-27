@@ -1,0 +1,348 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        border: none;
+    }
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    .profile-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    .stat-card {
+        border-radius: 15px;
+    }
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .quick-action {
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+    .quick-action:hover {
+        background-color: #f8f9fa;
+        transform: scale(1.05);
+    }
+    .leave-balance-bar {
+        height: 8px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- ترحيب وملف شخصي -->
+    <div class="row mb-4">
+        <div class="col-lg-4">
+            <div class="card dashboard-card profile-card shadow-sm h-100">
+                <div class="card-body text-center py-4">
+                    <div class="mb-3">
+                        <div class="bg-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="fas fa-user fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <h4 class="mb-1">{{ employee.first_name }} {{ employee.last_name }}</h4>
+                    <p class="mb-1 opacity-75">{{ employee.job_title.name|default:"" }}</p>
+                    <p class="mb-3 opacity-50 small">{{ employee.department.name|default:"" }}</p>
+                    <a href="{% url 'hr:self_service_profile' %}" class="btn btn-light btn-sm">
+                        <i class="fas fa-user me-1"></i>{% trans "الملف الشخصي" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="row h-100">
+                <!-- إحصائيات الحضور -->
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card stat-card shadow-sm h-100 border-start border-success border-4">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="stat-icon bg-success bg-opacity-10 text-success me-3">
+                                    <i class="fas fa-check"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">{{ attendance_stats.present_days }}</h3>
+                                    <small class="text-muted">{% trans "أيام حضور" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card stat-card shadow-sm h-100 border-start border-danger border-4">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="stat-icon bg-danger bg-opacity-10 text-danger me-3">
+                                    <i class="fas fa-times"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">{{ attendance_stats.absent_days }}</h3>
+                                    <small class="text-muted">{% trans "أيام غياب" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card stat-card shadow-sm h-100 border-start border-warning border-4">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="stat-icon bg-warning bg-opacity-10 text-warning me-3">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">{{ attendance_stats.late_days }}</h3>
+                                    <small class="text-muted">{% trans "أيام تأخير" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card stat-card shadow-sm h-100 border-start border-info border-4">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="stat-icon bg-info bg-opacity-10 text-info me-3">
+                                    <i class="fas fa-hourglass-half"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">{{ attendance_stats.total_work_hours|floatformat:1 }}</h3>
+                                    <small class="text-muted">{% trans "ساعات عمل" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- إجراءات سريعة -->
+    <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>{% trans "إجراءات سريعة" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_leave_request_create' %}" class="quick-action">
+                        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-calendar-plus text-primary"></i>
+                        </div>
+                        <small class="d-block">{% trans "طلب إجازة" %}</small>
+                    </a>
+                </div>
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_attendance' %}" class="quick-action">
+                        <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-clipboard-check text-success"></i>
+                        </div>
+                        <small class="d-block">{% trans "سجل الحضور" %}</small>
+                    </a>
+                </div>
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_payslips' %}" class="quick-action">
+                        <div class="bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-file-invoice-dollar text-info"></i>
+                        </div>
+                        <small class="d-block">{% trans "كشف الراتب" %}</small>
+                    </a>
+                </div>
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_leave_balance' %}" class="quick-action">
+                        <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-balance-scale text-warning"></i>
+                        </div>
+                        <small class="d-block">{% trans "رصيد الإجازات" %}</small>
+                    </a>
+                </div>
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_advances' %}" class="quick-action">
+                        <div class="bg-secondary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-hand-holding-usd text-secondary"></i>
+                        </div>
+                        <small class="d-block">{% trans "السلف" %}</small>
+                    </a>
+                </div>
+                <div class="col-md-2 col-4">
+                    <a href="{% url 'hr:self_service_profile' %}" class="quick-action">
+                        <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                            <i class="fas fa-id-card text-danger"></i>
+                        </div>
+                        <small class="d-block">{% trans "بياناتي" %}</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- أرصدة الإجازات -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2 text-primary"></i>{% trans "أرصدة الإجازات" %}</h6>
+                    <a href="{% url 'hr:self_service_leave_balance' %}" class="btn btn-sm btn-outline-primary">{% trans "عرض الكل" %}</a>
+                </div>
+                <div class="card-body">
+                    {% for balance in leave_balances %}
+                    {% with total=balance.opening_balance|add:balance.carried_forward|add:balance.adjustment used=balance.used %}
+                    {% with remaining=total|add:"-"|add:used %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span>{{ balance.leave_type.name }}</span>
+                            <span class="badge bg-primary">{{ remaining|default:total }} / {{ total }} {% trans "يوم" %}</span>
+                        </div>
+                        <div class="progress leave-balance-bar">
+                            {% widthratio used total 100 as percentage %}
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ percentage|default:0 }}%"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endwith %}
+                    {% empty %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد أرصدة إجازات" %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- طلبات الإجازات الأخيرة -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-file-alt me-2 text-info"></i>{% trans "طلبات الإجازات الأخيرة" %}</h6>
+                    <a href="{% url 'hr:self_service_leave_requests' %}" class="btn btn-sm btn-outline-info">{% trans "عرض الكل" %}</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for request in recent_leave_requests %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ request.leave_type.name }}</h6>
+                                    <small class="text-muted">{{ request.start_date|date:"Y-m-d" }} - {{ request.end_date|date:"Y-m-d" }}</small>
+                                </div>
+                                <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'rejected' %}danger{% elif request.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                    {{ request.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            {% trans "لا توجد طلبات إجازات" %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات العقد -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-file-contract me-2 text-success"></i>{% trans "معلومات العقد" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% if current_contract %}
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "نوع العقد" %}</small>
+                            <strong>{{ current_contract.get_contract_type_display }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "تاريخ البداية" %}</small>
+                            <strong>{{ current_contract.start_date|date:"Y-m-d" }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "تاريخ الانتهاء" %}</small>
+                            <strong>{{ current_contract.end_date|date:"Y-m-d"|default:"-" }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "الحالة" %}</small>
+                            <span class="badge bg-success">{{ current_contract.get_status_display }}</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا يوجد عقد نشط" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- آخر كشف راتب -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2 text-warning"></i>{% trans "آخر كشف راتب" %}</h6>
+                    <a href="{% url 'hr:self_service_payslips' %}" class="btn btn-sm btn-outline-warning">{% trans "عرض الكل" %}</a>
+                </div>
+                <div class="card-body">
+                    {% if latest_payroll %}
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "الشهر" %}</small>
+                            <strong>{{ latest_payroll.payroll.get_month_display }} {{ latest_payroll.payroll.year }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "صافي الراتب" %}</small>
+                            <strong class="text-success">{{ latest_payroll.net_salary|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "إجمالي الراتب" %}</small>
+                            <strong>{{ latest_payroll.gross_salary|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{% trans "إجمالي الاستقطاعات" %}</small>
+                            <strong class="text-danger">{{ latest_payroll.total_deductions|floatformat:2 }}</strong>
+                        </div>
+                    </div>
+                    <a href="{% url 'hr:self_service_payslip_detail' latest_payroll.pk %}" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="fas fa-eye me-1"></i>{% trans "عرض التفاصيل" %}
+                    </a>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "لا توجد كشوف رواتب" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة مسيرات الرواتب الشهرية" %}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'hr:payroll_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "مسير جديد" %}
+            </a>
+            <a href="{% url 'hr:payroll_report' %}" class="btn btn-outline-info">
+                <i class="fas fa-chart-bar"></i> {% trans "التقارير" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total_count|default:0 }}</h3>
+                            <small>{% trans "إجمالي المسيرات" %}</small>
+                        </div>
+                        <i class="fas fa-file-invoice-dollar fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.draft_count|default:0 }}</h3>
+                            <small>{% trans "مسودات" %}</small>
+                        </div>
+                        <i class="fas fa-edit fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.approved_count|default:0 }}</h3>
+                            <small>{% trans "معتمدة" %}</small>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total_net|default:0|floatformat:2 }}</h3>
+                            <small>{% trans "إجمالي المبالغ" %}</small>
+                        </div>
+                        <i class="fas fa-money-bill-wave fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-filter"></i> {% trans "البحث والفلترة" %}
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select class="form-select" id="yearFilter">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for year in years %}
+                        <option value="{{ year }}" {% if year == current_year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الشهر" %}</label>
+                    <select class="form-select" id="monthFilter">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="1">{% trans "يناير" %}</option>
+                        <option value="2">{% trans "فبراير" %}</option>
+                        <option value="3">{% trans "مارس" %}</option>
+                        <option value="4">{% trans "أبريل" %}</option>
+                        <option value="5">{% trans "مايو" %}</option>
+                        <option value="6">{% trans "يونيو" %}</option>
+                        <option value="7">{% trans "يوليو" %}</option>
+                        <option value="8">{% trans "أغسطس" %}</option>
+                        <option value="9">{% trans "سبتمبر" %}</option>
+                        <option value="10">{% trans "أكتوبر" %}</option>
+                        <option value="11">{% trans "نوفمبر" %}</option>
+                        <option value="12">{% trans "ديسمبر" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="draft">{% trans "مسودة" %}</option>
+                        <option value="processing">{% trans "قيد المعالجة" %}</option>
+                        <option value="calculated">{% trans "تم الحساب" %}</option>
+                        <option value="approved">{% trans "معتمد" %}</option>
+                        <option value="paid">{% trans "مدفوع" %}</option>
+                        <option value="cancelled">{% trans "ملغي" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="button" class="btn btn-primary" id="applyFilters">
+                        <i class="fas fa-search"></i> {% trans "بحث" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-times"></i> {% trans "مسح" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="payrollTable" style="width: 100%">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "رقم المسير" %}</th>
+                            <th>{% trans "الفترة" %}</th>
+                            <th>{% trans "الفرع" %}</th>
+                            <th>{% trans "عدد الموظفين" %}</th>
+                            <th>{% trans "إجمالي الصافي" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
+<script>
+var payrollDataTable = null;
+
+$(document).ready(function() {
+    payrollDataTable = $('#payrollTable').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'hr:payroll_datatable_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.year = $('#yearFilter').val();
+                d.month = $('#monthFilter').val();
+                d.status = $('#statusFilter').val();
+            }
+        },
+        "columns": [
+            {"data": 0, "name": "number"},
+            {"data": 1, "name": "period"},
+            {"data": 2, "name": "branch"},
+            {"data": 3, "name": "employee_count"},
+            {"data": 4, "name": "total_net"},
+            {"data": 5, "name": "status"},
+            {"data": 6, "name": "actions", "orderable": false}
+        ],
+        "order": [[1, "desc"]],
+        "pageLength": 25,
+        "responsive": true,
+        "language": {
+            "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json"
+        }
+    });
+
+    $('#applyFilters').on('click', function() {
+        payrollDataTable.ajax.reload();
+    });
+
+    $('#clearFilters').on('click', function() {
+        $('#yearFilter, #monthFilter, #statusFilter').val('');
+        payrollDataTable.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

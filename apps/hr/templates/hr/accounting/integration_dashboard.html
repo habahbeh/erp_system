@@ -1,0 +1,204 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .mapping-card {
+        transition: all 0.3s ease;
+        border-radius: 15px;
+    }
+    .mapping-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-left: 8px;
+    }
+    .status-complete { background-color: #1cc88a; }
+    .status-incomplete { background-color: #e74a3b; }
+    .status-warning { background-color: #f6c23e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-link me-2"></i>{{ title }}</h4>
+
+    <!-- تنبيه حالة نظام المحاسبة -->
+    {% if not accounting_available %}
+    <div class="alert alert-warning d-flex align-items-center">
+        <i class="fas fa-exclamation-triangle me-2 fa-2x"></i>
+        <div>
+            <strong>{% trans "تنبيه:" %}</strong>
+            {% trans "نظام المحاسبة غير متوفر حالياً. بعض الميزات قد لا تعمل." %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ملخص الحالة -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card mapping-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <span class="status-indicator {% if mapping_complete %}status-complete{% else %}status-incomplete{% endif %}"></span>
+                    <i class="fas fa-cogs fa-3x {% if mapping_complete %}text-success{% else %}text-danger{% endif %} mb-3"></i>
+                    <h5>{% trans "الربط المحاسبي" %}</h5>
+                    {% if mapping_complete %}
+                    <span class="badge bg-success">{% trans "مكتمل" %}</span>
+                    {% else %}
+                    <span class="badge bg-danger">{% trans "غير مكتمل" %}</span>
+                    <br><small class="text-muted">{{ missing_mappings|length }} {% trans "عنصر مفقود" %}</small>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent text-center">
+                    <a href="{% url 'hr:hr_settings' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-cog me-1"></i>{% trans "إعدادات الربط" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card mapping-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-invoice-dollar fa-3x text-info mb-3"></i>
+                    <h5>{% trans "مسيرات الرواتب" %}</h5>
+                    <span class="badge bg-info">{{ payrolls_approved }} {% trans "مسير معتمد" %}</span>
+                </div>
+                <div class="card-footer bg-transparent text-center">
+                    <a href="{% url 'hr:payroll_list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list me-1"></i>{% trans "عرض المسيرات" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card mapping-card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-hand-holding-usd fa-3x text-warning mb-3"></i>
+                    <h5>{% trans "السلف" %}</h5>
+                    <span class="badge bg-warning text-dark">{{ advances_disbursed }} {% trans "سلفة مصروفة" %}</span>
+                </div>
+                <div class="card-footer bg-transparent text-center">
+                    <a href="{% url 'hr:advance_list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list me-1"></i>{% trans "عرض السلف" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الربط المحاسبي الحالي -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h6 class="mb-0"><i class="fas fa-link me-2"></i>{% trans "إعدادات الربط المحاسبي" %}</h6>
+        </div>
+        <div class="card-body">
+            {% if mappings %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "المكون" %}</th>
+                            <th>{% trans "الحساب المرتبط" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mapping in mappings %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-info">{{ mapping.component }}</span>
+                            </td>
+                            <td>{{ mapping.account.name|default:"-" }}</td>
+                            <td>
+                                {% if mapping.is_active %}
+                                <span class="badge bg-success">{% trans "نشط" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{% trans "غير نشط" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-exclamation-circle fa-3x text-warning mb-3"></i>
+                <p class="text-muted">{% trans "لم يتم إعداد الربط المحاسبي بعد" %}</p>
+                <p class="small text-muted">{% trans "يرجى إضافة الربط المحاسبي من إعدادات الموارد البشرية" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- العناصر المفقودة -->
+    {% if missing_mappings %}
+    <div class="card border-0 shadow-sm border-top border-danger border-3">
+        <div class="card-header bg-danger text-white">
+            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>{% trans "عناصر تحتاج إلى ربط" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for code, name in missing_mappings %}
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-times-circle text-danger me-2"></i>
+                        <span>{{ name }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- شرح التكامل المحاسبي -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "كيفية عمل التكامل المحاسبي" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-primary">{% trans "قيد استحقاق الرواتب" %}</h6>
+                    <p class="small text-muted">{% trans "يُنشأ عند اعتماد مسير الرواتب:" %}</p>
+                    <ul class="small">
+                        <li>{% trans "مدين: مصروف الرواتب والبدلات" %}</li>
+                        <li>{% trans "دائن: الرواتب المستحقة" %}</li>
+                        <li>{% trans "دائن: الضمان الاجتماعي المستحق" %}</li>
+                        <li>{% trans "دائن: ضريبة الدخل المستحقة" %}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-success">{% trans "قيد صرف الرواتب" %}</h6>
+                    <p class="small text-muted">{% trans "يُنشأ عند صرف الرواتب:" %}</p>
+                    <ul class="small">
+                        <li>{% trans "مدين: الرواتب المستحقة" %}</li>
+                        <li>{% trans "دائن: البنك/الصندوق" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

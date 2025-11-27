@@ -1,0 +1,116 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-calendar-plus me-2"></i>{{ title }}</h4>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "نوع الإجازة" %} <span class="text-danger">*</span></label>
+                                <select name="leave_type" class="form-select" required>
+                                    <option value="">{% trans "اختر نوع الإجازة" %}</option>
+                                    {% for lt in form.fields.leave_type.queryset %}
+                                    <option value="{{ lt.pk }}">{{ lt.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "تاريخ البداية" %} <span class="text-danger">*</span></label>
+                                <input type="date" name="start_date" class="form-control" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "تاريخ النهاية" %} <span class="text-danger">*</span></label>
+                                <input type="date" name="end_date" class="form-control" required>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label">{% trans "السبب" %}</label>
+                                <textarea name="reason" class="form-control" rows="3" placeholder="{% trans 'اكتب سبب الإجازة...' %}"></textarea>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label">{% trans "مرفق" %}</label>
+                                <input type="file" name="attachment" class="form-control">
+                                <small class="text-muted">{% trans "يمكنك إرفاق مستند داعم (اختياري)" %}</small>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-end">
+                            <a href="{% url 'hr:self_service_leave_requests' %}" class="btn btn-secondary me-2">
+                                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-1"></i>{% trans "تقديم الطلب" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "تعليمات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>{% trans "تأكد من توفر رصيد كافٍ" %}</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>{% trans "أدخل التواريخ بشكل صحيح" %}</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>{% trans "اذكر سبب الإجازة بوضوح" %}</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>{% trans "أرفق المستندات الداعمة إن وجدت" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // حساب عدد الأيام تلقائياً
+    const startDate = document.querySelector('input[name="start_date"]');
+    const endDate = document.querySelector('input[name="end_date"]');
+
+    function calculateDays() {
+        if (startDate.value && endDate.value) {
+            const start = new Date(startDate.value);
+            const end = new Date(endDate.value);
+            const days = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            if (days > 0) {
+                console.log('عدد الأيام:', days);
+            }
+        }
+    }
+
+    startDate.addEventListener('change', calculateDays);
+    endDate.addEventListener('change', calculateDays);
+</script>
+{% endblock %}

@@ -1,0 +1,156 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-calendar-check"></i> {{ title }}</h5>
+                    <span class="badge bg-{% if leave_request.status == 'approved' %}success{% elif leave_request.status == 'rejected' %}danger{% elif leave_request.status == 'pending' %}warning{% else %}secondary{% endif %} fs-6">
+                        {{ leave_request.get_status_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "رقم الطلب" %}</label>
+                            <p class="fw-bold">{{ leave_request.request_number }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "الموظف" %}</label>
+                            <p class="fw-bold">{{ leave_request.employee.full_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "نوع الإجازة" %}</label>
+                            <p class="fw-bold">{{ leave_request.leave_type.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "عدد الأيام" %}</label>
+                            <p class="fw-bold">{{ leave_request.days }} {% trans "يوم" %}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "من تاريخ" %}</label>
+                            <p class="fw-bold">{{ leave_request.start_date }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">{% trans "إلى تاريخ" %}</label>
+                            <p class="fw-bold">{{ leave_request.end_date }}</p>
+                        </div>
+                        {% if leave_request.reason %}
+                        <div class="col-12">
+                            <label class="text-muted">{% trans "السبب" %}</label>
+                            <p>{{ leave_request.reason }}</p>
+                        </div>
+                        {% endif %}
+                        {% if leave_request.notes %}
+                        <div class="col-12">
+                            <label class="text-muted">{% trans "ملاحظات" %}</label>
+                            <p>{{ leave_request.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if leave_request.status == 'pending' and approval_form %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning">
+                    <h6 class="mb-0"><i class="fas fa-gavel"></i> {% trans "إجراء الموافقة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "سبب الرفض (في حالة الرفض)" %}</label>
+                            {% render_field approval_form.rejection_reason class="form-control" rows="2" %}
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="approve" class="btn btn-success">
+                                <i class="fas fa-check"></i> {% trans "موافقة" %}
+                            </button>
+                            <button type="submit" name="action" value="reject" class="btn btn-danger">
+                                <i class="fas fa-times"></i> {% trans "رفض" %}
+                            </button>
+                        </div>
+                        <input type="hidden" name="action" id="action_field">
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if leave_request.status == 'rejected' and leave_request.rejection_reason %}
+            <div class="alert alert-danger">
+                <strong><i class="fas fa-times-circle"></i> {% trans "سبب الرفض:" %}</strong>
+                <p class="mb-0 mt-2">{{ leave_request.rejection_reason }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            {% if balance %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-balance-scale"></i> {% trans "رصيد الإجازات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted">{% trans "الرصيد الافتتاحي" %}</small>
+                        <h4>{{ balance.opening_balance }} {% trans "يوم" %}</h4>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted">{% trans "المستخدم" %}</small>
+                        <h4 class="text-danger">{{ balance.used }} {% trans "يوم" %}</h4>
+                    </div>
+                    <hr>
+                    <div>
+                        <small class="text-muted">{% trans "الرصيد المتاح" %}</small>
+                        <h4 class="text-success">{{ balance.remaining }} {% trans "يوم" %}</h4>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "معلومات إضافية" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "تاريخ الإنشاء:" %}</strong><br>{{ leave_request.created_at }}</p>
+                    <p><strong>{% trans "بواسطة:" %}</strong><br>{{ leave_request.created_by }}</p>
+                    {% if leave_request.approved_by %}
+                    <p><strong>{% trans "تمت الموافقة بواسطة:" %}</strong><br>{{ leave_request.approved_by }}</p>
+                    <p><strong>{% trans "تاريخ الموافقة:" %}</strong><br>{{ leave_request.approved_at }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'hr:leave_request_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "رجوع للقائمة" %}
+        </a>
+        {% if leave_request.status == 'pending' %}
+        <a href="{% url 'hr:leave_request_update' leave_request.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> {% trans "تعديل" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

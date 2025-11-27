@@ -1,0 +1,254 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "تسجيل حضور جماعي لجميع الموظفين" %}</p>
+        </div>
+    </div>
+
+    <form method="post" id="bulkAttendanceForm">
+        {% csrf_token %}
+
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog"></i> {% trans "إعدادات التسجيل" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "التاريخ" %} <span class="text-danger">*</span></label>
+                            {% render_field form.date class="form-control" type="date" %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "القسم" %}</label>
+                            {% render_field form.department class="form-select" %}
+                            <small class="text-muted">{% trans "اترك فارغاً لتحميل جميع الموظفين" %}</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "وقت الحضور الافتراضي" %}</label>
+                            {% render_field form.default_check_in class="form-control" type="time" %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "وقت الانصراف الافتراضي" %}</label>
+                            {% render_field form.default_check_out class="form-control" type="time" %}
+                        </div>
+                        <button type="button" class="btn btn-outline-primary w-100" id="loadEmployees">
+                            <i class="fas fa-sync"></i> {% trans "تحميل الموظفين" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-users"></i> {% trans "قائمة الموظفين" %}</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-success" id="selectAll">
+                                <i class="fas fa-check-double"></i> {% trans "تحديد الكل حضور" %}
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" id="selectAllAbsent">
+                                <i class="fas fa-times"></i> {% trans "تحديد الكل غياب" %}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="employeesTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" class="form-check-input" id="checkAll">
+                                        </th>
+                                        <th>{% trans "الموظف" %}</th>
+                                        <th>{% trans "القسم" %}</th>
+                                        <th style="width: 120px;">{% trans "الحالة" %}</th>
+                                        <th style="width: 120px;">{% trans "وقت الحضور" %}</th>
+                                        <th style="width: 120px;">{% trans "وقت الانصراف" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="employeesTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">
+                                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                            <p>{% trans "اضغط على 'تحميل الموظفين' لعرض القائمة" %}</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-flex justify-content-between">
+                            <span id="selectedCount" class="text-muted">{% trans "لم يتم تحديد موظفين" %}</span>
+                            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                                <i class="fas fa-save"></i> {% trans "حفظ سجلات الحضور" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var employees = [];
+
+$(document).ready(function() {
+    // Set today's date as default
+    $('#id_date').val(new Date().toISOString().split('T')[0]);
+    $('#id_default_check_in').val('08:00');
+    $('#id_default_check_out').val('16:00');
+
+    // Load employees
+    $('#loadEmployees').on('click', function() {
+        var department = $('#id_department').val();
+        var date = $('#id_date').val();
+
+        if (!date) {
+            alert('{% trans "يرجى تحديد التاريخ أولاً" %}');
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "hr:employee_search_ajax" %}',
+            data: {
+                department: department,
+                status: 'active',
+                for_attendance: true
+            },
+            success: function(data) {
+                employees = data.results || [];
+                renderEmployeesTable();
+            },
+            error: function() {
+                alert('{% trans "حدث خطأ في تحميل الموظفين" %}');
+            }
+        });
+    });
+
+    function renderEmployeesTable() {
+        var tbody = $('#employeesTableBody');
+        tbody.empty();
+
+        if (employees.length === 0) {
+            tbody.html(`
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        {% trans "لا يوجد موظفين" %}
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+
+        var defaultCheckIn = $('#id_default_check_in').val();
+        var defaultCheckOut = $('#id_default_check_out').val();
+
+        employees.forEach(function(emp, index) {
+            tbody.append(`
+                <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input employee-check"
+                               name="employees[]" value="${emp.id}" data-index="${index}">
+                    </td>
+                    <td>
+                        <strong>${emp.text}</strong>
+                        <br><small class="text-muted">${emp.employee_number || ''}</small>
+                    </td>
+                    <td>${emp.department || '-'}</td>
+                    <td>
+                        <select class="form-select form-select-sm status-select" name="status_${emp.id}">
+                            <option value="present">{% trans "حضور" %}</option>
+                            <option value="absent">{% trans "غياب" %}</option>
+                            <option value="late">{% trans "متأخر" %}</option>
+                            <option value="leave">{% trans "إجازة" %}</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="time" class="form-control form-control-sm check-in-time"
+                               name="check_in_${emp.id}" value="${defaultCheckIn}">
+                    </td>
+                    <td>
+                        <input type="time" class="form-control form-control-sm check-out-time"
+                               name="check_out_${emp.id}" value="${defaultCheckOut}">
+                    </td>
+                </tr>
+            `);
+        });
+
+        updateSelectedCount();
+    }
+
+    // Check all
+    $('#checkAll').on('change', function() {
+        $('.employee-check').prop('checked', $(this).is(':checked'));
+        updateSelectedCount();
+    });
+
+    // Select all present
+    $('#selectAll').on('click', function() {
+        $('.employee-check').prop('checked', true);
+        $('.status-select').val('present');
+        updateSelectedCount();
+    });
+
+    // Select all absent
+    $('#selectAllAbsent').on('click', function() {
+        $('.employee-check').prop('checked', true);
+        $('.status-select').val('absent');
+        updateSelectedCount();
+    });
+
+    // Update count on checkbox change
+    $(document).on('change', '.employee-check', function() {
+        updateSelectedCount();
+    });
+
+    function updateSelectedCount() {
+        var count = $('.employee-check:checked').length;
+        $('#selectedCount').text(count > 0 ?
+            '{% trans "تم تحديد" %} ' + count + ' {% trans "موظف" %}' :
+            '{% trans "لم يتم تحديد موظفين" %}');
+        $('#submitBtn').prop('disabled', count === 0);
+    }
+
+    // Status change handling
+    $(document).on('change', '.status-select', function() {
+        var row = $(this).closest('tr');
+        var status = $(this).val();
+        if (status === 'absent' || status === 'leave') {
+            row.find('.check-in-time, .check-out-time').val('').prop('disabled', true);
+        } else {
+            row.find('.check-in-time, .check-out-time').prop('disabled', false);
+            row.find('.check-in-time').val($('#id_default_check_in').val());
+            row.find('.check-out-time').val($('#id_default_check_out').val());
+        }
+    });
+});
+</script>
+{% endblock %}

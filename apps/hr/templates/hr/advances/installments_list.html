@@ -1,0 +1,123 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "الأقساط المستحقة للشهر الحالي" %} ({{ current_month }})</p>
+        </div>
+        <a href="{% url 'hr:advance_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "رجوع للسلف" %}
+        </a>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card bg-warning text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total_count|default:0 }}</h3>
+                            <small>{% trans "أقساط مستحقة" %}</small>
+                        </div>
+                        <i class="fas fa-calendar-check fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-danger text-white">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ stats.total_amount|floatformat:2|default:0 }}</h3>
+                            <small>{% trans "إجمالي المبالغ" %}</small>
+                        </div>
+                        <i class="fas fa-money-bill fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installments Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{% trans "الموظف" %}</th>
+                            <th>{% trans "رقم السلفة" %}</th>
+                            <th>{% trans "رقم القسط" %}</th>
+                            <th>{% trans "تاريخ الاستحقاق" %}</th>
+                            <th>{% trans "المبلغ" %}</th>
+                            <th>{% trans "الحالة" %}</th>
+                            <th class="text-center">{% trans "الإجراءات" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inst in due_installments %}
+                        <tr>
+                            <td>
+                                <strong>{{ inst.advance.employee.full_name }}</strong>
+                                <br><small class="text-muted">{{ inst.advance.employee.employee_number }}</small>
+                            </td>
+                            <td>
+                                <a href="{% url 'hr:advance_detail' inst.advance.pk %}">{{ inst.advance.advance_number }}</a>
+                            </td>
+                            <td>{{ inst.installment_number }} / {{ inst.advance.installments }}</td>
+                            <td>{{ inst.due_date }}</td>
+                            <td class="fw-bold">{{ inst.amount|floatformat:2 }}</td>
+                            <td>
+                                <span class="badge bg-warning">{{ inst.get_status_display }}</span>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-success" onclick="markAsPaid({{ inst.id }})">
+                                    <i class="fas fa-check"></i> {% trans "تسديد" %}
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                                <p>{% trans "لا توجد أقساط مستحقة لهذا الشهر" %}</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function markAsPaid(installmentId) {
+    if (confirm('{% trans "هل تريد تسجيل هذا القسط كمسدد؟" %}')) {
+        // AJAX call to mark as paid
+        alert('{% trans "سيتم إضافة هذه الميزة قريباً" %}');
+    }
+}
+</script>
+{% endblock %}

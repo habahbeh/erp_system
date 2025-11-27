@@ -1,0 +1,111 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-business-time"></i> {{ title }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الموظف" %} <span class="text-danger">*</span></label>
+                                {% render_field form.employee class="form-select" %}
+                                {% if form.employee.errors %}<div class="invalid-feedback d-block">{{ form.employee.errors.0 }}</div>{% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "التاريخ" %} <span class="text-danger">*</span></label>
+                                {% render_field form.date class="form-control" type="date" %}
+                                {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors.0 }}</div>{% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">{% trans "عدد الساعات" %} <span class="text-danger">*</span></label>
+                                {% render_field form.hours class="form-control" type="number" step="0.5" min="0.5" %}
+                                {% if form.hours.errors %}<div class="invalid-feedback d-block">{{ form.hours.errors.0 }}</div>{% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">{% trans "معدل الأجر" %} <span class="text-danger">*</span></label>
+                                {% render_field form.rate class="form-control" type="number" step="0.25" min="1" %}
+                                {% if form.rate.errors %}<div class="invalid-feedback d-block">{{ form.rate.errors.0 }}</div>{% endif %}
+                                <small class="text-muted">{% trans "1 = عادي، 1.5 = ساعة ونصف، 2 = ضعف" %}</small>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">{% trans "المبلغ المحسوب" %}</label>
+                                <input type="text" class="form-control" id="calculated_amount" readonly>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "السبب" %}</label>
+                                {% render_field form.reason class="form-control" rows="3" %}
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">{% trans "ملاحظات" %}</label>
+                                {% render_field form.notes class="form-control" rows="2" %}
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'hr:overtime_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    function calculateAmount() {
+        // This is a simplified calculation - actual calculation would need employee hourly rate
+        var hours = parseFloat($('#id_hours').val()) || 0;
+        var rate = parseFloat($('#id_rate').val()) || 1;
+        // Placeholder - would need actual hourly rate from employee
+        $('#calculated_amount').val('{% trans "يحسب بناء على راتب الموظف" %}');
+    }
+
+    $('#id_hours, #id_rate').on('input change', calculateAmount);
+    calculateAmount();
+});
+</script>
+{% endblock %}

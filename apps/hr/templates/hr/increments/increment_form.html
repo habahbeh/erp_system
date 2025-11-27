@@ -1,0 +1,306 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">{% trans "إدارة بيانات العلاوة" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'hr:increment_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> {% trans "العودة" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <form method="post" novalidate id="incrementForm">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ form.non_field_errors }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- بيانات الموظف -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-user me-2"></i>{% trans "بيانات الموظف" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Employee -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.employee.id_for_label }}" class="form-label">
+                                    {{ form.employee.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.employee }}
+                                {% if form.employee.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.employee.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Increment Type -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.increment_type.id_for_label }}" class="form-label">
+                                    {{ form.increment_type.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.increment_type }}
+                                {% if form.increment_type.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.increment_type.errors|first }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Employee Info Card (populated via JS) -->
+                        <div class="alert alert-info" id="employeeInfo" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>{% trans "الراتب الحالي:" %}</strong>
+                                    <span id="currentSalary">-</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>{% trans "القسم:" %}</strong>
+                                    <span id="employeeDept">-</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>{% trans "المسمى الوظيفي:" %}</strong>
+                                    <span id="employeeTitle">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- بيانات العلاوة -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>{% trans "بيانات العلاوة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Is Percentage -->
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label d-block">&nbsp;</label>
+                                <div class="form-check form-switch mt-2">
+                                    {{ form.is_percentage }}
+                                    <label class="form-check-label" for="{{ form.is_percentage.id_for_label }}">
+                                        {% trans "نسبة مئوية" %}
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Increment Amount -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.increment_amount.id_for_label }}" class="form-label">
+                                    {{ form.increment_amount.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    {{ form.increment_amount }}
+                                    <span class="input-group-text" id="amountSuffix">{% trans "د.أ" %}</span>
+                                </div>
+                                {% if form.increment_amount.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.increment_amount.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Effective Date -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.effective_date.id_for_label }}" class="form-label">
+                                    {{ form.effective_date.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.effective_date }}
+                                {% if form.effective_date.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.effective_date.errors|first }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.status.id_for_label }}" class="form-label">
+                                    {% trans "الحالة" %}
+                                </label>
+                                {{ form.status }}
+                            </div>
+                        </div>
+
+                        <!-- New Salary Preview -->
+                        <div class="alert alert-success mb-0" id="newSalaryPreview" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>{% trans "الراتب القديم:" %}</strong>
+                                    <span id="oldSalaryPreview">-</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>{% trans "قيمة الزيادة:" %}</strong>
+                                    <span id="incrementPreview">-</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>{% trans "الراتب الجديد:" %}</strong>
+                                    <span id="newSalaryValue" class="text-success fw-bold">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- السبب والملاحظات -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-comment-alt me-2"></i>{% trans "السبب والملاحظات" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Reason -->
+                        <div class="mb-3">
+                            <label for="{{ form.reason.id_for_label }}" class="form-label">
+                                {{ form.reason.label }}
+                            </label>
+                            {{ form.reason }}
+                            <small class="form-text text-muted">{% trans "سبب منح العلاوة" %}</small>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {{ form.notes.label }}
+                            </label>
+                            {{ form.notes }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الحالة -->
+                {% if object %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog me-2"></i>{% trans "الحالة" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Submit Buttons -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'hr:increment_list' %}" class="btn btn-light">
+                                <i class="fas fa-times me-1"></i> {% trans "إلغاء" %}
+                            </a>
+                            <div>
+                                <button type="submit" name="save_and_add" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-plus me-1"></i> {% trans "حفظ وإضافة جديد" %}
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> {{ submit_text }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    var currentSalary = 0;
+
+    // Initialize Select2 for employee
+    $('#id_employee').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: '{% trans "اختر الموظف..." %}',
+        allowClear: true,
+        language: {
+            noResults: function() { return "{% trans 'لا توجد نتائج' %}"; },
+            searching: function() { return "{% trans 'جاري البحث...' %}"; }
+        }
+    });
+
+    // Toggle percentage suffix
+    $('#id_is_percentage').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#amountSuffix').text('%');
+        } else {
+            $('#amountSuffix').text('د.أ');
+        }
+        calculateNewSalary();
+    });
+
+    // Calculate new salary on input change
+    $('#id_increment_amount').on('input', calculateNewSalary);
+
+    function calculateNewSalary() {
+        if (currentSalary > 0) {
+            var incrementAmount = parseFloat($('#id_increment_amount').val()) || 0;
+            var isPercentage = $('#id_is_percentage').is(':checked');
+            var actualIncrement = 0;
+            var newSalary = 0;
+
+            if (isPercentage) {
+                actualIncrement = currentSalary * (incrementAmount / 100);
+            } else {
+                actualIncrement = incrementAmount;
+            }
+
+            newSalary = currentSalary + actualIncrement;
+
+            $('#oldSalaryPreview').text(currentSalary.toLocaleString() + ' د.أ');
+            $('#incrementPreview').text(actualIncrement.toLocaleString() + ' د.أ');
+            $('#newSalaryValue').text(newSalary.toLocaleString() + ' د.أ');
+            $('#newSalaryPreview').show();
+        }
+    }
+
+    // Initialize on load
+    if ($('#id_is_percentage').is(':checked')) {
+        $('#amountSuffix').text('%');
+    }
+});
+</script>
+{% endblock %}

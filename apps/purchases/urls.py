@@ -21,7 +21,8 @@ from .views.invoice_views import (
     get_item_stock_current_branch_ajax as invoice_get_stock_current,
     item_search_ajax as invoice_item_search,
     save_invoice_draft_ajax,
-    get_item_uom_conversions_ajax
+    get_item_uom_conversions_ajax,
+    get_item_all_prices_ajax
 )
 from .views.ajax_views import ajax_get_item_price_by_uom
 from .views.order_views import (
@@ -89,6 +90,7 @@ urlpatterns = [
     path('ajax/invoices/get-price-by-uom/', ajax_get_item_price_by_uom, name='ajax_get_item_price_by_uom'),
     path('ajax/invoices/save-draft/', save_invoice_draft_ajax, name='save_invoice_draft_ajax'),
     path('ajax/invoices/uom-conversions/', get_item_uom_conversions_ajax, name='get_item_uom_conversions_ajax'),
+    path('ajax/invoices/item-all-prices/', get_item_all_prices_ajax, name='get_item_all_prices_ajax'),
     path('invoices/export/', export_invoices_excel, name='export_invoices_excel'),
 
     # ==================== Purchase Orders ====================

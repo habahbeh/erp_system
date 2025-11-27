@@ -1,0 +1,115 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-file-invoice me-2"></i>{{ title }}</h4>
+
+    <!-- معلومات السلفة -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h6 class="mb-0"><i class="fas fa-hand-holding-usd me-2"></i>{% trans "معلومات السلفة" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "الموظف" %}</small>
+                    <h5>{{ advance.employee }}</h5>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "مبلغ السلفة" %}</small>
+                    <h5 class="text-primary">{{ advance.amount|floatformat:2 }}</h5>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "تاريخ الصرف" %}</small>
+                    <h5>{{ advance.disbursement_date|date:"Y-m-d" }}</h5>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "الحالة" %}</small>
+                    <h5>
+                        <span class="badge bg-info">{{ advance.get_status_display }}</span>
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- القيد المحاسبي المقترح -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h6 class="mb-0"><i class="fas fa-book me-2"></i>{% trans "القيد المحاسبي المقترح" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "البيان" %}</th>
+                            <th>{% trans "الحساب" %}</th>
+                            <th class="text-center">{% trans "مدين" %}</th>
+                            <th class="text-center">{% trans "دائن" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for line in journal_lines %}
+                        <tr>
+                            <td>{{ line.description }}</td>
+                            <td>{{ line.account.code }} - {{ line.account.name }}</td>
+                            <td class="text-center {% if line.debit > 0 %}text-primary fw-bold{% endif %}">
+                                {% if line.debit > 0 %}{{ line.debit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="text-center {% if line.credit > 0 %}text-success fw-bold{% endif %}">
+                                {% if line.credit > 0 %}{{ line.credit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">{% trans "لا توجد بنود" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-dark">
+                        <tr>
+                            <th colspan="2" class="text-start">{% trans "الإجمالي" %}</th>
+                            <th class="text-center">{{ total_debit|floatformat:2 }}</th>
+                            <th class="text-center">{{ total_credit|floatformat:2 }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            {% if is_balanced %}
+            <div class="alert alert-success mt-3">
+                <i class="fas fa-check-circle me-2"></i>
+                {% trans "القيد متوازن" %}
+            </div>
+            {% else %}
+            <div class="alert alert-danger mt-3">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                {% trans "القيد غير متوازن!" %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'hr:advance_detail' advance.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

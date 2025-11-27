@@ -1,0 +1,259 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+    }
+    .settings-card:hover {
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    .form-switch .form-check-input {
+        width: 3em;
+        height: 1.5em;
+    }
+    .setting-group {
+        padding: 20px;
+        border-radius: 10px;
+        background-color: #f8f9fa;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <h4 class="mb-4"><i class="fas fa-cog me-2"></i>{{ title }}</h4>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card settings-card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-bell me-2"></i>{% trans "إعدادات الإشعارات" %}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="settingsForm">
+                        {% csrf_token %}
+
+                        <!-- إشعارات العقود -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-file-contract me-2 text-primary"></i>{% trans "إشعارات انتهاء العقود" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعار قبل انتهاء عقود الموظفين" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_contract_expiry" id="notify_contract_expiry"
+                                           {% if settings.notify_contract_expiry %}checked{% endif %}>
+                                </div>
+                            </div>
+                            <div class="row contract-settings {% if not settings.notify_contract_expiry %}d-none{% endif %}">
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "التنبيه قبل (أيام)" %}</label>
+                                    <input type="number" class="form-control" name="contract_expiry_days"
+                                           value="{{ settings.contract_expiry_days }}" min="1" max="365">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إشعارات رصيد الإجازات -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-calendar-minus me-2 text-warning"></i>{% trans "إشعارات رصيد الإجازات المنخفض" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعار عند انخفاض رصيد الإجازات" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_leave_balance" id="notify_leave_balance"
+                                           {% if settings.notify_leave_balance %}checked{% endif %}>
+                                </div>
+                            </div>
+                            <div class="row leave-balance-settings {% if not settings.notify_leave_balance %}d-none{% endif %}">
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "حد الرصيد المنخفض (أيام)" %}</label>
+                                    <input type="number" class="form-control" name="leave_balance_threshold"
+                                           value="{{ settings.leave_balance_threshold }}" min="1" max="30">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إشعارات طلبات الإجازات -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-calendar-alt me-2 text-info"></i>{% trans "إشعارات طلبات الإجازات" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعار عند تقديم طلبات إجازة جديدة" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_leave_requests" id="notify_leave_requests"
+                                           {% if settings.notify_leave_requests %}checked{% endif %}>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إشعارات أقساط السلف -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-money-bill-wave me-2 text-success"></i>{% trans "إشعارات أقساط السلف المستحقة" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعار عند استحقاق أقساط السلف" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_advance_dues" id="notify_advance_dues"
+                                           {% if settings.notify_advance_dues %}checked{% endif %}>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إشعارات الحضور -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-clock me-2 text-secondary"></i>{% trans "إشعارات الحضور والانصراف" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعارات الغياب والتأخير" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_attendance" id="notify_attendance"
+                                           {% if settings.notify_attendance %}checked{% endif %}>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إشعارات الوثائق -->
+                        <div class="setting-group">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-file-alt me-2 text-danger"></i>{% trans "إشعارات انتهاء الوثائق" %}</h6>
+                                    <small class="text-muted">{% trans "الحصول على إشعار قبل انتهاء وثائق الموظفين" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="notify_documents" id="notify_documents"
+                                           {% if settings.notify_documents %}checked{% endif %}>
+                                </div>
+                            </div>
+                            <div class="row document-settings {% if not settings.notify_documents %}d-none{% endif %}">
+                                <div class="col-md-6">
+                                    <label class="form-label">{% trans "التنبيه قبل (أيام)" %}</label>
+                                    <input type="number" class="form-control" name="document_expiry_days"
+                                           value="{{ settings.document_expiry_days }}" min="1" max="365">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- إشعارات البريد الإلكتروني -->
+                        <div class="setting-group bg-light border">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-envelope me-2 text-primary"></i>{% trans "إرسال البريد الإلكتروني" %}</h6>
+                                    <small class="text-muted">{% trans "إرسال الإشعارات أيضاً عبر البريد الإلكتروني" %}</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="email_notifications" id="email_notifications"
+                                           {% if settings.email_notifications %}checked{% endif %}>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-4">
+                            <a href="{% url 'hr:notification_list' %}" class="btn btn-secondary me-2">
+                                <i class="fas fa-arrow-right me-1"></i>{% trans "العودة" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% trans "حفظ الإعدادات" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "معلومات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        {% trans "يمكنك تخصيص أنواع الإشعارات التي تريد تلقيها. الإشعارات المفعلة ستظهر في صفحة الإشعارات وفي القائمة المنسدلة في الشريط العلوي." %}
+                    </p>
+                    <hr>
+                    <h6 class="small">{% trans "أنواع الأولوية:" %}</h6>
+                    <ul class="list-unstyled small">
+                        <li><span class="badge bg-danger">{% trans "عاجلة" %}</span> - {% trans "تتطلب إجراء فوري" %}</li>
+                        <li><span class="badge bg-warning">{% trans "مهمة" %}</span> - {% trans "تتطلب اهتمام قريب" %}</li>
+                        <li><span class="badge bg-info">{% trans "متوسطة" %}</span> - {% trans "للمتابعة العادية" %}</li>
+                        <li><span class="badge bg-success">{% trans "منخفضة" %}</span> - {% trans "معلوماتية" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // إظهار/إخفاء الإعدادات الفرعية
+    document.getElementById('notify_contract_expiry').addEventListener('change', function() {
+        document.querySelector('.contract-settings').classList.toggle('d-none', !this.checked);
+    });
+
+    document.getElementById('notify_leave_balance').addEventListener('change', function() {
+        document.querySelector('.leave-balance-settings').classList.toggle('d-none', !this.checked);
+    });
+
+    document.getElementById('notify_documents').addEventListener('change', function() {
+        document.querySelector('.document-settings').classList.toggle('d-none', !this.checked);
+    });
+
+    // حفظ الإعدادات بـ AJAX
+    document.getElementById('settingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        fetch('{% url "hr:notification_settings" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // إظهار رسالة نجاح
+                const toast = document.createElement('div');
+                toast.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999;';
+                toast.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>${data.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+        });
+    });
+</script>
+{% endblock %}

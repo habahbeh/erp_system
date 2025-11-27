@@ -1,0 +1,91 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-balance-scale me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:self_service_leave_request_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "طلب إجازة" %}
+        </a>
+    </div>
+
+    <!-- فلتر السنة -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "السنة" %}</label>
+                    <select name="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i>{% trans "تصفية" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- أرصدة الإجازات -->
+    <div class="row">
+        {% for balance in balances %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2 text-primary"></i>{{ balance.leave_type.name }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <h4 class="text-primary">{{ balance.total|floatformat:0 }}</h4>
+                            <small class="text-muted">{% trans "الإجمالي" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-danger">{{ balance.used|floatformat:0 }}</h4>
+                            <small class="text-muted">{% trans "المستخدم" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-success">{{ balance.remaining|floatformat:0 }}</h4>
+                            <small class="text-muted">{% trans "المتبقي" %}</small>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-{% if balance.percentage > 80 %}danger{% elif balance.percentage > 50 %}warning{% else %}success{% endif %}"
+                             role="progressbar" style="width: {{ balance.percentage|floatformat:0 }}%"></div>
+                    </div>
+                    <small class="text-muted d-block mt-2 text-center">{{ balance.percentage|floatformat:0 }}% {% trans "مستخدم" %}</small>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد أرصدة إجازات لهذه السنة" %}</h5>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

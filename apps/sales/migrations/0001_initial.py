@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('accounting', '0005_alter_costcenter_cost_center_type'),
         ('core', '0011_businesspartner_default_salesperson_and_more'),
-        ('hr', '0003_alter_employee_address_alter_employee_basic_salary_and_more'),
+        ('hr', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
