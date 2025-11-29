@@ -69,6 +69,12 @@ def ajax_items_search(request):
 
         last_price = last_purchase.unit_price if last_purchase else item.purchase_price or Decimal('0')
 
+        # ✅ الملاحظة 1: حساب السعر مع الضريبة
+        tax_rate = item.tax_rate or Decimal('0')
+        price_with_tax = last_price
+        if not item.is_tax_exempt and tax_rate > 0:
+            price_with_tax = last_price * (Decimal('1') + (tax_rate / Decimal('100')))
+
         result = {
             'id': item.id,
             'code': item.code,
@@ -77,8 +83,9 @@ def ajax_items_search(request):
             'barcode': item.barcode or '',
             'unit': item.unit.name if item.unit else '',
             'unit_id': item.unit.id if item.unit else None,
-            'purchase_price': str(last_price),
-            'tax_rate': str(item.tax_rate or Decimal('0')),
+            'purchase_price': str(price_with_tax),  # ✅ الملاحظة 1: السعر مع الضريبة
+            'purchase_price_before_tax': str(last_price),  # السعر الأصلي بدون ضريبة
+            'tax_rate': str(tax_rate),
             'is_tax_exempt': item.is_tax_exempt,
             'category': item.category.name if item.category else '',
             # معلومات إضافية
@@ -93,16 +100,23 @@ def ajax_items_search(request):
                 is_active=True
             ).select_related('item')[:5]
 
-            result['variants'] = [
-                {
+            variant_list = []
+            for v in variants:
+                v_price = v.purchase_price or last_price
+                # ✅ الملاحظة 1: حساب سعر المتغير مع الضريبة
+                v_price_with_tax = v_price
+                if not item.is_tax_exempt and tax_rate > 0:
+                    v_price_with_tax = v_price * (Decimal('1') + (tax_rate / Decimal('100')))
+
+                variant_list.append({
                     'id': v.id,
                     'code': v.code,
                     'name': v.get_variant_display(),
                     'barcode': v.barcode or '',
-                    'purchase_price': str(v.purchase_price or last_price),
-                }
-                for v in variants
-            ]
+                    'purchase_price': str(v_price_with_tax),  # ✅ الملاحظة 1: السعر مع الضريبة
+                })
+
+            result['variants'] = variant_list
 
         results.append(result)
 

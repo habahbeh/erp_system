@@ -1,0 +1,270 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{{ title }}</h4>
+        <div>
+            {% if evaluation.status == 'draft' or evaluation.status == 'self_evaluation' %}
+            <a href="{% url 'hr:self_evaluation' evaluation.pk %}" class="btn btn-info">
+                <i class="fas fa-user me-1"></i>{% trans "التقييم الذاتي" %}
+            </a>
+            {% endif %}
+            {% if evaluation.status == 'manager_evaluation' %}
+            <a href="{% url 'hr:manager_evaluation' evaluation.pk %}" class="btn btn-success">
+                <i class="fas fa-user-tie me-1"></i>{% trans "تقييم المدير" %}
+            </a>
+            {% endif %}
+            {% if evaluation.status == 'pending_approval' %}
+            <a href="{% url 'hr:evaluation_approve' evaluation.pk %}" class="btn btn-warning">
+                <i class="fas fa-check-double me-1"></i>{% trans "اعتماد" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'hr:evaluation_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Employee Info -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-user me-2"></i>{% trans "معلومات الموظف" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted">{% trans "الاسم" %}:</td>
+                            <td><strong>{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "الرقم الوظيفي" %}:</td>
+                            <td>{{ evaluation.employee.employee_number }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "القسم" %}:</td>
+                            <td>{{ evaluation.employee.department.name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "المسمى الوظيفي" %}:</td>
+                            <td>{{ evaluation.employee.job_title.name|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evaluation Info -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "معلومات التقييم" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted">{% trans "فترة التقييم" %}:</td>
+                            <td><strong>{{ evaluation.period.name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "المقيّم" %}:</td>
+                            <td>{{ evaluation.evaluator.get_full_name|default:evaluation.evaluator.username }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "الحالة" %}:</td>
+                            <td>
+                                <span class="badge bg-{% if evaluation.status == 'approved' %}success{% elif evaluation.status == 'rejected' %}danger{% elif evaluation.status == 'draft' %}secondary{% elif evaluation.status == 'pending_approval' %}warning{% else %}info{% endif %}">
+                                    {{ evaluation.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "تاريخ الإنشاء" %}:</td>
+                            <td>{{ evaluation.created_at|date:"Y-m-d" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scores -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-star me-2"></i>{% trans "الدرجات" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-4">
+                            <h4 class="text-info">{{ evaluation.self_score|floatformat:1|default:"-" }}</h4>
+                            <small class="text-muted">{% trans "التقييم الذاتي" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-success">{{ evaluation.manager_score|floatformat:1|default:"-" }}</h4>
+                            <small class="text-muted">{% trans "تقييم المدير" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-primary">{{ evaluation.final_score|floatformat:1|default:"-" }}</h4>
+                            <small class="text-muted">{% trans "النهائي" %}</small>
+                        </div>
+                    </div>
+                    {% if evaluation.grade %}
+                    <hr>
+                    <h3>
+                        <span class="badge bg-{% if evaluation.grade == 'A' %}success{% elif evaluation.grade == 'B' %}primary{% elif evaluation.grade == 'C' %}info{% elif evaluation.grade == 'D' %}warning{% else %}danger{% endif %} fs-4">
+                            {{ evaluation.grade }}
+                        </span>
+                    </h3>
+                    <small class="text-muted">{% trans "التقدير" %}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evaluation Details -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="fas fa-list me-2"></i>{% trans "تفاصيل التقييم" %}</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "المعيار" %}</th>
+                        <th>{% trans "النوع" %}</th>
+                        <th class="text-center">{% trans "الوزن" %}</th>
+                        <th class="text-center">{% trans "التقييم الذاتي" %}</th>
+                        <th class="text-center">{% trans "تقييم المدير" %}</th>
+                        <th class="text-center">{% trans "الدرجة النهائية" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for detail in details %}
+                    <tr>
+                        <td>
+                            <strong>{{ detail.criteria.name }}</strong>
+                            {% if detail.criteria.description %}
+                            <br><small class="text-muted">{{ detail.criteria.description|truncatewords:10 }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if detail.criteria.criteria_type == 'competency' %}primary{% elif detail.criteria.criteria_type == 'objective' %}success{% elif detail.criteria.criteria_type == 'behavior' %}info{% else %}warning{% endif %}">
+                                {{ detail.criteria.get_criteria_type_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">{{ detail.criteria.weight }}%</td>
+                        <td class="text-center">
+                            {% if detail.self_score %}
+                            <span class="text-info">{{ detail.self_score|floatformat:1 }}/{{ detail.criteria.max_score }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if detail.manager_score %}
+                            <span class="text-success">{{ detail.manager_score|floatformat:1 }}/{{ detail.criteria.max_score }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if detail.final_score %}
+                            <strong class="text-primary">{{ detail.final_score|floatformat:1 }}</strong>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if detail.employee_comments or detail.manager_comments %}
+                    <tr class="bg-light">
+                        <td colspan="6">
+                            <small>
+                                {% if detail.employee_comments %}
+                                <div class="mb-1"><strong>{% trans "ملاحظات الموظف" %}:</strong> {{ detail.employee_comments }}</div>
+                                {% endif %}
+                                {% if detail.manager_comments %}
+                                <div><strong>{% trans "ملاحظات المدير" %}:</strong> {{ detail.manager_comments }}</div>
+                                {% endif %}
+                            </small>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">{% trans "لا توجد تفاصيل للتقييم" %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Comments -->
+    {% if evaluation.strengths or evaluation.areas_for_improvement or evaluation.recommendations or evaluation.overall_comments %}
+    <div class="row">
+        {% if evaluation.strengths %}
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+                <div class="card-body">
+                    <h6 class="text-success"><i class="fas fa-thumbs-up me-2"></i>{% trans "نقاط القوة" %}</h6>
+                    <p class="mb-0">{{ evaluation.strengths|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if evaluation.areas_for_improvement %}
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-warning border-4">
+                <div class="card-body">
+                    <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-2"></i>{% trans "مجالات التحسين" %}</h6>
+                    <p class="mb-0">{{ evaluation.areas_for_improvement|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if evaluation.recommendations %}
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-info border-4">
+                <div class="card-body">
+                    <h6 class="text-info"><i class="fas fa-lightbulb me-2"></i>{% trans "التوصيات" %}</h6>
+                    <p class="mb-0">{{ evaluation.recommendations|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if evaluation.overall_comments %}
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-secondary border-4">
+                <div class="card-body">
+                    <h6 class="text-secondary"><i class="fas fa-comment me-2"></i>{% trans "التعليقات العامة" %}</h6>
+                    <p class="mb-0">{{ evaluation.overall_comments|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

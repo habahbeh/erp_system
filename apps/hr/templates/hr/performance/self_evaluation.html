@@ -1,0 +1,147 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-user me-2"></i>{{ title }}</h4>
+        <span class="badge bg-info fs-6">{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</span>
+    </div>
+
+    <!-- Employee Info Card -->
+    <div class="card border-0 shadow-sm mb-4 border-start border-info border-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "الموظف" %}</small>
+                    <p class="mb-0"><strong>{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</strong></p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "القسم" %}</small>
+                    <p class="mb-0">{{ evaluation.employee.department.name|default:"-" }}</p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "فترة التقييم" %}</small>
+                    <p class="mb-0">{{ evaluation.period.name }}</p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "الحالة" %}</small>
+                    <p class="mb-0">
+                        <span class="badge bg-info">{{ evaluation.get_status_display }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        <!-- Criteria Cards -->
+        {% for detail in details %}
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">{{ detail.criteria.name }}</h6>
+                    {% if detail.criteria.name_en %}
+                    <small class="text-muted">{{ detail.criteria.name_en }}</small>
+                    {% endif %}
+                </div>
+                <div>
+                    <span class="badge bg-{% if detail.criteria.criteria_type == 'competency' %}primary{% elif detail.criteria.criteria_type == 'objective' %}success{% elif detail.criteria.criteria_type == 'behavior' %}info{% else %}warning{% endif %} me-2">
+                        {{ detail.criteria.get_criteria_type_display }}
+                    </span>
+                    <span class="badge bg-secondary">{% trans "الوزن" %}: {{ detail.criteria.weight }}%</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if detail.criteria.description %}
+                <p class="text-muted small mb-3">{{ detail.criteria.description }}</p>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">
+                            {% trans "التقييم الذاتي" %}
+                            <small class="text-muted">({% trans "من" %} {{ detail.criteria.max_score }})</small>
+                            {% if detail.criteria.is_required %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {{ form|getitem:detail.criteria.id|safe }}
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">{% trans "ملاحظاتك" %}</label>
+                        <textarea name="comment_{{ detail.criteria.id }}" class="form-control" rows="2" placeholder="{% trans 'أضف ملاحظاتك على هذا المعيار' %}">{% if detail.employee_comments %}{{ detail.employee_comments }}{% endif %}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+            <p class="mb-0">{{ error }}</p>
+            {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a href="{% url 'hr:evaluation_detail' evaluation.pk %}" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i>{% trans "حفظ التقييم الذاتي" %}
+            </button>
+        </div>
+    </form>
+</div>
+
+{% block extra_js %}
+<script>
+// Dynamic score field creation
+document.addEventListener('DOMContentLoaded', function() {
+    {% for detail in details %}
+    var scoreField = document.createElement('input');
+    scoreField.type = 'number';
+    scoreField.name = 'score_{{ detail.criteria.id }}';
+    scoreField.className = 'form-control';
+    scoreField.min = 0;
+    scoreField.max = {{ detail.criteria.max_score }};
+    scoreField.step = 0.1;
+    scoreField.value = '{% if detail.self_score %}{{ detail.self_score }}{% endif %}';
+    scoreField.placeholder = '{% trans "الدرجة" %}';
+    {% if detail.criteria.is_required %}
+    scoreField.required = true;
+    {% endif %}
+
+    var container = document.querySelector('[name="score_{{ detail.criteria.id }}"]');
+    if (container) {
+        container.parentNode.replaceChild(scoreField, container);
+    } else {
+        var placeholder = document.querySelector('#score_placeholder_{{ detail.criteria.id }}');
+        if (placeholder) {
+            placeholder.appendChild(scoreField);
+        }
+    }
+    {% endfor %}
+});
+</script>
+{% endblock %}
+{% endblock %}

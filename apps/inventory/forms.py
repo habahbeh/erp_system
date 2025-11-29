@@ -6,7 +6,10 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.forms import inlineformset_factory
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from decimal import Decimal
+from datetime import date
 
 from .models import (
     StockIn, StockOut, StockTransfer, StockCount, StockMovement,
@@ -66,6 +69,17 @@ class StockInForm(forms.ModelForm):
                 self.fields['supplier'].required = False
                 self.fields['purchase_invoice'].required = False
 
+    def clean_date(self):
+        """التحقق من تاريخ الإدخال - لا يمكن أن يكون تاريخ مستقبلي"""
+        stock_date = self.cleaned_data.get('date')
+
+        if stock_date and stock_date > date.today():
+            raise ValidationError(
+                _('لا يمكن إدخال مخزون بتاريخ مستقبلي. يرجى اختيار تاريخ اليوم أو تاريخ سابق.')
+            )
+
+        return stock_date
+
 
 class StockDocumentLineForm(forms.ModelForm):
     """نموذج سطر سند إدخال/إخراج"""
@@ -96,6 +110,28 @@ class StockDocumentLineForm(forms.ModelForm):
             }),
             'notes': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_quantity(self):
+        """التحقق من الكمية - يجب أن تكون أكبر من صفر"""
+        quantity = self.cleaned_data.get('quantity')
+
+        if quantity is not None and quantity <= 0:
+            raise ValidationError(
+                _('الكمية يجب أن تكون أكبر من صفر')
+            )
+
+        return quantity
+
+    def clean_unit_cost(self):
+        """التحقق من التكلفة - لا يمكن أن تكون سالبة"""
+        unit_cost = self.cleaned_data.get('unit_cost')
+
+        if unit_cost is not None and unit_cost < 0:
+            raise ValidationError(
+                _('تكلفة الوحدة لا يمكن أن تكون سالبة')
+            )
+
+        return unit_cost
 
 
 # Formsets
@@ -157,6 +193,17 @@ class StockOutForm(forms.ModelForm):
                 self.fields['customer'].required = False
                 self.fields['sales_invoice'].required = False
 
+    def clean_date(self):
+        """التحقق من تاريخ الإخراج - لا يمكن أن يكون تاريخ مستقبلي"""
+        stock_date = self.cleaned_data.get('date')
+
+        if stock_date and stock_date > date.today():
+            raise ValidationError(
+                _('لا يمكن إخراج مخزون بتاريخ مستقبلي. يرجى اختيار تاريخ اليوم أو تاريخ سابق.')
+            )
+
+        return stock_date
+
 
 StockOutLineFormSet = inlineformset_factory(
     StockOut,
@@ -214,6 +261,17 @@ class StockTransferForm(forms.ModelForm):
                 self.fields['warehouse'].queryset = warehouses
                 self.fields['destination_warehouse'].queryset = warehouses
 
+    def clean_date(self):
+        """التحقق من تاريخ التحويل - لا يمكن أن يكون تاريخ مستقبلي"""
+        transfer_date = self.cleaned_data.get('date')
+
+        if transfer_date and transfer_date > date.today():
+            raise ValidationError(
+                _('لا يمكن تحويل المخزون بتاريخ مستقبلي. يرجى اختيار تاريخ اليوم أو تاريخ سابق.')
+            )
+
+        return transfer_date
+
     def clean(self):
         cleaned_data = super().clean()
         source = cleaned_data.get('warehouse')
@@ -251,6 +309,17 @@ class StockTransferLineForm(forms.ModelForm):
             }),
             'notes': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_quantity(self):
+        """التحقق من الكمية - يجب أن تكون أكبر من صفر"""
+        quantity = self.cleaned_data.get('quantity')
+
+        if quantity is not None and quantity <= 0:
+            raise ValidationError(
+                _('الكمية يجب أن تكون أكبر من صفر')
+            )
+
+        return quantity
 
 
 StockTransferLineFormSet = inlineformset_factory(
@@ -318,6 +387,30 @@ class StockCountForm(forms.ModelForm):
             self.fields['supervisor'].queryset = users
             self.fields['count_team'].queryset = users
 
+    def clean_date(self):
+        """التحقق من تاريخ الجرد - لا يمكن أن يكون تاريخ مستقبلي"""
+        count_date = self.cleaned_data.get('date')
+
+        if count_date:
+            if count_date > date.today():
+                raise ValidationError(
+                    _('لا يمكن جرد المخزون بتاريخ مستقبلي. يرجى اختيار تاريخ اليوم أو تاريخ سابق.')
+                )
+
+        return count_date
+
+    def clean(self):
+        """التحقق الشامل من البيانات"""
+        cleaned_data = super().clean()
+        warehouse = cleaned_data.get('warehouse')
+
+        if not warehouse:
+            raise ValidationError({
+                'warehouse': _('يجب تحديد المستودع لإجراء الجرد')
+            })
+
+        return cleaned_data
+
 
 class StockCountLineForm(forms.ModelForm):
     """نموذج سطر الجرد"""
@@ -336,7 +429,8 @@ class StockCountLineForm(forms.ModelForm):
             }),
             'counted_quantity': forms.NumberInput(attrs={
                 'class': 'form-control counted-qty-input',
-                'step': '0.001'
+                'step': '0.001',
+                'min': '0'
             }),
             'unit_cost': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -345,6 +439,37 @@ class StockCountLineForm(forms.ModelForm):
             'notes': forms.TextInput(attrs={'class': 'form-control'}),
             'adjustment_reason': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_counted_quantity(self):
+        """التحقق من الكمية المجروزة - لا يمكن أن تكون سالبة"""
+        quantity = self.cleaned_data.get('counted_quantity')
+
+        if quantity is not None and quantity < 0:
+            raise ValidationError(
+                _('الكمية المجروزة لا يمكن أن تكون سالبة. يرجى إدخال كمية صحيحة (0 أو أكبر).')
+            )
+
+        return quantity
+
+    def clean(self):
+        """التحقق الشامل من سطر الجرد"""
+        cleaned_data = super().clean()
+        system_qty = cleaned_data.get('system_quantity')
+        counted_qty = cleaned_data.get('counted_quantity')
+
+        # التحقق من وجود فرق كبير يحتاج سبب توضيحي
+        if system_qty is not None and counted_qty is not None:
+            difference = abs(system_qty - counted_qty)
+            adjustment_reason = cleaned_data.get('adjustment_reason')
+
+            # إذا كان الفرق أكبر من 10% من الكمية النظامية
+            if system_qty > 0 and (difference / system_qty) > 0.1:
+                if not adjustment_reason:
+                    self.add_error('adjustment_reason', ValidationError(
+                        _('يوجد فرق كبير بين الكمية النظامية والمجروزة (أكثر من 10%). يرجى إدخال سبب التسوية.')
+                    ))
+
+        return cleaned_data
 
 
 StockCountLineFormSet = inlineformset_factory(

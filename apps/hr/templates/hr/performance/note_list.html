@@ -1,0 +1,145 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-sticky-note me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:note_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "إضافة ملاحظة" %}
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "الموظف" %}</label>
+                    <select name="employee" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.pk }}" {% if selected_employee == emp.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ emp.first_name }} {{ emp.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "نوع الملاحظة" %}</label>
+                    <select name="type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="achievement" {% if selected_type == "achievement" %}selected{% endif %}>{% trans "إنجاز" %}</option>
+                        <option value="improvement" {% if selected_type == "improvement" %}selected{% endif %}>{% trans "تحسين مطلوب" %}</option>
+                        <option value="feedback" {% if selected_type == "feedback" %}selected{% endif %}>{% trans "ملاحظة" %}</option>
+                        <option value="recognition" {% if selected_type == "recognition" %}selected{% endif %}>{% trans "تقدير" %}</option>
+                        <option value="warning" {% if selected_type == "warning" %}selected{% endif %}>{% trans "تحذير" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="row">
+        {% for note in notes %}
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-{% if note.note_type == 'achievement' %}success{% elif note.note_type == 'improvement' %}warning{% elif note.note_type == 'recognition' %}info{% elif note.note_type == 'warning' %}danger{% else %}secondary{% endif %} border-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="badge bg-{% if note.note_type == 'achievement' %}success{% elif note.note_type == 'improvement' %}warning{% elif note.note_type == 'recognition' %}info{% elif note.note_type == 'warning' %}danger{% else %}secondary{% endif %}">
+                        <i class="fas fa-{% if note.note_type == 'achievement' %}trophy{% elif note.note_type == 'improvement' %}exclamation-triangle{% elif note.note_type == 'recognition' %}award{% elif note.note_type == 'warning' %}exclamation-circle{% else %}comment{% endif %} me-1"></i>
+                        {{ note.get_note_type_display }}
+                    </span>
+                    <small class="text-muted">{{ note.date|date:"Y-m-d" }}</small>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ note.title }}</h5>
+                    <p class="text-muted small mb-2">
+                        <i class="fas fa-user me-1"></i>{{ note.employee.first_name }} {{ note.employee.last_name }}
+                        {% if note.employee.department %}
+                        <span class="mx-2">|</span>
+                        <i class="fas fa-building me-1"></i>{{ note.employee.department.name }}
+                        {% endif %}
+                    </p>
+                    <p class="card-text">{{ note.description|truncatewords:30 }}</p>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-user-edit me-1"></i>{{ note.noted_by.get_full_name|default:note.noted_by.username }}
+                        </small>
+                        {% if note.is_visible_to_employee %}
+                        <span class="badge bg-info"><i class="fas fa-eye me-1"></i>{% trans "مرئي للموظف" %}</span>
+                        {% else %}
+                        <span class="badge bg-secondary"><i class="fas fa-eye-slash me-1"></i>{% trans "سري" %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <div class="btn-group btn-group-sm w-100">
+                        <a href="{% url 'hr:note_edit' note.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+                        </a>
+                        <a href="{% url 'hr:note_delete' note.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i>{% trans "حذف" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-sticky-note fa-4x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "لا توجد ملاحظات" %}</p>
+                    <a href="{% url 'hr:note_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "إضافة ملاحظة" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if notes.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if notes.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notes.previous_page_number }}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_employee %}&employee={{ selected_employee }}{% endif %}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">{{ notes.number }} / {{ notes.paginator.num_pages }}</span>
+            </li>
+            {% if notes.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notes.next_page_number }}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_employee %}&employee={{ selected_employee }}{% endif %}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

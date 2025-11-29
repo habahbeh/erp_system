@@ -200,25 +200,34 @@ class HRNotificationService:
     def generate_probation_end_notifications(self, days_ahead=7):
         """توليد إشعارات انتهاء فترة التجربة"""
         today = timezone.now().date()
-        end_date = today + timedelta(days=days_ahead)
 
-        # الموظفين الذين ستنتهي فترة تجربتهم
-        employees = Employee.objects.filter(
+        # العقود النشطة التي لديها فترة تجربة
+        contracts = EmployeeContract.objects.filter(
             company=self.company,
-            is_active=True,
             status='active',
-            probation_end_date__lte=end_date,
-            probation_end_date__gte=today
-        )
+            probation_period__gt=0
+        ).select_related('employee')
 
         notifications_created = []
         hr_managers = self._get_hr_managers()
 
-        for employee in employees:
-            days_remaining = (employee.probation_end_date - today).days
+        for contract in contracts:
+            # حساب تاريخ انتهاء فترة التجربة
+            probation_end = contract.start_date + timedelta(days=contract.probation_period)
+
+            # تخطي إذا انتهت فترة التجربة بالفعل
+            if probation_end < today:
+                continue
+
+            # تخطي إذا لم تكن قريبة بما فيه الكفاية
+            days_remaining = (probation_end - today).days
+            if days_remaining > days_ahead:
+                continue
+
+            employee = contract.employee
 
             title = f"انتهاء فترة التجربة - {employee}"
-            message = f"فترة التجربة للموظف {employee.first_name} {employee.last_name} ستنتهي خلال {days_remaining} يوم (تاريخ الانتهاء: {employee.probation_end_date})."
+            message = f"فترة التجربة للموظف {employee.first_name} {employee.last_name} ستنتهي خلال {days_remaining} يوم (تاريخ الانتهاء: {probation_end})."
 
             priority = 'high' if days_remaining <= 3 else 'medium'
 

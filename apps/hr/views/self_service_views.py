@@ -293,7 +293,7 @@ class SelfServicePayslipListView(LoginRequiredMixin, EmployeeSelfServiceMixin, L
         return PayrollDetail.objects.filter(
             employee=employee,
             payroll__status__in=['approved', 'paid']
-        ).select_related('payroll').order_by('-payroll__year', '-payroll__month')
+        ).select_related('payroll').order_by('-payroll__period_year', '-payroll__period_month')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -322,7 +322,7 @@ class SelfServicePayslipDetailView(LoginRequiredMixin, EmployeeSelfServiceMixin,
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         payslip = self.object
-        context['title'] = f'كشف راتب {payslip.payroll.get_month_display()} {payslip.payroll.year}'
+        context['title'] = f'كشف راتب {payslip.payroll.get_period_month_display()} {payslip.payroll.period_year}'
         context['employee'] = self.get_employee()
         context['breadcrumbs'] = [
             {'title': 'الخدمة الذاتية', 'url': '/hr/self-service/'},

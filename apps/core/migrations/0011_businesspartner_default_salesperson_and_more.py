@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0010_businesspartner_customer_account_and_more'),
-        # HR dependency will be added after HR migrations are created
+        ('hr', '0001_initial'),
     ]
 
     operations = [

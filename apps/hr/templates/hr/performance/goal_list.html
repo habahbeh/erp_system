@@ -1,0 +1,167 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-bullseye me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:goal_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "إضافة هدف" %}
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الموظف" %}</label>
+                    <select name="employee" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.pk }}" {% if selected_employee == emp.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ emp.first_name }} {{ emp.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="draft" {% if selected_status == "draft" %}selected{% endif %}>{% trans "مسودة" %}</option>
+                        <option value="active" {% if selected_status == "active" %}selected{% endif %}>{% trans "نشط" %}</option>
+                        <option value="in_progress" {% if selected_status == "in_progress" %}selected{% endif %}>{% trans "قيد التنفيذ" %}</option>
+                        <option value="completed" {% if selected_status == "completed" %}selected{% endif %}>{% trans "مكتمل" %}</option>
+                        <option value="cancelled" {% if selected_status == "cancelled" %}selected{% endif %}>{% trans "ملغي" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الأولوية" %}</label>
+                    <select name="priority" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="low" {% if selected_priority == "low" %}selected{% endif %}>{% trans "منخفضة" %}</option>
+                        <option value="medium" {% if selected_priority == "medium" %}selected{% endif %}>{% trans "متوسطة" %}</option>
+                        <option value="high" {% if selected_priority == "high" %}selected{% endif %}>{% trans "عالية" %}</option>
+                        <option value="critical" {% if selected_priority == "critical" %}selected{% endif %}>{% trans "حرجة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Goals Cards -->
+    <div class="row">
+        {% for goal in goals %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="badge bg-{% if goal.priority == 'low' %}secondary{% elif goal.priority == 'medium' %}info{% elif goal.priority == 'high' %}warning{% else %}danger{% endif %}">
+                        {{ goal.get_priority_display }}
+                    </span>
+                    <span class="badge bg-{% if goal.status == 'completed' %}success{% elif goal.status == 'in_progress' %}primary{% elif goal.status == 'active' %}info{% elif goal.status == 'draft' %}secondary{% else %}danger{% endif %}">
+                        {{ goal.get_status_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ goal.title }}</h5>
+                    <p class="text-muted small mb-2">
+                        <i class="fas fa-user me-1"></i>{{ goal.employee.first_name }} {{ goal.employee.last_name }}
+                    </p>
+                    {% if goal.description %}
+                    <p class="card-text small">{{ goal.description|truncatewords:15 }}</p>
+                    {% endif %}
+
+                    {% if goal.progress_percentage is not None %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>{% trans "التقدم" %}</span>
+                            <span>{{ goal.progress_percentage|floatformat:0 }}%</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-{% if goal.progress_percentage >= 80 %}success{% elif goal.progress_percentage >= 50 %}info{% elif goal.progress_percentage >= 25 %}warning{% else %}danger{% endif %}"
+                                 role="progressbar"
+                                 style="width: {{ goal.progress_percentage }}%">
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if goal.due_date %}
+                    <small class="text-muted">
+                        <i class="fas fa-calendar me-1"></i>{% trans "تاريخ الاستحقاق" %}: {{ goal.due_date|date:"Y-m-d" }}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <div class="btn-group btn-group-sm w-100">
+                        <a href="{% url 'hr:goal_detail' goal.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-eye me-1"></i>{% trans "عرض" %}
+                        </a>
+                        <a href="{% url 'hr:goal_update_progress' goal.pk %}" class="btn btn-outline-info">
+                            <i class="fas fa-chart-line me-1"></i>{% trans "تحديث" %}
+                        </a>
+                        <a href="{% url 'hr:goal_edit' goal.pk %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-bullseye fa-4x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "لا توجد أهداف" %}</p>
+                    <a href="{% url 'hr:goal_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "إضافة هدف" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if goals.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if goals.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ goals.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_priority %}&priority={{ selected_priority }}{% endif %}{% if selected_employee %}&employee={{ selected_employee }}{% endif %}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">{{ goals.number }} / {{ goals.paginator.num_pages }}</span>
+            </li>
+            {% if goals.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ goals.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_priority %}&priority={{ selected_priority }}{% endif %}{% if selected_employee %}&employee={{ selected_employee }}{% endif %}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

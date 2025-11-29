@@ -1,0 +1,279 @@
+```mermaid
+erDiagram
+    %% ==================== Core Models ====================
+    Company ||--o{ Branch : has
+    Company ||--o{ BusinessPartner : has
+    Company ||--o{ Item : has
+    Company ||--o{ Warehouse : has
+    Company ||--o{ Currency : uses
+    Company ||--o{ PaymentMethod : has
+
+    Branch ||--o{ Warehouse : has
+
+    Item ||--o{ ItemVariant : has
+    Item }o--|| UnitOfMeasure : base_uom
+
+    %% ==================== Purchase Invoice ====================
+    PurchaseInvoice {
+        string number PK
+        date date
+        string invoice_type
+        decimal discount_value
+        decimal total_with_tax
+        boolean is_posted
+    }
+
+    PurchaseInvoice }o--|| Company : belongs_to
+    PurchaseInvoice }o--|| Branch : belongs_to
+    PurchaseInvoice }o--|| BusinessPartner : supplier
+    PurchaseInvoice }o--|| Warehouse : warehouse
+    PurchaseInvoice }o--|| Currency : currency
+    PurchaseInvoice }o--|| PaymentMethod : payment_method
+    PurchaseInvoice }o--o| JournalEntry : journal_entry
+    PurchaseInvoice }o--o| GoodsReceipt : goods_receipt
+    PurchaseInvoice }o--o| PurchaseInvoice : original_invoice
+
+    PurchaseInvoice ||--o{ PurchaseInvoiceItem : lines
+
+    PurchaseInvoiceItem {
+        decimal quantity
+        decimal unit_price
+        decimal discount_percentage
+        decimal tax_rate
+        boolean tax_included
+    }
+
+    PurchaseInvoiceItem }o--|| Item : item
+    PurchaseInvoiceItem }o--o| ItemVariant : item_variant
+    PurchaseInvoiceItem }o--|| UnitOfMeasure : unit
+
+    %% ==================== Purchase Order ====================
+    PurchaseOrder {
+        string number PK
+        date date
+        string status
+        decimal total_amount
+        boolean is_invoiced
+    }
+
+    PurchaseOrder }o--|| Company : belongs_to
+    PurchaseOrder }o--|| Branch : belongs_to
+    PurchaseOrder }o--|| BusinessPartner : supplier
+    PurchaseOrder }o--|| Warehouse : warehouse
+    PurchaseOrder }o--|| Currency : currency
+    PurchaseOrder }o--o| Employee : requested_by
+    PurchaseOrder }o--o| User : approved_by
+    PurchaseOrder }o--o| PurchaseRequest : purchase_request
+
+    PurchaseOrder ||--o{ PurchaseOrderItem : lines
+
+    PurchaseOrderItem {
+        decimal quantity
+        decimal unit_price
+        decimal received_quantity
+        decimal invoiced_quantity
+    }
+
+    PurchaseOrderItem }o--|| Item : item
+
+    %% ==================== Purchase Request ====================
+    PurchaseRequest {
+        string number PK
+        date date
+        string status
+        string priority
+    }
+
+    PurchaseRequest }o--|| Company : belongs_to
+    PurchaseRequest }o--o| Employee : requested_by
+    PurchaseRequest }o--o| Department : department
+
+    PurchaseRequest ||--o{ PurchaseRequestItem : lines
+
+    PurchaseRequestItem {
+        decimal quantity
+        string item_description
+        decimal estimated_price
+    }
+
+    PurchaseRequestItem }o--o| Item : item
+
+    %% ==================== RFQ ====================
+    PurchaseQuotationRequest {
+        string number PK
+        date date
+        string subject
+        string status
+    }
+
+    PurchaseQuotationRequest }o--|| Company : belongs_to
+    PurchaseQuotationRequest }o--o| PurchaseRequest : purchase_request
+    PurchaseQuotationRequest }o--o| PurchaseQuotation : awarded_quotation
+
+    PurchaseQuotationRequest ||--o{ PurchaseQuotationRequestItem : items
+    PurchaseQuotationRequest ||--o{ PurchaseQuotation : quotations
+
+    %% ==================== Quotation ====================
+    PurchaseQuotation {
+        string number PK
+        date date
+        decimal total_amount
+        decimal score
+        string status
+        boolean is_awarded
+    }
+
+    PurchaseQuotation }o--|| Company : belongs_to
+    PurchaseQuotation }o--|| BusinessPartner : supplier
+    PurchaseQuotation }o--|| PurchaseQuotationRequest : quotation_request
+    PurchaseQuotation }o--|| Currency : currency
+
+    PurchaseQuotation ||--o{ PurchaseQuotationItem : lines
+
+    %% ==================== Contract ====================
+    PurchaseContract {
+        string number PK
+        date contract_date
+        date start_date
+        date end_date
+        decimal contract_value
+        string status
+        boolean approved
+    }
+
+    PurchaseContract }o--|| Company : belongs_to
+    PurchaseContract }o--|| BusinessPartner : supplier
+    PurchaseContract }o--|| Currency : currency
+    PurchaseContract }o--o| User : approved_by
+
+    PurchaseContract ||--o{ PurchaseContractItem : items
+
+    %% ==================== Goods Receipt ====================
+    GoodsReceipt {
+        string number PK
+        date date
+        string status
+        string quality_check_status
+        boolean is_posted
+    }
+
+    GoodsReceipt }o--|| Company : belongs_to
+    GoodsReceipt }o--|| Branch : belongs_to
+    GoodsReceipt }o--|| PurchaseOrder : purchase_order
+    GoodsReceipt }o--|| BusinessPartner : supplier
+    GoodsReceipt }o--|| Warehouse : warehouse
+    GoodsReceipt }o--|| User : received_by
+    GoodsReceipt }o--o| PurchaseInvoice : invoice
+
+    GoodsReceipt ||--o{ GoodsReceiptItem : lines
+
+    %% ==================== Accounting ====================
+    JournalEntry {
+        string number PK
+        date entry_date
+        string entry_type
+        boolean is_posted
+    }
+
+    JournalEntry ||--o{ JournalEntryLine : lines
+
+    Account {
+        string code PK
+        string name
+        boolean is_active
+    }
+```
+
+## رسم تدفق البيانات (Data Flow)
+
+```mermaid
+flowchart TB
+    subgraph "طلب الشراء"
+        PR[طلب شراء<br/>PurchaseRequest]
+        PR -->|تقديم| PRS[submitted]
+        PRS -->|موافقة| PRA[approved]
+        PRS -->|رفض| PRR[rejected]
+    end
+
+    subgraph "طلب عرض أسعار"
+        PRA -->|إنشاء| RFQ[طلب عرض أسعار<br/>RFQ]
+        RFQ -->|إرسال للموردين| RFQS[sent]
+        RFQS -->|استلام العروض| RFQR[receiving]
+        RFQR -->|تقييم| RFQE[evaluating]
+        RFQE -->|ترسية| RFQA[awarded]
+    end
+
+    subgraph "عرض السعر"
+        RFQA -->|فوز| Q[عرض سعر فائز<br/>Quotation]
+    end
+
+    subgraph "أمر الشراء"
+        Q -->|تحويل| PO[أمر شراء<br/>PurchaseOrder]
+        PRA -->|مباشر| PO
+        PO -->|إرسال للموافقة| POP[pending_approval]
+        POP -->|موافقة| POA[approved]
+        POP -->|رفض| POR[rejected]
+        POA -->|إرسال للمورد| POS[sent]
+    end
+
+    subgraph "استلام البضاعة"
+        POS -->|استلام| GR[محضر استلام<br/>GoodsReceipt]
+        GR -->|تأكيد| GRC[confirmed]
+        GRC -->|ترحيل| GRP[posted]
+    end
+
+    subgraph "فاتورة المشتريات"
+        GRP -->|إنشاء فاتورة| PI[فاتورة مشتريات<br/>PurchaseInvoice]
+        POS -->|مباشر| PI
+        PI -->|ترحيل| PIP[posted]
+    end
+
+    subgraph "المحاسبة"
+        PIP -->|قيد تلقائي| JE[قيد محاسبي<br/>JournalEntry]
+        GRP -->|سند إدخال| SI[سند إدخال مخزون<br/>StockIn]
+    end
+
+    style PR fill:#e1f5fe
+    style RFQ fill:#e8f5e9
+    style Q fill:#fff3e0
+    style PO fill:#f3e5f5
+    style GR fill:#fce4ec
+    style PI fill:#fff8e1
+    style JE fill:#e0f2f1
+```
+
+## رسم حالات المستندات
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft: إنشاء
+
+    %% Purchase Order States
+    state "أمر الشراء" as PO {
+        draft --> pending_approval: تقديم للموافقة
+        pending_approval --> approved: موافقة
+        pending_approval --> rejected: رفض
+        rejected --> draft: إعادة تحرير
+        approved --> sent: إرسال للمورد
+        sent --> partial: استلام جزئي
+        sent --> completed: استلام كامل
+        partial --> completed: اكتمال الاستلام
+        draft --> cancelled: إلغاء
+        approved --> cancelled: إلغاء
+    }
+
+    %% Purchase Invoice States
+    state "فاتورة المشتريات" as PI {
+        [*] --> draft_inv: إنشاء
+        draft_inv --> posted: ترحيل
+        posted --> draft_inv: إلغاء الترحيل
+    }
+
+    %% Goods Receipt States
+    state "محضر الاستلام" as GR {
+        [*] --> draft_gr: إنشاء
+        draft_gr --> confirmed: تأكيد
+        confirmed --> posted_gr: ترحيل للمخزون
+        posted_gr --> invoiced: إصدار فاتورة
+    }
+```

@@ -1,0 +1,165 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4CAF50'}}}%%
+erDiagram
+    %% Core Models
+    Company ||--o{ Warehouse : has
+    Company ||--o{ Item : has
+    Warehouse ||--o{ ItemStock : stores
+    Item ||--o{ ItemVariant : has_variants
+    Item ||--o{ ItemStock : tracked_in
+    Item ||--o{ Batch : has_batches
+
+    %% Inventory Documents
+    StockIn ||--o{ StockDocumentLine : has_lines
+    StockOut ||--o{ StockDocumentLine : has_lines
+    StockTransfer ||--o{ StockTransferLine : has_lines
+    StockCount ||--o{ StockCountLine : has_lines
+
+    %% Stock Documents Relations
+    Warehouse ||--o{ StockIn : receives
+    Warehouse ||--o{ StockOut : issues
+    Warehouse ||--o{ StockTransfer : source
+    Warehouse ||--o{ StockTransfer : destination
+    Warehouse ||--o{ StockCount : counted_at
+
+    %% Business Partner Relations
+    BusinessPartner ||--o{ StockIn : supplies
+    BusinessPartner ||--o{ StockOut : receives
+
+    %% Item Relations in Documents
+    Item ||--o{ StockDocumentLine : item
+    Item ||--o{ StockTransferLine : item
+    Item ||--o{ StockCountLine : item
+    Item ||--o{ StockMovement : tracks
+
+    %% Stock Movement
+    StockIn ||--o{ StockMovement : creates_in
+    StockOut ||--o{ StockMovement : creates_out
+    StockTransfer ||--o{ StockMovement : creates_transfer
+
+    %% Accounting Integration
+    JournalEntry ||--o| StockIn : accounting
+    JournalEntry ||--o| StockOut : accounting
+    JournalEntry ||--o| StockCount : adjustment
+
+    %% Purchase Integration
+    PurchaseInvoice ||--o| StockIn : creates
+
+    %% Sales Integration
+    SalesInvoice ||--o| StockOut : creates
+
+    %% User Relations
+    User ||--o{ StockIn : created_by
+    User ||--o{ StockIn : posted_by
+    User ||--o{ StockTransfer : approved_by
+    User ||--o{ StockTransfer : received_by
+    User ||--o{ StockCount : supervisor
+    User }o--o{ StockCount : count_team
+
+    %% Model Definitions
+    StockIn {
+        int id PK
+        string number UK
+        date date
+        string source_type
+        boolean is_posted
+        datetime posted_date
+    }
+
+    StockOut {
+        int id PK
+        string number UK
+        date date
+        string destination_type
+        boolean is_posted
+        datetime posted_date
+    }
+
+    StockDocumentLine {
+        int id PK
+        int stock_in_id FK
+        int stock_out_id FK
+        int item_id FK
+        decimal quantity
+        decimal unit_cost
+        decimal total_cost
+        string batch_number
+        date expiry_date
+    }
+
+    StockTransfer {
+        int id PK
+        string number UK
+        date date
+        string status
+        boolean is_posted
+        datetime approval_date
+        datetime received_date
+    }
+
+    StockTransferLine {
+        int id PK
+        int transfer_id FK
+        int item_id FK
+        decimal quantity
+        decimal received_quantity
+        decimal unit_cost
+    }
+
+    StockMovement {
+        int id PK
+        datetime date
+        string movement_type
+        decimal quantity
+        decimal unit_cost
+        decimal total_cost
+        decimal balance_before
+        decimal balance_quantity
+        decimal balance_value
+        string reference_type
+        int reference_id
+    }
+
+    StockCount {
+        int id PK
+        string number UK
+        date date
+        string count_type
+        string status
+        datetime approval_date
+    }
+
+    StockCountLine {
+        int id PK
+        int count_id FK
+        int item_id FK
+        decimal system_quantity
+        decimal counted_quantity
+        decimal difference_quantity
+        decimal unit_cost
+    }
+
+    ItemStock {
+        int id PK
+        int item_id FK
+        int warehouse_id FK
+        decimal quantity
+        decimal reserved_quantity
+        decimal average_cost
+        decimal total_value
+        datetime last_movement_date
+        decimal min_level
+        decimal max_level
+        decimal reorder_point
+    }
+
+    Batch {
+        int id PK
+        int item_id FK
+        int warehouse_id FK
+        string batch_number
+        date manufacturing_date
+        date expiry_date
+        decimal quantity
+        decimal unit_cost
+        date received_date
+    }

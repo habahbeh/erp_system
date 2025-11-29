@@ -21,21 +21,17 @@ class PurchaseRequestForm(forms.ModelForm):
     class Meta:
         model = PurchaseRequest
         fields = [
-            'date', 'requested_by', 'department', 'purpose',
-            'required_date', 'notes'
+            'date', 'requested_by_employee', 'purpose',
+            'required_date', 'priority', 'attachment', 'notes'
         ]
         widgets = {
             'date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
             }),
-            'requested_by': forms.Select(attrs={
+            'requested_by_employee': forms.Select(attrs={
                 'class': 'form-select select2',
                 'data-placeholder': 'اختر الموظف...',
-            }),
-            'department': forms.Select(attrs={
-                'class': 'form-select select2',
-                'data-placeholder': 'اختر القسم...',
             }),
             'purpose': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -45,6 +41,13 @@ class PurchaseRequestForm(forms.ModelForm):
             'required_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }),
+            'priority': forms.Select(attrs={
+                'class': 'form-select',
+            }),
+            'attachment': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls',
             }),
             'notes': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -59,18 +62,12 @@ class PurchaseRequestForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if self.company:
-            # تصفية الموظفين النشطين
-            self.fields['requested_by'].queryset = Employee.objects.filter(
+            # تصفية الموظفين النشطين مع معلومات القسم للعرض
+            self.fields['requested_by_employee'].queryset = Employee.objects.filter(
                 company=self.company,
                 is_active=True,
-                employment_status='active'
-            ).order_by('first_name', 'last_name')
-
-            # تصفية الأقسام النشطة
-            self.fields['department'].queryset = Department.objects.filter(
-                company=self.company,
-                is_active=True
-            ).order_by('name')
+                status='active'
+            ).select_related('department').order_by('first_name', 'last_name')
 
         # تعيين القيم الافتراضية
         if not self.instance.pk:
@@ -78,12 +75,13 @@ class PurchaseRequestForm(forms.ModelForm):
 
             # إذا كان المستخدم الحالي لديه موظف، نختاره تلقائياً
             if self.user and hasattr(self.user, 'employee_profile'):
-                self.fields['requested_by'].initial = self.user.employee_profile
+                self.fields['requested_by_employee'].initial = self.user.employee_profile
 
         # جعل الحقول اختيارية (حسب المتطلبات)
-        self.fields['department'].required = False
+        self.fields['requested_by_employee'].required = False
         self.fields['purpose'].required = False
         self.fields['required_date'].required = False
+        self.fields['attachment'].required = False
         self.fields['notes'].required = False
 
     def clean(self):
@@ -115,6 +113,7 @@ class PurchaseRequestItemForm(forms.ModelForm):
             'item': forms.Select(attrs={
                 'class': 'form-select form-select-sm item-select',
                 'data-placeholder': 'اختر المادة (اختياري)...',
+                'data-allow-clear': 'true',
             }),
             'item_description': forms.Textarea(attrs={
                 'class': 'form-control form-control-sm',
@@ -148,18 +147,39 @@ class PurchaseRequestItemForm(forms.ModelForm):
         self.company = kwargs.pop('company', None)
         super().__init__(*args, **kwargs)
 
-        if self.company:
-            # تصفية المواد
-            self.fields['item'].queryset = Item.objects.filter(
-                company=self.company,
-                is_active=True
-            ).select_related('category', 'base_uom')
-
         # جعل الحقول اختيارية
         self.fields['item'].required = False
         self.fields['unit'].required = False
         self.fields['estimated_price'].required = False
         self.fields['notes'].required = False
+
+        # إضافة خيار فارغ للـ Select
+        self.fields['item'].empty_label = 'اختر المادة...'
+
+        # للـ AJAX Live Search - نبدأ بـ queryset فارغ
+        # ونحمّل فقط المادة المحددة مسبقاً (في حالة التعديل)
+        if self.instance and self.instance.pk and self.instance.item:
+            # في حالة التعديل، نحمّل فقط المادة المحددة
+            self.fields['item'].queryset = Item.objects.filter(
+                pk=self.instance.item.pk
+            )
+        else:
+            # في حالة الإنشاء، queryset فارغ - البحث سيكون عبر AJAX
+            self.fields['item'].queryset = Item.objects.none()
+
+    def clean_item(self):
+        """تحقق مخصص لحقل المادة - لتجاوز مشكلة queryset الفارغ"""
+        item_id = self.data.get(self.add_prefix('item'))
+
+        if item_id:
+            try:
+                # تحميل المادة مباشرة من database
+                item = Item.objects.get(pk=item_id, company=self.company, is_active=True)
+                return item
+            except (Item.DoesNotExist, ValueError):
+                raise ValidationError(_('المادة المحددة غير موجودة أو غير نشطة'))
+
+        return None
 
 
 class BasePurchaseRequestItemFormSet(BaseInlineFormSet):

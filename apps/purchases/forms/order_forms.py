@@ -90,9 +90,16 @@ class PurchaseOrderForm(forms.ModelForm):
             )
 
             # تصفية الموظفين
-            self.fields['requested_by'].queryset = User.objects.filter(
-                is_active=True
-            ).order_by('first_name', 'last_name')
+            # Note: HR module is disabled, so we try to import Employee
+            try:
+                from apps.hr.models import Employee
+                self.fields['requested_by'].queryset = Employee.objects.filter(
+                    is_active=True
+                ).select_related('user').order_by('user__first_name', 'user__last_name')
+            except (ImportError, Exception):
+                # HR module is not available, make field optional
+                self.fields['requested_by'].queryset = self.fields['requested_by'].queryset.none()
+                self.fields['requested_by'].required = False
 
             # تصفية طلبات الشراء
             from ..models import PurchaseRequest
@@ -105,8 +112,15 @@ class PurchaseOrderForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['date'].initial = date.today()
 
+            # Set requested_by only if user has an Employee record
             if self.user:
-                self.fields['requested_by'].initial = self.user
+                try:
+                    from apps.hr.models import Employee
+                    employee = Employee.objects.filter(user=self.user, is_active=True).first()
+                    if employee:
+                        self.fields['requested_by'].initial = employee
+                except (ImportError, Exception):
+                    pass
 
             if self.company:
                 # العملة الافتراضية
@@ -119,6 +133,7 @@ class PurchaseOrderForm(forms.ModelForm):
         # جعل بعض الحقول اختيارية
         self.fields['purchase_request'].required = False
         self.fields['expected_delivery_date'].required = False
+        self.fields['requested_by'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
@@ -142,7 +157,9 @@ class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrderItem
         fields = [
-            'item', 'description', 'quantity', 'unit_price'
+            'item', 'description', 'quantity', 'unit_price',
+            'discount_percentage', 'discount_amount',
+            'tax_included', 'tax_type', 'tax_rate'
         ]
         widgets = {
             'item': forms.Select(attrs={
@@ -166,6 +183,33 @@ class PurchaseOrderItemForm(forms.ModelForm):
                 'placeholder': '0.000',
                 'min': '0'
             }),
+            'discount_percentage': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm text-end discount-percentage-input',
+                'step': '0.01',
+                'placeholder': '0',
+                'min': '0',
+                'max': '100'
+            }),
+            'discount_amount': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm text-end discount-amount-input',
+                'step': '0.001',
+                'placeholder': '0.000',
+                'min': '0',
+                'readonly': 'readonly'
+            }),
+            'tax_included': forms.CheckboxInput(attrs={
+                'class': 'form-check-input tax-included-input'
+            }),
+            'tax_type': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'نوع الضريبة...'
+            }),
+            'tax_rate': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm text-end tax-rate-input',
+                'step': '0.01',
+                'placeholder': '16',
+                'min': '0'
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -181,6 +225,9 @@ class PurchaseOrderItemForm(forms.ModelForm):
 
         # جعل بعض الحقول اختيارية
         self.fields['description'].required = False
+        self.fields['tax_type'].required = False
+        self.fields['discount_percentage'].required = False
+        self.fields['discount_amount'].required = False
 
 
 class BasePurchaseOrderItemFormSet(BaseInlineFormSet):

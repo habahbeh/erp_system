@@ -1,0 +1,317 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-card {
+        border-radius: 12px;
+        border: none;
+    }
+    .info-item {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .info-item:last-child {
+        border-bottom: none;
+    }
+    .log-item {
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        background-color: #f8f9fa;
+    }
+    .status-badge {
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0">
+            <i class="fas fa-fingerprint me-2"></i>{{ device.name }}
+            <span class="badge bg-{% if device.status == 'active' %}success{% elif device.status == 'offline' %}danger{% elif device.status == 'maintenance' %}warning{% else %}secondary{% endif %} ms-2">
+                {{ device.get_status_display }}
+            </span>
+        </h4>
+        <div>
+            <button type="button" class="btn btn-info" id="testConnectionBtn">
+                <i class="fas fa-plug me-1"></i>{% trans "اختبار الاتصال" %}
+            </button>
+            <button type="button" class="btn btn-success" id="syncBtn">
+                <i class="fas fa-sync me-1"></i>{% trans "مزامنة" %}
+            </button>
+            <a href="{% url 'hr:biometric_device_update' device.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+            </a>
+            <a href="{% url 'hr:biometric_device_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات الجهاز -->
+        <div class="col-lg-4 mb-4">
+            <div class="card info-card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-1"></i>{% trans "معلومات الجهاز" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "نوع الجهاز" %}</small>
+                        <div class="fw-bold">{{ device.get_device_type_display }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "الرقم التسلسلي" %}</small>
+                        <div class="fw-bold">{{ device.serial_number|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "عنوان IP" %}</small>
+                        <div class="fw-bold">{{ device.ip_address }}:{{ device.port }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "نوع الاتصال" %}</small>
+                        <div class="fw-bold">{{ device.get_connection_type_display }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "الموقع" %}</small>
+                        <div class="fw-bold">{{ device.location|default:"-" }}</div>
+                    </div>
+                    {% if device.branch %}
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "الفرع" %}</small>
+                        <div class="fw-bold">{{ device.branch.name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- إعدادات المزامنة -->
+        <div class="col-lg-4 mb-4">
+            <div class="card info-card shadow-sm h-100">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-sync me-1"></i>{% trans "إعدادات المزامنة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "المزامنة التلقائية" %}</small>
+                        <div class="fw-bold">
+                            {% if device.auto_sync %}
+                            <span class="text-success"><i class="fas fa-check-circle"></i> {% trans "مفعلة" %}</span>
+                            {% else %}
+                            <span class="text-danger"><i class="fas fa-times-circle"></i> {% trans "معطلة" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "فترة المزامنة" %}</small>
+                        <div class="fw-bold">{{ device.sync_interval }} {% trans "دقيقة" %}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "آخر مزامنة" %}</small>
+                        <div class="fw-bold">{{ device.last_sync|date:"Y-m-d H:i"|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "آخر اتصال" %}</small>
+                        <div class="fw-bold">{{ device.last_connection|date:"Y-m-d H:i"|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">{% trans "الموظفون المرتبطون" %}</small>
+                        <div class="fw-bold">{{ mapped_employees }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- إحصائيات سريعة -->
+        <div class="col-lg-4 mb-4">
+            <div class="card info-card shadow-sm h-100">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar me-1"></i>{% trans "إحصائيات اليوم" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    {% with recent_logs|length as log_count %}
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <h3 class="text-primary">{{ log_count }}</h3>
+                            <small class="text-muted">{% trans "سجلات اليوم" %}</small>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <h3 class="text-success">{{ mapped_employees }}</h3>
+                            <small class="text-muted">{% trans "موظف" %}</small>
+                        </div>
+                    </div>
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- سجلات المزامنة الأخيرة -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-history me-1"></i>{% trans "سجلات المزامنة الأخيرة" %}</h6>
+                    <a href="{% url 'hr:biometric_sync_log_list' %}?device={{ device.pk }}" class="btn btn-sm btn-outline-primary">
+                        {% trans "عرض الكل" %}
+                    </a>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% for log in sync_logs %}
+                    <div class="log-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-{% if log.status == 'completed' %}success{% elif log.status == 'failed' %}danger{% elif log.status == 'running' %}info{% else %}secondary{% endif %}">
+                                    {{ log.get_status_display }}
+                                </span>
+                                <small class="text-muted ms-2">{{ log.get_sync_type_display }}</small>
+                            </div>
+                            <small class="text-muted">{{ log.created_at|date:"Y-m-d H:i" }}</small>
+                        </div>
+                        <div class="mt-2 small">
+                            <span class="me-3"><i class="fas fa-download me-1"></i>{{ log.records_fetched }} {% trans "مجلوب" %}</span>
+                            <span class="me-3"><i class="fas fa-check me-1"></i>{{ log.records_processed }} {% trans "معالج" %}</span>
+                            {% if log.records_failed > 0 %}
+                            <span class="text-danger"><i class="fas fa-times me-1"></i>{{ log.records_failed }} {% trans "فاشل" %}</span>
+                            {% endif %}
+                        </div>
+                        {% if log.error_message %}
+                        <div class="mt-1 small text-danger">{{ log.error_message|truncatewords:20 }}</div>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">{% trans "لا توجد سجلات مزامنة" %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- آخر سجلات البصمة -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-list me-1"></i>{% trans "آخر سجلات البصمة" %}</h6>
+                    <a href="{% url 'hr:biometric_log_list' %}?device={{ device.pk }}" class="btn btn-sm btn-outline-primary">
+                        {% trans "عرض الكل" %}
+                    </a>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% for log in recent_logs %}
+                    <div class="log-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-{% if log.punch_type == 'in' %}success{% elif log.punch_type == 'out' %}danger{% else %}secondary{% endif %} me-2">
+                                {{ log.get_punch_type_display }}
+                            </span>
+                            {% if log.employee %}
+                            <strong>{{ log.employee.full_name }}</strong>
+                            {% else %}
+                            <span class="text-muted">ID: {{ log.device_user_id }}</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">{{ log.punch_time|date:"H:i" }}</small>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">{% trans "لا توجد سجلات بصمة" %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if device.notes %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-sticky-note me-1"></i>{% trans "ملاحظات" %}</h6>
+                </div>
+                <div class="card-body">
+                    {{ device.notes }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // اختبار الاتصال
+    document.getElementById('testConnectionBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري الاختبار..." %}';
+
+        fetch('{% url "hr:biometric_test_connection" device.pk %}')
+        .then(response => response.json())
+        .then(data => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-plug me-1"></i>{% trans "اختبار الاتصال" %}';
+
+            if (data.success) {
+                alert('{% trans "الاتصال ناجح!" %}');
+                location.reload();
+            } else {
+                alert('{% trans "فشل الاتصال:" %} ' + data.message);
+            }
+        })
+        .catch(error => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-plug me-1"></i>{% trans "اختبار الاتصال" %}';
+            alert('{% trans "حدث خطأ" %}');
+        });
+    });
+
+    // مزامنة
+    document.getElementById('syncBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري المزامنة..." %}';
+
+        fetch('{% url "hr:biometric_sync_device" device.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-1"></i>{% trans "مزامنة" %}';
+
+            if (data.success) {
+                alert(`{% trans "تمت المزامنة بنجاح. السجلات:" %} ${data.records_processed}`);
+                location.reload();
+            } else {
+                alert('{% trans "فشلت المزامنة:" %} ' + data.error);
+            }
+        })
+        .catch(error => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-1"></i>{% trans "مزامنة" %}';
+            alert('{% trans "حدث خطأ" %}');
+        });
+    });
+</script>
+{% endblock %}

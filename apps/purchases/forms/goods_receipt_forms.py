@@ -7,7 +7,7 @@ from django import forms
 from django.forms import inlineformset_factory, BaseInlineFormSet
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db.models import Sum
 from decimal import Decimal
 from datetime import date
 
@@ -188,9 +188,8 @@ class GoodsReceiptLineForm(forms.ModelForm):
         widgets = {
             'purchase_order_line': forms.HiddenInput(),
             'item': forms.Select(attrs={
-                'class': 'form-select form-select-sm',
-                'readonly': 'readonly',
-                'disabled': 'disabled'
+                'class': 'form-select form-select-sm item-select',
+                'data-placeholder': 'اختر المادة...',
             }),
             'received_quantity': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm text-end received-qty-input',
@@ -281,7 +280,7 @@ class GoodsReceiptLineForm(forms.ModelForm):
             ).exclude(
                 pk=self.instance.pk if self.instance.pk else None
             ).aggregate(
-                total=models.Sum('received_quantity')
+                total=Sum('received_quantity')
             )['total'] or Decimal('0')
 
             new_total = total_received + received_qty

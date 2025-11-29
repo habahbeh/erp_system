@@ -393,6 +393,10 @@ class Employee(BaseModel):
         parts = [self.first_name, self.middle_name, self.last_name]
         return ' '.join(p for p in parts if p)
 
+    def get_full_name(self):
+        """الاسم الكامل - للتوافق مع القوالب"""
+        return self.full_name
+
     @property
     def age(self):
         """العمر"""

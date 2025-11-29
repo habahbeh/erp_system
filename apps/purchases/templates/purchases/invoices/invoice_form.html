@@ -872,6 +872,17 @@ kbd {
                             <button type="button" class="btn btn-sm btn-primary" id="btn-add-line">
                                 <i class="fas fa-plus me-1"></i> إضافة سطر
                             </button>
+                            <div class="btn-group ms-2" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-copy-rows" title="نسخ الصفوف المحددة (Ctrl+C)" disabled>
+                                    <i class="fas fa-copy me-1"></i> نسخ
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-paste-rows" title="لصق الصفوف (Ctrl+V)" disabled>
+                                    <i class="fas fa-paste me-1"></i> لصق
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-select-all" title="تحديد/إلغاء تحديد الكل">
+                                <i class="fas fa-check-square me-1"></i> تحديد الكل
+                            </button>
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -879,7 +890,9 @@ kbd {
                             <table class="table table-hover invoice-table mb-0">
                                 <thead>
                                     <tr id="invoice-table-header">
-                                        <th style="width: 40px;" class="text-center">#</th>
+                                        <th style="width: 35px;" class="text-center">
+                                            <input type="checkbox" class="form-check-input" id="select-all-checkbox" title="تحديد/إلغاء الكل">
+                                        </th>
                                         <th style="width: 300px;" class="col-item">المادة</th>
                                         <th style="width: 90px;" class="col-unit">الوحدة</th>
                                         <th style="width: 70px;" class="col-tax-rate">نسبة ض%</th>
@@ -896,7 +909,9 @@ kbd {
                                 <tbody id="items-tbody">
                                     {% for item_form in formset %}
                                         <tr class="item-row">
-                                            <td class="row-number text-center">{{ forloop.counter }}</td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input row-select-checkbox">
+                                            </td>
                                             <td class="col-item">
                                                 <div class="d-flex align-items-center gap-1">
                                                     <div class="autocomplete-wrapper flex-grow-1">
@@ -985,7 +1000,7 @@ kbd {
                             <div class="row g-3">
                                 <div class="col-md-3">
                                     <div class="pos-total-line">
-                                        <span class="pos-total-label">المجموع</span>
+                                        <span class="pos-total-label">المجموع قبل الضريبة</span> <!-- ✅ الملاحظة 2 -->
                                         <span class="pos-total-value" id="summary-subtotal">0.000</span>
                                     </div>
                                 </div>
@@ -1090,10 +1105,18 @@ kbd {
 
                             <!-- Supplier Invoice Number -->
                             <div class="col-md-4">
-                                <label for="{{ form.supplier_invoice_number.id_for_label }}" class="form-label">
+                                <label for="{{ form.supplier_invoice_number.id_for_label }}" class="form-label required-field">
                                     {{ form.supplier_invoice_number.label }}
+                                    <span class="text-danger">*</span>
                                 </label>
                                 {{ form.supplier_invoice_number|add_class:"form-control" }}
+                                {% if form.supplier_invoice_number.errors %}
+                                    <ul class="error-list">
+                                        {% for error in form.supplier_invoice_number.errors %}
+                                            <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
                             </div>
 
                             <!-- Supplier Invoice Date -->
@@ -1197,19 +1220,29 @@ kbd {
 <!-- Empty Row Template -->
 <script type="text/template" id="empty-row-template">
     <tr class="item-row">
-        <td class="row-number text-center">0</td>
+        <td class="text-center">
+            <input type="checkbox" class="form-check-input row-select-checkbox">
+        </td>
         <td class="col-item">
-            <div class="autocomplete-wrapper">
-                <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب لبحث عن المادة..." autocomplete="off">
-                <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
-                    <i class="fas fa-chevron-down"></i>
-                </button>
-                <div class="autocomplete-list"></div>
-                <div style="display: none;">
-                    <select class="item-select" name="lines-__prefix__-item" id="id_lines-__prefix__-item">
-                        <option value="">اختر المادة...</option>
-                    </select>
+            <div class="d-flex align-items-center gap-1">
+                <div class="autocomplete-wrapper flex-grow-1">
+                    <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب لبحث عن المادة..." autocomplete="off">
+                    <button type="button" class="autocomplete-clear-btn" tabindex="-1" style="display: none;" title="مسح المادة">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="autocomplete-list"></div>
+                    <div style="display: none;">
+                        <select class="item-select" name="lines-__prefix__-item" id="id_lines-__prefix__-item">
+                            <option value="">اختر المادة...</option>
+                        </select>
+                    </div>
                 </div>
+                <button type="button" class="btn btn-sm btn-info item-info-btn" style="padding: 2px 6px; display: none;" title="عرض جميع الأسعار">
+                    <i class="fas fa-info-circle"></i>
+                </button>
             </div>
             <input type="hidden" name="lines-__prefix__-id" id="id_lines-__prefix__-id">
             <div style="display: none;">
@@ -1659,15 +1692,16 @@ $(document).ready(function() {
     // ============================================
     // Update Row Numbers
     // ============================================
-    function updateRowNumbers() {
-        var rowNum = 1;
-        $('#items-tbody tr:visible').each(function() {
-            var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
-            if (!deleteChecked) {
-                $(this).find('.row-number').text(rowNum++);
-            }
-        });
-    }
+    // Row number column has been removed - function commented out
+    // function updateRowNumbers() {
+    //     var rowNum = 1;
+    //     $('#items-tbody tr:visible').each(function() {
+    //         var deleteChecked = $(this).find('input[name$="-DELETE"]').is(':checked');
+    //         if (!deleteChecked) {
+    //             $(this).find('.row-number').text(rowNum++);
+    //         }
+    //     });
+    // }
 
     // ============================================
     // Event Handlers - Real-time Calculation
@@ -1732,7 +1766,10 @@ $(document).ready(function() {
             }
         });
 
-        updateRowNumbers();
+        // Apply column visibility settings to the new row
+        applyColumnVisibilityToRow(newRow);
+
+        // updateRowNumbers(); // Commented out - row number column removed
 
         // Focus on the item search input in the new row
         setTimeout(function() {
@@ -1756,7 +1793,7 @@ $(document).ready(function() {
             row.remove();
         }
 
-        updateRowNumbers();
+        // updateRowNumbers(); // Commented out - row number column removed
         calculateTotals();
     });
 
@@ -1819,6 +1856,328 @@ $(document).ready(function() {
     });
 
     // ============================================
+    // Copy/Paste Functionality
+    // ============================================
+    let copiedRowsData = [];
+
+    // Update copy/paste buttons state based on selection
+    function updateCopyPasteButtons() {
+        const selectedCount = $('.row-select-checkbox:checked').length;
+        $('#btn-copy-rows').prop('disabled', selectedCount === 0);
+        $('#btn-paste-rows').prop('disabled', copiedRowsData.length === 0);
+
+        // Update copy button text with count
+        if (selectedCount > 0) {
+            $('#btn-copy-rows').html(`<i class="fas fa-copy me-1"></i> نسخ (${selectedCount})`);
+        } else {
+            $('#btn-copy-rows').html('<i class="fas fa-copy me-1"></i> نسخ');
+        }
+
+        // Update paste button text with count
+        if (copiedRowsData.length > 0) {
+            $('#btn-paste-rows').html(`<i class="fas fa-paste me-1"></i> لصق (${copiedRowsData.length})`);
+        } else {
+            $('#btn-paste-rows').html('<i class="fas fa-paste me-1"></i> لصق');
+        }
+    }
+
+    // Extract row data
+    function extractRowData($row) {
+        const $itemSelect = $row.find('.item-select');
+        const itemId = $itemSelect.val();
+
+        // Get item text - try to get from the selected option if input is empty
+        let itemText = $row.find('.item-search-input').val();
+        if (!itemText && itemId) {
+            const $selectedOption = $itemSelect.find('option:selected');
+            itemText = $selectedOption.text() || '';
+        }
+
+        const rowData = {
+            item: itemId || '',
+            itemText: itemText || '',
+            variant: $row.find('.variant-select').val() || '',
+            unit: $row.find('.unit-select').val() || '',
+            unitText: $row.find('.unit-display-input').val() || '',
+            taxRate: $row.find('.tax-rate-input').val() || '16.00',
+            quantity: $row.find('.quantity-input').val() || '1',
+            unitPrice: $row.find('.price-input').val() || '0.000',
+            discountPct: $row.find('.discount-pct-input').val() || '0.00',
+            description: $row.find('input[name*="description"]').val() || '',
+            purchaseUom: $row.find('.purchase-uom-select').val() || '',
+            purchaseQty: $row.find('input[name*="purchase_quantity"]').val() || '',
+            purchasePrice: $row.find('input[name*="purchase_unit_price"]').val() || '',
+            conversionRate: $row.find('input[name*="conversion_rate"]').val() || '1.000',
+            taxIncluded: $row.find('input[name*="tax_included"]').is(':checked'),
+            discountAmount: $row.find('input[name*="discount_amount"]').val() || '',
+            batchNumber: $row.find('input[name*="batch_number"]').val() || '',
+            expiryDate: $row.find('input[name*="expiry_date"]').val() || ''
+        };
+
+        console.log('📋 Extracted row data:', rowData);
+        return rowData;
+    }
+
+    // Copy selected rows
+    function copySelectedRows() {
+        const $selectedRows = $('.row-select-checkbox:checked').closest('.item-row');
+
+        if ($selectedRows.length === 0) {
+            alert('يرجى تحديد صف واحد على الأقل للنسخ');
+            return;
+        }
+
+        copiedRowsData = [];
+        $selectedRows.each(function() {
+            const rowData = extractRowData($(this));
+            copiedRowsData.push(rowData);
+        });
+
+        console.log(`✅ تم نسخ ${copiedRowsData.length} صف`);
+        updateCopyPasteButtons();
+
+        // Show toast notification
+        showToast(`تم نسخ ${copiedRowsData.length} صف بنجاح`, 'success');
+    }
+
+    // Paste rows
+    function pasteRows() {
+        if (copiedRowsData.length === 0) {
+            alert('لا توجد صفوف منسوخة للصقها');
+            return;
+        }
+
+        copiedRowsData.forEach(function(rowData) {
+            // Get template HTML and replace __prefix__
+            var templateHtml = $('#empty-row-template').html();
+            var rowHtml = templateHtml.replace(/__prefix__/g, formIdx);
+            var $newRow = $(rowHtml);
+
+            // Append to tbody first (important for proper initialization)
+            $('#items-tbody').append($newRow);
+
+            // Populate item data - CRITICAL ORDER
+            if (rowData.item) {
+                // Set the hidden select value
+                $newRow.find('.item-select').val(rowData.item);
+
+                // Set the visible search input
+                $newRow.find('.item-search-input').val(rowData.itemText);
+
+                // Show info and clear buttons
+                $newRow.find('.item-info-btn').show();
+                $newRow.find('.autocomplete-clear-btn').show();
+            }
+
+            // Populate variant
+            if (rowData.variant) {
+                $newRow.find('.variant-select').val(rowData.variant);
+            }
+
+            // Populate unit
+            if (rowData.unit) {
+                $newRow.find('.unit-select').val(rowData.unit);
+                $newRow.find('.unit-display-input').val(rowData.unitText);
+            }
+
+            // Populate pricing data
+            $newRow.find('.tax-rate-input').val(rowData.taxRate || '16.00');
+            $newRow.find('.quantity-input').val(rowData.quantity || '1');
+            $newRow.find('.price-input').val(rowData.unitPrice || '0.000');
+            $newRow.find('.discount-pct-input').val(rowData.discountPct || '0.00');
+
+            // Populate hidden fields
+            $newRow.find('input[name*="description"]').val(rowData.description || '');
+            $newRow.find('input[name*="purchase_quantity"]').val(rowData.purchaseQty || '');
+            $newRow.find('input[name*="purchase_unit_price"]').val(rowData.purchasePrice || '');
+            $newRow.find('input[name*="conversion_rate"]').val(rowData.conversionRate || '1.000');
+            $newRow.find('input[name*="tax_included"]').prop('checked', rowData.taxIncluded || false);
+            $newRow.find('input[name*="discount_amount"]').val(rowData.discountAmount || '');
+            $newRow.find('input[name*="batch_number"]').val(rowData.batchNumber || '');
+            $newRow.find('input[name*="expiry_date"]').val(rowData.expiryDate || '');
+
+            // Populate purchase UoM if exists
+            if (rowData.purchaseUom) {
+                // Create option if doesn't exist
+                const $purchaseUomSelect = $newRow.find('.purchase-uom-select');
+                if ($purchaseUomSelect.find(`option[value="${rowData.purchaseUom}"]`).length === 0) {
+                    $purchaseUomSelect.append(`<option value="${rowData.purchaseUom}" selected></option>`);
+                } else {
+                    $purchaseUomSelect.val(rowData.purchaseUom);
+                }
+            }
+
+            // Update TOTAL_FORMS
+            $('#id_lines-TOTAL_FORMS').val(formIdx + 1);
+            formIdx++;
+
+            // Initialize autocomplete for the new row
+            const USE_LIVE_SEARCH_PASTE = {{ use_live_search|default:False|lower }};
+            if (!USE_LIVE_SEARCH_PASTE) {
+                $newRow.find('.item-search-input').each(function() {
+                    initItemAutocomplete($(this));
+                });
+            }
+
+            // Initialize autocomplete for variant
+            $newRow.find('.variant-search-input').each(function() {
+                var $input = $(this);
+                var $wrapper = $input.closest('.autocomplete-wrapper');
+                var $select = $wrapper.find('.variant-select');
+                if ($select.length) {
+                    initSelectAutocomplete($input, $select);
+                }
+            });
+
+            // Trigger change on item select to load related data (UoM, etc)
+            if (rowData.item) {
+                $newRow.find('.item-select').trigger('change');
+            }
+
+            // Apply column visibility settings to the new row
+            applyColumnVisibilityToRow($newRow);
+
+            // Calculate totals for new row
+            setTimeout(function() {
+                calculateItemTotal($newRow[0]);
+            }, 100);
+        });
+
+        // updateRowNumbers(); // Commented out - row number column removed
+
+        // Recalculate totals after small delay to ensure all rows are processed
+        setTimeout(function() {
+            calculateTotals();
+        }, 200);
+
+        console.log(`✅ تم لصق ${copiedRowsData.length} صف`);
+        showToast(`تم لصق ${copiedRowsData.length} صف بنجاح`, 'success');
+    }
+
+    // Simple toast notification
+    function showToast(message, type = 'info') {
+        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+        const toast = $(`
+            <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+                <div class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            </div>
+        `);
+        $('body').append(toast);
+        const toastEl = toast.find('.toast')[0];
+        const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay: 3000 });
+        bsToast.show();
+
+        // Remove after hide
+        $(toastEl).on('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
+
+    // Select/Deselect all rows
+    $('#select-all-checkbox').on('change', function() {
+        const isChecked = $(this).is(':checked');
+        $('.row-select-checkbox').prop('checked', isChecked);
+        updateCopyPasteButtons();
+    });
+
+    // Select all button
+    $('#btn-select-all').on('click', function() {
+        const allChecked = $('.row-select-checkbox:checked').length === $('.row-select-checkbox').length;
+        $('.row-select-checkbox').prop('checked', !allChecked);
+        $('#select-all-checkbox').prop('checked', !allChecked);
+        updateCopyPasteButtons();
+    });
+
+    // Update buttons when individual checkbox changes
+    $(document).on('change', '.row-select-checkbox', function() {
+        updateCopyPasteButtons();
+
+        // Update select-all checkbox
+        const totalRows = $('.row-select-checkbox').length;
+        const checkedRows = $('.row-select-checkbox:checked').length;
+        $('#select-all-checkbox').prop('checked', totalRows > 0 && checkedRows === totalRows);
+    });
+
+    // Copy button click
+    $('#btn-copy-rows').on('click', function() {
+        copySelectedRows();
+    });
+
+    // Paste button click
+    $('#btn-paste-rows').on('click', function() {
+        pasteRows();
+    });
+
+    // Keyboard shortcuts for copy/paste
+    $(document).on('keydown', function(e) {
+        const $target = $(e.target);
+        const isInputField = $target.is('input:not([type=checkbox]), textarea, select');
+
+        // Check if there's selected text in input field
+        let hasSelection = false;
+        if (isInputField && $target[0]) {
+            const elem = $target[0];
+            hasSelection = elem.selectionStart !== elem.selectionEnd;
+        }
+
+        // Ctrl+Shift+C - Force copy rows (override any input field)
+        if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+            e.preventDefault();
+            const selectedRowsCount = $('.row-select-checkbox:checked').length;
+            if (selectedRowsCount > 0) {
+                copySelectedRows();
+            } else {
+                showToast('يرجى تحديد صف واحد على الأقل للنسخ', 'error');
+            }
+            return false;
+        }
+
+        // Ctrl+Shift+V - Force paste rows (override any input field)
+        if (e.ctrlKey && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+            e.preventDefault();
+            if (copiedRowsData.length > 0) {
+                pasteRows();
+            } else {
+                showToast('لا توجد صفوف منسوخة للصقها', 'error');
+            }
+            return false;
+        }
+
+        // Ctrl+C - Copy selected rows (only if not in input OR no text selected)
+        if (e.ctrlKey && !e.shiftKey && e.key === 'c') {
+            if (!isInputField || !hasSelection) {
+                const selectedRowsCount = $('.row-select-checkbox:checked').length;
+                if (selectedRowsCount > 0) {
+                    e.preventDefault();
+                    copySelectedRows();
+                    return false;
+                }
+            }
+        }
+
+        // Ctrl+V - Paste rows (only if not in input OR no clipboard data)
+        if (e.ctrlKey && !e.shiftKey && e.key === 'v') {
+            if (!isInputField) {
+                if (copiedRowsData.length > 0) {
+                    e.preventDefault();
+                    pasteRows();
+                    return false;
+                }
+            }
+        }
+    });
+
+    // Initialize on page load
+    $(document).ready(function() {
+        updateCopyPasteButtons();
+    });
+
+    // ============================================
     // Column Visibility Management
     // ============================================
     const COLUMN_VISIBILITY_KEY = 'invoice_column_visibility';
@@ -1853,7 +2212,7 @@ $(document).ready(function() {
         localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(visibility));
     }
 
-    // Apply column visibility
+    // Apply column visibility to all rows
     function applyColumnVisibility(visibility) {
         $.each(visibility, function(columnClass, isVisible) {
             const checkbox = $('#toggle-' + columnClass);
@@ -1863,6 +2222,19 @@ $(document).ready(function() {
                 $('.' + columnClass).show();
             } else {
                 $('.' + columnClass).hide();
+            }
+        });
+    }
+
+    // Apply column visibility to a specific row (for new rows)
+    function applyColumnVisibilityToRow($row) {
+        const visibility = loadColumnVisibility();
+        $.each(visibility, function(columnClass, isVisible) {
+            const $cells = $row.find('.' + columnClass);
+            if (isVisible) {
+                $cells.show();
+            } else {
+                $cells.hide();
             }
         });
     }
@@ -2271,17 +2643,21 @@ $(document).ready(function() {
         var hasItems = false;
         var itemCount = 0;
         $('#items-tbody tr:visible').each(function(index) {
-            var itemSelect = $(this).find('select[name*="item"]');
+            // البحث عن .item-select بدلاً من select[name*="item"] لأن العنصر مخفي
+            var itemSelect = $(this).find('.item-select');
             var itemValue = itemSelect.val();
             var itemName = itemSelect.find('option:selected').text();
+
+            // Check if row is marked for deletion
+            var isDeleted = $(this).find('input[name$="-DELETE"]').is(':checked');
 
             console.log("Row " + index + ":");
             console.log("  - Item select:", itemSelect.length > 0 ? "Found" : "NOT FOUND");
             console.log("  - Item value:", itemValue || "EMPTY");
             console.log("  - Item name:", itemName || "NONE");
-            console.log("  - Item select HTML:", itemSelect.prop('outerHTML'));
+            console.log("  - Is deleted:", isDeleted);
 
-            if (itemValue) {
+            if (itemValue && !isDeleted) {
                 hasItems = true;
                 itemCount++;
             }
@@ -4107,16 +4483,50 @@ $(document).ready(function() {
             html += '</div>';
         }
 
-        // Stock Info
+        // Stock Info - ✅ ENHANCED: Show details for each branch
         html += '<div class="border-top pt-2">';
-        html += '<div class="d-flex align-items-center mb-1">';
+        html += '<div class="d-flex align-items-center mb-2">';
         html += '<i class="fas fa-boxes text-secondary me-2"></i>';
         html += '<strong>المخزون:</strong>';
         html += '</div>';
-        html += '<div class="ps-4">';
-        html += '<small class="text-muted">الفرع الحالي: <span class="fw-bold text-dark">' + data.stock.current_branch_available + '</span> (محجوز: ' + data.stock.current_branch_reserved + ')</small><br>';
-        html += '<small class="text-muted">جميع الفروع: <span class="fw-bold text-dark">' + data.stock.all_branches + '</span></small>';
-        html += '</div>';
+
+        // تفاصيل كل فرع في جدول
+        if (data.stock.branches_detail && data.stock.branches_detail.length > 0) {
+            html += '<div class="ps-4">';
+            html += '<table class="table table-sm table-bordered mb-2" style="font-size: 0.8rem;">';
+            html += '<thead class="table-light">';
+            html += '<tr>';
+            html += '<th style="width: 50%;">الفرع</th>';
+            html += '<th class="text-center" style="width: 25%;">الكمية</th>';
+            html += '<th class="text-center" style="width: 25%;">المتاح</th>';
+            html += '</tr>';
+            html += '</thead>';
+            html += '<tbody>';
+
+            data.stock.branches_detail.forEach(function(branch) {
+                html += '<tr>';
+                html += '<td class="text-muted">' + branch.branch_name + '</td>';
+                html += '<td class="text-center fw-bold">' + parseFloat(branch.quantity).toFixed(3) + '</td>';
+                html += '<td class="text-center text-success fw-bold">' + parseFloat(branch.available).toFixed(3) + '</td>';
+                html += '</tr>';
+            });
+
+            // صف الإجمالي
+            html += '<tr class="table-secondary fw-bold">';
+            html += '<td>الإجمالي</td>';
+            html += '<td class="text-center">' + parseFloat(data.stock.all_branches).toFixed(3) + '</td>';
+            html += '<td class="text-center">-</td>';
+            html += '</tr>';
+            html += '</tbody>';
+            html += '</table>';
+            html += '</div>';
+        } else {
+            // إذا لم يكن هناك مخزون في أي فرع
+            html += '<div class="ps-4">';
+            html += '<small class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>لا يوجد مخزون في أي فرع</small>';
+            html += '</div>';
+        }
+
         html += '</div>';
 
         html += '</div>';

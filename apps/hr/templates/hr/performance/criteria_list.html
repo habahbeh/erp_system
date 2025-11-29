@@ -1,0 +1,114 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-list-check me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:criteria_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "إضافة معيار" %}
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "نوع المعيار" %}</label>
+                    <select name="type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="competency" {% if selected_type == "competency" %}selected{% endif %}>{% trans "كفاءات" %}</option>
+                        <option value="objective" {% if selected_type == "objective" %}selected{% endif %}>{% trans "أهداف" %}</option>
+                        <option value="behavior" {% if selected_type == "behavior" %}selected{% endif %}>{% trans "سلوكيات" %}</option>
+                        <option value="skill" {% if selected_type == "skill" %}selected{% endif %}>{% trans "مهارات" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Criteria Cards -->
+    <div class="row">
+        {% for criteria in criteria_list %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="badge bg-{% if criteria.criteria_type == 'competency' %}primary{% elif criteria.criteria_type == 'objective' %}success{% elif criteria.criteria_type == 'behavior' %}info{% else %}warning{% endif %}">
+                            {{ criteria.get_criteria_type_display }}
+                        </span>
+                        <span class="badge bg-secondary">{% trans "الوزن" %}: {{ criteria.weight }}%</span>
+                    </div>
+                    <h5 class="card-title">{{ criteria.name }}</h5>
+                    {% if criteria.name_en %}
+                    <p class="text-muted small">{{ criteria.name_en }}</p>
+                    {% endif %}
+                    {% if criteria.description %}
+                    <p class="card-text small text-muted">{{ criteria.description|truncatewords:20 }}</p>
+                    {% endif %}
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                <i class="fas fa-star me-1"></i>{% trans "الحد الأقصى" %}: {{ criteria.max_score }}
+                            </small>
+                        </div>
+                        <div>
+                            {% if criteria.is_required %}
+                            <span class="badge bg-danger">{% trans "إلزامي" %}</span>
+                            {% endif %}
+                            {% if criteria.applies_to_all %}
+                            <span class="badge bg-info">{% trans "للجميع" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <div class="btn-group btn-group-sm w-100">
+                        <a href="{% url 'hr:criteria_edit' criteria.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+                        </a>
+                        <a href="{% url 'hr:criteria_delete' criteria.pk %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i>{% trans "حذف" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "لا توجد معايير تقييم" %}</p>
+                    <a href="{% url 'hr:criteria_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "إضافة معيار" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

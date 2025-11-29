@@ -58,7 +58,7 @@ def create_stock_in_on_purchase_post(sender, instance, created, **kwargs):
             # إنشاء سطور السند من سطور الفاتورة
             from apps.inventory.models import StockDocumentLine
 
-            for line in instance.items.all():  # items هو related_name للـ lines
+            for line in instance.lines.all():
                 # تأكد من أن الصنف له مخزون (يمكن تخطي الخدمات)
                 if not line.item:
                     continue
@@ -69,7 +69,7 @@ def create_stock_in_on_purchase_post(sender, instance, created, **kwargs):
                     item_variant=line.item_variant if hasattr(line, 'item_variant') else None,
                     quantity=line.quantity,
                     unit_cost=line.unit_price,
-                    notes=line.notes or ''
+                    notes=getattr(line, 'notes', '') or ''
                 )
 
             # ترحيل السند تلقائياً

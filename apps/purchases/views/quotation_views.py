@@ -164,6 +164,15 @@ class PurchaseQuotationRequestDetailView(LoginRequiredMixin, PermissionRequiredM
             {'title': rfq.number, 'url': ''},
         ]
 
+        # حساب الإجمالي التقديري للأصناف
+        items_total = Decimal('0.000')
+        for item in rfq.items.all():
+            if item.line_total:
+                items_total += item.line_total
+            elif item.estimated_price and item.quantity:
+                items_total += item.estimated_price * item.quantity
+        context['estimated_total'] = items_total
+
         # العروض المستلمة
         context['quotations'] = rfq.quotations.select_related('supplier').order_by('-score', '-total_amount')
 
@@ -243,11 +252,13 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 self.request.POST,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -286,6 +297,15 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
         form.instance.company = self.request.current_company
         form.instance.created_by = self.request.user
 
+        # التأكد من وجود عملة
+        if not form.instance.currency_id:
+            default_currency = Currency.objects.filter(
+                is_base=True,
+                is_active=True
+            ).first()
+            if default_currency:
+                form.instance.currency = default_currency
+
         if formset.is_valid():
             self.object = form.save()
             formset.instance = self.object
@@ -305,6 +325,7 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
                         supplier=supplier,
                         date=self.object.date,
                         valid_until=self.object.submission_deadline,
+                        currency=self.object.currency,  # تمرير العملة من طلب العرض
                         status='draft',
                         created_by=self.request.user
                     )
@@ -374,11 +395,13 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 self.request.POST,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -418,6 +441,7 @@ class PurchaseQuotationRequestUpdateView(LoginRequiredMixin, PermissionRequiredM
                             supplier=supplier,
                             date=self.object.date,
                             valid_until=self.object.submission_deadline,
+                            currency=self.object.currency,  # تمرير العملة من طلب العرض
                             status='draft',
                             created_by=self.request.user
                         )
@@ -644,11 +668,13 @@ class PurchaseQuotationCreateView(LoginRequiredMixin, PermissionRequiredMixin, C
                 self.request.POST,
                 self.request.FILES,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseQuotationItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -737,11 +763,13 @@ class PurchaseQuotationUpdateView(LoginRequiredMixin, PermissionRequiredMixin, U
                 self.request.POST,
                 self.request.FILES,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseQuotationItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -1342,7 +1370,7 @@ def export_quotations_excel(request):
         ws.cell(row=row_num, column=3, value=quotation.supplier.name).border = border
         ws.cell(row=row_num, column=4, value=float(quotation.total_amount)).border = border
         ws.cell(row=row_num, column=5, value=float(quotation.score) if quotation.score else '').border = border
-        ws.cell(row=row_num, column=6, value=_('نعم') if quotation.is_awarded else _('لا')).border = border
+        ws.cell(row=row_num, column=6, value='نعم' if quotation.is_awarded else 'لا').border = border
         ws.cell(row=row_num, column=7, value=quotation.get_status_display()).border = border
 
     # ضبط عرض الأعمدة
@@ -1460,13 +1488,19 @@ def rfq_get_item_stock_multi_branch_ajax(request):
             available = stock.quantity - stock.reserved_quantity
             total_quantity += stock.quantity
             total_available += available
+
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({
@@ -1579,13 +1613,19 @@ def quotation_get_item_stock_multi_branch_ajax(request):
             available = stock.quantity - stock.reserved_quantity
             total_quantity += stock.quantity
             total_available += available
+
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({

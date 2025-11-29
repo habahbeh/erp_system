@@ -9,7 +9,7 @@ from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.http import HttpResponse
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Sum, Count, Avg, Q, F
+from django.db.models import Sum, Count, Avg, Q, F, Min, Max
 from django.db.models.functions import TruncMonth, ExtractMonth, ExtractYear
 from django.utils import timezone
 from datetime import date, timedelta
@@ -1310,6 +1310,389 @@ class ExportContractsExcelView(LoginRequiredMixin, PermissionRequiredMixin, Exce
         return self.get_excel_response(wb, f'contracts_expiry_report_{today}.xlsx')
 
 
+# ==========================================
+# Biometric Reports - Phase 8
+# ==========================================
+
+class BiometricReportView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
+    """تقرير سجلات البصمة"""
+    template_name = 'hr/reports/biometric_report.html'
+    permission_required = 'hr.view_attendance'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        company = self.request.current_company
+        today = date.today()
+
+        # استيراد نماذج البصمة
+        from ..models import BiometricDevice, BiometricLog, BiometricSyncLog, EmployeeBiometricMapping
+
+        # الفلاتر
+        from_date = self.request.GET.get('from_date')
+        to_date = self.request.GET.get('to_date')
+        device_id = self.request.GET.get('device')
+        department_id = self.request.GET.get('department')
+        employee_id = self.request.GET.get('employee')
+
+        # افتراضي: الشهر الحالي
+        if not from_date:
+            from_date = today.replace(day=1).isoformat()
+        if not to_date:
+            to_date = today.isoformat()
+
+        # إحصائيات الأجهزة
+        device_stats = BiometricDevice.objects.filter(company=company).aggregate(
+            total_devices=Count('id'),
+            active_devices=Count('id', filter=Q(status='active', is_active=True)),
+            offline_devices=Count('id', filter=Q(status='offline')),
+            maintenance_devices=Count('id', filter=Q(status='maintenance')),
+        )
+
+        # إحصائيات الربط
+        mapping_stats = EmployeeBiometricMapping.objects.filter(company=company).aggregate(
+            total_mappings=Count('id'),
+            enrolled=Count('id', filter=Q(is_enrolled=True)),
+            active=Count('id', filter=Q(is_active=True)),
+        )
+
+        # بناء استعلام السجلات
+        logs = BiometricLog.objects.filter(
+            company=company,
+            punch_time__date__gte=from_date,
+            punch_time__date__lte=to_date
+        ).select_related('device', 'employee', 'employee__department')
+
+        if device_id:
+            logs = logs.filter(device_id=device_id)
+        if department_id:
+            logs = logs.filter(employee__department_id=department_id)
+        if employee_id:
+            logs = logs.filter(employee_id=employee_id)
+
+        # إحصائيات السجلات
+        log_stats = logs.aggregate(
+            total_logs=Count('id'),
+            processed=Count('id', filter=Q(is_processed=True)),
+            unprocessed=Count('id', filter=Q(is_processed=False)),
+            in_punches=Count('id', filter=Q(punch_type='in')),
+            out_punches=Count('id', filter=Q(punch_type='out')),
+            by_fingerprint=Count('id', filter=Q(verification_type='fingerprint')),
+            by_face=Count('id', filter=Q(verification_type='face')),
+            by_card=Count('id', filter=Q(verification_type='card')),
+        )
+
+        # تفصيل حسب الجهاز
+        by_device = logs.values(
+            'device__name'
+        ).annotate(
+            total=Count('id'),
+            in_count=Count('id', filter=Q(punch_type='in')),
+            out_count=Count('id', filter=Q(punch_type='out')),
+        ).order_by('-total')
+
+        # تفصيل حسب الموظف
+        by_employee = logs.filter(employee__isnull=False).values(
+            'employee__id',
+            'employee__first_name',
+            'employee__last_name',
+            'employee__employee_number',
+            'employee__department__name'
+        ).annotate(
+            total_punches=Count('id'),
+            in_punches=Count('id', filter=Q(punch_type='in')),
+            out_punches=Count('id', filter=Q(punch_type='out')),
+            first_in=Min('punch_time', filter=Q(punch_type='in')),
+            last_out=Max('punch_time', filter=Q(punch_type='out')),
+        ).order_by('-total_punches')[:50]
+
+        # التوزيع اليومي
+        daily_trend = logs.values('punch_time__date').annotate(
+            total=Count('id'),
+            in_count=Count('id', filter=Q(punch_type='in')),
+            out_count=Count('id', filter=Q(punch_type='out')),
+        ).order_by('punch_time__date')
+
+        # سجلات المزامنة الأخيرة
+        recent_syncs = BiometricSyncLog.objects.filter(
+            company=company
+        ).select_related('device').order_by('-created_at')[:10]
+
+        # الأجهزة للفلتر
+        devices = BiometricDevice.objects.filter(company=company, is_active=True)
+
+        context.update({
+            'title': _('تقرير سجلات البصمة'),
+            'device_stats': device_stats,
+            'mapping_stats': mapping_stats,
+            'log_stats': log_stats,
+            'by_device': list(by_device),
+            'by_employee': list(by_employee),
+            'daily_trend': json.dumps(list(daily_trend), default=str),
+            'recent_syncs': recent_syncs,
+            'from_date': from_date,
+            'to_date': to_date,
+            'devices': devices,
+            'departments': Department.objects.filter(company=company, is_active=True),
+            'selected_device': device_id,
+            'selected_department': department_id,
+            'selected_employee': employee_id,
+            'breadcrumbs': [
+                {'title': _('الرئيسية'), 'url': '/'},
+                {'title': _('الموارد البشرية'), 'url': '/hr/'},
+                {'title': _('التقارير'), 'url': '/hr/reports/'},
+                {'title': _('تقرير البصمة'), 'url': None},
+            ],
+        })
+        return context
+
+
+class BiometricAttendanceReportView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
+    """تقرير الحضور من البصمة - تفصيلي"""
+    template_name = 'hr/reports/biometric_attendance_report.html'
+    permission_required = 'hr.view_attendance'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        company = self.request.current_company
+        today = date.today()
+
+        from ..models import BiometricLog, Employee
+
+        # الفلاتر
+        report_date = self.request.GET.get('date', today.isoformat())
+        department_id = self.request.GET.get('department')
+
+        # الموظفين مع معلومات البصمة لهذا اليوم
+        employees = Employee.objects.filter(
+            company=company,
+            is_active=True,
+            status='active'
+        ).select_related('department', 'job_title')
+
+        if department_id:
+            employees = employees.filter(department_id=department_id)
+
+        # جمع بيانات البصمة لكل موظف
+        attendance_data = []
+        for emp in employees:
+            # سجلات البصمة لهذا الموظف في هذا اليوم
+            logs = BiometricLog.objects.filter(
+                employee=emp,
+                punch_time__date=report_date
+            ).order_by('punch_time')
+
+            first_in = None
+            last_out = None
+            all_punches = []
+
+            for log in logs:
+                all_punches.append({
+                    'time': log.punch_time,
+                    'type': log.punch_type,
+                    'verification': log.verification_type,
+                    'device': log.device.name if log.device else '-'
+                })
+                if log.punch_type == 'in':
+                    if first_in is None or log.punch_time < first_in:
+                        first_in = log.punch_time
+                elif log.punch_type == 'out':
+                    if last_out is None or log.punch_time > last_out:
+                        last_out = log.punch_time
+
+            # حساب ساعات العمل
+            working_hours = None
+            if first_in and last_out:
+                delta = last_out - first_in
+                working_hours = delta.total_seconds() / 3600
+
+            attendance_data.append({
+                'employee': emp,
+                'first_in': first_in,
+                'last_out': last_out,
+                'working_hours': working_hours,
+                'punch_count': len(all_punches),
+                'punches': all_punches,
+                'status': 'present' if first_in else 'absent'
+            })
+
+        # إحصائيات
+        present_count = sum(1 for d in attendance_data if d['status'] == 'present')
+        absent_count = sum(1 for d in attendance_data if d['status'] == 'absent')
+        total_hours = sum(d['working_hours'] or 0 for d in attendance_data)
+
+        context.update({
+            'title': _('تقرير الحضور اليومي من البصمة'),
+            'attendance_data': attendance_data,
+            'report_date': report_date,
+            'stats': {
+                'total': len(attendance_data),
+                'present': present_count,
+                'absent': absent_count,
+                'total_hours': round(total_hours, 2),
+                'avg_hours': round(total_hours / present_count, 2) if present_count > 0 else 0
+            },
+            'departments': Department.objects.filter(company=company, is_active=True),
+            'selected_department': department_id,
+            'breadcrumbs': [
+                {'title': _('الرئيسية'), 'url': '/'},
+                {'title': _('الموارد البشرية'), 'url': '/hr/'},
+                {'title': _('التقارير'), 'url': '/hr/reports/'},
+                {'title': _('تقرير الحضور اليومي'), 'url': None},
+            ],
+        })
+        return context
+
+
+class ExportBiometricLogsExcelView(LoginRequiredMixin, PermissionRequiredMixin, ExcelExportMixin, View):
+    """تصدير سجلات البصمة إلى Excel"""
+    permission_required = 'hr.view_attendance'
+
+    def get(self, request):
+        if not EXCEL_AVAILABLE:
+            return HttpResponse('مكتبة openpyxl غير متوفرة', status=500)
+
+        from ..models import BiometricLog
+
+        company = request.current_company
+        today = date.today()
+
+        # الفلاتر
+        from_date = request.GET.get('from_date', today.replace(day=1).isoformat())
+        to_date = request.GET.get('to_date', today.isoformat())
+        device_id = request.GET.get('device')
+
+        # بناء الاستعلام
+        logs = BiometricLog.objects.filter(
+            company=company,
+            punch_time__date__gte=from_date,
+            punch_time__date__lte=to_date
+        ).select_related('device', 'employee', 'employee__department').order_by('punch_time')
+
+        if device_id:
+            logs = logs.filter(device_id=device_id)
+
+        # إنشاء Excel
+        wb, ws = self.create_workbook('سجلات البصمة')
+
+        # العناوين
+        headers = ['التاريخ', 'الوقت', 'رقم الموظف', 'اسم الموظف', 'القسم',
+                   'الجهاز', 'نوع البصمة', 'طريقة التحقق', 'الحالة']
+
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        self.style_header(ws, row=1, start_col=1, end_col=len(headers))
+
+        punch_types = {'in': 'حضور', 'out': 'انصراف', 'break_out': 'خروج استراحة',
+                       'break_in': 'عودة استراحة', 'overtime_in': 'بداية إضافي', 'overtime_out': 'نهاية إضافي'}
+        verification_types = {'fingerprint': 'بصمة', 'face': 'وجه', 'card': 'بطاقة', 'password': 'كلمة مرور'}
+
+        # البيانات
+        for row, log in enumerate(logs, 2):
+            ws.cell(row=row, column=1, value=log.punch_time.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=2, value=log.punch_time.strftime('%H:%M:%S'))
+            ws.cell(row=row, column=3, value=log.employee.employee_number if log.employee else log.device_user_id)
+            ws.cell(row=row, column=4, value=f'{log.employee.first_name} {log.employee.last_name}' if log.employee else '-')
+            ws.cell(row=row, column=5, value=log.employee.department.name if log.employee and log.employee.department else '-')
+            ws.cell(row=row, column=6, value=log.device.name if log.device else '-')
+            ws.cell(row=row, column=7, value=punch_types.get(log.punch_type, log.punch_type))
+            ws.cell(row=row, column=8, value=verification_types.get(log.verification_type, log.verification_type))
+            ws.cell(row=row, column=9, value='معالج' if log.is_processed else 'غير معالج')
+
+        self.auto_fit_columns(ws)
+
+        return self.get_excel_response(wb, f'biometric_logs_{from_date}_{to_date}.xlsx')
+
+
+class ExportBiometricAttendanceExcelView(LoginRequiredMixin, PermissionRequiredMixin, ExcelExportMixin, View):
+    """تصدير تقرير الحضور من البصمة إلى Excel"""
+    permission_required = 'hr.view_attendance'
+
+    def get(self, request):
+        if not EXCEL_AVAILABLE:
+            return HttpResponse('مكتبة openpyxl غير متوفرة', status=500)
+
+        from ..models import BiometricLog
+
+        company = request.current_company
+        today = date.today()
+
+        # الفلاتر
+        from_date = request.GET.get('from_date', today.replace(day=1).isoformat())
+        to_date = request.GET.get('to_date', today.isoformat())
+        department_id = request.GET.get('department')
+
+        # الموظفين
+        employees = Employee.objects.filter(
+            company=company,
+            is_active=True,
+            status='active'
+        ).select_related('department')
+
+        if department_id:
+            employees = employees.filter(department_id=department_id)
+
+        # إنشاء Excel
+        wb, ws = self.create_workbook('حضور البصمة')
+
+        # العناوين
+        headers = ['رقم الموظف', 'اسم الموظف', 'القسم', 'التاريخ',
+                   'أول حضور', 'آخر انصراف', 'ساعات العمل', 'عدد البصمات']
+
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        self.style_header(ws, row=1, start_col=1, end_col=len(headers))
+
+        # جمع البيانات
+        from datetime import datetime
+        start = datetime.strptime(from_date, '%Y-%m-%d').date()
+        end = datetime.strptime(to_date, '%Y-%m-%d').date()
+
+        row_num = 2
+        current = start
+        while current <= end:
+            for emp in employees:
+                logs = BiometricLog.objects.filter(
+                    employee=emp,
+                    punch_time__date=current
+                ).order_by('punch_time')
+
+                if logs.exists():
+                    first_in = None
+                    last_out = None
+
+                    for log in logs:
+                        if log.punch_type == 'in':
+                            if first_in is None or log.punch_time < first_in:
+                                first_in = log.punch_time
+                        elif log.punch_type == 'out':
+                            if last_out is None or log.punch_time > last_out:
+                                last_out = log.punch_time
+
+                    working_hours = 0
+                    if first_in and last_out:
+                        delta = last_out - first_in
+                        working_hours = round(delta.total_seconds() / 3600, 2)
+
+                    ws.cell(row=row_num, column=1, value=emp.employee_number)
+                    ws.cell(row=row_num, column=2, value=f'{emp.first_name} {emp.last_name}')
+                    ws.cell(row=row_num, column=3, value=emp.department.name if emp.department else '-')
+                    ws.cell(row=row_num, column=4, value=current.strftime('%Y-%m-%d'))
+                    ws.cell(row=row_num, column=5, value=first_in.strftime('%H:%M:%S') if first_in else '-')
+                    ws.cell(row=row_num, column=6, value=last_out.strftime('%H:%M:%S') if last_out else '-')
+                    ws.cell(row=row_num, column=7, value=working_hours)
+                    ws.cell(row=row_num, column=8, value=logs.count())
+
+                    row_num += 1
+
+            current += timedelta(days=1)
+
+        self.auto_fit_columns(ws)
+
+        return self.get_excel_response(wb, f'biometric_attendance_{from_date}_{to_date}.xlsx')
+
+
 # Export views __all__
 __all__ = [
     'HRDashboardReportView',
@@ -1321,6 +1704,9 @@ __all__ = [
     'OvertimeReportView',
     'DepartmentAnalysisReportView',
     'ContractExpiryReportView',
+    # Biometric Reports
+    'BiometricReportView',
+    'BiometricAttendanceReportView',
     # Excel Export Views
     'ExportEmployeesExcelView',
     'ExportAttendanceExcelView',
@@ -1329,4 +1715,6 @@ __all__ = [
     'ExportAdvancesExcelView',
     'ExportOvertimeExcelView',
     'ExportContractsExcelView',
+    'ExportBiometricLogsExcelView',
+    'ExportBiometricAttendanceExcelView',
 ]

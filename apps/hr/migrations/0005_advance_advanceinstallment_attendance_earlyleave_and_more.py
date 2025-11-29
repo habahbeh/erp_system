@@ -462,10 +462,6 @@ class Migration(migrations.Migration):
             name='employee',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='overtimes', to='hr.employee', verbose_name='الموظف'),
         ),
-        migrations.RemoveField(
-            model_name='leavetype',
-            name='max_carry_forward',
-        ),
         migrations.AlterUniqueTogether(
             name='advanceinstallment',
             unique_together={('advance', 'installment_number')},

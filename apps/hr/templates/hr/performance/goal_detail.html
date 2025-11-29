@@ -1,0 +1,186 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-bullseye me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:goal_update_progress' goal.pk %}" class="btn btn-info">
+                <i class="fas fa-chart-line me-1"></i>{% trans "تحديث التقدم" %}
+            </a>
+            <a href="{% url 'hr:goal_edit' goal.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+            </a>
+            <a href="{% url 'hr:goal_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Goal Details -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ goal.title }}</h6>
+                    <div>
+                        <span class="badge bg-{% if goal.priority == 'low' %}secondary{% elif goal.priority == 'medium' %}info{% elif goal.priority == 'high' %}warning{% else %}danger{% endif %} me-2">
+                            {{ goal.get_priority_display }}
+                        </span>
+                        <span class="badge bg-{% if goal.status == 'completed' %}success{% elif goal.status == 'in_progress' %}primary{% elif goal.status == 'active' %}info{% elif goal.status == 'draft' %}secondary{% else %}danger{% endif %}">
+                            {{ goal.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if goal.description %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">{% trans "وصف الهدف" %}</h6>
+                        <p>{{ goal.description|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if goal.key_results %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">{% trans "النتائج الرئيسية (OKRs)" %}</h6>
+                        <p>{{ goal.key_results|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Progress -->
+                    <div class="mb-4">
+                        <h6 class="text-muted">{% trans "التقدم" %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>{% trans "نسبة الإنجاز" %}</span>
+                                    <span class="fw-bold">{{ goal.progress_percentage|floatformat:0|default:"0" }}%</span>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-{% if goal.progress_percentage >= 80 %}success{% elif goal.progress_percentage >= 50 %}info{% elif goal.progress_percentage >= 25 %}warning{% else %}danger{% endif %}"
+                                         role="progressbar"
+                                         style="width: {{ goal.progress_percentage|default:0 }}%">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h5 class="text-primary">{{ goal.target_value|floatformat:0|default:"-" }}</h5>
+                                        <small class="text-muted">{% trans "المستهدف" %}</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h5 class="text-success">{{ goal.achieved_value|floatformat:0|default:"0" }}</h5>
+                                        <small class="text-muted">{% trans "المحقق" %}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if goal.notes %}
+                    <div class="mb-0">
+                        <h6 class="text-muted">{% trans "ملاحظات" %}</h6>
+                        <p class="mb-0">{{ goal.notes|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4 mb-4">
+            <!-- Employee Info -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-user me-2"></i>{% trans "الموظف" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted">{% trans "الاسم" %}:</td>
+                            <td><strong>{{ goal.employee.first_name }} {{ goal.employee.last_name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "الرقم الوظيفي" %}:</td>
+                            <td>{{ goal.employee.employee_number }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">{% trans "القسم" %}:</td>
+                            <td>{{ goal.employee.department.name|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Dates Info -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-calendar me-2"></i>{% trans "التواريخ" %}</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        {% if goal.period %}
+                        <tr>
+                            <td class="text-muted">{% trans "فترة التقييم" %}:</td>
+                            <td>{{ goal.period.name }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if goal.start_date %}
+                        <tr>
+                            <td class="text-muted">{% trans "تاريخ البداية" %}:</td>
+                            <td>{{ goal.start_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if goal.due_date %}
+                        <tr>
+                            <td class="text-muted">{% trans "تاريخ الاستحقاق" %}:</td>
+                            <td>{{ goal.due_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if goal.completed_date %}
+                        <tr>
+                            <td class="text-muted">{% trans "تاريخ الإنجاز" %}:</td>
+                            <td>{{ goal.completed_date|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted">{% trans "تاريخ الإنشاء" %}:</td>
+                            <td>{{ goal.created_at|date:"Y-m-d" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Weight Info -->
+            {% if goal.weight %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-weight me-2"></i>{% trans "الوزن" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    <h3 class="text-primary">{{ goal.weight }}%</h3>
+                    <small class="text-muted">{% trans "من إجمالي تقييم الأداء" %}</small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

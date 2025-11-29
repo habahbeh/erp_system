@@ -21,15 +21,13 @@ from apps.core.models import Item, BusinessPartner, Currency, User
 class PurchaseQuotationRequestForm(forms.ModelForm):
     """نموذج طلب عرض أسعار"""
 
-    # حقل لاختيار الموردين
+    # حقل لاختيار الموردين - استخدام CheckboxSelectMultiple لسهولة الاختيار
     suppliers = forms.ModelMultipleChoiceField(
         queryset=BusinessPartner.objects.none(),
         required=True,
         label=_('الموردين'),
-        widget=forms.SelectMultiple(attrs={
-            'class': 'form-select select2-multiple',
-            'multiple': 'multiple',
-            'data-placeholder': 'اختر الموردين...',
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'supplier-checkbox',
         }),
         help_text=_('اختر الموردين الذين سيتم إرسال طلب العرض لهم')
     )
@@ -107,13 +105,34 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
             self.fields['purchase_request'].queryset = PurchaseRequest.objects.filter(
                 company=self.company,
                 status='approved'
-            ).select_related('requested_by', 'department').order_by('-date')
+            ).select_related(
+                'requested_by', 'requested_by_employee', 'department'
+            ).prefetch_related('lines').order_by('-date')
 
-            # تخصيص label_from_instance لعرض معلومات أكثر
-            self.fields['purchase_request'].label_from_instance = lambda obj: (
-                f"{obj.number} - {obj.date.strftime('%Y-%m-%d')} - "
-                f"{obj.requested_by.get_full_name() if obj.requested_by else 'غير محدد'}"
-            )
+            # تخصيص label_from_instance لعرض معلومات أكثر وضوحاً
+            def get_purchase_request_label(obj):
+                items_count = obj.lines.count()
+                requester = ''
+                if obj.requested_by_employee:
+                    requester = obj.requested_by_employee.full_name
+                elif obj.requested_by:
+                    requester = obj.requested_by.get_full_name()
+                else:
+                    requester = 'غير محدد'
+
+                dept = obj.department.name if obj.department else ''
+                purpose = obj.purpose[:30] + '...' if obj.purpose and len(obj.purpose) > 30 else (obj.purpose or '')
+
+                label = f"📋 {obj.number} | 📅 {obj.date.strftime('%Y-%m-%d')} | 📦 {items_count} صنف"
+                if requester:
+                    label += f" | 👤 {requester}"
+                if dept:
+                    label += f" | 🏢 {dept}"
+                if purpose:
+                    label += f" | 📝 {purpose}"
+                return label
+
+            self.fields['purchase_request'].label_from_instance = get_purchase_request_label
 
             # تصفية الموردين
             self.fields['suppliers'].queryset = BusinessPartner.objects.filter(
@@ -121,6 +140,9 @@ class PurchaseQuotationRequestForm(forms.ModelForm):
                 partner_type__in=['supplier', 'both'],
                 is_active=True
             ).order_by('name')
+
+            # عرض اسم المورد فقط بدون الرمز
+            self.fields['suppliers'].label_from_instance = lambda obj: obj.name
 
             # تصفية العملات
             from apps.core.models import Currency

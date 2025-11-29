@@ -24,9 +24,10 @@ class PurchaseInvoiceForm(forms.ModelForm):
     class Meta:
         model = PurchaseInvoice
         fields = [
+            'supplier_invoice_number',  # ✅ الملاحظة 3: نُقل للبداية
             'invoice_type', 'date', 'branch', 'supplier', 'warehouse',
             'payment_method', 'currency',
-            'supplier_invoice_number', 'supplier_invoice_date',
+            'supplier_invoice_date',
             'discount_type', 'discount_value', 'discount_affects_cost',
             'discount_account', 'supplier_account', 'reference', 'notes'
         ]
@@ -60,6 +61,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
             'supplier_invoice_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'رقم فاتورة المورد',
+                'required': 'required'  # ✅ الملاحظة 3: إجباري
             }),
             'supplier_invoice_date': forms.DateInput(attrs={
                 'class': 'form-control',

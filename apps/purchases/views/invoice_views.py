@@ -190,7 +190,7 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
         # Check if there are any invoice items
         item_count = 0
         for key in request.POST.keys():
-            if 'items-' in key and '-item' in key and '-DELETE' not in key:
+            if 'lines-' in key and '-item' in key and '-DELETE' not in key:
                 item_count += 1
                 sys.stdout.write(f"Found item field: {key} = {request.POST.get(key)}\n")
 
@@ -364,12 +364,14 @@ class PurchaseInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
             context['formset'] = PurchaseInvoiceItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
         else:
             context['formset'] = PurchaseInvoiceItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
 
         # ✅ PERFORMANCE IMPROVEMENT: No longer loading all items
@@ -422,6 +424,124 @@ class PurchaseInvoiceDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Del
     def delete(self, request, *args, **kwargs):
         messages.success(request, _('تم حذف فاتورة المشتريات بنجاح'))
         return super().delete(request, *args, **kwargs)
+
+
+@login_required
+@permission_required('purchases.add_purchaseinvoice', raise_exception=True)
+@transaction.atomic
+def copy_invoice_as_draft(request, pk):
+    """
+    نسخ فاتورة مشتريات كمسودة
+    Copy a purchase invoice as a draft
+    """
+    # الحصول على الفاتورة الأصلية
+    original_invoice = get_object_or_404(
+        PurchaseInvoice,
+        pk=pk,
+        company=request.current_company
+    )
+
+    try:
+        # إنشاء رقم مؤقت لفاتورة المورد (يجب تعديله)
+        temp_supplier_invoice = f'DRAFT-{original_invoice.pk}-{date.today().strftime("%Y%m%d")}'
+
+        # إنشاء فاتورة جديدة بنسخ البيانات
+        new_invoice = PurchaseInvoice.objects.create(
+            # بيانات الشركة والفرع
+            company=original_invoice.company,
+            branch=original_invoice.branch,
+
+            # بيانات المورد
+            supplier=original_invoice.supplier,
+            supplier_account=original_invoice.supplier_account,
+
+            # بيانات الفاتورة - الحقول الفارغة/الجديدة
+            invoice_type=original_invoice.invoice_type,
+            date=date.today(),  # التاريخ الحالي
+            supplier_invoice_number=temp_supplier_invoice,  # رقم مؤقت - يجب تعديله
+            supplier_invoice_date=None,  # فارغ
+
+            # المستودع وطريقة الدفع
+            warehouse=original_invoice.warehouse,
+            payment_method=original_invoice.payment_method,
+            currency=original_invoice.currency,
+
+            # الخصومات
+            discount_type=original_invoice.discount_type,
+            discount_value=original_invoice.discount_value,
+            discount_affects_cost=original_invoice.discount_affects_cost,
+            discount_account=original_invoice.discount_account,
+
+            # الملاحظات
+            notes=original_invoice.notes,
+            reference=f'نسخة من فاتورة رقم {original_invoice.number}',
+
+            # الحالة - مسودة
+            is_posted=False,
+
+            # المستخدم
+            created_by=request.user,
+        )
+
+        # نسخ أسطر الفاتورة
+        original_items = PurchaseInvoiceItem.objects.filter(invoice=original_invoice)
+        for item in original_items:
+            PurchaseInvoiceItem.objects.create(
+                invoice=new_invoice,
+                item=item.item,
+                item_variant=item.item_variant,
+                description=item.description,
+
+                # الوحدات
+                unit=item.unit,
+                purchase_uom=item.purchase_uom,
+                conversion_rate=item.conversion_rate,
+
+                # الكميات والأسعار
+                quantity=item.quantity,
+                purchase_quantity=item.purchase_quantity,
+                unit_price=item.unit_price,
+                purchase_unit_price=item.purchase_unit_price,
+
+                # الضريبة
+                tax_rate=item.tax_rate,
+                tax_amount=item.tax_amount,
+                tax_included=item.tax_included,
+
+                # الخصم
+                discount_percentage=item.discount_percentage,
+                discount_amount=item.discount_amount,
+
+                # الإجمالي
+                subtotal=item.subtotal,
+
+                # الحساب
+                expense_account=item.expense_account,
+
+                # الدفعات (Batch)
+                batch_number=item.batch_number,
+                expiry_date=item.expiry_date,
+            )
+
+        # إعادة حساب الإجماليات
+        new_invoice.calculate_totals()
+        new_invoice.save()
+
+        messages.success(
+            request,
+            f'تم نسخ الفاتورة بنجاح. الفاتورة الجديدة رقم: {new_invoice.number}'
+        )
+        messages.warning(
+            request,
+            f'⚠️ يرجى تعديل رقم فاتورة المورد من "{temp_supplier_invoice}" إلى الرقم الفعلي'
+        )
+
+        # إعادة التوجيه لصفحة تعديل الفاتورة الجديدة
+        return redirect('purchases:invoice_update', pk=new_invoice.pk)
+
+    except Exception as e:
+        messages.error(request, f'حدث خطأ أثناء نسخ الفاتورة: {str(e)}')
+        return redirect('purchases:invoice_detail', pk=pk)
 
 
 @login_required
@@ -819,13 +939,18 @@ def get_item_stock_multi_branch_ajax(request):
             total_quantity += stock.quantity
             total_available += available
 
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({
@@ -1131,11 +1256,33 @@ def get_item_all_prices_ajax(request):
             total=Sum('quantity')
         )
 
+        # ✅ NEW: تفاصيل المخزون لكل فرع
+        branches_stock = []
+        stock_by_branch = variant.stock_records.select_related(
+            'warehouse__branch'
+        ).values(
+            'warehouse__branch__id',
+            'warehouse__branch__name'
+        ).annotate(
+            total_qty=Sum('quantity'),
+            reserved_qty=Sum('reserved_quantity')
+        ).order_by('warehouse__branch__name')
+
+        for branch_stock in stock_by_branch:
+            if branch_stock['total_qty'] and branch_stock['total_qty'] > 0:  # فقط الفروع التي فيها مخزون
+                branches_stock.append({
+                    'branch_name': branch_stock['warehouse__branch__name'],
+                    'quantity': str(branch_stock['total_qty'] or 0),
+                    'reserved': str(branch_stock['reserved_qty'] or 0),
+                    'available': str((branch_stock['total_qty'] or 0) - (branch_stock['reserved_qty'] or 0))
+                })
+
         stock_info = {
             'current_branch': str(current_branch_stock['total'] or 0),
             'current_branch_reserved': str(current_branch_stock['reserved'] or 0),
             'current_branch_available': str((current_branch_stock['total'] or 0) - (current_branch_stock['reserved'] or 0)),
-            'all_branches': str(total_stock['total'] or 0)
+            'all_branches': str(total_stock['total'] or 0),
+            'branches_detail': branches_stock  # ✅ تفاصيل كل فرع
         }
 
         return JsonResponse({

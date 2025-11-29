@@ -5,6 +5,11 @@
 المرحلة 2: الحضور والإجازات والسلف
 المرحلة 3: الرواتب
 المرحلة 4: التقارير
+المرحلة 5: التكامل المحاسبي
+المرحلة 6: الإشعارات
+المرحلة 7: الخدمة الذاتية
+المرحلة 8: أجهزة البصمة
+المرحلة 9: التقييم والأداء
 """
 
 from django.urls import path
@@ -73,6 +78,10 @@ from .views import (
     ExportPayrollExcelView, ExportAdvancesExcelView, ExportOvertimeExcelView,
     ExportContractsExcelView,
 
+    # ============ Biometric Reports ============
+    BiometricReportView, BiometricAttendanceReportView,
+    ExportBiometricLogsExcelView, ExportBiometricAttendanceExcelView,
+
     # ============ Phase 6 Views - Notifications ============
     NotificationListView, NotificationMarkReadView, NotificationMarkAllReadView,
     NotificationDeleteView, NotificationCountView, NotificationDropdownView,
@@ -83,6 +92,55 @@ from .views import (
     SelfServiceLeaveRequestListView, SelfServiceLeaveRequestCreateView,
     SelfServicePayslipListView, SelfServicePayslipDetailView,
     SelfServiceAdvanceListView, SelfServiceProfileView,
+)
+
+# ============ Phase 8 Views - Biometric ============
+from .views.biometric_views import (
+    BiometricDeviceListView, BiometricDeviceCreateView, BiometricDeviceUpdateView,
+    BiometricDeviceDeleteView, BiometricDeviceDetailView,
+    test_device_connection, sync_device, sync_all_devices,
+    EmployeeMappingListView, EmployeeMappingCreateView, EmployeeMappingUpdateView,
+    EmployeeMappingDeleteView, bulk_mapping_view,
+    BiometricLogListView, process_unprocessed_logs,
+    SyncLogListView,
+)
+
+# ============ Phase 9 Views - Performance ============
+from .views.performance_views import (
+    # Period views
+    period_list, period_create, period_edit, period_delete,
+    # Criteria views
+    criteria_list, criteria_create, criteria_edit, criteria_delete,
+    # Evaluation views
+    evaluation_list, evaluation_create, evaluation_detail,
+    self_evaluation, manager_evaluation, evaluation_approve,
+    bulk_evaluation_create,
+    # Goal views
+    goal_list, goal_create, goal_edit, goal_detail, goal_update_progress, goal_delete,
+    # Note views
+    note_list, note_create, note_edit, note_delete,
+    # Ajax views
+    get_employees_by_department, get_employee_goals, get_evaluation_stats,
+)
+
+# ============ Phase 10 Views - Training ============
+from .views.training_views import (
+    # Category views
+    category_list, category_create, category_edit, category_delete,
+    # Provider views
+    provider_list, provider_create, provider_edit, provider_delete,
+    # Course views
+    course_list, course_create, course_edit, course_detail, course_delete,
+    # Enrollment views
+    enrollment_list, enrollment_create, bulk_enrollment, enrollment_update, enrollment_delete,
+    # Request views
+    request_list, request_create, request_detail, request_approve,
+    # Plan views
+    plan_list, plan_create, plan_edit, plan_detail, plan_item_add,
+    # Feedback views
+    feedback_create,
+    # Ajax views
+    get_employees_for_enrollment, get_training_stats,
 )
 
 app_name = 'hr'
@@ -325,4 +383,160 @@ urlpatterns = [
     path('self-service/payslips/<int:pk>/', SelfServicePayslipDetailView.as_view(), name='self_service_payslip_detail'),
     path('self-service/advances/', SelfServiceAdvanceListView.as_view(), name='self_service_advances'),
     path('self-service/profile/', SelfServiceProfileView.as_view(), name='self_service_profile'),
+
+    # ============================================
+    # المرحلة الثامنة - Phase 8: أجهزة البصمة
+    # ============================================
+
+    # أجهزة البصمة
+    path('biometric/devices/', BiometricDeviceListView.as_view(), name='biometric_device_list'),
+    path('biometric/devices/create/', BiometricDeviceCreateView.as_view(), name='biometric_device_create'),
+    path('biometric/devices/<int:pk>/', BiometricDeviceDetailView.as_view(), name='biometric_device_detail'),
+    path('biometric/devices/<int:pk>/edit/', BiometricDeviceUpdateView.as_view(), name='biometric_device_update'),
+    path('biometric/devices/<int:pk>/delete/', BiometricDeviceDeleteView.as_view(), name='biometric_device_delete'),
+    path('biometric/devices/<int:pk>/test/', test_device_connection, name='biometric_test_connection'),
+    path('biometric/devices/<int:pk>/sync/', sync_device, name='biometric_sync_device'),
+    path('biometric/sync-all/', sync_all_devices, name='biometric_sync_all'),
+
+    # ربط الموظفين بأجهزة البصمة
+    path('biometric/mappings/', EmployeeMappingListView.as_view(), name='biometric_mapping_list'),
+    path('biometric/mappings/create/', EmployeeMappingCreateView.as_view(), name='biometric_mapping_create'),
+    path('biometric/mappings/<int:pk>/edit/', EmployeeMappingUpdateView.as_view(), name='biometric_mapping_update'),
+    path('biometric/mappings/<int:pk>/delete/', EmployeeMappingDeleteView.as_view(), name='biometric_mapping_delete'),
+    path('biometric/mappings/bulk/', bulk_mapping_view, name='biometric_bulk_mapping'),
+
+    # سجلات البصمة
+    path('biometric/logs/', BiometricLogListView.as_view(), name='biometric_log_list'),
+    path('biometric/logs/process/', process_unprocessed_logs, name='biometric_process_logs'),
+
+    # سجلات المزامنة
+    path('biometric/sync-logs/', SyncLogListView.as_view(), name='biometric_sync_log_list'),
+
+    # تقارير البصمة
+    path('reports/biometric/', BiometricReportView.as_view(), name='biometric_report'),
+    path('reports/biometric/attendance/', BiometricAttendanceReportView.as_view(), name='biometric_attendance_report'),
+    path('reports/biometric/export/logs/', ExportBiometricLogsExcelView.as_view(), name='export_biometric_logs_excel'),
+    path('reports/biometric/export/attendance/', ExportBiometricAttendanceExcelView.as_view(), name='export_biometric_attendance_excel'),
+
+    # ============================================
+    # المرحلة التاسعة - Phase 9: التقييم والأداء
+    # ============================================
+
+    # ============================================
+    # فترات التقييم
+    # ============================================
+    path('performance/periods/', period_list, name='period_list'),
+    path('performance/periods/create/', period_create, name='period_create'),
+    path('performance/periods/<int:pk>/edit/', period_edit, name='period_edit'),
+    path('performance/periods/<int:pk>/delete/', period_delete, name='period_delete'),
+
+    # ============================================
+    # معايير التقييم
+    # ============================================
+    path('performance/criteria/', criteria_list, name='criteria_list'),
+    path('performance/criteria/create/', criteria_create, name='criteria_create'),
+    path('performance/criteria/<int:pk>/edit/', criteria_edit, name='criteria_edit'),
+    path('performance/criteria/<int:pk>/delete/', criteria_delete, name='criteria_delete'),
+
+    # ============================================
+    # التقييمات
+    # ============================================
+    path('performance/evaluations/', evaluation_list, name='evaluation_list'),
+    path('performance/evaluations/create/', evaluation_create, name='evaluation_create'),
+    path('performance/evaluations/bulk-create/', bulk_evaluation_create, name='bulk_evaluation_create'),
+    path('performance/evaluations/<int:pk>/', evaluation_detail, name='evaluation_detail'),
+    path('performance/evaluations/<int:pk>/self/', self_evaluation, name='self_evaluation'),
+    path('performance/evaluations/<int:pk>/manager/', manager_evaluation, name='manager_evaluation'),
+    path('performance/evaluations/<int:pk>/approve/', evaluation_approve, name='evaluation_approve'),
+
+    # ============================================
+    # الأهداف
+    # ============================================
+    path('performance/goals/', goal_list, name='goal_list'),
+    path('performance/goals/create/', goal_create, name='goal_create'),
+    path('performance/goals/<int:pk>/', goal_detail, name='goal_detail'),
+    path('performance/goals/<int:pk>/edit/', goal_edit, name='goal_edit'),
+    path('performance/goals/<int:pk>/progress/', goal_update_progress, name='goal_update_progress'),
+    path('performance/goals/<int:pk>/delete/', goal_delete, name='goal_delete'),
+
+    # ============================================
+    # الملاحظات
+    # ============================================
+    path('performance/notes/', note_list, name='note_list'),
+    path('performance/notes/create/', note_create, name='note_create'),
+    path('performance/notes/<int:pk>/edit/', note_edit, name='note_edit'),
+    path('performance/notes/<int:pk>/delete/', note_delete, name='note_delete'),
+
+    # ============================================
+    # Ajax Endpoints للأداء
+    # ============================================
+    path('ajax/performance/employees-by-department/', get_employees_by_department, name='ajax_employees_by_department'),
+    path('ajax/performance/employee-goals/', get_employee_goals, name='ajax_employee_goals'),
+    path('ajax/performance/evaluation-stats/', get_evaluation_stats, name='ajax_evaluation_stats'),
+
+    # ============================================
+    # المرحلة العاشرة - Phase 10: التدريب والتطوير
+    # ============================================
+
+    # ============================================
+    # تصنيفات التدريب
+    # ============================================
+    path('training/categories/', category_list, name='training_category_list'),
+    path('training/categories/create/', category_create, name='training_category_create'),
+    path('training/categories/<int:pk>/edit/', category_edit, name='training_category_edit'),
+    path('training/categories/<int:pk>/delete/', category_delete, name='training_category_delete'),
+
+    # ============================================
+    # مقدمو التدريب
+    # ============================================
+    path('training/providers/', provider_list, name='training_provider_list'),
+    path('training/providers/create/', provider_create, name='training_provider_create'),
+    path('training/providers/<int:pk>/edit/', provider_edit, name='training_provider_edit'),
+    path('training/providers/<int:pk>/delete/', provider_delete, name='training_provider_delete'),
+
+    # ============================================
+    # الدورات التدريبية
+    # ============================================
+    path('training/courses/', course_list, name='training_course_list'),
+    path('training/courses/create/', course_create, name='training_course_create'),
+    path('training/courses/<int:pk>/', course_detail, name='training_course_detail'),
+    path('training/courses/<int:pk>/edit/', course_edit, name='training_course_edit'),
+    path('training/courses/<int:pk>/delete/', course_delete, name='training_course_delete'),
+
+    # ============================================
+    # تسجيلات التدريب
+    # ============================================
+    path('training/enrollments/', enrollment_list, name='training_enrollment_list'),
+    path('training/enrollments/create/', enrollment_create, name='training_enrollment_create'),
+    path('training/enrollments/bulk/', bulk_enrollment, name='training_bulk_enrollment'),
+    path('training/enrollments/<int:pk>/update/', enrollment_update, name='training_enrollment_update'),
+    path('training/enrollments/<int:pk>/delete/', enrollment_delete, name='training_enrollment_delete'),
+
+    # ============================================
+    # طلبات التدريب
+    # ============================================
+    path('training/requests/', request_list, name='training_request_list'),
+    path('training/requests/create/', request_create, name='training_request_create'),
+    path('training/requests/<int:pk>/', request_detail, name='training_request_detail'),
+    path('training/requests/<int:pk>/approve/', request_approve, name='training_request_approve'),
+
+    # ============================================
+    # خطط التدريب
+    # ============================================
+    path('training/plans/', plan_list, name='training_plan_list'),
+    path('training/plans/create/', plan_create, name='training_plan_create'),
+    path('training/plans/<int:pk>/', plan_detail, name='training_plan_detail'),
+    path('training/plans/<int:pk>/edit/', plan_edit, name='training_plan_edit'),
+    path('training/plans/<int:pk>/items/add/', plan_item_add, name='training_plan_item_add'),
+
+    # ============================================
+    # التغذية الراجعة
+    # ============================================
+    path('training/feedback/create/', feedback_create, name='training_feedback_create'),
+
+    # ============================================
+    # Ajax Endpoints للتدريب
+    # ============================================
+    path('ajax/training/employees/', get_employees_for_enrollment, name='ajax_training_employees'),
+    path('ajax/training/stats/', get_training_stats, name='ajax_training_stats'),
 ]

@@ -4,6 +4,7 @@
 يحتوي على: سندات الإدخال/الإخراج، التحويلات بين المخازن، الجرد، حركة المواد
 """
 
+import logging
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
@@ -11,6 +12,8 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 from apps.core.models import BaseModel, DocumentBaseModel, Item, Warehouse, BusinessPartner, User
 from apps.accounting.models import Account, JournalEntry
+
+logger = logging.getLogger(__name__)
 
 
 class StockDocument(DocumentBaseModel):
@@ -261,6 +264,26 @@ class StockIn(StockDocument):
                 reference_number=self.number,
                 created_by=user or self.created_by
             )
+
+            # إنشاء دفعة إذا تم تحديد رقم الدفعة
+            if hasattr(line, 'batch_number') and line.batch_number:
+                Batch.objects.create(
+                    company=self.company,
+                    item=line.item,
+                    item_variant=line.item_variant,
+                    warehouse=self.warehouse,
+                    batch_number=line.batch_number,
+                    manufacturing_date=getattr(line, 'manufacturing_date', None),
+                    expiry_date=getattr(line, 'expiry_date', None),
+                    quantity=line.quantity,
+                    reserved_quantity=Decimal('0'),
+                    unit_cost=line.unit_cost,
+                    total_value=line.total_cost,
+                    source_document='stock_in',
+                    source_id=self.pk,
+                    received_date=self.date,
+                    created_by=user or self.created_by
+                )
 
         # إنشاء القيد المحاسبي (إذا كان مطلوباً)
         if create_journal_entry and not self.journal_entry:
@@ -521,6 +544,23 @@ class StockIn(StockDocument):
         self.posted_by = None
         self.save()
 
+    # ✅ **دوال التحقق من الصلاحيات:**
+    def can_edit(self):
+        """هل يمكن تعديل السند"""
+        return not self.is_posted
+
+    def can_post(self):
+        """هل يمكن ترحيل السند"""
+        if self.is_posted:
+            return False
+        if not self.lines.exists():
+            return False
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف السند"""
+        return not self.is_posted
+
     def __str__(self):
         return f"{self.number} - {self.get_source_type_display()}"
 
@@ -617,7 +657,7 @@ class StockOut(StockDocument):
             # التحقق من صحة البيانات
             line.full_clean()
 
-            # الحصول على رصيد المادة
+            # الحصول على رصيد المادة أو إنشاؤه إذا كان المخزون السالب مسموحاً
             try:
                 stock = ItemStock.objects.get(
                     item=line.item,
@@ -626,9 +666,23 @@ class StockOut(StockDocument):
                     company=self.company
                 )
             except ItemStock.DoesNotExist:
-                raise ValidationError(
-                    f'لا يوجد رصيد للمادة {line.item.name} في المستودع {self.warehouse.name}'
-                )
+                if self.warehouse.allow_negative_stock:
+                    # إنشاء سجل مخزون جديد بكمية صفر إذا كان المخزون السالب مسموحاً
+                    stock = ItemStock.objects.create(
+                        item=line.item,
+                        item_variant=line.item_variant,
+                        warehouse=self.warehouse,
+                        company=self.company,
+                        quantity=Decimal('0'),
+                        reserved_quantity=Decimal('0'),
+                        average_cost=line.unit_cost or Decimal('0'),
+                        total_value=Decimal('0'),
+                        created_by=user or self.created_by
+                    )
+                else:
+                    raise ValidationError(
+                        f'لا يوجد رصيد للمادة {line.item.name} في المستودع {self.warehouse.name}'
+                    )
 
             # التحقق من الكمية المتاحة
             available_quantity = stock.quantity - stock.reserved_quantity
@@ -889,6 +943,23 @@ class StockOut(StockDocument):
         self.posted_date = None
         self.posted_by = None
         self.save()
+
+    # ✅ **دوال التحقق من الصلاحيات:**
+    def can_edit(self):
+        """هل يمكن تعديل السند"""
+        return not self.is_posted
+
+    def can_post(self):
+        """هل يمكن ترحيل السند"""
+        if self.is_posted:
+            return False
+        if not self.lines.exists():
+            return False
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف السند"""
+        return not self.is_posted
 
     def __str__(self):
         return f"{self.number} - {self.get_destination_type_display()}"
@@ -1324,6 +1395,35 @@ class StockTransfer(StockDocument):
         self.status = 'cancelled'
         self.save()
 
+    # ✅ **دوال التحقق من الصلاحيات:**
+    def can_edit(self):
+        """هل يمكن تعديل التحويل"""
+        return self.status in ['draft', 'pending']
+
+    def can_post(self):
+        """هل يمكن إرسال التحويل"""
+        if self.status != 'approved':
+            return False
+        if not self.lines.exists():
+            return False
+        return True
+
+    def can_delete(self):
+        """هل يمكن حذف التحويل"""
+        return self.status == 'draft'
+
+    def can_approve(self):
+        """هل يمكن اعتماد التحويل"""
+        if self.status != 'draft':
+            return False
+        if not self.lines.exists():
+            return False
+        return True
+
+    def can_cancel(self):
+        """هل يمكن إلغاء التحويل"""
+        return self.status != 'received'
+
     def __str__(self):
         return f"{self.number} - {self.warehouse.name} إلى {self.destination_warehouse.name}"
 
@@ -1640,9 +1740,25 @@ class StockCount(BaseModel):
             ('in_progress', _('جاري')),
             ('completed', _('مكتمل')),
             ('approved', _('معتمد')),
+            ('processed', _('معالج')),
             ('cancelled', _('ملغي')),
         ],
         default='planned'
+    )
+
+    # تواريخ سير العمل
+    started_at = models.DateTimeField(
+        _('تاريخ البدء'),
+        null=True,
+        blank=True,
+        help_text=_('تاريخ بدء عملية الجرد')
+    )
+
+    completed_at = models.DateTimeField(
+        _('تاريخ الإتمام'),
+        null=True,
+        blank=True,
+        help_text=_('تاريخ إتمام عملية الجرد')
     )
 
     # الموافقة
@@ -1659,6 +1775,23 @@ class StockCount(BaseModel):
         _('تاريخ الاعتماد'),
         null=True,
         blank=True
+    )
+
+    # المعالجة (تحديث المخزون)
+    processed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('عولج بواسطة'),
+        related_name='processed_counts'
+    )
+
+    processed_at = models.DateTimeField(
+        _('تاريخ المعالجة'),
+        null=True,
+        blank=True,
+        help_text=_('تاريخ معالجة الجرد وتحديث المخزون')
     )
 
     # القيد المحاسبي للتسويات
@@ -1682,7 +1815,28 @@ class StockCount(BaseModel):
         ordering = ['-date', '-number']
 
     def save(self, *args, **kwargs):
-        """توليد رقم الجرد"""
+        """توليد رقم الجرد مع التحقق من منع التعديل بعد الاعتماد"""
+        # منع تغيير الحالة بعد الاعتماد (إلا للمعالجة)
+        if self.pk:
+            old_instance = StockCount.objects.filter(pk=self.pk).first()
+            if old_instance:
+                # منع تعديل جرد معتمد (إلا التغيير إلى processed)
+                if old_instance.status == 'approved':
+                    update_fields = kwargs.get('update_fields', None)
+                    if update_fields is None or 'status' in update_fields:
+                        # السماح بالتغيير من approved إلى processed فقط
+                        if self.status != 'approved' and self.status != 'processed':
+                            from django.core.exceptions import ValidationError
+                            raise ValidationError(_('لا يمكن تعديل جرد معتمد'))
+
+                # منع تعديل جرد معالج نهائياً
+                if old_instance.status == 'processed':
+                    update_fields = kwargs.get('update_fields', None)
+                    if update_fields is None or 'status' in update_fields:
+                        if self.status != 'processed':
+                            from django.core.exceptions import ValidationError
+                            raise ValidationError(_('لا يمكن تعديل جرد معالج'))
+
         if not self.number:
             year = self.date.strftime('%Y')
             last_count = StockCount.objects.filter(
@@ -1702,6 +1856,223 @@ class StockCount(BaseModel):
 
     def __str__(self):
         return f"{self.number} - {self.warehouse.name}"
+
+    def populate_lines(self):
+        """ملء سطور الجرد من أرصدة المستودع"""
+        if self.status not in ['planned', 'in_progress']:
+            raise ValueError(_('لا يمكن ملء السطور إلا للجرد المخطط أو الجاري'))
+
+        # حذف السطور الحالية
+        self.lines.all().delete()
+
+        # جلب أرصدة المواد في المستودع
+        stocks = ItemStock.objects.filter(
+            company=self.company,
+            warehouse=self.warehouse,
+            quantity__gt=0
+        ).select_related('item')
+
+        lines_created = []
+        for stock in stocks:
+            line = StockCountLine.objects.create(
+                count=self,
+                item=stock.item,
+                system_quantity=stock.quantity,
+                counted_quantity=stock.quantity,  # افتراضياً نفس الكمية
+                unit_cost=stock.average_cost or Decimal('0')
+            )
+            lines_created.append(line)
+
+        return lines_created
+
+    def cancel(self):
+        """إلغاء الجرد"""
+        if self.status in ['approved']:
+            raise ValueError(_('لا يمكن إلغاء جرد معتمد'))
+
+        self.status = 'cancelled'
+        self.save(update_fields=['status'])
+
+    @transaction.atomic
+    def process_adjustments(self, user=None):
+        """معالجة تسويات الجرد وإنشاء قيد التسوية"""
+        from django.utils import timezone
+        from apps.accounting.models import JournalEntry, JournalEntryLine
+        from apps.accounting.models import FiscalYear, AccountingPeriod, Account
+
+        if self.status not in ['completed']:
+            raise ValueError(_('يجب أن يكون الجرد مكتمل لمعالجة التسويات'))
+
+        # الحصول على السنة والفترة المالية
+        try:
+            fiscal_year = FiscalYear.objects.get(
+                company=self.company,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except FiscalYear.DoesNotExist:
+            raise ValueError(_('لا توجد سنة مالية مفتوحة للتاريخ المحدد'))
+
+        try:
+            period = AccountingPeriod.objects.get(
+                fiscal_year=fiscal_year,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                is_closed=False
+            )
+        except AccountingPeriod.DoesNotExist:
+            period = None
+
+        # حساب إجمالي التسويات
+        total_adjustment = sum(
+            line.difference_value for line in self.lines.all()
+        )
+
+        if total_adjustment == Decimal('0'):
+            self.status = 'approved'
+            self.approval_date = timezone.now()
+            self.approved_by = user
+            self.save()
+            return None
+
+        # الحصول على الفرع (من المستودع أو الفرع الرئيسي)
+        from apps.core.models import Branch
+        branch = getattr(self.warehouse, 'branch', None)
+        if not branch:
+            branch = Branch.objects.filter(company=self.company, is_main=True).first()
+        if not branch:
+            branch = Branch.objects.filter(company=self.company).first()
+
+        # إنشاء قيد التسوية
+        journal_entry = JournalEntry.objects.create(
+            company=self.company,
+            branch=branch,
+            fiscal_year=fiscal_year,
+            period=period,
+            entry_date=self.date,
+            entry_type='auto',
+            description=f"تسوية جرد رقم {self.number}",
+            reference=self.number,
+            source_document='stock_count',
+            source_id=self.pk,
+            created_by=user or self.created_by
+        )
+
+        line_number = 1
+        abs_total = abs(total_adjustment)
+
+        # حساب المخزون
+        inventory_account = Account.objects.filter(
+            company=self.company,
+            code='120000'
+        ).first()
+
+        # حساب فروقات الجرد
+        adjustment_account = Account.objects.filter(
+            company=self.company,
+            code__in=['560000', '510000']  # حساب فروقات الجرد أو تكلفة البضاعة
+        ).first()
+
+        if not adjustment_account:
+            adjustment_account = inventory_account
+
+        if total_adjustment < 0:  # نقص
+            # مدين: فروقات الجرد (مصروف)
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=adjustment_account,
+                description='نقص في الجرد',
+                debit_amount=abs_total,
+                credit_amount=Decimal('0'),
+                currency=self.company.base_currency
+            )
+            line_number += 1
+
+            # دائن: المخزون
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=inventory_account,
+                description='تسوية نقص المخزون',
+                debit_amount=Decimal('0'),
+                credit_amount=abs_total,
+                currency=self.company.base_currency
+            )
+        else:  # زيادة
+            # مدين: المخزون
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=inventory_account,
+                description='تسوية زيادة المخزون',
+                debit_amount=abs_total,
+                credit_amount=Decimal('0'),
+                currency=self.company.base_currency
+            )
+            line_number += 1
+
+            # دائن: فروقات الجرد (إيراد)
+            JournalEntryLine.objects.create(
+                journal_entry=journal_entry,
+                line_number=line_number,
+                account=adjustment_account,
+                description='زيادة في الجرد',
+                debit_amount=Decimal('0'),
+                credit_amount=abs_total,
+                currency=self.company.base_currency
+            )
+
+        # ترحيل القيد
+        journal_entry.post(user=user)
+
+        # تحديث حالة الجرد
+        self.status = 'approved'
+        self.approval_date = timezone.now()
+        self.approved_by = user
+        self.adjustment_entry = journal_entry
+        self.save()
+
+        # تحديث أرصدة المخزون
+        for line in self.lines.all():
+            if line.difference_quantity != Decimal('0'):
+                try:
+                    stock = ItemStock.objects.get(
+                        company=self.company,
+                        item=line.item,
+                        warehouse=self.warehouse
+                    )
+                    stock.quantity = line.counted_quantity
+                    stock.total_value = line.counted_value
+                    if stock.quantity > 0:
+                        stock.average_cost = stock.total_value / stock.quantity
+                    stock.save()
+                except ItemStock.DoesNotExist:
+                    pass
+
+        return journal_entry
+
+    # ✅ **دوال التحقق من الصلاحيات:**
+    def can_edit(self):
+        """هل يمكن تعديل الجرد"""
+        return self.status in ['planned', 'in_progress']
+
+    def can_delete(self):
+        """هل يمكن حذف الجرد"""
+        return self.status == 'planned'
+
+    def can_process(self):
+        """هل يمكن معالجة الجرد"""
+        if self.status != 'completed':
+            return False
+        if not self.lines.exists():
+            return False
+        return True
+
+    def can_cancel(self):
+        """هل يمكن إلغاء الجرد"""
+        return self.status not in ['approved']
 
 
 class StockCountLine(models.Model):
@@ -1803,6 +2174,11 @@ class StockCountLine(models.Model):
 
     def __str__(self):
         return f"{self.item.name} - فرق: {self.difference_quantity}"
+
+    @property
+    def has_difference(self):
+        """هل يوجد فرق بين الكمية الفعلية والنظام؟"""
+        return self.difference_quantity != Decimal('0')
 
 
 class ItemStock(BaseModel):
@@ -1954,6 +2330,13 @@ class ItemStock(BaseModel):
         help_text=_('الرف أو المنطقة في المستودع')
     )
 
+    # Optimistic Locking - حماية من Race Conditions
+    version = models.IntegerField(
+        _('رقم الإصدار'),
+        default=0,
+        help_text=_('يستخدم لمنع التحديثات المتزامنة (Optimistic Locking)')
+    )
+
     class Meta:
         verbose_name = _('رصيد مادة')
         verbose_name_plural = _('أرصدة المواد')
@@ -1962,6 +2345,59 @@ class ItemStock(BaseModel):
             models.Index(fields=['item', 'warehouse']),
             models.Index(fields=['item', 'item_variant', 'warehouse']),
         ]
+
+    def save(self, *args, **kwargs):
+        """
+        حفظ مع Optimistic Locking لمنع Race Conditions
+
+        يتحقق من رقم الإصدار قبل التحديث، وإذا تغير (تحديث متزامن)
+        يرفع ConcurrencyError
+        """
+        from django.db.models import F
+
+        if self.pk:  # تحديث سجل موجود
+            # الحصول على رقم الإصدار الحالي
+            current_version = self.version
+
+            # تحديث باستخدام F() expression للتحقق من الإصدار
+            updated = ItemStock.objects.filter(
+                pk=self.pk,
+                version=current_version
+            ).update(
+                quantity=self.quantity,
+                reserved_quantity=self.reserved_quantity,
+                average_cost=self.average_cost,
+                total_value=self.total_value,
+                last_movement_date=self.last_movement_date,
+                opening_balance=self.opening_balance,
+                opening_value=self.opening_value,
+                last_purchase_price=self.last_purchase_price,
+                last_purchase_total=self.last_purchase_total,
+                last_purchase_date=self.last_purchase_date,
+                last_supplier=self.last_supplier,
+                min_level=self.min_level,
+                max_level=self.max_level,
+                reorder_point=self.reorder_point,
+                storage_location=self.storage_location,
+                version=F('version') + 1  # زيادة رقم الإصدار تلقائياً
+            )
+
+            if updated == 0:
+                # لم يتم التحديث = تغير رقم الإصدار = تحديث متزامن
+                raise ValidationError(
+                    _('حدث تضارب في التحديث. '
+                      'تم تعديل هذا السجل من قبل مستخدم آخر. '
+                      'يرجى إعادة المحاولة.')
+                )
+
+            # تحديث رقم الإصدار في الكائن الحالي
+            self.version = current_version + 1
+
+            # إعادة تحميل الكائن من قاعدة البيانات للحصول على القيم المحدثة
+            self.refresh_from_db()
+
+        else:  # إنشاء سجل جديد
+            super().save(*args, **kwargs)
 
     def get_available_quantity(self):
         """الكمية المتاحة للبيع/التحويل"""
@@ -2263,11 +2699,178 @@ class Batch(BaseModel):
         elif days <= 90:
             return 'warning'
         else:
-            return 'good'
+            return 'active'
 
     def get_available_quantity(self):
         """الكمية المتاحة"""
         return self.quantity - self.reserved_quantity
 
+    def reserve(self, quantity):
+        """حجز كمية من الدفعة"""
+        available = self.get_available_quantity()
+        if quantity > available:
+            raise ValidationError(
+                _('الكمية المطلوبة ({}) أكبر من المتاح ({})').format(quantity, available)
+            )
+        self.reserved_quantity += quantity
+        self.save(update_fields=['reserved_quantity'])
+
+    def release_reserved(self, quantity):
+        """تحرير كمية محجوزة"""
+        if quantity > self.reserved_quantity:
+            raise ValidationError(
+                _('الكمية المطلوب تحريرها ({}) أكبر من المحجوز ({})').format(
+                    quantity, self.reserved_quantity
+                )
+            )
+        self.reserved_quantity -= quantity
+        self.save(update_fields=['reserved_quantity'])
+
+    def clean(self):
+        """التحقق من صحة البيانات مع تحذير الدفعات المنتهية"""
+        super().clean()
+
+        # تحذير إذا كانت الدفعة منتهية الصلاحية
+        if self.expiry_date and self.is_expired():
+            from django.contrib import messages
+            import warnings
+            warnings.warn(
+                f'تحذير: الدفعة {self.batch_number} منتهية الصلاحية!',
+                UserWarning
+            )
+
+    # ✅ **دوال التحقق من الصلاحيات:**
+    def can_delete(self):
+        """هل يمكن حذف الدفعة"""
+        # لا يمكن حذف دفعة فيها كمية
+        return self.quantity == 0 and self.reserved_quantity == 0
+
     def __str__(self):
         return f"{self.item.name} - {self.batch_number}"
+
+
+class StockReservation(BaseModel):
+    """
+    حجز المخزون مع timeout
+    يستخدم لحجز كميات مؤقتة (مثل عند إنشاء طلب بيع)
+    """
+
+    RESERVATION_STATUS = [
+        ('active', _('نشط')),
+        ('confirmed', _('مؤكد')),
+        ('released', _('محرر')),
+        ('expired', _('منتهي')),
+    ]
+
+    # العلاقة مع رصيد المادة
+    item_stock = models.ForeignKey(
+        ItemStock,
+        on_delete=models.CASCADE,
+        related_name='reservations',
+        verbose_name=_('رصيد المادة')
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        verbose_name=_('المادة')
+    )
+
+    item_variant = models.ForeignKey(
+        'core.ItemVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_('المتغير')
+    )
+
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.PROTECT,
+        verbose_name=_('المستودع')
+    )
+
+    # الكمية المحجوزة
+    quantity = models.DecimalField(
+        _('الكمية المحجوزة'),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+
+    # المرجع (طلب البيع، عرض السعر، إلخ)
+    reference_type = models.CharField(
+        _('نوع المرجع'),
+        max_length=50,
+        help_text=_('مثل: sales_order, quotation')
+    )
+
+    reference_id = models.IntegerField(
+        _('رقم المرجع')
+    )
+
+    # الحالة
+    status = models.CharField(
+        _('الحالة'),
+        max_length=20,
+        choices=RESERVATION_STATUS,
+        default='active'
+    )
+
+    # التوقيت
+    reserved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_reservations',
+        verbose_name=_('حجز بواسطة')
+    )
+
+    expires_at = models.DateTimeField(
+        _('ينتهي في'),
+        help_text=_('وقت انتهاء صلاحية الحجز')
+    )
+
+    confirmed_at = models.DateTimeField(
+        _('تاريخ التأكيد'),
+        null=True,
+        blank=True
+    )
+
+    released_at = models.DateTimeField(
+        _('تاريخ التحرير'),
+        null=True,
+        blank=True
+    )
+
+    notes = models.TextField(
+        _('ملاحظات'),
+        blank=True
+    )
+
+    class Meta:
+        verbose_name = _('حجز مخزون')
+        verbose_name_plural = _('حجوزات المخزون')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'expires_at']),
+            models.Index(fields=['reference_type', 'reference_id']),
+            models.Index(fields=['item', 'warehouse']),
+        ]
+
+    def is_expired(self):
+        """هل الحجز منتهي الصلاحية"""
+        return self.status == 'active' and timezone.now() > self.expires_at
+
+    def time_remaining(self):
+        """الوقت المتبقي للحجز"""
+        if self.status != 'active':
+            return None
+        remaining = self.expires_at - timezone.now()
+        if remaining.total_seconds() < 0:
+            return None
+        return remaining
+
+    def __str__(self):
+        return f"حجز {self.quantity} من {self.item.name} - {self.get_status_display()}"

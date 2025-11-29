@@ -35,6 +35,15 @@ from .notification_views import *
 # Phase 7 Views - Self Service
 from .self_service_views import *
 
+# Phase 8 Views - Biometric
+from .biometric_views import *
+
+# Phase 9 Views - Performance & Evaluation
+from .performance_views import *
+
+# Phase 10 Views - Training & Development
+from .training_views import *
+
 __all__ = [
     # ============ Phase 1 ============
     # Department views
@@ -123,4 +132,31 @@ __all__ = [
     'SelfServiceLeaveRequestListView', 'SelfServiceLeaveRequestCreateView',
     'SelfServicePayslipListView', 'SelfServicePayslipDetailView',
     'SelfServiceAdvanceListView', 'SelfServiceProfileView',
+
+    # ============ Phase 8 - Biometric ============
+    'device_list', 'device_create', 'device_edit', 'device_delete',
+    'device_detail', 'device_test_connection', 'device_sync',
+    'employee_mapping_list', 'employee_mapping_create', 'employee_mapping_edit',
+    'employee_mapping_delete', 'biometric_log_list', 'process_biometric_logs',
+    'biometric_report', 'biometric_attendance_report',
+    'export_biometric_logs_excel', 'export_biometric_attendance_excel',
+
+    # ============ Phase 9 - Performance & Evaluation ============
+    'period_list', 'period_create', 'period_edit', 'period_delete',
+    'criteria_list', 'criteria_create', 'criteria_edit', 'criteria_delete',
+    'evaluation_list', 'evaluation_create', 'evaluation_detail',
+    'self_evaluation', 'manager_evaluation', 'evaluation_approve', 'bulk_evaluation_create',
+    'goal_list', 'goal_create', 'goal_edit', 'goal_detail', 'goal_update_progress', 'goal_delete',
+    'note_list', 'note_create', 'note_edit', 'note_delete',
+    'get_employees_by_department', 'get_employee_goals', 'get_evaluation_stats',
+
+    # ============ Phase 10 - Training & Development ============
+    'category_list', 'category_create', 'category_edit', 'category_delete',
+    'provider_list', 'provider_create', 'provider_edit', 'provider_delete',
+    'course_list', 'course_create', 'course_edit', 'course_detail', 'course_delete',
+    'enrollment_list', 'enrollment_create', 'bulk_enrollment', 'enrollment_update', 'enrollment_delete',
+    'request_list', 'request_create', 'request_detail', 'request_approve',
+    'plan_list', 'plan_create', 'plan_edit', 'plan_detail', 'plan_item_add',
+    'feedback_create',
+    'get_employees_for_enrollment', 'get_training_stats',
 ]

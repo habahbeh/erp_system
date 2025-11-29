@@ -1,0 +1,133 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-user-tie me-2"></i>{{ title }}</h4>
+        <span class="badge bg-success fs-6">{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</span>
+    </div>
+
+    <!-- Employee Info Card -->
+    <div class="card border-0 shadow-sm mb-4 border-start border-success border-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "الموظف" %}</small>
+                    <p class="mb-0"><strong>{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</strong></p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "القسم" %}</small>
+                    <p class="mb-0">{{ evaluation.employee.department.name|default:"-" }}</p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "فترة التقييم" %}</small>
+                    <p class="mb-0">{{ evaluation.period.name }}</p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">{% trans "التقييم الذاتي" %}</small>
+                    <p class="mb-0">
+                        {% if evaluation.self_score %}
+                        <span class="badge bg-info">{{ evaluation.self_score|floatformat:1 }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        <!-- Criteria Cards -->
+        {% for detail in details %}
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">{{ detail.criteria.name }}</h6>
+                    {% if detail.criteria.name_en %}
+                    <small class="text-muted">{{ detail.criteria.name_en }}</small>
+                    {% endif %}
+                </div>
+                <div>
+                    <span class="badge bg-{% if detail.criteria.criteria_type == 'competency' %}primary{% elif detail.criteria.criteria_type == 'objective' %}success{% elif detail.criteria.criteria_type == 'behavior' %}info{% else %}warning{% endif %} me-2">
+                        {{ detail.criteria.get_criteria_type_display }}
+                    </span>
+                    <span class="badge bg-secondary">{% trans "الوزن" %}: {{ detail.criteria.weight }}%</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if detail.criteria.description %}
+                <p class="text-muted small mb-3">{{ detail.criteria.description }}</p>
+                {% endif %}
+
+                {% if detail.self_score or detail.employee_comments %}
+                <div class="alert alert-info mb-3">
+                    <strong><i class="fas fa-user me-1"></i>{% trans "التقييم الذاتي للموظف" %}:</strong>
+                    <span class="ms-2">{% trans "الدرجة" %}: <strong>{{ detail.self_score|floatformat:1|default:"-" }}</strong>/{{ detail.criteria.max_score }}</span>
+                    {% if detail.employee_comments %}
+                    <p class="mb-0 mt-2 small">{{ detail.employee_comments }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">
+                            {% trans "تقييم المدير" %}
+                            <small class="text-muted">({% trans "من" %} {{ detail.criteria.max_score }})</small>
+                            {% if detail.criteria.is_required %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        <input type="number" name="score_{{ detail.criteria.id }}" class="form-control"
+                               min="0" max="{{ detail.criteria.max_score }}" step="0.1"
+                               value="{% if detail.manager_score %}{{ detail.manager_score }}{% endif %}"
+                               placeholder="{% trans 'الدرجة' %}"
+                               {% if detail.criteria.is_required %}required{% endif %}>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">{% trans "ملاحظات المدير" %}</label>
+                        <textarea name="comment_{{ detail.criteria.id }}" class="form-control" rows="2" placeholder="{% trans 'أضف ملاحظاتك كمدير على هذا المعيار' %}">{% if detail.manager_comments %}{{ detail.manager_comments }}{% endif %}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+            <p class="mb-0">{{ error }}</p>
+            {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a href="{% url 'hr:evaluation_detail' evaluation.pk %}" class="btn btn-secondary">
+                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+            </a>
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>{% trans "حفظ تقييم المدير" %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

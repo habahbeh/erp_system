@@ -1,0 +1,297 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    .chart-container {
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-fingerprint me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:export_biometric_logs_excel' %}?from_date={{ from_date }}&to_date={{ to_date }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-1"></i>{% trans "تصدير Excel" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- إحصائيات الأجهزة والربط -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 stat-card border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-tablet-alt fa-2x text-primary mb-2"></i>
+                    <h3 class="text-primary">{{ device_stats.total_devices|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الأجهزة" %}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-success">{{ device_stats.active_devices|default:0 }} {% trans "نشط" %}</span>
+                        <span class="badge bg-danger">{{ device_stats.offline_devices|default:0 }} {% trans "غير متصل" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 stat-card border-start border-success border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-link fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ mapping_stats.total_mappings|default:0 }}</h3>
+                    <small class="text-muted">{% trans "ربط موظفين" %}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-info">{{ mapping_stats.enrolled|default:0 }} {% trans "مسجل" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 stat-card border-start border-info border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-list-alt fa-2x text-info mb-2"></i>
+                    <h3 class="text-info">{{ log_stats.total_logs|default:0 }}</h3>
+                    <small class="text-muted">{% trans "إجمالي السجلات" %}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-success">{{ log_stats.processed|default:0 }} {% trans "معالج" %}</span>
+                        <span class="badge bg-warning">{{ log_stats.unprocessed|default:0 }} {% trans "غير معالج" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 stat-card border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3>
+                        <span class="text-success">{{ log_stats.in_punches|default:0 }}</span>
+                        /
+                        <span class="text-danger">{{ log_stats.out_punches|default:0 }}</span>
+                    </h3>
+                    <small class="text-muted">{% trans "حضور / انصراف" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "من تاريخ" %}</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الجهاز" %}</label>
+                    <select name="device" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for device in devices %}
+                        <option value="{{ device.pk }}" {% if selected_device == device.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ device.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.pk }}" {% if selected_department == dept.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- التوزيع حسب الجهاز -->
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-tablet-alt me-2"></i>{% trans "السجلات حسب الجهاز" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "الجهاز" %}</th>
+                                    <th class="text-center">{% trans "الإجمالي" %}</th>
+                                    <th class="text-center">{% trans "حضور" %}</th>
+                                    <th class="text-center">{% trans "انصراف" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in by_device %}
+                                <tr>
+                                    <td>{{ item.device__name }}</td>
+                                    <td class="text-center">{{ item.total }}</td>
+                                    <td class="text-center text-success">{{ item.in_count }}</td>
+                                    <td class="text-center text-danger">{{ item.out_count }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">{% trans "لا توجد بيانات" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- طريقة التحقق -->
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-fingerprint me-2"></i>{% trans "طريقة التحقق" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <i class="fas fa-fingerprint fa-3x text-primary mb-2"></i>
+                            <h4>{{ log_stats.by_fingerprint|default:0 }}</h4>
+                            <small class="text-muted">{% trans "بصمة" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <i class="fas fa-smile fa-3x text-success mb-2"></i>
+                            <h4>{{ log_stats.by_face|default:0 }}</h4>
+                            <small class="text-muted">{% trans "وجه" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <i class="fas fa-id-card fa-3x text-info mb-2"></i>
+                            <h4>{{ log_stats.by_card|default:0 }}</h4>
+                            <small class="text-muted">{% trans "بطاقة" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تفصيل حسب الموظف -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="fas fa-users me-2"></i>{% trans "السجلات حسب الموظف" %}</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الموظف" %}</th>
+                        <th>{% trans "القسم" %}</th>
+                        <th class="text-center">{% trans "عدد البصمات" %}</th>
+                        <th class="text-center">{% trans "حضور" %}</th>
+                        <th class="text-center">{% trans "انصراف" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in by_employee %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.employee__first_name }} {{ item.employee__last_name }}</strong>
+                            <br><small class="text-muted">{{ item.employee__employee_number }}</small>
+                        </td>
+                        <td>{{ item.employee__department__name|default:"-" }}</td>
+                        <td class="text-center">{{ item.total_punches }}</td>
+                        <td class="text-center text-success">{{ item.in_punches }}</td>
+                        <td class="text-center text-danger">{{ item.out_punches }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد بيانات" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- سجلات المزامنة الأخيرة -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="fas fa-sync me-2"></i>{% trans "آخر عمليات المزامنة" %}</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "التاريخ" %}</th>
+                        <th>{% trans "الجهاز" %}</th>
+                        <th>{% trans "النوع" %}</th>
+                        <th>{% trans "الحالة" %}</th>
+                        <th>{% trans "السجلات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sync in recent_syncs %}
+                    <tr>
+                        <td>{{ sync.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ sync.device.name }}</td>
+                        <td>
+                            <span class="badge bg-{% if sync.sync_type == 'manual' %}primary{% elif sync.sync_type == 'auto' %}info{% else %}secondary{% endif %}">
+                                {{ sync.get_sync_type_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if sync.status == 'completed' %}success{% elif sync.status == 'failed' %}danger{% elif sync.status == 'running' %}info{% else %}warning{% endif %}">
+                                {{ sync.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="text-success">{{ sync.records_fetched }}</span> /
+                            <span class="text-primary">{{ sync.new_attendance_records }}</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-3 text-muted">{% trans "لا توجد عمليات مزامنة" %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

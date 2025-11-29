@@ -22,7 +22,8 @@ from .views.invoice_views import (
     item_search_ajax as invoice_item_search,
     save_invoice_draft_ajax,
     get_item_uom_conversions_ajax,
-    get_item_all_prices_ajax
+    get_item_all_prices_ajax,
+    copy_invoice_as_draft
 )
 from .views.ajax_views import ajax_get_item_price_by_uom
 from .views.order_views import (
@@ -37,18 +38,21 @@ from .views.goods_receipt_views import (
     get_item_stock_multi_branch_ajax as receipt_get_stock_multi_branch,
     get_item_stock_current_branch_ajax as receipt_get_stock_current,
     item_search_ajax as receipt_item_search,
-    save_receipt_draft_ajax
+    save_receipt_draft_ajax,
+    get_purchase_order_lines_ajax as receipt_get_order_lines
 )
 from .views.request_views import (
     get_item_stock_multi_branch_ajax as request_get_stock_multi_branch,
     get_item_stock_current_branch_ajax as request_get_stock_current,
     item_search_ajax as request_item_search,
-    save_request_draft_ajax
+    save_request_draft_ajax,
+    get_employee_department_ajax
 )
 from .views.contract_views import (
     contract_get_item_stock_multi_branch_ajax,
     contract_get_item_stock_current_branch_ajax,
-    contract_item_search_ajax
+    contract_item_search_ajax,
+    contract_add_supplier_ajax
 )
 from .views.report_views import (
     reports_list, purchases_summary_report, supplier_performance_report,
@@ -80,6 +84,7 @@ urlpatterns = [
     # Invoice Actions
     path('invoices/<int:pk>/post/', post_invoice, name='post_invoice'),
     path('invoices/<int:pk>/unpost/', unpost_invoice, name='unpost_invoice'),
+    path('invoices/<int:pk>/copy-as-draft/', copy_invoice_as_draft, name='copy_invoice_as_draft'),
 
     # Invoice AJAX & Export
     path('ajax/invoices/datatable/', invoice_datatable_ajax, name='invoice_datatable_ajax'),
@@ -132,6 +137,7 @@ urlpatterns = [
     # Goods Receipt AJAX & Export
     path('ajax/goods-receipts/datatable/', goods_receipt_datatable_ajax, name='goods_receipt_datatable_ajax'),
     path('ajax/goods-receipts/get-order-price/', receipt_get_order_price, name='receipt_get_purchase_order_item_price_ajax'),
+    path('ajax/goods-receipts/get-order-lines/', receipt_get_order_lines, name='receipt_get_purchase_order_lines_ajax'),
     path('ajax/goods-receipts/get-stock-multi-branch/', receipt_get_stock_multi_branch, name='receipt_get_item_stock_multi_branch_ajax'),
     path('ajax/goods-receipts/get-stock-current/', receipt_get_stock_current, name='receipt_get_item_stock_current_branch_ajax'),
     path('ajax/goods-receipts/item-search/', receipt_item_search, name='receipt_item_search_ajax'),
@@ -157,6 +163,7 @@ urlpatterns = [
     path('ajax/requests/get-stock-current/', request_get_stock_current, name='request_get_item_stock_current_branch_ajax'),
     path('ajax/requests/item-search/', request_item_search, name='request_item_search_ajax'),
     path('ajax/requests/save-draft/', save_request_draft_ajax, name='save_request_draft_ajax'),
+    path('ajax/requests/get-employee-department/', get_employee_department_ajax, name='get_employee_department_ajax'),
     path('requests/export/', export_requests_excel, name='export_requests_excel'),
 
     # ==================== Quotation Requests (RFQ) ====================
@@ -216,6 +223,7 @@ urlpatterns = [
     path('ajax/contracts/get-stock-multi-branch/', contract_get_item_stock_multi_branch_ajax, name='contract_get_item_stock_multi_branch_ajax'),
     path('ajax/contracts/get-stock-current/', contract_get_item_stock_current_branch_ajax, name='contract_get_item_stock_current_branch_ajax'),
     path('ajax/contracts/item-search/', contract_item_search_ajax, name='contract_item_search_ajax'),
+    path('ajax/contracts/add-supplier/', contract_add_supplier_ajax, name='contract_add_supplier_ajax'),
 
     # ==================== Reports ====================
     path('reports/', reports_list, name='reports_list'),

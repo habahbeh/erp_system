@@ -1,0 +1,111 @@
+{% extends 'inventory/reports/report_base.html' %}
+{% load static i18n %}
+
+{% block report_icon %}<i class="fas fa-dollar-sign text-success"></i>{% endblock %}
+{% block report_subtitle %}تقرير شامل بتقييم المخزون{% endblock %}
+
+{% block filters %}
+<div class="card shadow-sm mb-4 no-print">
+    <div class="card-header bg-light"><h6 class="mb-0"><i class="fas fa-filter"></i> الفلاتر</h6></div>
+    <div class="card-body">
+        <form method="get">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">المستودع</label>
+                    <select name="warehouse" class="form-select">
+                        <option value="">جميع المستودعات</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}" {% if selected_warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">الفئة</label>
+                    <select name="category" class="form-select">
+                        <option value="">جميع الفئات</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> تطبيق</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block summary_cards %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">عدد المواد</h6>
+                <h3 class="text-primary mb-0">{{ totals.total_items }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">الكمية الإجمالية</h6>
+                <h3 class="text-info mb-0">{{ totals.total_quantity|floatformat:0 }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">القيمة الإجمالية</h6>
+                <h3 class="text-success mb-0">{{ totals.total_value|floatformat:0 }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">متوسط التكلفة</h6>
+                <h3 class="text-warning mb-0">{{ totals.avg_unit_cost|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block report_content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-list"></i> تفاصيل التقييم</h5></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="reportTable" class="table table-striped table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>المادة</th>
+                        <th>الفئة</th>
+                        <th>المستودع</th>
+                        <th class="text-center">الكمية</th>
+                        <th class="text-end">متوسط التكلفة</th>
+                        <th class="text-end">القيمة الإجمالية</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stock_records %}
+                    <tr>
+                        <td><strong>{{ stock.item.name }}</strong></td>
+                        <td>{{ stock.item.category.name|default:"غير مصنف" }}</td>
+                        <td>{{ stock.warehouse.name }}</td>
+                        <td class="text-center">{{ stock.quantity|floatformat:2 }}</td>
+                        <td class="text-end">{{ stock.average_cost|floatformat:2 }}</td>
+                        <td class="text-end"><strong>{{ stock.total_value|floatformat:2 }}</strong></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted">لا توجد بيانات</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -24,19 +24,8 @@ html {
 
 .form-label {
     font-weight: 500;
-    margin-bottom: 0.25rem;
-    font-size: 0.85rem;
-}
-
-/* Compact basic info section */
-.card-body .form-label {
-    font-size: 0.8rem;
-    margin-bottom: 0.15rem;
-}
-
-.card-body .form-control-sm {
-    font-size: 0.85rem;
-    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
 }
 
 .form-control:focus, .form-select:focus {
@@ -456,11 +445,13 @@ input[name*="DELETE"] {
     <!-- Breadcrumbs -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'inventory:count_list' %}">الجرد الفعلي</a></li>
-            <li class="breadcrumb-item active" aria-current="page">
-                {% if object %}تعديل الجرد{% else %}جرد جديد{% endif %}
-            </li>
+            {% for breadcrumb in breadcrumbs %}
+                {% if breadcrumb.url %}
+                    <li class="breadcrumb-item"><a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a></li>
+                {% else %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ breadcrumb.title }}</li>
+                {% endif %}
+            {% endfor %}
         </ol>
     </nav>
 
@@ -483,53 +474,28 @@ input[name*="DELETE"] {
         </div>
     </div>
 
-    <form method="post" id="stockCountForm">
+    <form method="post" id="stockCountForm" data-mode="{% if object %}edit{% else %}create{% endif %}">
         {% csrf_token %}
 
-        <!-- Basic Information Card - Compact -->
-        <div class="card mb-2">
-            <div class="card-header py-2 bg-light">
-                <h6 class="mb-0">
-                    <i class="fas fa-info-circle me-2"></i>
-                    المعلومات الأساسية
-                </h6>
+        <!-- Basic Information Card -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clipboard-list me-2"></i>
+                    معلومات الجرد الأساسية
+                </h5>
             </div>
-            <div class="card-body py-2">
-                <div class="row g-2 align-items-end">
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Row 1: Date, Count Type, Warehouse, Supervisor -->
                     <div class="col-md-2">
                         <label for="{{ form.date.id_for_label }}" class="form-label required-field">
                             {{ form.date.label }}
                         </label>
-                        {{ form.date|add_class:"form-control form-control-sm" }}
+                        {{ form.date|add_class:"form-control" }}
                         {% if form.date.errors %}
                             <ul class="error-list">
                                 {% for error in form.date.errors %}
-                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-md-3">
-                        <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
-                            {{ form.warehouse.label }}
-                        </label>
-                        <div class="autocomplete-wrapper">
-                            <input type="text" class="form-control form-control-sm warehouse-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
-                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
-                                <i class="fas fa-times"></i>
-                            </button>
-                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                            <div class="autocomplete-list"></div>
-                            <div style="display: none;">
-                                {{ form.warehouse|add_class:"warehouse-select" }}
-                            </div>
-                        </div>
-                        {% if form.warehouse.errors %}
-                            <ul class="error-list">
-                                {% for error in form.warehouse.errors %}
                                     <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                 {% endfor %}
                             </ul>
@@ -541,7 +507,7 @@ input[name*="DELETE"] {
                             {{ form.count_type.label }}
                         </label>
                         <div class="autocomplete-wrapper">
-                            <input type="text" class="form-control form-control-sm count-type-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <input type="text" class="form-control count-type-search-input autocomplete-search-input" placeholder="اكتب..." autocomplete="off">
                             <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -562,24 +528,112 @@ input[name*="DELETE"] {
                         {% endif %}
                     </div>
 
-                    <div class="col-md-2">
-                        <label for="{{ form.reference.id_for_label }}" class="form-label">
-                            {{ form.reference.label }}
+                    <div class="col-md-4">
+                        <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
+                            {{ form.warehouse.label }}
                         </label>
-                        {{ form.reference|add_class:"form-control form-control-sm" }}
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control warehouse-search-input autocomplete-search-input" placeholder="اكتب لبحث عن المستودع..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.warehouse|add_class:"warehouse-select" }}
+                            </div>
+                        </div>
+                        {% if form.warehouse.errors %}
+                            <ul class="error-list">
+                                {% for error in form.warehouse.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-4">
+                        <label for="{{ form.supervisor.id_for_label }}" class="form-label">
+                            {{ form.supervisor.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control supervisor-search-input autocomplete-search-input" placeholder="اكتب..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.supervisor|add_class:"supervisor-select" }}
+                            </div>
+                        </div>
+                        {% if form.supervisor.errors %}
+                            <ul class="error-list">
+                                {% for error in form.supervisor.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- Row 2: Count Team - Full Row -->
+                    <div class="col-md-12">
+                        <label for="{{ form.count_team.id_for_label }}" class="form-label">
+                            <i class="fas fa-users me-1"></i>
+                            {{ form.count_team.label }}
+                        </label>
+                        {{ form.count_team|add_class:"form-control" }}
+                        {% if form.count_team.errors %}
+                            <ul class="error-list">
+                                {% for error in form.count_team.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                        <small class="text-muted d-block mt-1">
+                            <i class="fas fa-info-circle me-1"></i>
+                            اضغط Ctrl (أو Command في Mac) للاختيار المتعدد. يمكنك اختيار أكثر من موظف لفريق الجرد.
+                        </small>
+                    </div>
+
+                    <!-- Row 3: Notes - Full Row -->
+                    <div class="col-md-12">
                         <label for="{{ form.notes.id_for_label }}" class="form-label">
                             {{ form.notes.label }}
                         </label>
-                        {{ form.notes|add_class:"form-control form-control-sm" }}
+                        {{ form.notes|add_class:"form-control" }}
+                        {% if form.notes.errors %}
+                            <ul class="error-list">
+                                {% for error in form.notes.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Items Card -->
+        <!-- Info Card for Create Mode -->
+        {% if not object %}
+        <div class="alert info-card" role="alert">
+            <h6 class="alert-heading mb-2">
+                <i class="fas fa-info-circle me-2"></i>
+                معلومات مهمة
+            </h6>
+            <p class="mb-0">
+                سيتم تعبئة جدول المواد تلقائياً بجميع المواد الموجودة في المستودع المحدد عند حفظ الجرد.
+                يمكنك بعد ذلك تحديث الكميات الفعلية المجرودة لكل مادة من صفحة التعديل.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Items Card - Only in Edit Mode -->
+        {% if object %}
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
@@ -593,6 +647,16 @@ input[name*="DELETE"] {
             <div class="card-body p-0">
                 {{ lines_formset.management_form }}
 
+                {% if lines_formset.non_form_errors %}
+                <div class="alert alert-danger mx-3 mt-3" role="alert">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        أخطاء في نموذج المواد:
+                    </h6>
+                    {{ lines_formset.non_form_errors }}
+                </div>
+                {% endif %}
+
                 <div class="table-responsive">
                     <table class="table table-hover count-table mb-0">
                         <thead>
@@ -602,10 +666,12 @@ input[name*="DELETE"] {
                                 <th style="width: 12%; display: none;" class="variant-column">المتغير</th>
                                 <th style="width: 10%;">الكمية الدفترية</th>
                                 <th style="width: 10%;">الكمية الفعلية</th>
-                                <th style="width: 10%;">الفرق</th>
-                                <th style="width: 12%;">رقم الدفعة</th>
-                                <th style="width: 12%;">تاريخ الانتهاء</th>
-                                <th style="width: 14%;">ملاحظات</th>
+                                <th style="width: 8%;">الفرق</th>
+                                <th style="width: 10%;">تكلفة الوحدة</th>
+                                <th style="width: 10%;">رقم الدفعة</th>
+                                <th style="width: 10%;">تاريخ الانتهاء</th>
+                                <th style="width: 12%;">سبب التسوية</th>
+                                <th style="width: 10%;">ملاحظات</th>
                                 <th style="width: 60px;">حذف</th>
                             </tr>
                         </thead>
@@ -652,10 +718,16 @@ input[name*="DELETE"] {
                                 </td>
                                 <td class="text-end variance-quantity variance-zero">0.000</td>
                                 <td>
+                                    {{ form.unit_cost|add_class:"form-control form-control-sm text-end" }}
+                                </td>
+                                <td>
                                     {{ form.batch_number|add_class:"form-control form-control-sm" }}
                                 </td>
                                 <td>
                                     {{ form.expiry_date|add_class:"form-control form-control-sm date-input" }}
+                                </td>
+                                <td>
+                                    {{ form.adjustment_reason|add_class:"form-control form-control-sm" }}
                                 </td>
                                 <td>
                                     {{ form.notes|add_class:"form-control form-control-sm" }}
@@ -667,6 +739,23 @@ input[name*="DELETE"] {
                                     <div style="display:none;">{{ form.DELETE }}</div>
                                 </td>
                             </tr>
+                            {% if form.errors %}
+                            <tr class="bg-danger bg-opacity-10">
+                                <td colspan="12">
+                                    <div class="text-danger small px-2 py-1">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        <strong>أخطاء في السطر {{ forloop.counter }}:</strong>
+                                        <ul class="mb-0 mt-1">
+                                            {% for field, errors in form.errors.items %}
+                                                {% for error in errors %}
+                                                <li>{{ field }}: {{ error }}</li>
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -704,6 +793,29 @@ input[name*="DELETE"] {
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        <!-- Submit Section -->
+        {% if not object %}
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="text-muted">
+                        <i class="fas fa-asterisk text-danger" style="font-size: 0.5rem;"></i>
+                        <small>الحقول المطلوبة محددة بعلامة (*)</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="{{ cancel_url }}" class="btn btn-secondary">
+                            <i class="fas fa-times me-1"></i> إلغاء
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save me-1"></i> {{ submit_text }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </form>
 </div>
 {% endblock %}
@@ -1051,6 +1163,7 @@ $(document).ready(function() {
     // Initialize autocompletes for main form
     initSelectAutocomplete($('.warehouse-search-input'), $('.warehouse-select'));
     initSelectAutocomplete($('.count-type-search-input'), $('.count-type-select'));
+    initSelectAutocomplete($('.supervisor-search-input'), $('.supervisor-select'));
 
     // Initialize autocompletes for table items
     $('.item-search-input').each(function() {
@@ -1351,41 +1464,46 @@ $(document).ready(function() {
             isValid = false;
         }
 
-        let hasValidItems = false;
-        let rowNumber = 1;
+        // Only validate items in edit mode
+        const formMode = $('#stockCountForm').data('mode');
 
-        $('.item-row:visible').each(function() {
-            const $row = $(this);
-            const item = $row.find('.item-select').val();
-            const countedQty = $row.find('.counted-quantity').val();
+        if (formMode === 'edit') {
+            let hasValidItems = false;
+            let rowNumber = 1;
 
-            if (item || countedQty !== '') {
-                if (!item) {
-                    $row.find('.item-search-input').addClass('is-invalid');
-                    $row.find('.item-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
-                    errorMessages.push('الصف ' + rowNumber + ': يجب اختيار المادة');
-                    if (!firstError) firstError = $row.find('.item-search-input');
-                    isValid = false;
+            $('.item-row:visible').each(function() {
+                const $row = $(this);
+                const item = $row.find('.item-select').val();
+                const countedQty = $row.find('.counted-quantity').val();
+
+                if (item || countedQty !== '') {
+                    if (!item) {
+                        $row.find('.item-search-input').addClass('is-invalid');
+                        $row.find('.item-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+                        errorMessages.push('الصف ' + rowNumber + ': يجب اختيار المادة');
+                        if (!firstError) firstError = $row.find('.item-search-input');
+                        isValid = false;
+                    }
+
+                    if (countedQty === '') {
+                        $row.find('.counted-quantity').addClass('is-invalid');
+                        errorMessages.push('الصف ' + rowNumber + ': يجب إدخال الكمية الفعلية');
+                        if (!firstError) firstError = $row.find('.counted-quantity');
+                        isValid = false;
+                    }
+
+                    if (item && countedQty !== '') {
+                        hasValidItems = true;
+                    }
                 }
 
-                if (countedQty === '') {
-                    $row.find('.counted-quantity').addClass('is-invalid');
-                    errorMessages.push('الصف ' + rowNumber + ': يجب إدخال الكمية الفعلية');
-                    if (!firstError) firstError = $row.find('.counted-quantity');
-                    isValid = false;
-                }
+                rowNumber++;
+            });
 
-                if (item && countedQty !== '') {
-                    hasValidItems = true;
-                }
+            if (!hasValidItems) {
+                errorMessages.push('يجب إضافة مادة واحدة على الأقل');
+                isValid = false;
             }
-
-            rowNumber++;
-        });
-
-        if (!hasValidItems) {
-            errorMessages.push('يجب إضافة مادة واحدة على الأقل');
-            isValid = false;
         }
 
         if (!isValid) {

@@ -169,6 +169,19 @@ class NotificationDropdownView(LoginRequiredMixin, View):
 class GenerateNotificationsView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """توليد الإشعارات التلقائية"""
     permission_required = 'hr.can_manage_hr'
+    template_name = 'hr/notifications/generate_notifications.html'
+
+    def get(self, request):
+        from django.shortcuts import render
+        context = {
+            'title': 'توليد الإشعارات',
+            'breadcrumbs': [
+                {'title': 'الموارد البشرية', 'url': '/hr/'},
+                {'title': 'الإشعارات', 'url': '/hr/notifications/'},
+                {'title': 'توليد الإشعارات', 'url': None}
+            ]
+        }
+        return render(request, self.template_name, context)
 
     def post(self, request):
         service = HRNotificationService(request.current_company)

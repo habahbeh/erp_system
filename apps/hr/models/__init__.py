@@ -74,6 +74,28 @@ from .biometric_models import (
     BiometricSyncLog,
 )
 
+# Performance Models - نماذج التقييم والأداء (المرحلة 5)
+from .performance_models import (
+    PerformancePeriod,
+    PerformanceCriteria,
+    PerformanceEvaluation,
+    PerformanceEvaluationDetail,
+    PerformanceGoal,
+    PerformanceNote,
+)
+
+# Training Models - نماذج التدريب والتطوير (المرحلة 6)
+from .training_models import (
+    TrainingCategory,
+    TrainingProvider,
+    TrainingCourse,
+    TrainingEnrollment,
+    TrainingRequest,
+    TrainingPlan,
+    TrainingPlanItem,
+    TrainingFeedback,
+)
+
 
 __all__ = [
     # Organization Models
@@ -120,4 +142,22 @@ __all__ = [
     'BiometricLog',
     'EmployeeBiometricMapping',
     'BiometricSyncLog',
+
+    # Performance Models (Phase 5)
+    'PerformancePeriod',
+    'PerformanceCriteria',
+    'PerformanceEvaluation',
+    'PerformanceEvaluationDetail',
+    'PerformanceGoal',
+    'PerformanceNote',
+
+    # Training Models (Phase 6)
+    'TrainingCategory',
+    'TrainingProvider',
+    'TrainingCourse',
+    'TrainingEnrollment',
+    'TrainingRequest',
+    'TrainingPlan',
+    'TrainingPlanItem',
+    'TrainingFeedback',
 ]

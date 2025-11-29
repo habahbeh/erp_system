@@ -201,12 +201,14 @@ class PurchaseRequestCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
             context['formset'] = PurchaseRequestItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
         else:
             context['formset'] = PurchaseRequestItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
 
         # AJAX Live Search
@@ -224,6 +226,10 @@ class PurchaseRequestCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
         form.instance.company = self.request.current_company
         form.instance.created_by = self.request.user
 
+        # تعيين القسم تلقائياً من الموظف
+        if form.instance.requested_by_employee:
+            form.instance.department = form.instance.requested_by_employee.department
+
         if formset.is_valid():
             self.object = form.save()
             formset.instance = self.object
@@ -235,6 +241,11 @@ class PurchaseRequestCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
             )
             return redirect('purchases:request_detail', pk=self.object.pk)
         else:
+            # طباعة الأخطاء للتشخيص
+            print("Form errors:", form.errors)
+            print("Formset errors:", formset.errors)
+            print("Formset non-form errors:", formset.non_form_errors())
+
             messages.error(
                 self.request,
                 _('يرجى تصحيح الأخطاء في النموذج')
@@ -279,12 +290,14 @@ class PurchaseRequestUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
             context['formset'] = PurchaseRequestItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
         else:
             context['formset'] = PurchaseRequestItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='lines'
             )
 
         # AJAX Live Search
@@ -298,6 +311,10 @@ class PurchaseRequestUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
         context = self.get_context_data()
         formset = context['formset']
 
+        # تعيين القسم تلقائياً من الموظف
+        if form.instance.requested_by_employee:
+            form.instance.department = form.instance.requested_by_employee.department
+
         if formset.is_valid():
             self.object = form.save()
             formset.instance = self.object
@@ -309,6 +326,11 @@ class PurchaseRequestUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
             )
             return redirect('purchases:request_detail', pk=self.object.pk)
         else:
+            # طباعة الأخطاء للتشخيص
+            print("Form errors:", form.errors)
+            print("Formset errors:", formset.errors)
+            print("Formset non-form errors:", formset.non_form_errors())
+
             messages.error(
                 self.request,
                 _('يرجى تصحيح الأخطاء في النموذج')
@@ -382,7 +404,8 @@ def approve_request(request, pk):
         return redirect('purchases:request_detail', pk=pk)
 
     try:
-        request_obj.approve()
+        # تمرير المستخدم الحالي لتسجيل من قام بالاعتماد
+        request_obj.approve(user=request.user)
         messages.success(
             request,
             _('تم اعتماد طلب الشراء بنجاح')
@@ -409,7 +432,11 @@ def reject_request(request, pk):
         return redirect('purchases:request_detail', pk=pk)
 
     try:
-        request_obj.reject()
+        # استلام سبب الرفض من الطلب (POST أو GET)
+        rejection_reason = request.POST.get('reason', '') or request.GET.get('reason', '')
+
+        # تمرير المستخدم وسبب الرفض
+        request_obj.reject(user=request.user, reason=rejection_reason)
         messages.success(
             request,
             _('تم رفض طلب الشراء')
@@ -676,13 +703,18 @@ def get_item_stock_multi_branch_ajax(request):
             total_quantity += stock.quantity
             total_available += available
 
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({
@@ -778,18 +810,18 @@ def item_search_ajax(request):
             Q(code__icontains=term) |
             Q(barcode__icontains=term)
         ).annotate(
-            # كمية المخزون في الفرع الحالي
+            # كمية المخزون في الفرع الحالي (itemstock هو الـ related_name الصحيح)
             current_branch_stock=Sum(
-                'stock_records__quantity',
-                filter=Q(stock_records__warehouse__branch=request.current_branch)
+                'itemstock__quantity',
+                filter=Q(itemstock__warehouse__branch=request.current_branch)
             ),
             # الكمية المحجوزة في الفرع الحالي
             current_branch_reserved=Sum(
-                'stock_records__reserved_quantity',
-                filter=Q(stock_records__warehouse__branch=request.current_branch)
+                'itemstock__reserved_quantity',
+                filter=Q(itemstock__warehouse__branch=request.current_branch)
             ),
             # إجمالي المخزون في كل الفروع
-            total_stock=Sum('stock_records__quantity'),
+            total_stock=Sum('itemstock__quantity'),
         ).select_related(
             'category', 'base_uom'
         )[:limit]
@@ -885,6 +917,51 @@ def save_request_draft_ajax(request):
             'saved_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
         })
 
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def get_employee_department_ajax(request):
+    """جلب معلومات القسم للموظف المحدد"""
+    employee_id = request.GET.get('employee_id')
+
+    if not employee_id:
+        return JsonResponse({
+            'success': False,
+            'error': 'يجب تحديد الموظف'
+        }, status=400)
+
+    try:
+        from apps.hr.models import Employee
+
+        employee = Employee.objects.select_related('department').get(
+            id=employee_id,
+            company=request.current_company,
+            is_active=True
+        )
+
+        return JsonResponse({
+            'success': True,
+            'department': {
+                'id': employee.department.id if employee.department else None,
+                'name': employee.department.name if employee.department else 'غير محدد',
+                'name_en': employee.department.name_en if employee.department and hasattr(employee.department, 'name_en') else ''
+            },
+            'employee': {
+                'id': employee.id,
+                'name': employee.get_full_name()
+            }
+        })
+
+    except Employee.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'الموظف غير موجود'
+        }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,

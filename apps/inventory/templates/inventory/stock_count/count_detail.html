@@ -34,6 +34,47 @@
     font-weight: 600;
 }
 
+/* Modal Styles */
+.modal-content {
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    border-bottom: none;
+    padding: 1.5rem;
+}
+
+.modal-body {
+    padding: 2rem 1.5rem;
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6;
+    padding: 1rem 1.5rem;
+}
+
+.modal-dialog-centered {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-backdrop.show {
+    opacity: 0.7;
+}
+
 @media print {
     .no-print {
         display: none !important;
@@ -68,58 +109,49 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ title }}</h1>
         <div class="no-print">
-            {% if stock_count.status == 'draft' or stock_count.status == 'in_progress' %}
-                {# TODO: Implement stock_count_start view and URL #}
-                {% comment %}
-                {% if stock_count.status == 'draft' and can_change %}
-                <form method="post" action="{% url 'inventory:count_start' stock_count.pk %}" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-primary" onclick="return confirm('{% trans "هل أنت متأكد من بدء عملية الجرد؟" %}')">
-                        <i class="fas fa-play"></i> {% trans "بدء الجرد" %}
-                    </button>
-                </form>
-                {% endif %}
-                {% endcomment %}
+            <!-- بدء الجرد -->
+            {% if stock_count.status == 'planned' and can_change %}
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#startModal">
+                <i class="fas fa-play"></i> {% trans "بدء الجرد" %}
+            </button>
+            {% endif %}
 
+            <!-- تعديل -->
+            {% if stock_count.status == 'planned' or stock_count.status == 'in_progress' %}
                 {% if can_change %}
                 <a href="{% url 'inventory:count_update' stock_count.pk %}" class="btn btn-warning">
                     <i class="fas fa-edit"></i> {% trans "تعديل" %}
                 </a>
                 {% endif %}
-
-                {# TODO: Implement stock_count_complete view and URL #}
-                {% comment %}
-                {% if stock_count.status == 'in_progress' and can_change %}
-                <form method="post" action="{% url 'inventory:count_complete' stock_count.pk %}" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "هل أنت متأكد من إتمام عملية الجرد؟" %}')">
-                        <i class="fas fa-check"></i> {% trans "إتمام الجرد" %}
-                    </button>
-                </form>
-                {% endif %}
-                {% endcomment %}
             {% endif %}
 
-            {% if stock_count.status == 'completed' and can_process %}
-            <form method="post" action="{% url 'inventory:count_process' stock_count.pk %}" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "هل أنت متأكد من معالجة الجرد؟ سيتم تحديث المخزون بناءً على الكميات المجردة." %}')">
-                    <i class="fas fa-check-double"></i> {% trans "معالجة الجرد" %}
-                </button>
-            </form>
+            <!-- إتمام الجرد -->
+            {% if stock_count.status == 'in_progress' and can_change %}
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeModal">
+                <i class="fas fa-check"></i> {% trans "إتمام الجرد" %}
+            </button>
             {% endif %}
 
-            {# TODO: Implement stock_count_cancel view and URL #}
-            {% comment %}
-            {% if stock_count.status != 'cancelled' and stock_count.status != 'processed' and can_delete %}
-            <form method="post" action="{% url 'inventory:count_cancel' stock_count.pk %}" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-danger" onclick="return confirm('{% trans "هل أنت متأكد من إلغاء عملية الجرد؟" %}')">
-                    <i class="fas fa-ban"></i> {% trans "إلغاء" %}
-                </button>
-            </form>
+            <!-- اعتماد الجرد -->
+            {% if stock_count.status == 'completed' and can_change %}
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveModal">
+                <i class="fas fa-stamp"></i> {% trans "اعتماد الجرد" %}
+            </button>
             {% endif %}
-            {% endcomment %}
+
+            <!-- معالجة الجرد -->
+            {% if stock_count.status == 'approved' %}
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#processModal">
+                <i class="fas fa-check-double"></i> {% trans "معالجة الجرد" %}
+            </button>
+            {% endif %}
+
+            <!-- إلغاء -->
+            {% if stock_count.status not in 'cancelled,approved,processed' and can_delete %}
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                <i class="fas fa-ban"></i> {% trans "إلغاء" %}
+            </button>
+            {% endif %}
 
             <button onclick="window.print()" class="btn btn-secondary">
                 <i class="fas fa-print"></i> {% trans "طباعة" %}
@@ -168,14 +200,16 @@
                                 <tr>
                                     <th>{% trans "الحالة" %}:</th>
                                     <td>
-                                        {% if stock_count.status == 'draft' %}
-                                            <span class="badge bg-secondary status-badge">{% trans "مسودة" %}</span>
+                                        {% if stock_count.status == 'planned' %}
+                                            <span class="badge bg-secondary status-badge">{% trans "مخطط" %}</span>
                                         {% elif stock_count.status == 'in_progress' %}
-                                            <span class="badge bg-warning text-dark status-badge">{% trans "قيد الجرد" %}</span>
+                                            <span class="badge bg-warning text-dark status-badge">{% trans "جاري" %}</span>
                                         {% elif stock_count.status == 'completed' %}
                                             <span class="badge bg-primary status-badge">{% trans "مكتمل" %}</span>
+                                        {% elif stock_count.status == 'approved' %}
+                                            <span class="badge bg-success status-badge">{% trans "معتمد" %}</span>
                                         {% elif stock_count.status == 'processed' %}
-                                            <span class="badge bg-success status-badge">{% trans "معالج" %}</span>
+                                            <span class="badge bg-info text-dark status-badge">{% trans "معالج" %}</span>
                                         {% elif stock_count.status == 'cancelled' %}
                                             <span class="badge bg-danger status-badge">{% trans "ملغي" %}</span>
                                         {% endif %}
@@ -391,6 +425,219 @@
         </div>
     </div>
 </div>
+
+<!-- ==================== Modals ==================== -->
+
+<!-- Modal: بدء الجرد -->
+<div class="modal fade" id="startModal" tabindex="-1" aria-labelledby="startModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="startModalLabel">
+                    <i class="fas fa-play me-2"></i>
+                    {% trans "بدء عملية الجرد" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-play-circle text-primary" style="font-size: 4rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد من بدء عملية الجرد؟" %}</h6>
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <small>
+                        {% trans "سيتم تغيير حالة الجرد إلى" %} <strong>{% trans "جاري" %}</strong>
+                        {% trans "وتسجيل تاريخ البدء." %}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    {% trans "إلغاء" %}
+                </button>
+                <form method="post" action="{% url 'inventory:count_start' stock_count.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play me-1"></i>
+                        {% trans "نعم، ابدأ الجرد" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: إتمام الجرد -->
+<div class="modal fade" id="completeModal" tabindex="-1" aria-labelledby="completeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="completeModalLabel">
+                    <i class="fas fa-check me-2"></i>
+                    {% trans "إتمام عملية الجرد" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد من إتمام عملية الجرد؟" %}</h6>
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <small>
+                        {% trans "تأكد من إدخال جميع الكميات المجرودة قبل الإتمام." %}
+                        <br>
+                        {% trans "سيتم تغيير الحالة إلى" %} <strong>{% trans "مكتمل" %}</strong>.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    {% trans "إلغاء" %}
+                </button>
+                <form method="post" action="{% url 'inventory:count_complete' stock_count.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-1"></i>
+                        {% trans "نعم، أتمم الجرد" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: اعتماد الجرد -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveModalLabel">
+                    <i class="fas fa-stamp me-2"></i>
+                    {% trans "اعتماد الجرد" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-certificate text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد من اعتماد الجرد؟" %}</h6>
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <small>
+                        {% trans "بعد الاعتماد، يمكنك معالجة الجرد لتحديث المخزون." %}
+                        <br>
+                        {% trans "سيتم تسجيل المعتمد والتاريخ." %}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    {% trans "إلغاء" %}
+                </button>
+                <form method="post" action="{% url 'inventory:count_approve' stock_count.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-stamp me-1"></i>
+                        {% trans "نعم، اعتمد الجرد" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: معالجة الجرد -->
+<div class="modal fade" id="processModal" tabindex="-1" aria-labelledby="processModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="processModalLabel">
+                    <i class="fas fa-check-double me-2"></i>
+                    {% trans "معالجة الجرد" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-database text-info" style="font-size: 4rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد من معالجة الجرد؟" %}</h6>
+                <div class="alert alert-danger mb-0">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <small>
+                        <strong>{% trans "تحذير:" %}</strong>
+                        {% trans "سيتم تحديث المخزون بناءً على الكميات المجرودة." %}
+                        <br>
+                        {% trans "لا يمكن التراجع عن هذه العملية!" %}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    {% trans "إلغاء" %}
+                </button>
+                <form method="post" action="{% url 'inventory:count_process' stock_count.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-check-double me-1"></i>
+                        {% trans "نعم، عالج الجرد" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: إلغاء الجرد -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="cancelModalLabel">
+                    <i class="fas fa-ban me-2"></i>
+                    {% trans "إلغاء الجرد" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-times-circle text-danger" style="font-size: 4rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">{% trans "هل أنت متأكد من إلغاء عملية الجرد؟" %}</h6>
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <small>
+                        {% trans "سيتم تغيير حالة الجرد إلى" %} <strong>{% trans "ملغي" %}</strong>.
+                        <br>
+                        {% trans "يمكنك إنشاء جرد جديد في أي وقت." %}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-arrow-right me-1"></i>
+                    {% trans "رجوع" %}
+                </button>
+                <form method="post" action="{% url 'inventory:count_cancel' stock_count.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-ban me-1"></i>
+                        {% trans "نعم، ألغِ الجرد" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

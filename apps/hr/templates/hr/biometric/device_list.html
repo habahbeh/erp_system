@@ -1,0 +1,369 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .device-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        border-right: 4px solid transparent;
+    }
+    .device-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+    .device-card.status-active {
+        border-right-color: #198754;
+    }
+    .device-card.status-offline {
+        border-right-color: #dc3545;
+    }
+    .device-card.status-maintenance {
+        border-right-color: #ffc107;
+    }
+    .device-card.status-inactive {
+        border-right-color: #6c757d;
+    }
+    .device-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .stats-card {
+        border-radius: 15px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .stats-card:hover {
+        transform: translateY(-3px);
+    }
+    .connection-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+    .connection-dot.online {
+        background-color: #198754;
+    }
+    .connection-dot.offline {
+        background-color: #dc3545;
+        animation: none;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-fingerprint me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:biometric_log_list' %}" class="btn btn-outline-info">
+                <i class="fas fa-list me-1"></i>{% trans "سجلات البصمة" %}
+            </a>
+            <a href="{% url 'hr:biometric_mapping_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-link me-1"></i>{% trans "ربط الموظفين" %}
+            </a>
+            <button type="button" class="btn btn-success" id="syncAllBtn">
+                <i class="fas fa-sync me-1"></i>{% trans "مزامنة الكل" %}
+            </button>
+            <a href="{% url 'hr:biometric_device_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>{% trans "إضافة جهاز" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card shadow-sm h-100 border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-fingerprint fa-2x text-primary mb-2"></i>
+                    <h3 class="text-primary">{{ stats.total }}</h3>
+                    <small class="text-muted">{% trans "إجمالي الأجهزة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card shadow-sm h-100 border-start border-success border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.active }}</h3>
+                    <small class="text-muted">{% trans "نشطة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card shadow-sm h-100 border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.offline }}</h3>
+                    <small class="text-muted">{% trans "غير متصلة" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card stats-card shadow-sm h-100 border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-tools fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.maintenance }}</h3>
+                    <small class="text-muted">{% trans "صيانة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for code, name in status_choices %}
+                        <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "نوع الجهاز" %}</label>
+                    <select name="device_type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for code, name in device_types %}
+                        <option value="{{ code }}" {% if current_type == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "بحث" %}</label>
+                    <input type="text" name="search" class="form-control"
+                           value="{{ search_query }}" placeholder="{% trans 'اسم الجهاز، IP، الرقم التسلسلي' %}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- قائمة الأجهزة -->
+    <div class="row">
+        {% for device in devices %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card device-card shadow-sm h-100 status-{{ device.status }}">
+                <div class="card-body">
+                    <div class="d-flex align-items-start">
+                        <div class="device-icon bg-{% if device.status == 'active' %}success{% elif device.status == 'offline' %}danger{% elif device.status == 'maintenance' %}warning{% else %}secondary{% endif %} bg-opacity-10 text-{% if device.status == 'active' %}success{% elif device.status == 'offline' %}danger{% elif device.status == 'maintenance' %}warning{% else %}secondary{% endif %} me-3">
+                            <i class="fas fa-fingerprint"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h5 class="mb-1">{{ device.name }}</h5>
+                                    <span class="badge bg-secondary">{{ device.get_device_type_display }}</span>
+                                </div>
+                                <span class="connection-dot {% if device.status == 'active' %}online{% else %}offline{% endif %}"></span>
+                            </div>
+
+                            <div class="mt-3">
+                                <p class="mb-1 small text-muted">
+                                    <i class="fas fa-network-wired me-1"></i>
+                                    {{ device.ip_address }}:{{ device.port }}
+                                </p>
+                                {% if device.location %}
+                                <p class="mb-1 small text-muted">
+                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                    {{ device.location }}
+                                </p>
+                                {% endif %}
+                                {% if device.last_sync %}
+                                <p class="mb-0 small text-muted">
+                                    <i class="fas fa-sync me-1"></i>
+                                    {% trans "آخر مزامنة" %}: {{ device.last_sync|date:"Y-m-d H:i" }}
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-top-0">
+                    <div class="btn-group w-100">
+                        <a href="{% url 'hr:biometric_device_detail' device.pk %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-info test-connection-btn" data-id="{{ device.pk }}">
+                            <i class="fas fa-plug"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success sync-device-btn" data-id="{{ device.pk }}">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <a href="{% url 'hr:biometric_device_update' device.pk %}" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <a href="{% url 'hr:biometric_device_delete' device.pk %}" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-fingerprint fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "لا توجد أجهزة بصمة" %}</h5>
+                    <p class="text-muted">{% trans "ابدأ بإضافة جهاز بصمة جديد" %}</p>
+                    <a href="{% url 'hr:biometric_device_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "إضافة جهاز" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&device_type={{ current_type }}">
+                    {% trans "السابق" %}
+                </a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    {% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&device_type={{ current_type }}">
+                    {% trans "التالي" %}
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // اختبار الاتصال
+    document.querySelectorAll('.test-connection-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const deviceId = this.dataset.id;
+            const icon = this.querySelector('i');
+            icon.className = 'fas fa-spinner fa-spin';
+
+            fetch(`{% url 'hr:biometric_test_connection' 0 %}`.replace('0', deviceId))
+            .then(response => response.json())
+            .then(data => {
+                icon.className = 'fas fa-plug';
+                if (data.success) {
+                    alert('{% trans "الاتصال ناجح!" %}');
+                    location.reload();
+                } else {
+                    alert('{% trans "فشل الاتصال:" %} ' + data.message);
+                }
+            })
+            .catch(error => {
+                icon.className = 'fas fa-plug';
+                alert('{% trans "حدث خطأ" %}');
+            });
+        });
+    });
+
+    // مزامنة جهاز واحد
+    document.querySelectorAll('.sync-device-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const deviceId = this.dataset.id;
+            const icon = this.querySelector('i');
+            icon.className = 'fas fa-spinner fa-spin';
+
+            fetch(`{% url 'hr:biometric_sync_device' 0 %}`.replace('0', deviceId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                icon.className = 'fas fa-sync';
+                if (data.success) {
+                    alert(`{% trans "تمت المزامنة: " %}${data.records_processed} {% trans "سجل" %}`);
+                    location.reload();
+                } else {
+                    alert('{% trans "فشلت المزامنة:" %} ' + data.error);
+                }
+            })
+            .catch(error => {
+                icon.className = 'fas fa-sync';
+                alert('{% trans "حدث خطأ" %}');
+            });
+        });
+    });
+
+    // مزامنة جميع الأجهزة
+    document.getElementById('syncAllBtn').addEventListener('click', function() {
+        if (!confirm('{% trans "هل تريد مزامنة جميع الأجهزة؟" %}')) return;
+
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري المزامنة..." %}';
+
+        fetch('{% url "hr:biometric_sync_all" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-1"></i>{% trans "مزامنة الكل" %}';
+
+            alert(`{% trans "تمت المزامنة. الأجهزة الناجحة:" %} ${data.successful}/${data.total_devices}`);
+            location.reload();
+        })
+        .catch(error => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-1"></i>{% trans "مزامنة الكل" %}';
+            alert('{% trans "حدث خطأ" %}');
+        });
+    });
+</script>
+{% endblock %}

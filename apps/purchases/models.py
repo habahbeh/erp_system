@@ -5,6 +5,7 @@
 """
 
 from django.db import models, transaction
+from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -96,7 +97,7 @@ class PurchaseInvoice(DocumentBaseModel):
     supplier_invoice_number = models.CharField(
         _('رقم فاتورة المورد'),
         max_length=50,
-        blank=True
+        blank=False  # ✅ الملاحظة 3: أصبح إجباري
     )
 
     supplier_invoice_date = models.DateField(
@@ -244,6 +245,29 @@ class PurchaseInvoice(DocumentBaseModel):
         verbose_name_plural = _('فواتير المشتريات')
         unique_together = [['company', 'number']]
         ordering = ['-date', '-number']
+        indexes = [
+            models.Index(fields=['company', '-date'], name='pi_company_date_idx'),
+            models.Index(fields=['is_posted', '-date'], name='pi_posted_date_idx'),
+            models.Index(fields=['supplier', '-date'], name='pi_supplier_date_idx'),
+            models.Index(fields=['warehouse', '-date'], name='pi_warehouse_date_idx'),
+            models.Index(fields=['invoice_type', '-date'], name='pi_type_date_idx'),
+        ]
+
+    def clean(self):
+        """التحقق من صحة البيانات"""
+        super().clean()
+
+        # التحقق من أن الخصم لا يتجاوز المجموع
+        if self.discount_type == 'percentage':
+            if self.discount_value > Decimal('100'):
+                raise ValidationError({
+                    'discount_value': _('نسبة الخصم لا يمكن أن تتجاوز 100%')
+                })
+        elif self.discount_type == 'amount':
+            if self.subtotal_before_discount and self.discount_value > self.subtotal_before_discount:
+                raise ValidationError({
+                    'discount_value': _('مبلغ الخصم لا يمكن أن يتجاوز إجمالي الفاتورة')
+                })
 
     def save(self, *args, **kwargs):
         """توليد رقم الفاتورة وحساب المجاميع"""
@@ -319,10 +343,12 @@ class PurchaseInvoice(DocumentBaseModel):
 
             # التحقق من المطابقة بين كميات الفاتورة ومحضر الاستلام
             for invoice_line in self.lines.all():
-                gr_line = self.goods_receipt.lines.filter(
-                    item=invoice_line.item,
-                    item_variant=invoice_line.item_variant
-                ).first()
+                # البحث عن السطر المطابق مع التعامل مع item_variant الاختياري
+                gr_filter = {'item': invoice_line.item}
+                if invoice_line.item_variant:
+                    gr_filter['item_variant'] = invoice_line.item_variant
+
+                gr_line = self.goods_receipt.lines.filter(**gr_filter).first()
 
                 if not gr_line:
                     raise ValidationError(
@@ -364,15 +390,23 @@ class PurchaseInvoice(DocumentBaseModel):
 
             # 2. نسخ سطور الفاتورة لسند الإدخال
             for invoice_line in self.lines.all():
-                StockDocumentLine.objects.create(
-                    stock_in=stock_in,
-                    item=invoice_line.item,
-                    item_variant=invoice_line.item_variant,
-                    quantity=invoice_line.quantity,
-                    unit_cost=invoice_line.unit_price,
-                    batch_number=invoice_line.batch_number,
-                    expiry_date=invoice_line.expiry_date
-                )
+                # بناء بيانات السطر مع التعامل مع item_variant الاختياري
+                line_data = {
+                    'stock_in': stock_in,
+                    'item': invoice_line.item,
+                    'quantity': invoice_line.quantity,
+                    'unit_cost': invoice_line.unit_price,
+                }
+
+                # إضافة الحقول الاختيارية فقط إذا كانت موجودة
+                if invoice_line.item_variant:
+                    line_data['item_variant'] = invoice_line.item_variant
+                if invoice_line.batch_number:
+                    line_data['batch_number'] = invoice_line.batch_number
+                if invoice_line.expiry_date:
+                    line_data['expiry_date'] = invoice_line.expiry_date
+
+                StockDocumentLine.objects.create(**line_data)
 
             # 3. ترحيل سند الإدخال بدون إنشاء قيد محاسبي
             # القيد المحاسبي سيتم إنشاؤه من الفاتورة فقط
@@ -431,8 +465,36 @@ class PurchaseInvoice(DocumentBaseModel):
                     inventory_account = get_default_account(
                         self.company, '120000', 'المخزون', fallback_required=True
                     )
+            # subtotal يشمل الضريبة إذا كانت شاملة، فلا نضيفها مرة أخرى
             inventory_accounts[inventory_account]['debit'] += line.subtotal
             inventory_accounts[inventory_account]['items'].append(line.item.name)
+
+        # إذا كان الخصم يؤثر على التكلفة، نوزعه على حسابات المخزون
+        if self.discount_affects_cost and self.discount_amount > 0:
+            total_before_discount = sum(data['debit'] for data in inventory_accounts.values())
+            if total_before_discount > 0:
+                for account in inventory_accounts:
+                    ratio = inventory_accounts[account]['debit'] / total_before_discount
+                    inventory_accounts[account]['debit'] -= self.discount_amount * ratio
+
+        # تقريب المبالغ لتجنب فروق التقريب
+        for account in inventory_accounts:
+            inventory_accounts[account]['debit'] = inventory_accounts[account]['debit'].quantize(Decimal('0.001'))
+
+        # حساب الضريبة المضافة مسبقاً لاستخدامها في التوازن
+        added_tax_amount = sum(
+            line.tax_amount for line in self.lines.all()
+            if not line.tax_included
+        )
+
+        # ضبط فروق التقريب على آخر حساب (لضمان توازن القيد)
+        total_inventory_debit = sum(data['debit'] for data in inventory_accounts.values())
+        expected_inventory = self.total_with_tax - added_tax_amount
+        rounding_diff = expected_inventory - total_inventory_debit
+        if rounding_diff != 0 and inventory_accounts:
+            # إضافة فرق التقريب لآخر حساب
+            last_account = list(inventory_accounts.keys())[-1]
+            inventory_accounts[last_account]['debit'] += rounding_diff
 
         for account, data in inventory_accounts.items():
             JournalEntryLine.objects.create(
@@ -449,12 +511,9 @@ class PurchaseInvoice(DocumentBaseModel):
 
         # سطر الضريبة (مدين - قابلة للخصم)
         # فقط الضرائب المضافة (غير الشاملة) - الضرائب الشاملة موجودة في تكلفة المخزون
-        added_tax = sum(
-            line.tax_amount for line in self.lines.all()
-            if not line.tax_included
-        )
+        # استخدام added_tax_amount المحسوبة مسبقاً
 
-        if added_tax > 0:
+        if added_tax_amount > 0:
             tax_account = get_default_account(
                 self.company, '120400', 'ضريبة المشتريات القابلة للخصم', fallback_required=False
             )
@@ -464,7 +523,7 @@ class PurchaseInvoice(DocumentBaseModel):
                     line_number=line_number,
                     account=tax_account,
                     description=f"ضريبة المشتريات (المضافة)",
-                    debit_amount=added_tax,
+                    debit_amount=added_tax_amount,
                     credit_amount=0,
                     currency=self.currency,
                     reference=self.number
@@ -733,7 +792,8 @@ class PurchaseInvoiceItem(models.Model):
         _('نسبة الضريبة %'),
         max_digits=5,
         decimal_places=2,
-        default=16
+        default=16,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))]
     )
 
     tax_amount = models.DecimalField(
@@ -975,6 +1035,12 @@ class PurchaseOrder(DocumentBaseModel):
         permissions = [
             ('approve_purchase_order', _('يمكنه اعتماد أوامر الشراء')),
         ]
+        indexes = [
+            models.Index(fields=['company', '-date'], name='po_company_date_idx'),
+            models.Index(fields=['status', '-date'], name='po_status_date_idx'),
+            models.Index(fields=['supplier', '-date'], name='po_supplier_date_idx'),
+            models.Index(fields=['is_invoiced', '-date'], name='po_invoiced_date_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         """توليد الرقم"""
@@ -994,6 +1060,11 @@ class PurchaseOrder(DocumentBaseModel):
             self.number = f"PO/{year}/{new_number:06d}"
 
         super().save(*args, **kwargs)
+
+    def calculate_totals(self):
+        """حساب مجاميع أمر الشراء"""
+        self.total_amount = sum(line.total for line in self.lines.all())
+        self.save()
 
     def can_approve(self, user):
         """هل يمكن للمستخدم اعتماد الأمر"""
@@ -1177,6 +1248,15 @@ class PurchaseOrderItem(models.Model):
         verbose_name=_('المادة')
     )
 
+    unit = models.ForeignKey(
+        'core.UnitOfMeasure',
+        on_delete=models.PROTECT,
+        verbose_name=_('الوحدة'),
+        null=True,
+        blank=True,
+        help_text=_('وحدة القياس للمادة')
+    )
+
     description = models.TextField(
         _('البيان'),
         blank=True
@@ -1185,13 +1265,77 @@ class PurchaseOrderItem(models.Model):
     quantity = models.DecimalField(
         _('الكمية'),
         max_digits=12,
-        decimal_places=3
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
     )
 
     unit_price = models.DecimalField(
         _('السعر'),
         max_digits=12,
         decimal_places=3
+    )
+
+    # الخصم على السطر
+    discount_percentage = models.DecimalField(
+        _('خصم %'),
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+
+    discount_amount = models.DecimalField(
+        _('خصم (قيمة)'),
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+
+    subtotal = models.DecimalField(
+        _('المجموع'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False,
+        help_text=_('المجموع بعد الخصم قبل الضريبة')
+    )
+
+    # الضريبة
+    tax_included = models.BooleanField(
+        _('ضريبة مضافة شامل الضريبة'),
+        default=False
+    )
+
+    tax_type = models.CharField(
+        _('نوع الضريبة'),
+        max_length=50,
+        blank=True
+    )
+
+    tax_rate = models.DecimalField(
+        _('نسبة الضريبة %'),
+        max_digits=5,
+        decimal_places=2,
+        default=16,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))]
+    )
+
+    tax_amount = models.DecimalField(
+        _('قيمة الضريبة'),
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        editable=False
+    )
+
+    total = models.DecimalField(
+        _('الإجمالي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        editable=False,
+        help_text=_('المجموع الكلي بعد الضريبة')
     )
 
     received_quantity = models.DecimalField(
@@ -1208,21 +1352,40 @@ class PurchaseOrderItem(models.Model):
         default=0
     )
 
-    total = models.DecimalField(
-        _('الإجمالي'),
-        max_digits=15,
-        decimal_places=3,
-        default=0,
-        editable=False
-    )
-
     class Meta:
         verbose_name = _('سطر أمر شراء')
         verbose_name_plural = _('سطور أوامر الشراء')
 
     def save(self, *args, **kwargs):
-        """حساب الإجمالي"""
-        self.total = self.quantity * self.unit_price
+        """حساب المبالغ مع الخصم والضريبة"""
+        from decimal import Decimal
+
+        # الإجمالي قبل الخصم
+        gross_total = self.quantity * self.unit_price
+
+        # تطبيق الخصم (النسبة لها الأولوية)
+        if self.discount_percentage > 0:
+            self.discount_amount = gross_total * (self.discount_percentage / Decimal('100'))
+
+        # الإجمالي بعد الخصم (subtotal)
+        self.subtotal = gross_total - self.discount_amount
+
+        # حساب الضريبة
+        if self.tax_included:
+            # السعر شامل الضريبة
+            self.tax_amount = self.subtotal - (self.subtotal / (Decimal('1') + self.tax_rate / Decimal('100')))
+        else:
+            # السعر غير شامل
+            self.tax_amount = self.subtotal * (self.tax_rate / Decimal('100'))
+
+        # الإجمالي النهائي
+        if self.tax_included:
+            # الضريبة مشمولة في السعر
+            self.total = self.subtotal
+        else:
+            # الضريبة غير مشمولة، يجب إضافتها
+            self.total = self.subtotal + self.tax_amount
+
         super().save(*args, **kwargs)
 
         # تحديث إجمالي الأمر
@@ -1246,12 +1409,22 @@ class PurchaseRequest(BaseModel):
         _('التاريخ')
     )
 
-    # الموظف الطالب
+    # المستخدم الطالب (يمكن أن يكون User مباشرة أو من خلال Employee)
     requested_by = models.ForeignKey(
-        Employee,
+        'core.User',
         on_delete=models.PROTECT,
         verbose_name=_('طلب بواسطة'),
         related_name='purchase_requests',
+        null=True,
+        blank=True
+    )
+
+    # الموظف الطالب (اختياري - للربط مع نظام HR)
+    requested_by_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        verbose_name=_('الموظف الطالب'),
+        related_name='employee_purchase_requests',
         null=True,
         blank=True
     )
@@ -1277,6 +1450,20 @@ class PurchaseRequest(BaseModel):
         blank=True
     )
 
+    # الأولوية
+    PRIORITY_CHOICES = [
+        ('low', _('منخفضة')),
+        ('normal', _('عادية')),
+        ('high', _('عالية')),
+        ('urgent', _('عاجلة')),
+    ]
+    priority = models.CharField(
+        _('الأولوية'),
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default='normal'
+    )
+
     # الحالة
     status = models.CharField(
         _('الحالة'),
@@ -1291,8 +1478,35 @@ class PurchaseRequest(BaseModel):
         default='draft'
     )
 
+    # معلومات الاعتماد
+    approved_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        verbose_name=_('معتمد من قبل'),
+        related_name='approved_purchase_requests',
+        null=True,
+        blank=True
+    )
+    approved_date = models.DateTimeField(
+        _('تاريخ الاعتماد'),
+        null=True,
+        blank=True
+    )
+    rejection_reason = models.TextField(
+        _('سبب الرفض'),
+        blank=True
+    )
+
     notes = models.TextField(
         _('ملاحظات'),
+        blank=True
+    )
+
+    # المرفقات
+    attachment = models.FileField(
+        _('مرفق'),
+        upload_to='purchase_requests/%Y/%m/',
+        null=True,
         blank=True
     )
 
@@ -1332,18 +1546,23 @@ class PurchaseRequest(BaseModel):
         self.status = 'submitted'
         self.save()
 
-    def approve(self):
+    def approve(self, user=None):
         """اعتماد طلب الشراء"""
+        from django.utils import timezone
         if self.status != 'submitted':
             raise ValueError(_('يمكن اعتماد الطلب في حالة مقدم فقط'))
         self.status = 'approved'
+        self.approved_by = user
+        self.approved_date = timezone.now()
         self.save()
 
-    def reject(self):
+    def reject(self, user=None, reason=''):
         """رفض طلب الشراء"""
         if self.status != 'submitted':
             raise ValueError(_('يمكن رفض الطلب في حالة مقدم فقط'))
         self.status = 'rejected'
+        self.approved_by = user  # نسجل من رفض أيضاً
+        self.rejection_reason = reason
         self.save()
 
 
@@ -1374,7 +1593,8 @@ class PurchaseRequestItem(models.Model):
     quantity = models.DecimalField(
         _('الكمية المطلوبة'),
         max_digits=12,
-        decimal_places=3
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
     )
 
     unit = models.CharField(
@@ -2590,6 +2810,12 @@ class GoodsReceipt(DocumentBaseModel):
         ordering = ['-date', '-number']
         permissions = [
             ('confirm_goods_receipt', _('يمكنه تأكيد استلام البضاعة')),
+        ]
+        indexes = [
+            models.Index(fields=['company', '-date'], name='gr_company_date_idx'),
+            models.Index(fields=['status', '-date'], name='gr_status_date_idx'),
+            models.Index(fields=['supplier', '-date'], name='gr_supplier_date_idx'),
+            models.Index(fields=['is_posted', '-date'], name='gr_posted_date_idx'),
         ]
 
     def __str__(self):

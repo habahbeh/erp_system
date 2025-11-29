@@ -1,0 +1,178 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:bulk_evaluation_create' %}" class="btn btn-success me-2">
+                <i class="fas fa-users me-1"></i>{% trans "تقييمات جماعية" %}
+            </a>
+            <a href="{% url 'hr:evaluation_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>{% trans "إنشاء تقييم" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "فترة التقييم" %}</label>
+                    <select name="period" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for period in periods %}
+                        <option value="{{ period.pk }}" {% if selected_period == period.pk|stringformat:"s" %}selected{% endif %}>{{ period.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.pk }}" {% if selected_department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="draft" {% if selected_status == "draft" %}selected{% endif %}>{% trans "مسودة" %}</option>
+                        <option value="self_evaluation" {% if selected_status == "self_evaluation" %}selected{% endif %}>{% trans "تقييم ذاتي" %}</option>
+                        <option value="manager_evaluation" {% if selected_status == "manager_evaluation" %}selected{% endif %}>{% trans "تقييم المدير" %}</option>
+                        <option value="pending_approval" {% if selected_status == "pending_approval" %}selected{% endif %}>{% trans "بانتظار الموافقة" %}</option>
+                        <option value="approved" {% if selected_status == "approved" %}selected{% endif %}>{% trans "معتمد" %}</option>
+                        <option value="rejected" {% if selected_status == "rejected" %}selected{% endif %}>{% trans "مرفوض" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Evaluations Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الموظف" %}</th>
+                        <th>{% trans "القسم" %}</th>
+                        <th>{% trans "فترة التقييم" %}</th>
+                        <th class="text-center">{% trans "الدرجة النهائية" %}</th>
+                        <th class="text-center">{% trans "التقدير" %}</th>
+                        <th class="text-center">{% trans "الحالة" %}</th>
+                        <th class="text-center">{% trans "الإجراءات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eval in evaluations %}
+                    <tr>
+                        <td>
+                            <strong>{{ eval.employee.first_name }} {{ eval.employee.last_name }}</strong>
+                            <br><small class="text-muted">{{ eval.employee.employee_number }}</small>
+                        </td>
+                        <td>{{ eval.employee.department.name|default:"-" }}</td>
+                        <td>{{ eval.period.name }}</td>
+                        <td class="text-center">
+                            {% if eval.final_score %}
+                            <strong class="text-primary">{{ eval.final_score|floatformat:1 }}</strong>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if eval.grade %}
+                            <span class="badge bg-{% if eval.grade == 'A' %}success{% elif eval.grade == 'B' %}primary{% elif eval.grade == 'C' %}info{% elif eval.grade == 'D' %}warning{% else %}danger{% endif %}">
+                                {{ eval.grade }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if eval.status == 'approved' %}success{% elif eval.status == 'rejected' %}danger{% elif eval.status == 'draft' %}secondary{% elif eval.status == 'pending_approval' %}warning{% else %}info{% endif %}">
+                                {{ eval.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'hr:evaluation_detail' eval.pk %}" class="btn btn-outline-primary" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if eval.status == 'draft' or eval.status == 'self_evaluation' %}
+                                <a href="{% url 'hr:self_evaluation' eval.pk %}" class="btn btn-outline-info" title="{% trans 'تقييم ذاتي' %}">
+                                    <i class="fas fa-user"></i>
+                                </a>
+                                {% endif %}
+                                {% if eval.status == 'manager_evaluation' %}
+                                <a href="{% url 'hr:manager_evaluation' eval.pk %}" class="btn btn-outline-success" title="{% trans 'تقييم المدير' %}">
+                                    <i class="fas fa-user-tie"></i>
+                                </a>
+                                {% endif %}
+                                {% if eval.status == 'pending_approval' %}
+                                <a href="{% url 'hr:evaluation_approve' eval.pk %}" class="btn btn-outline-warning" title="{% trans 'اعتماد' %}">
+                                    <i class="fas fa-check-double"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد تقييمات" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if evaluations.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if evaluations.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ evaluations.previous_page_number }}{% if selected_period %}&period={{ selected_period }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">{{ evaluations.number }} / {{ evaluations.paginator.num_pages }}</span>
+            </li>
+            {% if evaluations.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ evaluations.next_page_number }}{% if selected_period %}&period={{ selected_period }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

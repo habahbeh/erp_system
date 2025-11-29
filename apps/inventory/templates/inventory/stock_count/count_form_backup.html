@@ -1,0 +1,1439 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+html {
+    scroll-behavior: smooth;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+}
+
+/* Compact basic info section */
+.card-body .form-label {
+    font-size: 0.8rem;
+    margin-bottom: 0.15rem;
+}
+
+.card-body .form-control-sm {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* Autocomplete Dropdown - Oracle Desktop Style */
+.autocomplete-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+.autocomplete-search-input {
+    flex: 1;
+    border-top-left-radius: 0.375rem !important;
+    border-bottom-left-radius: 0.375rem !important;
+    border-left: none !important;
+    padding-left: 35px !important;
+}
+
+.autocomplete-clear-btn {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 5;
+    padding: 0;
+    line-height: 1;
+}
+
+.autocomplete-clear-btn:hover {
+    background: #c82333;
+}
+
+.autocomplete-clear-btn.show {
+    display: flex;
+}
+
+.autocomplete-dropdown-btn {
+    width: 32px;
+    padding: 0;
+    border: 1px solid #dee2e6;
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.autocomplete-dropdown-btn:hover {
+    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+    border-color: #0078d4;
+}
+
+.autocomplete-dropdown-btn:active {
+    background: #dee2e6;
+}
+
+.autocomplete-dropdown-btn i {
+    font-size: 11px;
+    color: #495057;
+    transition: transform 0.2s;
+}
+
+.autocomplete-dropdown-btn:hover i {
+    color: #0078d4;
+}
+
+.autocomplete-wrapper.open .autocomplete-dropdown-btn i {
+    transform: rotate(180deg);
+}
+
+.autocomplete-list {
+    position: fixed;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999 !important;
+    display: none;
+}
+
+.autocomplete-list.show {
+    display: block;
+}
+
+.autocomplete-list-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    text-align: right;
+    direction: rtl;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.autocomplete-list-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-list-item.selected {
+    background-color: #e3f2fd !important;
+    border-right: 3px solid #0078d4;
+    font-weight: 500;
+}
+
+.autocomplete-list-item:hover,
+.autocomplete-list-item.active {
+    background-color: #0078d4 !important;
+    color: white !important;
+}
+
+.autocomplete-list-item:hover {
+    font-weight: 500;
+}
+
+/* Highlight matched text in autocomplete */
+.autocomplete-list-item mark {
+    background-color: #fff3cd;
+    color: #856404;
+    font-weight: 600;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.autocomplete-list-item:hover mark,
+.autocomplete-list-item.active mark {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* Validation Error Styling */
+.is-invalid {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+.autocomplete-wrapper.border-danger {
+    border-width: 2px !important;
+}
+
+.autocomplete-wrapper.border-danger .autocomplete-search-input {
+    border-color: #dc3545 !important;
+}
+
+.rtl-popup {
+    text-align: right !important;
+    direction: rtl !important;
+}
+
+/* Items section emphasis */
+.card:has(.count-table) {
+    box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15) !important;
+    border: 2px solid #6f42c1 !important;
+}
+
+.card:has(.count-table) .card-header {
+    background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%) !important;
+    color: white !important;
+    font-weight: 700;
+    padding: 0.75rem 1.25rem;
+}
+
+.card:has(.count-table) .card-header h5 {
+    color: white !important;
+}
+
+.card:has(.count-table) .card-header .btn {
+    border-color: white;
+    color: white;
+}
+
+.card:has(.count-table) .card-header .btn:hover {
+    background: white;
+    color: #6f42c1;
+}
+
+/* Count Table Styling */
+.count-table {
+    font-size: 0.875rem;
+    margin-bottom: 0 !important;
+}
+
+.count-table thead th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    border-top: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.count-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.count-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.count-table tbody tr.table-active {
+    background-color: #e7f3ff !important;
+    border-left: 3px solid #6f42c1;
+}
+
+.count-table tbody tr.table-active td {
+    background-color: #e7f3ff !important;
+}
+
+.count-table tbody td {
+    padding: 0.5rem;
+    vertical-align: middle;
+    border-right: 1px solid #f0f0f0;
+}
+
+.count-table tbody td:last-child {
+    border-right: none;
+}
+
+.count-table input,
+.count-table select {
+    font-size: 0.875rem;
+    border-color: #dee2e6;
+}
+
+.count-table input:focus,
+.count-table select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: #6f42c1;
+    font-size: 0.95rem;
+}
+
+.variance-positive {
+    color: #198754;
+    font-weight: 600;
+}
+
+.variance-negative {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.variance-zero {
+    color: #6c757d;
+}
+
+.btn-delete-row {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+/* Table responsive wrapper */
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Summary Badges */
+.summary-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.summary-badge i {
+    font-size: 1rem;
+}
+
+.summary-badge .badge-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.summary-badge .badge-value {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.summary-badge-info {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #0277bd;
+}
+
+.summary-badge-warning {
+    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+    color: #f57f17;
+}
+
+.summary-badge-danger {
+    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+    color: #c62828;
+}
+
+.summary-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Hide DELETE checkbox */
+input[name*="DELETE"] {
+    display: none;
+}
+
+.error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.error-list li {
+    color: #dc3545;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .count-table {
+        font-size: 0.75rem;
+    }
+
+    .count-table input,
+    .count-table select {
+        font-size: 0.75rem;
+        padding: 0.25rem;
+    }
+
+    .card-footer .d-flex {
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    .summary-badge {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">الرئيسية</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'inventory:count_list' %}">الجرد الفعلي</a></li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {% if object %}تعديل الجرد{% else %}جرد جديد{% endif %}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ title }}</h1>
+            <p class="text-muted mb-0">
+                {% if object %}
+                    تعديل بيانات عملية الجرد الفعلي
+                {% else %}
+                    إضافة عملية جرد فعلي جديدة
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{{ cancel_url }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> العودة
+            </a>
+        </div>
+    </div>
+
+    <form method="post" id="stockCountForm">
+        {% csrf_token %}
+
+        <!-- Basic Information Card - Compact -->
+        <div class="card mb-2">
+            <div class="card-header py-2 bg-light">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    المعلومات الأساسية
+                </h6>
+            </div>
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label for="{{ form.date.id_for_label }}" class="form-label required-field">
+                            {{ form.date.label }}
+                        </label>
+                        {{ form.date|add_class:"form-control form-control-sm" }}
+                        {% if form.date.errors %}
+                            <ul class="error-list">
+                                {% for error in form.date.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="{{ form.warehouse.id_for_label }}" class="form-label required-field">
+                            {{ form.warehouse.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control form-control-sm warehouse-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.warehouse|add_class:"warehouse-select" }}
+                            </div>
+                        </div>
+                        {% if form.warehouse.errors %}
+                            <ul class="error-list">
+                                {% for error in form.warehouse.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="{{ form.count_type.id_for_label }}" class="form-label required-field">
+                            {{ form.count_type.label }}
+                        </label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control form-control-sm count-type-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                            <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="autocomplete-list"></div>
+                            <div style="display: none;">
+                                {{ form.count_type|add_class:"count-type-select" }}
+                            </div>
+                        </div>
+                        {% if form.count_type.errors %}
+                            <ul class="error-list">
+                                {% for error in form.count_type.errors %}
+                                    <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="{{ form.reference.id_for_label }}" class="form-label">
+                            {{ form.reference.label }}
+                        </label>
+                        {{ form.reference|add_class:"form-control form-control-sm" }}
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            {{ form.notes.label }}
+                        </label>
+                        {{ form.notes|add_class:"form-control form-control-sm" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Card -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-clipboard-list me-2"></i>
+                    المواد المجردة
+                </h5>
+                <button type="button" class="btn btn-sm btn-success" id="add-item-btn">
+                    <i class="fas fa-plus me-1"></i> إضافة مادة
+                </button>
+            </div>
+            <div class="card-body p-0">
+                {{ lines_formset.management_form }}
+
+                <div class="table-responsive">
+                    <table class="table table-hover count-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;" class="text-center">#</th>
+                                <th style="width: 20%;">المادة</th>
+                                <th style="width: 12%; display: none;" class="variant-column">المتغير</th>
+                                <th style="width: 10%;">الكمية الدفترية</th>
+                                <th style="width: 10%;">الكمية الفعلية</th>
+                                <th style="width: 10%;">الفرق</th>
+                                <th style="width: 12%;">رقم الدفعة</th>
+                                <th style="width: 12%;">تاريخ الانتهاء</th>
+                                <th style="width: 14%;">ملاحظات</th>
+                                <th style="width: 60px;">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-tbody">
+                            {% for form in lines_formset %}
+                            <tr class="item-row">
+                                <td class="row-number">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="autocomplete-wrapper">
+                                        <input type="text" class="form-control form-control-sm item-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                                        <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="autocomplete-list"></div>
+                                        <div style="display: none;">
+                                            {{ form.item|add_class:"item-select" }}
+                                        </div>
+                                    </div>
+                                    {{ form.id }}
+                                </td>
+                                <td class="variant-column" style="display: none;">
+                                    <div class="autocomplete-wrapper">
+                                        <input type="text" class="form-control form-control-sm variant-search-input autocomplete-search-input" placeholder="اكتب للبحث..." autocomplete="off">
+                                        <button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح الاختيار">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button type="button" class="autocomplete-dropdown-btn" tabindex="-1" title="إظهار جميع الخيارات">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="autocomplete-list"></div>
+                                        <div style="display: none;">
+                                            {{ form.item_variant|add_class:"variant-select" }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {{ form.system_quantity|add_class:"form-control form-control-sm text-end system-quantity" }}
+                                </td>
+                                <td>
+                                    {{ form.counted_quantity|add_class:"form-control form-control-sm text-end counted-quantity" }}
+                                </td>
+                                <td class="text-end variance-quantity variance-zero">0.000</td>
+                                <td>
+                                    {{ form.batch_number|add_class:"form-control form-control-sm" }}
+                                </td>
+                                <td>
+                                    {{ form.expiry_date|add_class:"form-control form-control-sm date-input" }}
+                                </td>
+                                <td>
+                                    {{ form.notes|add_class:"form-control form-control-sm" }}
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-row">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    <div style="display:none;">{{ form.DELETE }}</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Summary in Card Footer -->
+                <div class="card-footer bg-light py-2">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <div class="summary-badge summary-badge-info">
+                                <i class="fas fa-box me-1"></i>
+                                <span class="badge-label">عدد المواد:</span>
+                                <span class="badge-value" id="items-count">0</span>
+                            </div>
+                            <div class="summary-badge summary-badge-warning">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <span class="badge-label">فروقات موجبة:</span>
+                                <span class="badge-value" id="positive-variances">0</span>
+                            </div>
+                            <div class="summary-badge summary-badge-danger">
+                                <i class="fas fa-exclamation-circle me-1"></i>
+                                <span class="badge-label">فروقات سالبة:</span>
+                                <span class="badge-value" id="negative-variances">0</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ cancel_url }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check me-1"></i> {{ submit_text }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Remove 'required' attribute from all form elements
+    $('.autocomplete-wrapper select').removeAttr('required');
+    $('.item-row select.item-select').removeAttr('required');
+    $('.item-row .counted-quantity').removeAttr('required');
+    $('input[name="date"]').removeAttr('required');
+
+    let formCount = parseInt($('#id_form-TOTAL_FORMS').val());
+    const emptyFormHtml = $('.item-row:first').clone();
+
+    // ===== Autocomplete Functionality =====
+    function initSelectAutocomplete($input, $select) {
+        if ($input.data('autocomplete-initialized')) return;
+        $input.data('autocomplete-initialized', true);
+
+        var $wrapper = $input.closest('.autocomplete-wrapper');
+        var $list = $wrapper.find('.autocomplete-list');
+        var $clearBtn = $wrapper.find('.autocomplete-clear-btn');
+        var $dropdownBtn = $wrapper.find('.autocomplete-dropdown-btn');
+        var filteredOptions = [];
+        var activeIndex = -1;
+
+        var uniqueId = 'autocomplete-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        $list.attr('data-autocomplete-id', uniqueId);
+        $wrapper.attr('data-autocomplete-id', uniqueId);
+
+        function collectOptions() {
+            var options = [];
+            $select.find('option').each(function() {
+                if ($(this).val()) {
+                    options.push({
+                        value: $(this).val(),
+                        text: $(this).text().trim()
+                    });
+                }
+            });
+            return options;
+        }
+
+        var allOptions = collectOptions();
+
+        function updateClearButton() {
+            if ($select.val()) {
+                $clearBtn.addClass('show');
+            } else {
+                $clearBtn.removeClass('show');
+            }
+        }
+
+        function setActiveItem(index) {
+            activeIndex = index;
+            $list.find('.autocomplete-list-item').removeClass('active');
+
+            if (index >= 0 && index < filteredOptions.length) {
+                var $activeItem = $list.find('.autocomplete-list-item').eq(index);
+                $activeItem.addClass('active');
+
+                var listHeight = $list.height();
+                var itemTop = $activeItem.position().top;
+                var itemHeight = $activeItem.outerHeight();
+                var scrollTop = $list.scrollTop();
+
+                if (itemTop < 0) {
+                    $list.scrollTop(scrollTop + itemTop);
+                } else if (itemTop + itemHeight > listHeight) {
+                    $list.scrollTop(scrollTop + itemTop + itemHeight - listHeight);
+                }
+            }
+        }
+
+        function highlightText(text, searchText) {
+            if (!searchText) return text;
+
+            var searchWords = searchText.toLowerCase().trim().split(/\s+/);
+            var highlightedText = text;
+
+            searchWords.forEach(function(word) {
+                if (word.length > 0) {
+                    var regex = new RegExp('(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                    highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+                }
+            });
+
+            return highlightedText;
+        }
+
+        function renderList() {
+            $list.empty();
+            activeIndex = -1;
+
+            var searchText = $input.val();
+
+            filteredOptions.forEach(function(option, index) {
+                var displayText = highlightText(option.text, searchText);
+
+                var $item = $('<div class="autocomplete-list-item"></div>')
+                    .data('value', option.value)
+                    .data('index', index)
+                    .html(displayText);
+
+                if (option.value == $select.val()) {
+                    $item.addClass('selected');
+                }
+
+                $item.on('click', function() {
+                    selectOption(option.value, option.text);
+                });
+
+                $list.append($item);
+            });
+        }
+
+        function selectOption(value, text) {
+            $select.val(value).trigger('change');
+            $input.val(text);
+            closeList();
+            updateClearButton();
+        }
+
+        function clearSelection() {
+            $select.val('').trigger('change');
+            $input.val('');
+            updateClearButton();
+            filteredOptions = allOptions;
+            renderList();
+            openList();
+            $input.focus();
+        }
+
+        function openList() {
+            $('.autocomplete-list.show').each(function() {
+                if ($(this).attr('data-autocomplete-id') !== uniqueId) {
+                    $(this).removeClass('show');
+                    var otherId = $(this).attr('data-autocomplete-id');
+                    $('.autocomplete-wrapper[data-autocomplete-id="' + otherId + '"]').removeClass('open');
+                }
+            });
+
+            if ($list.parent()[0] !== document.body) {
+                $list.appendTo('body');
+            }
+
+            var wrapperRect = $wrapper[0].getBoundingClientRect();
+
+            $list.css({
+                'top': wrapperRect.bottom + 'px',
+                'left': wrapperRect.left + 'px',
+                'width': wrapperRect.width + 'px'
+            });
+
+            $list.addClass('show');
+            $wrapper.addClass('open');
+            activeIndex = -1;
+        }
+
+        function closeList() {
+            $list.removeClass('show');
+            $wrapper.removeClass('open');
+            activeIndex = -1;
+
+            if ($list.parent()[0] === document.body) {
+                $wrapper.append($list);
+            }
+        }
+
+        function filterOptions(searchText) {
+            if (!searchText) {
+                filteredOptions = allOptions;
+                renderList();
+                return;
+            }
+
+            searchText = searchText.toLowerCase().trim();
+            var searchWords = searchText.split(/\s+/);
+
+            filteredOptions = allOptions.filter(function(option) {
+                var optionText = option.text.toLowerCase();
+                var optionWords = optionText.split(/\s+/);
+
+                var directMatch = searchWords.every(function(word) {
+                    return optionText.indexOf(word) !== -1;
+                });
+
+                if (directMatch) return true;
+
+                if (searchWords.length <= optionWords.length) {
+                    var smartMatch = searchWords.every(function(searchWord, index) {
+                        return optionWords.some(function(optionWord) {
+                            return optionWord.indexOf(searchWord) === 0;
+                        });
+                    });
+
+                    if (smartMatch) return true;
+                }
+
+                return false;
+            });
+
+            filteredOptions.sort(function(a, b) {
+                var aText = a.text.toLowerCase();
+                var bText = b.text.toLowerCase();
+
+                var aStartsWith = aText.indexOf(searchText) === 0;
+                var bStartsWith = bText.indexOf(searchText) === 0;
+
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+
+                var aIndex = aText.indexOf(searchText);
+                var bIndex = bText.indexOf(searchText);
+
+                if (aIndex !== -1 && bIndex !== -1) {
+                    return aIndex - bIndex;
+                }
+
+                return 0;
+            });
+
+            renderList();
+        }
+
+        $input.on('input', function() {
+            var searchText = $(this).val();
+            filterOptions(searchText);
+            openList();
+        });
+
+        $input.on('focus', function() {
+            filteredOptions = allOptions;
+            renderList();
+            openList();
+        });
+
+        $input.on('keydown', function(e) {
+            if (!$wrapper.hasClass('open')) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    filteredOptions = allOptions;
+                    renderList();
+                    openList();
+                    setActiveItem(0);
+                }
+                return;
+            }
+
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (activeIndex < filteredOptions.length - 1) {
+                        setActiveItem(activeIndex + 1);
+                    } else {
+                        setActiveItem(0);
+                    }
+                    break;
+
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (activeIndex > 0) {
+                        setActiveItem(activeIndex - 1);
+                    } else {
+                        setActiveItem(filteredOptions.length - 1);
+                    }
+                    break;
+
+                case 'Enter':
+                    e.preventDefault();
+                    if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
+                        var option = filteredOptions[activeIndex];
+                        selectOption(option.value, option.text);
+                    }
+                    break;
+
+                case 'Escape':
+                    e.preventDefault();
+                    closeList();
+                    break;
+            }
+        });
+
+        $dropdownBtn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if ($wrapper.hasClass('open')) {
+                closeList();
+            } else {
+                $input.val('');
+                filteredOptions = allOptions;
+                renderList();
+                openList();
+                $input.focus();
+            }
+        });
+
+        $clearBtn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            clearSelection();
+        });
+
+        var outsideClickHandler = function(e) {
+            var isWrapper = $wrapper.is(e.target) || $wrapper.has(e.target).length > 0;
+            var isList = $list.is(e.target) || $list.has(e.target).length > 0;
+
+            if (!isWrapper && !isList) {
+                closeList();
+            }
+        };
+
+        $(document).on('click', outsideClickHandler);
+
+        var updatePositionHandler = function() {
+            if ($wrapper.hasClass('open')) {
+                var wrapperRect = $wrapper[0].getBoundingClientRect();
+
+                if (wrapperRect.top < 0 || wrapperRect.bottom > $(window).height()) {
+                    closeList();
+                    return;
+                }
+
+                $list.css({
+                    'top': wrapperRect.bottom + 'px',
+                    'left': wrapperRect.left + 'px',
+                    'width': wrapperRect.width + 'px'
+                });
+            }
+        };
+
+        $(window).on('scroll resize', updatePositionHandler);
+        $('.table-responsive').on('scroll', updatePositionHandler);
+
+        var selectedText = $select.find('option:selected').text().trim();
+        if (selectedText) {
+            $input.val(selectedText);
+            updateClearButton();
+        }
+    }
+
+    // Initialize autocompletes for main form
+    initSelectAutocomplete($('.warehouse-search-input'), $('.warehouse-select'));
+    initSelectAutocomplete($('.count-type-search-input'), $('.count-type-select'));
+
+    // Initialize autocompletes for table items
+    $('.item-search-input').each(function() {
+        var $input = $(this);
+        var $select = $input.closest('.autocomplete-wrapper').find('.item-select');
+        initSelectAutocomplete($input, $select);
+    });
+
+    // Update variant column visibility
+    function updateVariantColumnVisibility() {
+        var hasAnyVariants = false;
+        $('.item-row:visible').each(function() {
+            var $variantCell = $(this).find('.variant-column');
+            var $variantInput = $variantCell.find('.variant-search-input');
+            var $variantSelect = $variantCell.find('.variant-select');
+
+            if ($variantInput.prop('disabled') === false && $variantSelect.find('option').length > 1) {
+                hasAnyVariants = true;
+                return false;
+            }
+        });
+
+        if (hasAnyVariants) {
+            $('.variant-column').show();
+        } else {
+            $('.variant-column').hide();
+        }
+    }
+
+    // Load variants when item is selected
+    $(document).on('change', '.item-select', function() {
+        const $row = $(this).closest('.item-row');
+        const $variantSelect = $row.find('.variant-select');
+        const $variantInput = $row.find('.variant-search-input');
+        const itemId = $(this).val();
+
+        if (itemId) {
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">جاري التحميل...</option>');
+            $variantInput.val('جاري التحميل...').prop('disabled', true);
+
+            $.ajax({
+                url: '/ajax/items/' + itemId + '/variants/',
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $variantSelect.empty();
+
+                    if (data.success && data.has_variants) {
+                        $variantSelect.append('<option value="">---------</option>');
+                        $.each(data.variants, function(i, variant) {
+                            $variantSelect.append(
+                                $('<option></option>')
+                                    .attr('value', variant.id)
+                                    .text(variant.code + (variant.name ? ' - ' + variant.name : ''))
+                            );
+                        });
+
+                        $variantInput.val('').prop('disabled', false);
+                        $variantInput.attr('placeholder', 'اختر متغير...');
+
+                        $variantInput.removeData('autocomplete-initialized');
+                        initSelectAutocomplete($variantInput, $variantSelect);
+
+                        $('.variant-column').show();
+                    } else {
+                        $variantSelect.append('<option value="">لا توجد متغيرات</option>');
+                        $variantInput.val('لا توجد متغيرات').prop('disabled', true);
+                        updateVariantColumnVisibility();
+                    }
+                },
+                error: function() {
+                    $variantSelect.empty();
+                    $variantSelect.append('<option value="">خطأ في تحميل المتغيرات</option>');
+                    $variantInput.val('خطأ في تحميل المتغيرات').prop('disabled', true);
+                    updateVariantColumnVisibility();
+                }
+            });
+        } else {
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">اختر مادة أولاً</option>');
+            $variantInput.val('').prop('disabled', true);
+            $variantInput.attr('placeholder', 'اختر مادة أولاً');
+            updateVariantColumnVisibility();
+        }
+    });
+
+    // Initialize variant inputs on page load
+    $('.item-row').each(function() {
+        const $row = $(this);
+        const $itemSelect = $row.find('.item-select');
+        const $variantSelect = $row.find('.variant-select');
+        const $variantInput = $row.find('.variant-search-input');
+
+        if (!$itemSelect.val()) {
+            $variantSelect.empty();
+            $variantSelect.append('<option value="">اختر مادة أولاً</option>');
+            $variantInput.val('').prop('disabled', true);
+            $variantInput.attr('placeholder', 'اختر مادة أولاً');
+        } else {
+            $itemSelect.trigger('change');
+        }
+    });
+
+    // Initialize date pickers
+    $('input[name="date"]').datepicker({
+        dateFormat: 'yy-mm-dd',
+        changeMonth: true,
+        changeYear: true,
+        yearRange: '-10:+10',
+        defaultDate: new Date()
+    });
+
+    $('.date-input').datepicker({
+        dateFormat: 'yy-mm-dd',
+        changeMonth: true,
+        changeYear: true,
+        yearRange: '-100:+10'
+    });
+
+    // Calculate variance
+    function calculateVariance($row) {
+        const systemQty = parseFloat($row.find('.system-quantity').val()) || 0;
+        const countedQty = parseFloat($row.find('.counted-quantity').val()) || 0;
+        const variance = countedQty - systemQty;
+
+        const $varianceCell = $row.find('.variance-quantity');
+        $varianceCell.text(variance.toFixed(3));
+
+        $varianceCell.removeClass('variance-positive variance-negative variance-zero');
+        if (variance > 0) {
+            $varianceCell.addClass('variance-positive');
+        } else if (variance < 0) {
+            $varianceCell.addClass('variance-negative');
+        } else {
+            $varianceCell.addClass('variance-zero');
+        }
+
+        calculateSummary();
+    }
+
+    // Calculate summary
+    function calculateSummary() {
+        let itemsCount = 0;
+        let positiveVariances = 0;
+        let negativeVariances = 0;
+
+        $('.item-row:visible').each(function() {
+            const $row = $(this);
+            const item = $row.find('.item-select').val();
+            const countedQty = parseFloat($row.find('.counted-quantity').val()) || 0;
+
+            if (item && countedQty !== '') {
+                itemsCount++;
+
+                const variance = parseFloat($row.find('.variance-quantity').text()) || 0;
+                if (variance > 0) {
+                    positiveVariances++;
+                } else if (variance < 0) {
+                    negativeVariances++;
+                }
+            }
+        });
+
+        $('#items-count').text(itemsCount);
+        $('#positive-variances').text(positiveVariances);
+        $('#negative-variances').text(negativeVariances);
+    }
+
+    // Update row numbers
+    function updateRowNumbers() {
+        $('.item-row:visible').each(function(index) {
+            $(this).find('.row-number').text(index + 1);
+        });
+    }
+
+    // Calculate on input change
+    $(document).on('input', '.system-quantity, .counted-quantity', function() {
+        calculateVariance($(this).closest('.item-row'));
+    });
+
+    // Highlight active row on focus
+    $(document).on('focus', '.item-row input, .item-row select', function() {
+        $('.item-row').removeClass('table-active');
+        $(this).closest('.item-row').addClass('table-active');
+    });
+
+    // Add new row
+    $('#add-item-btn').click(function() {
+        const newRow = emptyFormHtml.clone();
+
+        newRow.find('input, select, textarea').each(function() {
+            const name = $(this).attr('name');
+            const id = $(this).attr('id');
+
+            if (name) {
+                $(this).attr('name', name.replace(/form-\d+-/, 'form-' + formCount + '-'));
+            }
+            if (id) {
+                $(this).attr('id', id.replace(/form-\d+-/, 'form-' + formCount + '-'));
+            }
+
+            if ($(this).attr('name')?.includes('DELETE')) {
+                $(this).prop('checked', false);
+            } else {
+                $(this).val('');
+            }
+        });
+
+        newRow.find('.variance-quantity').text('0.000').removeClass('variance-positive variance-negative').addClass('variance-zero');
+        newRow.find('.autocomplete-search-input').removeData('autocomplete-initialized');
+
+        $('#items-tbody').append(newRow);
+
+        newRow.find('select, input').removeAttr('required');
+
+        var $newItemInput = newRow.find('.item-search-input');
+        var $newItemSelect = newRow.find('.item-select');
+        initSelectAutocomplete($newItemInput, $newItemSelect);
+
+        newRow.find('.date-input').datepicker({
+            dateFormat: 'yy-mm-dd',
+            changeMonth: true,
+            changeYear: true,
+            yearRange: '-100:+10'
+        });
+
+        var $newVariantSelect = newRow.find('.variant-select');
+        var $newVariantInput = newRow.find('.variant-search-input');
+        $newVariantSelect.empty();
+        $newVariantSelect.append('<option value="">اختر مادة أولاً</option>');
+        $newVariantInput.val('').prop('disabled', true);
+        $newVariantInput.attr('placeholder', 'اختر مادة أولاً');
+        $newVariantInput.removeData('autocomplete-initialized');
+
+        formCount++;
+        $('#id_form-TOTAL_FORMS').val(formCount);
+        updateRowNumbers();
+
+        $newItemInput.focus();
+    });
+
+    // Delete row
+    $(document).on('click', '.btn-delete-row', function() {
+        const $row = $(this).closest('.item-row');
+        const visibleRows = $('.item-row:visible').length;
+
+        if (visibleRows > 1) {
+            $row.find('input[name*="DELETE"]').prop('checked', true);
+            $row.fadeOut(300, function() {
+                calculateSummary();
+                updateVariantColumnVisibility();
+                updateRowNumbers();
+            });
+        } else {
+            alert('{% trans "يجب أن تحتوي عملية الجرد على مادة واحدة على الأقل" %}');
+        }
+    });
+
+    // Initial calculations
+    $('.item-row').each(function() {
+        calculateVariance($(this));
+    });
+
+    // Form validation
+    $('#stockCountForm').on('submit', function(e) {
+        $('.is-invalid').removeClass('is-invalid');
+        $('.autocomplete-wrapper').removeClass('border border-danger rounded');
+
+        let isValid = true;
+        let firstError = null;
+        let errorMessages = [];
+
+        const warehouse = $('.warehouse-select').val();
+        const countType = $('.count-type-select').val();
+        const countDate = $('input[name="date"]').val();
+
+        if (!warehouse) {
+            $('.warehouse-search-input').addClass('is-invalid');
+            $('.warehouse-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+            errorMessages.push('يجب اختيار المستودع');
+            if (!firstError) firstError = $('.warehouse-search-input');
+            isValid = false;
+        }
+
+        if (!countType) {
+            $('.count-type-search-input').addClass('is-invalid');
+            $('.count-type-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+            errorMessages.push('يجب اختيار نوع الجرد');
+            if (!firstError) firstError = $('.count-type-search-input');
+            isValid = false;
+        }
+
+        if (!countDate) {
+            $('input[name="date"]').addClass('is-invalid');
+            errorMessages.push('يجب إدخال تاريخ الجرد');
+            if (!firstError) firstError = $('input[name="date"]');
+            isValid = false;
+        }
+
+        let hasValidItems = false;
+        let rowNumber = 1;
+
+        $('.item-row:visible').each(function() {
+            const $row = $(this);
+            const item = $row.find('.item-select').val();
+            const countedQty = $row.find('.counted-quantity').val();
+
+            if (item || countedQty !== '') {
+                if (!item) {
+                    $row.find('.item-search-input').addClass('is-invalid');
+                    $row.find('.item-search-input').closest('.autocomplete-wrapper').addClass('border border-danger rounded');
+                    errorMessages.push('الصف ' + rowNumber + ': يجب اختيار المادة');
+                    if (!firstError) firstError = $row.find('.item-search-input');
+                    isValid = false;
+                }
+
+                if (countedQty === '') {
+                    $row.find('.counted-quantity').addClass('is-invalid');
+                    errorMessages.push('الصف ' + rowNumber + ': يجب إدخال الكمية الفعلية');
+                    if (!firstError) firstError = $row.find('.counted-quantity');
+                    isValid = false;
+                }
+
+                if (item && countedQty !== '') {
+                    hasValidItems = true;
+                }
+            }
+
+            rowNumber++;
+        });
+
+        if (!hasValidItems) {
+            errorMessages.push('يجب إضافة مادة واحدة على الأقل');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+
+            let errorHtml = '<div style="text-align: right; direction: rtl;">';
+            errorHtml += '<strong style="display: block; margin-bottom: 10px; font-size: 16px;">يرجى تصحيح الأخطاء التالية:</strong>';
+            errorHtml += '<ul style="margin: 0; padding-right: 20px;">';
+            errorMessages.forEach(function(msg) {
+                errorHtml += '<li style="margin-bottom: 5px;">' + msg + '</li>';
+            });
+            errorHtml += '</ul></div>';
+
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ في البيانات',
+                html: errorHtml,
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#dc3545',
+                customClass: {
+                    popup: 'rtl-popup'
+                }
+            });
+
+            if (firstError) {
+                firstError.focus();
+                $('html, body').animate({
+                    scrollTop: firstError.offset().top - 100
+                }, 500);
+            }
+
+            return false;
+        }
+
+        return true;
+    });
+
+    // Check variant column visibility on page load
+    updateVariantColumnVisibility();
+
+    // Auto-focus and scroll to items section
+    setTimeout(function() {
+        $('html, body').animate({
+            scrollTop: $('.count-table').offset().top - 80
+        }, 500);
+
+        $('.item-row:first .item-search-input').focus();
+    }, 300);
+});
+</script>
+{% endblock %}

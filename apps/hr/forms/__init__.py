@@ -29,6 +29,37 @@ from .attendance_forms import (
     LeaveApprovalForm,
 )
 
+# Phase 5 Forms - Performance & Evaluation
+from .performance_forms import (
+    PerformancePeriodForm,
+    PerformanceCriteriaForm,
+    PerformanceEvaluationForm,
+    PerformanceEvaluationDetailForm,
+    SelfEvaluationForm,
+    ManagerEvaluationForm,
+    PerformanceGoalForm,
+    PerformanceNoteForm,
+    GoalProgressUpdateForm,
+    EvaluationApprovalForm,
+    BulkEvaluationForm,
+)
+
+# Phase 6 Forms - Training & Development
+from .training_forms import (
+    TrainingCategoryForm,
+    TrainingProviderForm,
+    TrainingCourseForm,
+    TrainingEnrollmentForm,
+    BulkEnrollmentForm,
+    TrainingRequestForm,
+    TrainingRequestApprovalForm,
+    TrainingPlanForm,
+    TrainingPlanItemForm,
+    TrainingFeedbackForm,
+    CourseFilterForm,
+    EnrollmentUpdateForm,
+)
+
 __all__ = [
     # Phase 1
     'EmployeeForm',
@@ -50,4 +81,29 @@ __all__ = [
     'AdvanceForm',
     'AdvanceApprovalForm',
     'LeaveApprovalForm',
+    # Phase 5 - Performance
+    'PerformancePeriodForm',
+    'PerformanceCriteriaForm',
+    'PerformanceEvaluationForm',
+    'PerformanceEvaluationDetailForm',
+    'SelfEvaluationForm',
+    'ManagerEvaluationForm',
+    'PerformanceGoalForm',
+    'PerformanceNoteForm',
+    'GoalProgressUpdateForm',
+    'EvaluationApprovalForm',
+    'BulkEvaluationForm',
+    # Phase 6 - Training
+    'TrainingCategoryForm',
+    'TrainingProviderForm',
+    'TrainingCourseForm',
+    'TrainingEnrollmentForm',
+    'BulkEnrollmentForm',
+    'TrainingRequestForm',
+    'TrainingRequestApprovalForm',
+    'TrainingPlanForm',
+    'TrainingPlanItemForm',
+    'TrainingFeedbackForm',
+    'CourseFilterForm',
+    'EnrollmentUpdateForm',
 ]

@@ -210,6 +210,29 @@ class Item(BaseModel):
             models.Index(fields=['category', 'is_active']),
         ]
 
+    @property
+    def unit_cost(self):
+        """
+        حساب متوسط تكلفة الوحدة من آخر فواتير الشراء
+        """
+        from decimal import Decimal
+
+        # محاولة الحصول على آخر سعر شراء
+        try:
+            from apps.purchases.models import PurchaseInvoiceItem
+            last_purchase = PurchaseInvoiceItem.objects.filter(
+                item=self,
+                invoice__is_posted=True
+            ).select_related('invoice').order_by('-invoice__date').first()
+
+            if last_purchase:
+                return last_purchase.unit_price
+        except:
+            pass
+
+        # إذا لم يوجد سعر شراء، نرجع صفر
+        return Decimal('0.000')
+
     def __str__(self):
         """عرض اسم المادة"""
         if self.code:
@@ -219,6 +242,20 @@ class Item(BaseModel):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_code()
+
+        # تعيين حساب مخزون افتراضي إذا لم يكن محدداً
+        if not self.inventory_account and self.company:
+            try:
+                from apps.accounting.models import Account
+                default_inventory = Account.objects.filter(
+                    company=self.company,
+                    code__in=['1131', '120000', '1130']  # أكواد حساب المخزون الشائعة
+                ).first()
+                if default_inventory:
+                    self.inventory_account = default_inventory
+            except Exception:
+                pass  # تجاهل في حالة عدم وجود حساب
+
         super().save(*args, **kwargs)
 
     def generate_code(self):

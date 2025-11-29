@@ -1,0 +1,146 @@
+{# apps/purchases/templates/purchases/goods_receipt/goods_receipt_detail.html #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-box text-primary"></i>
+            {% trans "استلام بضاعة رقم" %} {{ object.number }}
+        </h2>
+        <div>
+            <a href="{% url 'purchases:goods_receipt_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Receipt Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "تفاصيل الاستلام" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>{% trans "رقم الاستلام:" %}</strong> {{ object.number }}</p>
+                            <p><strong>{% trans "التاريخ:" %}</strong> {{ object.date|date:"Y-m-d" }}</p>
+                            <p><strong>{% trans "المورد:" %}</strong> {{ object.supplier.name }}</p>
+                            <p><strong>{% trans "المستودع:" %}</strong> {{ object.warehouse.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>{% trans "أمر الشراء:" %}</strong>
+                                {% if object.purchase_order %}
+                                    <a href="{% url 'purchases:order_detail' object.purchase_order.pk %}">{{ object.purchase_order.number }}</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                            <p><strong>{% trans "المستلم:" %}</strong> {{ object.received_by.get_full_name|default:object.received_by.username }}</p>
+                            <p><strong>{% trans "الحالة:" %}</strong>
+                                <span class="badge bg-{{ object.get_status_color }}">{{ object.get_status_display }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    {% if object.notes %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <p><strong>{% trans "ملاحظات:" %}</strong></p>
+                            <p>{{ object.notes }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "الأصناف" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "الصنف" %}</th>
+                                    <th>{% trans "الكمية" %}</th>
+                                    <th>{% trans "الوحدة" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in object.lines.all %}
+                                <tr>
+                                    <td>{{ line.item.name }}</td>
+                                    <td>{{ line.quantity }}</td>
+                                    <td>{{ line.unit.name }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">{% trans "لا توجد أصناف" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Status Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line"></i> {% trans "الحالة" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "الحالة الحالية:" %}</strong></p>
+                    <p class="text-center">
+                        <span class="badge bg-{{ object.get_status_color }} fs-6">{{ object.get_status_display }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Audit Info -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info"></i> {% trans "معلومات التدقيق" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "أنشئ بواسطة:" %}</strong><br>
+                        {{ object.created_by.get_full_name|default:object.created_by.username }}</p>
+                    <p><strong>{% trans "تاريخ الإنشاء:" %}</strong><br>
+                        {{ object.created_at|date:"Y-m-d H:i" }}</p>
+                    {% if object.updated_at %}
+                    <p><strong>{% trans "آخر تحديث:" %}</strong><br>
+                        {{ object.updated_at|date:"Y-m-d H:i" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

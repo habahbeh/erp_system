@@ -211,11 +211,13 @@ class PurchaseOrderCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
             context['formset'] = PurchaseOrderItemFormSet(
                 self.request.POST,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseOrderItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -305,11 +307,13 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Updat
             context['formset'] = PurchaseOrderItemFormSet(
                 self.request.POST,
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
         else:
             context['formset'] = PurchaseOrderItemFormSet(
                 instance=self.object,
+                prefix='lines',
                 company=self.request.current_company
             )
 
@@ -812,13 +816,18 @@ def get_item_stock_multi_branch_ajax(request):
             total_quantity += stock.quantity
             total_available += available
 
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({

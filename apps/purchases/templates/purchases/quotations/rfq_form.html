@@ -279,31 +279,113 @@ select[data-select2-id] {
     text-align: center;
 }
 
-/* Supplier Selection */
-.supplier-list {
-    max-height: 300px;
+/* Supplier Selection - Grid Layout */
+.supplier-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+    max-height: 350px;
     overflow-y: auto;
+    padding: 0.5rem;
     border: 1px solid #dee2e6;
     border-radius: 0.375rem;
-    padding: 0.5rem;
+    background: #f8f9fa;
 }
 
-.supplier-item {
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
-    background-color: #fff;
-    border: 1px solid #e9ecef;
-    border-radius: 0.375rem;
-    transition: all 0.2s;
+.supplier-card {
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    overflow: hidden;
 }
 
-.supplier-item:hover {
-    background-color: #f8f9fa;
+.supplier-card:hover {
     border-color: #0d6efd;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
 }
 
-.supplier-item input[type="checkbox"] {
-    margin-left: 0.5rem;
+.supplier-card.hidden {
+    display: none;
+}
+
+.supplier-label {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    cursor: pointer;
+    width: 100%;
+}
+
+.supplier-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-left: 0.75rem;
+    cursor: pointer;
+    accent-color: #0d6efd;
+}
+
+.supplier-label input[type="checkbox"]:checked + .supplier-name {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.supplier-card:has(input:checked) {
+    border-color: #0d6efd;
+    background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%);
+}
+
+.supplier-name {
+    font-size: 0.95rem;
+    color: #333;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Supplier search */
+#supplier-search {
+    border-radius: 2rem;
+    padding-right: 2.5rem;
+    background-image: none;
+}
+
+/* Purchase Request Select - wider dropdown */
+#id_purchase_request {
+    font-size: 0.85rem;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    white-space: normal;
+    line-height: 1.4;
+}
+
+/* Form validation errors display */
+.form-errors-summary {
+    background: #fff5f5;
+    border: 1px solid #fed7d7;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-errors-summary h5 {
+    color: #c53030;
+    margin-bottom: 0.75rem;
+}
+
+.form-errors-summary ul {
+    margin-bottom: 0;
+    padding-right: 1.25rem;
+}
+
+.form-errors-summary li {
+    color: #c53030;
+    margin-bottom: 0.25rem;
 }
 
 .help-text {
@@ -394,6 +476,33 @@ select[data-select2-id] {
     <form method="post" id="rfqForm" novalidate>
         {% csrf_token %}
         {{ formset.management_form }}
+
+        <!-- Display Form Errors -->
+        {% if form.errors or formset.errors or formset.non_form_errors %}
+        <div class="alert alert-danger" role="alert">
+            <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>يرجى تصحيح الأخطاء التالية:</h5>
+            <hr>
+            <ul class="mb-0">
+                {% if form.non_field_errors %}
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endif %}
+                {% for field in form %}
+                    {% if field.errors %}
+                        {% for error in field.errors %}
+                            <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+                {% if formset.non_form_errors %}
+                    {% for error in formset.non_form_errors %}
+                        <li><strong>الأصناف:</strong> {{ error }}</li>
+                    {% endfor %}
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
 
         <div class="row">
             <!-- Main Form Section -->
@@ -512,19 +621,43 @@ select[data-select2-id] {
 
                 <!-- Suppliers Selection -->
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-users me-2"></i>
-                            اختيار الموردين
+                            اختيار الموردين <span class="text-danger">*</span>
                         </h5>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-select-all-suppliers">
+                                <i class="fas fa-check-double me-1"></i> تحديد الكل
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-deselect-all-suppliers">
+                                <i class="fas fa-times me-1"></i> إلغاء الكل
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">
                             <i class="fas fa-info-circle me-1"></i>
-                            اختر الموردين الذين سيتم إرسال طلب عرض الأسعار لهم
+                            اختر الموردين الذين سيتم إرسال طلب عرض الأسعار لهم (يمكن اختيار أكثر من مورد)
                         </p>
-                        <div class="supplier-list">
-                            {{ form.suppliers }}
+                        <!-- Search box for suppliers -->
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="supplier-search" placeholder="🔍 بحث في الموردين...">
+                        </div>
+                        <!-- Selected count -->
+                        <div class="alert alert-info py-2 mb-3">
+                            <i class="fas fa-check-circle me-1"></i>
+                            تم اختيار <strong id="selected-suppliers-count">0</strong> مورد
+                        </div>
+                        <div class="supplier-grid">
+                            {% for checkbox in form.suppliers %}
+                            <div class="supplier-card" data-name="{{ checkbox.choice_label|lower }}">
+                                <label class="supplier-label">
+                                    {{ checkbox.tag }}
+                                    <span class="supplier-name">{{ checkbox.choice_label }}</span>
+                                </label>
+                            </div>
+                            {% endfor %}
                         </div>
                         {% if form.suppliers.errors %}
                             <ul class="error-list mt-2">
@@ -850,10 +983,13 @@ select[data-select2-id] {
 
 <script>
 $(document).ready(function() {
+    console.log('RFQ Form: Document ready');
+
     // ============================================
     // Initialize Select2
     // ============================================
     function initSelect2() {
+        console.log('RFQ Form: Initializing Select2');
         // Initialize Select2 for form selects
         $('#id_purchase_request').select2({
             theme: 'bootstrap-5',
@@ -865,6 +1001,31 @@ $(document).ready(function() {
                 noResults: function() { return "لا توجد نتائج"; },
                 searching: function() { return "جاري البحث..."; }
             }
+        });
+
+        // ربط حدث تغيير طلب الشراء مباشرة بعد تهيئة Select2
+        $('#id_purchase_request').on('select2:select', function(e) {
+            var purchaseRequestId = $(this).val();
+            console.log('Purchase Request Selected (select2:select):', purchaseRequestId);
+
+            if (!purchaseRequestId) {
+                return;
+            }
+
+            // تأكيد تحميل البيانات
+            Swal.fire({
+                title: 'تحميل بيانات طلب الشراء',
+                text: 'هل تريد تحميل أصناف طلب الشراء المحدد؟ سيتم استبدال الأصناف الحالية.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'نعم، تحميل',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#0d6efd'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    loadPurchaseRequestItems(purchaseRequestId);
+                }
+            });
         });
 
         // Initialize Select2 for item selects in table
@@ -884,22 +1045,52 @@ $(document).ready(function() {
     initSelect2();
 
     // ============================================
-    // Style Supplier Checkboxes
+    // Supplier Selection Functions
     // ============================================
-    function styleSupplierCheckboxes() {
-        $('.supplier-list input[type="checkbox"]').each(function() {
-            var $checkbox = $(this);
-            var $label = $checkbox.next('label');
 
-            if (!$checkbox.parent().hasClass('supplier-item')) {
-                $checkbox.add($label).wrapAll('<div class="supplier-item form-check"></div>');
-                $checkbox.addClass('form-check-input');
-                $label.addClass('form-check-label');
-            }
-        });
+    // Update selected count
+    function updateSelectedSuppliersCount() {
+        var count = $('.supplier-grid input[type="checkbox"]:checked').length;
+        $('#selected-suppliers-count').text(count);
     }
 
-    styleSupplierCheckboxes();
+    // Initial count
+    updateSelectedSuppliersCount();
+
+    // Update count on checkbox change
+    $(document).on('change', '.supplier-grid input[type="checkbox"]', function() {
+        updateSelectedSuppliersCount();
+    });
+
+    // Select all suppliers
+    $('#btn-select-all-suppliers').on('click', function() {
+        $('.supplier-grid .supplier-card:not(.hidden) input[type="checkbox"]').prop('checked', true);
+        updateSelectedSuppliersCount();
+    });
+
+    // Deselect all suppliers
+    $('#btn-deselect-all-suppliers').on('click', function() {
+        $('.supplier-grid input[type="checkbox"]').prop('checked', false);
+        updateSelectedSuppliersCount();
+    });
+
+    // Search suppliers
+    $('#supplier-search').on('input', function() {
+        var searchText = $(this).val().toLowerCase().trim();
+
+        if (searchText === '') {
+            $('.supplier-card').removeClass('hidden');
+        } else {
+            $('.supplier-card').each(function() {
+                var name = $(this).data('name') || '';
+                if (name.indexOf(searchText) > -1) {
+                    $(this).removeClass('hidden');
+                } else {
+                    $(this).addClass('hidden');
+                }
+            });
+        }
+    });
 
     // ============================================
     // Calculate Summary
@@ -1454,16 +1645,57 @@ $(document).ready(function() {
     // Form Validation
     // ============================================
     $('#rfqForm').on('submit', function(e) {
+        var errors = [];
+
+        // التحقق من الموضوع
+        var subject = $('input[name="subject"]').val();
+        if (!subject || subject.trim() === '') {
+            errors.push('يجب إدخال الموضوع');
+        }
+
+        // التحقق من اختيار موردين
+        var selectedSuppliers = $('.supplier-grid input[type="checkbox"]:checked').length;
+        if (selectedSuppliers === 0) {
+            errors.push('يجب اختيار مورد واحد على الأقل');
+        }
+
+        // التحقق من وجود أصناف
         var validRows = $('#items-tbody tr:visible').filter(function() {
             return !$(this).find('input[name$="-DELETE"]').is(':checked');
         }).length;
 
         if (validRows === 0) {
+            errors.push('يجب إضافة صنف واحد على الأقل');
+        }
+
+        // التحقق من أن كل صنف له وصف على الأقل
+        var hasValidItem = false;
+        $('#items-tbody tr:visible').each(function() {
+            var isDeleted = $(this).find('input[name$="-DELETE"]').is(':checked');
+            if (!isDeleted) {
+                var description = $(this).find('textarea[name$="-item_description"]').val();
+                if (description && description.trim() !== '') {
+                    hasValidItem = true;
+                }
+            }
+        });
+
+        if (validRows > 0 && !hasValidItem) {
+            errors.push('يجب إدخال وصف لصنف واحد على الأقل');
+        }
+
+        if (errors.length > 0) {
             e.preventDefault();
+            var errorHtml = '<ul class="text-start" style="direction: rtl; list-style-position: inside;">';
+            errors.forEach(function(err) {
+                errorHtml += '<li>' + err + '</li>';
+            });
+            errorHtml += '</ul>';
+
             Swal.fire({
                 icon: 'error',
-                title: 'خطأ',
-                text: 'يجب إضافة صنف واحد على الأقل',
+                title: 'يرجى تصحيح الأخطاء التالية',
+                html: errorHtml,
                 confirmButtonText: 'حسناً'
             });
             return false;
@@ -1492,6 +1724,171 @@ $(document).ready(function() {
     $('form').on('submit', function() {
         formChanged = false;
     });
+
+    // ============================================
+    // Load Purchase Request Items Functions
+    // ============================================
+    function loadPurchaseRequestItems(requestId) {
+        console.log('Loading items for request:', requestId);
+
+        // إظهار مؤشر التحميل
+        Swal.fire({
+            title: 'جاري التحميل...',
+            text: 'يرجى الانتظار',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        var ajaxUrl = '/purchases/ajax/rfqs/get-purchase-request-items/' + requestId + '/';
+        console.log('AJAX URL:', ajaxUrl);
+
+        $.ajax({
+            url: ajaxUrl,
+            method: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                console.log('AJAX Response:', response);
+                Swal.close();
+
+                if (response.success && response.data && response.data.items) {
+                    // حذف جميع السطور الحالية
+                    clearAllRows();
+
+                    // إضافة الأصناف من طلب الشراء
+                    var items = response.data.items;
+                    console.log('Items to load:', items.length);
+
+                    if (items.length === 0) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'لا توجد أصناف',
+                            text: 'طلب الشراء المحدد لا يحتوي على أصناف',
+                            confirmButtonText: 'حسناً'
+                        });
+                        return;
+                    }
+
+                    // إضافة كل صنف
+                    items.forEach(function(item, index) {
+                        console.log('Adding item:', index, item);
+                        addRowWithData(item, index);
+                    });
+
+                    // تحديث TOTAL_FORMS
+                    $('#id_lines-TOTAL_FORMS').val(items.length);
+                    formIdx = items.length;
+
+                    // تحديث الأرقام والملخص
+                    updateRowNumbers();
+                    calculateSummary();
+
+                    // إعادة تهيئة Select2
+                    reinitTableSelect2();
+
+                    // تطبيق إعدادات الأعمدة
+                    applyColumnVisibility(columnVisibility);
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم التحميل',
+                        text: 'تم تحميل ' + items.length + ' صنف من طلب الشراء',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    console.log('Error in response:', response);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: response.error || 'حدث خطأ أثناء تحميل البيانات',
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX Error:', status, error);
+                Swal.close();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ في الاتصال',
+                    text: 'حدث خطأ أثناء الاتصال بالخادم: ' + error,
+                    confirmButtonText: 'حسناً'
+                });
+            }
+        });
+    }
+
+    function clearAllRows() {
+        // حذف جميع السطور من الجدول
+        $('#items-tbody tr').each(function() {
+            var row = $(this);
+            var deleteInput = row.find('input[name$="-DELETE"]');
+            var idInput = row.find('input[name$="-id"]');
+
+            if (idInput.val()) {
+                // سطر موجود في قاعدة البيانات - نعلمه للحذف
+                deleteInput.prop('checked', true);
+                row.hide();
+            } else {
+                // سطر جديد - نحذفه مباشرة
+                // تدمير Select2 أولاً
+                if (row.find('.item-select').hasClass('select2-hidden-accessible')) {
+                    row.find('.item-select').select2('destroy');
+                }
+                row.remove();
+            }
+        });
+    }
+
+    function addRowWithData(itemData, index) {
+        var templateHtml = $('#empty-row-template').html();
+        var rowHtml = templateHtml.replace(/__prefix__/g, index);
+        var newRow = $(rowHtml);
+
+        // تعبئة البيانات
+        if (itemData.item_id) {
+            // إضافة option للمادة المحددة
+            var itemSelect = newRow.find('select[name$="-item"]');
+            var optionText = itemData.item_code ? itemData.item_code + ' - ' + itemData.item_name : itemData.item_name;
+            itemSelect.append(new Option(optionText, itemData.item_id, true, true));
+        }
+
+        newRow.find('textarea[name$="-item_description"]').val(itemData.item_description || '');
+        newRow.find('input[name$="-quantity"]').val(itemData.quantity || '');
+        newRow.find('input[name$="-unit"]').val(itemData.unit || '');
+        newRow.find('input[name$="-estimated_price"]').val(itemData.estimated_price || '');
+        newRow.find('textarea[name$="-notes"]').val(itemData.notes || '');
+
+        // إضافة السطر للجدول
+        $('#items-tbody').append(newRow);
+    }
+
+    function reinitTableSelect2() {
+        // إعادة تهيئة Select2 لكل select في الجدول
+        $('.item-select').each(function() {
+            var $select = $(this);
+            // تدمير Select2 القديم إن وجد
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+            // إعادة التهيئة
+            $select.select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dir: "rtl",
+                placeholder: 'اختر الصنف (اختياري)',
+                allowClear: true,
+                language: {
+                    noResults: function() { return "لا توجد نتائج"; },
+                    searching: function() { return "جاري البحث..."; }
+                }
+            });
+        });
+    }
 
     // Initial calculation
     calculateSummary();

@@ -115,12 +115,9 @@ class PurchaseContractForm(forms.ModelForm):
             self.fields['start_date'].initial = date.today()
 
             if self.company:
-                # العملة الافتراضية
-                default_currency = Currency.objects.filter(
-                    code='KWD', is_active=True
-                ).first()
-                if default_currency:
-                    self.fields['currency'].initial = default_currency
+                # العملة الافتراضية من إعدادات الشركة
+                if hasattr(self.company, 'base_currency') and self.company.base_currency:
+                    self.fields['currency'].initial = self.company.base_currency
 
         # جعل بعض الحقول اختيارية
         self.fields['payment_terms'].required = False

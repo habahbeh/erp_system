@@ -1,0 +1,136 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Evaluation Summary -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{% trans "ملخص التقييم" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted">{% trans "الموظف" %}:</td>
+                                    <td><strong>{{ evaluation.employee.first_name }} {{ evaluation.employee.last_name }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">{% trans "القسم" %}:</td>
+                                    <td>{{ evaluation.employee.department.name|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">{% trans "فترة التقييم" %}:</td>
+                                    <td>{{ evaluation.period.name }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center">
+                                <h3 class="text-primary mb-0">{{ evaluation.final_score|floatformat:1|default:"-" }}</h3>
+                                <small class="text-muted">{% trans "الدرجة النهائية" %}</small>
+                                {% if evaluation.grade %}
+                                <div class="mt-2">
+                                    <span class="badge bg-{% if evaluation.grade == 'A' %}success{% elif evaluation.grade == 'B' %}primary{% elif evaluation.grade == 'C' %}info{% elif evaluation.grade == 'D' %}warning{% else %}danger{% endif %} fs-4">
+                                        {{ evaluation.grade }}
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h5 class="text-info">{{ evaluation.self_score|floatformat:1|default:"-" }}</h5>
+                            <small class="text-muted">{% trans "التقييم الذاتي" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h5 class="text-success">{{ evaluation.manager_score|floatformat:1|default:"-" }}</h5>
+                            <small class="text-muted">{% trans "تقييم المدير" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <h5 class="text-primary">{{ evaluation.final_score|floatformat:1|default:"-" }}</h5>
+                            <small class="text-muted">{% trans "النهائي" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-check-double me-2"></i>{{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label class="form-label">{% trans "الإجراء" %} <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="action" id="approve" value="approve" checked>
+                                    <label class="form-check-label text-success" for="approve">
+                                        <i class="fas fa-check-circle me-1"></i>{% trans "اعتماد" %}
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="action" id="reject" value="reject">
+                                    <label class="form-check-label text-danger" for="reject">
+                                        <i class="fas fa-times-circle me-1"></i>{% trans "رفض" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">{% trans "ملاحظات" %}</label>
+                            <textarea name="comments" class="form-control" rows="3" placeholder="{% trans 'أضف ملاحظاتك' %}"></textarea>
+                        </div>
+
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                            <p class="mb-0">{{ error }}</p>
+                            {% endfor %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'hr:evaluation_detail' evaluation.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-right me-1"></i>{% trans "رجوع" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% trans "تأكيد" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

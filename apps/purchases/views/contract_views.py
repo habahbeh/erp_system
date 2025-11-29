@@ -252,12 +252,14 @@ class PurchaseContractCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cr
             context['formset'] = PurchaseContractItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='items'
             )
         else:
             context['formset'] = PurchaseContractItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='items'
             )
 
         # تفعيل البحث المباشر AJAX Live Search
@@ -271,9 +273,8 @@ class PurchaseContractCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cr
         context = self.get_context_data()
         formset = context['formset']
 
-        # تعيين الشركة والفرع
+        # تعيين الشركة والمنشئ (العقود على مستوى الشركة وليس الفرع)
         form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
         form.instance.created_by = self.request.user
 
         if formset.is_valid():
@@ -327,12 +328,14 @@ class PurchaseContractUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Up
             context['formset'] = PurchaseContractItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='items'
             )
         else:
             context['formset'] = PurchaseContractItemFormSet(
                 instance=self.object,
-                company=self.request.current_company
+                company=self.request.current_company,
+                prefix='items'
             )
 
         # تفعيل البحث المباشر AJAX Live Search
@@ -663,13 +666,19 @@ def contract_get_item_stock_multi_branch_ajax(request):
             available = stock.quantity - stock.reserved_quantity
             total_quantity += stock.quantity
             total_available += available
+
+            # التحقق من وجود branch
+            branch_name = 'غير محدد'
+            if stock.warehouse and stock.warehouse.branch:
+                branch_name = stock.warehouse.branch.name
+
             branches_data.append({
-                'branch_name': stock.warehouse.branch.name,
-                'warehouse_name': stock.warehouse.name,
+                'branch_name': branch_name,
+                'warehouse_name': stock.warehouse.name if stock.warehouse else 'غير محدد',
                 'quantity': str(stock.quantity),
                 'reserved': str(stock.reserved_quantity),
                 'available': str(available),
-                'average_cost': str(stock.average_cost),
+                'average_cost': str(stock.average_cost or 0),
             })
 
         return JsonResponse({
@@ -752,3 +761,106 @@ def contract_item_search_ajax(request):
         return JsonResponse({'success': True, 'items': items_data, 'count': len(items_data)})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@transaction.atomic
+def contract_add_supplier_ajax(request):
+    """إضافة مورد جديد عبر AJAX من شاشة العقد"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'طريقة الطلب غير صحيحة'}, status=405)
+
+    # التحقق من الصلاحيات - السماح للـ superuser دائماً
+    if not request.user.is_superuser and not request.user.has_perm('core.add_businesspartner'):
+        return JsonResponse({'success': False, 'error': 'ليس لديك صلاحية إضافة موردين'}, status=403)
+
+    try:
+        logger.info(f"محاولة إضافة مورد جديد من المستخدم: {request.user.username}")
+        # الحصول على البيانات من الطلب
+        name = request.POST.get('name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        mobile = request.POST.get('mobile', '').strip()
+        email = request.POST.get('email', '').strip()
+        address = request.POST.get('address', '').strip()
+        tax_number = request.POST.get('tax_number', '').strip()
+
+        # التحقق من الحقول المطلوبة
+        if not name:
+            return JsonResponse({'success': False, 'error': 'اسم المورد مطلوب'}, status=400)
+
+        # التحقق من عدم تكرار الاسم
+        if BusinessPartner.objects.filter(company=request.current_company, name=name).exists():
+            return JsonResponse({'success': False, 'error': 'اسم المورد موجود مسبقاً'}, status=400)
+
+        # التحقق من عدم تكرار البريد الإلكتروني
+        if email and BusinessPartner.objects.filter(company=request.current_company, email=email).exists():
+            return JsonResponse({'success': False, 'error': 'البريد الإلكتروني مستخدم مسبقاً'}, status=400)
+
+        # إنشاء المورد الجديد
+        supplier = BusinessPartner()
+        supplier.company = request.current_company
+        supplier.branch = request.current_branch
+        supplier.created_by = request.user
+        supplier.partner_type = 'supplier'
+        supplier.name = name
+        supplier.phone = phone
+        supplier.mobile = mobile
+        supplier.email = email
+        supplier.address = address
+        supplier.tax_number = tax_number
+        supplier.tax_status = 'taxable'  # افتراضياً خاضع للضريبة
+        supplier.account_type = 'credit'  # افتراضياً ذمم للموردين
+        supplier.custom_fields = {}  # حقول مخصصة فارغة
+
+        # توليد الكود قبل الحفظ
+        # استخدام try/except للتعامل مع أي مشكلة في توليد الكود
+        try:
+            # حساب آخر رقم مورد
+            last_supplier = BusinessPartner.objects.filter(
+                company=request.current_company,
+                partner_type__in=['supplier', 'both']
+            ).order_by('-id').first()
+
+            if last_supplier and last_supplier.code:
+                # محاولة استخراج الرقم من الكود
+                import re
+                match = re.search(r'\d+$', last_supplier.code)
+                if match:
+                    next_num = int(match.group()) + 1
+                    supplier.code = f'SUP-{next_num:05d}'
+                else:
+                    supplier.code = f'SUP-{supplier.id or 1:05d}'
+            else:
+                supplier.code = 'SUP-00001'
+        except:
+            # في حالة فشل التوليد التلقائي، استخدام رقم عشوائي مؤقت
+            import random
+            supplier.code = f'SUP-{random.randint(10000, 99999)}'
+
+        # حفظ المورد
+        supplier.save()
+        logger.info(f"تم إضافة المورد بنجاح: {supplier.code} - {supplier.name}")
+
+        # إرجاع بيانات المورد الجديد
+        return JsonResponse({
+            'success': True,
+            'supplier': {
+                'id': supplier.id,
+                'name': supplier.name,
+                'code': supplier.code,
+                'phone': supplier.phone,
+                'mobile': supplier.mobile,
+                'email': supplier.email,
+            },
+            'message': f'تم إضافة المورد: {supplier.name} بنجاح'
+        })
+
+    except Exception as e:
+        logger.error(f"خطأ في إضافة المورد: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': f'حدث خطأ أثناء إضافة المورد: {str(e)}'
+        }, status=500)
