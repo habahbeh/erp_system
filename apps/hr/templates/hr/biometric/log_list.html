@@ -1,0 +1,270 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .log-card {
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    .log-card:hover {
+        background-color: #f8f9fa;
+    }
+    .punch-badge {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-list-alt me-2"></i>{{ title }}</h4>
+        <div>
+            <button type="button" class="btn btn-success" id="processLogsBtn">
+                <i class="fas fa-cogs me-1"></i>{% trans "معالجة السجلات" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-day fa-2x text-primary mb-2"></i>
+                    <h3 class="text-primary">{{ stats.today_total }}</h3>
+                    <small class="text-muted">{% trans "سجلات اليوم" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-sign-in-alt fa-2x text-success mb-2"></i>
+                    <h3 class="text-success">{{ stats.today_in }}</h3>
+                    <small class="text-muted">{% trans "حضور اليوم" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-sign-out-alt fa-2x text-danger mb-2"></i>
+                    <h3 class="text-danger">{{ stats.today_out }}</h3>
+                    <small class="text-muted">{% trans "انصراف اليوم" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                    <h3 class="text-warning">{{ stats.unprocessed }}</h3>
+                    <small class="text-muted">{% trans "غير معالجة" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الجهاز" %}</label>
+                    <select name="device" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for device in devices %}
+                        <option value="{{ device.pk }}" {% if request.GET.device == device.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ device.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الموظف" %}</label>
+                    <select name="employee" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.pk }}" {% if request.GET.employee == emp.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ emp.full_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "من تاريخ" %}</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ request.GET.from_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "إلى تاريخ" %}</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ request.GET.to_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "نوع البصمة" %}</label>
+                    <select name="punch_type" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for code, name in punch_types %}
+                        <option value="{{ code }}" {% if request.GET.punch_type == code %}selected{% endif %}>
+                            {{ name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- جدول السجلات -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "وقت البصمة" %}</th>
+                        <th>{% trans "الموظف" %}</th>
+                        <th>{% trans "النوع" %}</th>
+                        <th>{% trans "الجهاز" %}</th>
+                        <th>{% trans "طريقة التحقق" %}</th>
+                        <th>{% trans "الحالة" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr class="log-card">
+                        <td>
+                            <strong>{{ log.punch_time|date:"Y-m-d" }}</strong>
+                            <br><small class="text-muted">{{ log.punch_time|date:"H:i:s" }}</small>
+                        </td>
+                        <td>
+                            {% if log.employee %}
+                            <div class="d-flex align-items-center">
+                                <div class="punch-badge bg-{% if log.punch_type == 'in' %}success{% elif log.punch_type == 'out' %}danger{% else %}secondary{% endif %} bg-opacity-10 text-{% if log.punch_type == 'in' %}success{% elif log.punch_type == 'out' %}danger{% else %}secondary{% endif %} me-2">
+                                    <i class="fas fa-{% if log.punch_type == 'in' %}sign-in-alt{% elif log.punch_type == 'out' %}sign-out-alt{% else %}clock{% endif %}"></i>
+                                </div>
+                                <div>
+                                    <strong>{{ log.employee.full_name }}</strong>
+                                    <br><small class="text-muted">{{ log.employee.employee_number }}</small>
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">ID: {{ log.device_user_id }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if log.punch_type == 'in' %}success{% elif log.punch_type == 'out' %}danger{% elif log.punch_type == 'break_out' %}warning{% elif log.punch_type == 'break_in' %}info{% else %}secondary{% endif %}">
+                                {{ log.get_punch_type_display }}
+                            </span>
+                        </td>
+                        <td>{{ log.device.name }}</td>
+                        <td>
+                            <i class="fas fa-{% if log.verification_type == 'fingerprint' %}fingerprint{% elif log.verification_type == 'face' %}smile{% elif log.verification_type == 'card' %}id-card{% else %}key{% endif %} me-1"></i>
+                            {{ log.get_verification_type_display }}
+                        </td>
+                        <td>
+                            {% if log.is_processed %}
+                            <span class="badge bg-success"><i class="fas fa-check me-1"></i>{% trans "معالج" %}</span>
+                            {% else %}
+                            <span class="badge bg-warning"><i class="fas fa-clock me-1"></i>{% trans "قيد الانتظار" %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="fas fa-list-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد سجلات بصمة" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&device={{ request.GET.device }}&employee={{ request.GET.employee }}&from_date={{ request.GET.from_date }}&to_date={{ request.GET.to_date }}">
+                    {% trans "السابق" %}
+                </a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&device={{ request.GET.device }}&employee={{ request.GET.employee }}&from_date={{ request.GET.from_date }}&to_date={{ request.GET.to_date }}">
+                    {% trans "التالي" %}
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('processLogsBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "جاري المعالجة..." %}';
+
+        fetch('{% url "hr:biometric_process_logs" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-cogs me-1"></i>{% trans "معالجة السجلات" %}';
+
+            if (data.success) {
+                alert(`{% trans "تمت المعالجة. السجلات المعالجة:" %} ${data.processed}`);
+                location.reload();
+            } else {
+                alert('{% trans "حدث خطأ:" %} ' + data.error);
+            }
+        })
+        .catch(error => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-cogs me-1"></i>{% trans "معالجة السجلات" %}';
+            alert('{% trans "حدث خطأ" %}');
+        });
+    });
+</script>
+{% endblock %}

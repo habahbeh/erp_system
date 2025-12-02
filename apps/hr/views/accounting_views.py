@@ -63,7 +63,7 @@ class AccountingIntegrationDashboardView(LoginRequiredMixin, PermissionRequiredM
             if code not in existing_components
         ]
 
-        # مسيرات الرواتب المعتمدة
+        # كشوفات الرواتب المعتمدة
         payrolls_approved = Payroll.objects.filter(
             company=company,
             status__in=['approved', 'paid']
@@ -169,7 +169,7 @@ class PayrollJournalEntryView(LoginRequiredMixin, PermissionRequiredMixin, Templ
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': '/hr/payroll/'},
+                {'title': _('كشوفات الرواتب'), 'url': '/hr/payroll/'},
                 {'title': payroll.number, 'url': f'/hr/payroll/{payroll.pk}/'},
                 {'title': _('القيد المحاسبي'), 'url': None},
             ],
@@ -224,7 +224,7 @@ class PayrollPaymentJournalView(LoginRequiredMixin, PermissionRequiredMixin, Tem
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': '/hr/payroll/'},
+                {'title': _('كشوفات الرواتب'), 'url': '/hr/payroll/'},
                 {'title': payroll.number, 'url': f'/hr/payroll/{payroll.pk}/'},
                 {'title': _('قيد الصرف'), 'url': None},
             ],

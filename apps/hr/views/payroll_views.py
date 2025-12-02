@@ -30,7 +30,7 @@ from ..forms.payroll_forms import (
 
 
 class PayrollListView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
-    """قائمة مسيرات الرواتب"""
+    """قائمة كشوفات الرواتب"""
     template_name = 'hr/payroll/payroll_list.html'
     permission_required = 'hr.view_payroll'
 
@@ -48,19 +48,19 @@ class PayrollListView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView)
         )
 
         context.update({
-            'title': _('مسيرات الرواتب'),
+            'title': _('كشوفات الرواتب'),
             'stats': stats,
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': None},
+                {'title': _('كشوفات الرواتب'), 'url': None},
             ],
         })
         return context
 
 
 class PayrollCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    """إنشاء مسير رواتب جديد"""
+    """إنشاء كشف راتب جديد"""
     model = Payroll
     form_class = PayrollForm
     template_name = 'hr/payroll/payroll_form.html'
@@ -83,12 +83,12 @@ class PayrollCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView)
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'title': _('إنشاء مسير رواتب جديد'),
+            'title': _('إنشاء كشف راتب جديد'),
             'submit_text': _('إنشاء'),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': _('إنشاء'), 'url': None},
             ],
         })
@@ -131,7 +131,7 @@ class PayrollDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView)
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': payroll.number, 'url': None},
             ],
         })
@@ -172,7 +172,7 @@ class PayrollUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView)
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
                 {'title': _('الموارد البشرية'), 'url': '/hr/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': self.object.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': self.object.pk})},
                 {'title': _('تعديل'), 'url': None},
             ],
@@ -222,7 +222,7 @@ class PayrollProcessView(LoginRequiredMixin, PermissionRequiredMixin, TemplateVi
             ),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': payroll.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': payroll.pk})},
                 {'title': _('معالجة'), 'url': None},
             ],
@@ -392,7 +392,7 @@ class PayrollApproveView(LoginRequiredMixin, PermissionRequiredMixin, TemplateVi
             'form': PayrollApproveForm(),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': payroll.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': payroll.pk})},
                 {'title': _('اعتماد'), 'url': None},
             ],
@@ -452,7 +452,7 @@ class PayrollPaymentView(LoginRequiredMixin, PermissionRequiredMixin, TemplateVi
             'unpaid_details': payroll.details.filter(is_paid=False),
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': payroll.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': payroll.pk})},
                 {'title': _('صرف'), 'url': None},
             ],
@@ -542,7 +542,7 @@ class PayrollDetailEditView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
             'payroll': self.object.payroll,
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': self.object.payroll.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': self.object.payroll.pk})},
                 {'title': str(self.object.employee), 'url': None},
             ],
@@ -551,7 +551,7 @@ class PayrollDetailEditView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
 
 
 class PayrollDetailDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
-    """حذف تفاصيل راتب موظف من المسير"""
+    """حذف تفاصيل راتب موظف من الكشف"""
     model = PayrollDetail
     template_name = 'hr/payroll/payroll_detail_confirm_delete.html'
     permission_required = 'hr.delete_payrolldetail'
@@ -570,7 +570,7 @@ class PayrollDetailDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
         payroll = self.object.payroll
         response = super().delete(request, *args, **kwargs)
         payroll.calculate_totals()
-        messages.success(request, _('تم حذف الموظف من المسير بنجاح'))
+        messages.success(request, _('تم حذف الموظف من الكشف بنجاح'))
         return response
 
 
@@ -595,7 +595,7 @@ class PayslipView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
             'company': self.request.current_company,
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': '/'},
-                {'title': _('مسيرات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
+                {'title': _('كشوفات الرواتب'), 'url': reverse_lazy('hr:payroll_list')},
                 {'title': detail.payroll.number, 'url': reverse_lazy('hr:payroll_detail', kwargs={'pk': detail.payroll.pk})},
                 {'title': _('كشف الراتب'), 'url': None},
             ],

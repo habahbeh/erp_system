@@ -200,8 +200,8 @@ class Payroll(models.Model):
     )
 
     class Meta:
-        verbose_name = _('مسير رواتب')
-        verbose_name_plural = _('مسيرات الرواتب')
+        verbose_name = _('كشف راتب')
+        verbose_name_plural = _('كشوفات الرواتب')
         ordering = ['-period_year', '-period_month']
         unique_together = [['company', 'period_year', 'period_month', 'branch']]
 
@@ -236,7 +236,7 @@ class Payroll(models.Model):
 
 class PayrollDetail(models.Model):
     """
-    تفاصيل راتب الموظف في المسير
+    تفاصيل راتب الموظف في الكشف
     Employee Payslip in Payroll
     """
 

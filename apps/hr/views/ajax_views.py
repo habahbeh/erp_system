@@ -49,8 +49,8 @@ def department_datatable_ajax(request):
         queryset = Department.objects.filter(
             company=request.current_company
         ).select_related('parent', 'manager').annotate(
-            employees_count=Count('employees'),
-            children_count=Count('children')
+            total_employees=Count('employees'),
+            total_children=Count('children')
         )
 
         # تطبيق الفلاتر
@@ -72,7 +72,7 @@ def department_datatable_ajax(request):
         order_dir = request.GET.get('order[0][dir]')
 
         if order_column:
-            columns = ['code', 'name', 'parent__name', 'manager__first_name', 'employees_count', 'is_active']
+            columns = ['code', 'name', 'parent__name', 'manager__first_name', 'total_employees', 'is_active']
             if int(order_column) < len(columns):
                 order_field = columns[int(order_column)]
                 if order_dir == 'desc':
@@ -117,7 +117,7 @@ def department_datatable_ajax(request):
                     </a>
                 ''')
 
-            if can_delete and dept.employees_count == 0 and dept.children_count == 0:
+            if can_delete and dept.total_employees == 0 and dept.total_children == 0:
                 actions.append(f'''
                     <a href="{reverse('hr:department_delete', args=[dept.pk])}"
                        class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
@@ -129,10 +129,10 @@ def department_datatable_ajax(request):
 
             data.append([
                 dept.code,
-                f'{dept.name} <span class="badge bg-info">{dept.employees_count} موظف</span>',
+                f'{dept.name} <span class="badge bg-info">{dept.total_employees} موظف</span>',
                 parent_display,
                 manager_display,
-                dept.employees_count,
+                dept.total_employees,
                 status_badge,
                 actions_html
             ])
@@ -181,7 +181,7 @@ def job_grade_datatable_ajax(request):
     try:
         queryset = JobGrade.objects.filter(
             company=request.current_company
-        ).annotate(employees_count=Count('employees'))
+        ).annotate(employees_count=Count('employee'))
 
         # البحث العام
         if search_value or search_filter:
@@ -295,7 +295,7 @@ def job_title_datatable_ajax(request):
         queryset = JobTitle.objects.filter(
             company=request.current_company
         ).select_related('department', 'job_grade').annotate(
-            employees_count=Count('employees')
+            total_employees=Count('employees')
         )
 
         # تطبيق الفلاتر
@@ -343,7 +343,7 @@ def job_title_datatable_ajax(request):
                     </a>
                 ''')
 
-            if can_delete and title.employees_count == 0:
+            if can_delete and title.total_employees == 0:
                 actions.append(f'''
                     <a href="{reverse('hr:job_title_delete', args=[title.pk])}"
                        class="btn btn-outline-danger btn-sm" title="حذف" data-bs-toggle="tooltip">
@@ -358,7 +358,7 @@ def job_title_datatable_ajax(request):
                 title.name,
                 title.department.name if title.department else '-',
                 title.job_grade.name if title.job_grade else '-',
-                title.employees_count,
+                title.total_employees,
                 status_badge,
                 actions_html
             ])
@@ -1151,7 +1151,6 @@ def leave_request_datatable_ajax(request):
             queryset = queryset.filter(leave_type_id=leave_type)
         if search_filter:
             queryset = queryset.filter(
-                Q(request_number__icontains=search_filter) |
                 Q(employee__first_name__icontains=search_filter) |
                 Q(employee__last_name__icontains=search_filter)
             )
@@ -1198,7 +1197,7 @@ def leave_request_datatable_ajax(request):
                 ''')
 
             data.append([
-                req.request_number or f'#{req.pk}',
+                f'#{req.pk}',
                 req.employee.full_name,
                 req.leave_type.name if req.leave_type else '-',
                 req.start_date.strftime('%Y-%m-%d'),
@@ -1277,7 +1276,7 @@ def leave_balance_datatable_ajax(request):
         can_edit = request.user.has_perm('hr.change_leavebalance')
 
         for bal in queryset:
-            remaining = bal.remaining
+            remaining = bal.remaining_balance
             remaining_class = 'text-success' if remaining > 5 else ('text-warning' if remaining > 0 else 'text-danger')
 
             actions = []
@@ -1558,10 +1557,13 @@ def early_leave_datatable_ajax(request):
                     </a>
                 ''')
 
+            # Display time range (from_time - to_time)
+            time_display = f"{el.from_time.strftime('%H:%M')} - {el.to_time.strftime('%H:%M')}" if el.from_time and el.to_time else '-'
+
             data.append([
                 el.date.strftime('%Y-%m-%d'),
                 el.employee.full_name,
-                el.leave_time.strftime('%H:%M') if el.leave_time else '-',
+                time_display,
                 el.minutes,
                 el.reason[:50] + '...' if len(el.reason) > 50 else el.reason,
                 status_badge,
@@ -1592,7 +1594,7 @@ def early_leave_datatable_ajax(request):
 @login_required
 @require_http_methods(["GET"])
 def payroll_datatable_ajax(request):
-    """Ajax endpoint لجدول مسيرات الرواتب"""
+    """Ajax endpoint لجدول كشوفات الرواتب"""
 
     if not hasattr(request, 'current_company') or not request.current_company:
         return JsonResponse({

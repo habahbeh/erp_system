@@ -147,8 +147,8 @@ class PurchaseRequestItemForm(forms.ModelForm):
         self.company = kwargs.pop('company', None)
         super().__init__(*args, **kwargs)
 
-        # جعل الحقول اختيارية
-        self.fields['item'].required = False
+        # جعل الحقول اختيارية (ما عدا item)
+        self.fields['item'].required = True  # ✅ إجباري
         self.fields['unit'].required = False
         self.fields['estimated_price'].required = False
         self.fields['notes'].required = False
@@ -156,30 +156,23 @@ class PurchaseRequestItemForm(forms.ModelForm):
         # إضافة خيار فارغ للـ Select
         self.fields['item'].empty_label = 'اختر المادة...'
 
-        # للـ AJAX Live Search - نبدأ بـ queryset فارغ
-        # ونحمّل فقط المادة المحددة مسبقاً (في حالة التعديل)
-        if self.instance and self.instance.pk and self.instance.item:
-            # في حالة التعديل، نحمّل فقط المادة المحددة
+        # تحميل جميع المواد النشطة للشركة
+        if self.company:
             self.fields['item'].queryset = Item.objects.filter(
-                pk=self.instance.item.pk
-            )
+                company=self.company,
+                is_active=True
+            ).order_by('code', 'name')
         else:
-            # في حالة الإنشاء، queryset فارغ - البحث سيكون عبر AJAX
             self.fields['item'].queryset = Item.objects.none()
 
     def clean_item(self):
-        """تحقق مخصص لحقل المادة - لتجاوز مشكلة queryset الفارغ"""
-        item_id = self.data.get(self.add_prefix('item'))
+        """التحقق من أن المادة من نفس الشركة"""
+        item = self.cleaned_data.get('item')
 
-        if item_id:
-            try:
-                # تحميل المادة مباشرة من database
-                item = Item.objects.get(pk=item_id, company=self.company, is_active=True)
-                return item
-            except (Item.DoesNotExist, ValueError):
-                raise ValidationError(_('المادة المحددة غير موجودة أو غير نشطة'))
+        if item and item.company != self.company:
+            raise ValidationError(_('المادة المحددة لا تنتمي لهذه الشركة'))
 
-        return None
+        return item
 
 
 class BasePurchaseRequestItemFormSet(BaseInlineFormSet):

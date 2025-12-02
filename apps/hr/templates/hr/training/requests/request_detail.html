@@ -1,0 +1,190 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-alt me-2"></i>{{ title }}</h4>
+        {% if training_request.status == 'pending' %}
+        <a href="{% url 'hr:training_request_approve' training_request.pk %}" class="btn btn-success">
+            <i class="fas fa-check me-1"></i>{% trans "مراجعة الطلب" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        <!-- Request Details -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "تفاصيل الطلب" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "الموظف" %}:</strong>
+                            <span class="text-muted">{{ training_request.employee.full_name }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "القسم" %}:</strong>
+                            <span class="text-muted">{{ training_request.employee.department.name|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "الدورة المطلوبة" %}:</strong>
+                            <span class="text-muted">
+                                {% if training_request.course %}
+                                {{ training_request.course.name }}
+                                {% else %}
+                                {{ training_request.requested_course_name|default:"-" }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "مقدم التدريب" %}:</strong>
+                            <span class="text-muted">{{ training_request.requested_provider|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ الطلب" %}:</strong>
+                            <span class="text-muted">{{ training_request.request_date|date:"Y-m-d" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "التكلفة المتوقعة" %}:</strong>
+                            <span class="text-muted">{{ training_request.estimated_cost|default:"-" }}</span>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6>{% trans "سبب الطلب" %}</h6>
+                    <p class="text-muted">{{ training_request.reason|default:"-" }}</p>
+
+                    {% if training_request.expected_benefits %}
+                    <h6>{% trans "الفوائد المتوقعة" %}</h6>
+                    <p class="text-muted">{{ training_request.expected_benefits }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approval History -->
+            {% if training_request.status != 'pending' %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "قرار الموافقة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "القرار" %}:</strong>
+                            <span class="badge bg-{% if training_request.status == 'approved' %}success{% elif training_request.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                                {{ training_request.get_status_display }}
+                            </span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "بواسطة" %}:</strong>
+                            <span class="text-muted">
+                                {% if training_request.hr_approved_by %}
+                                    {{ training_request.hr_approved_by.get_full_name|default:training_request.hr_approved_by.username }}
+                                {% elif training_request.manager_approved_by %}
+                                    {{ training_request.manager_approved_by.get_full_name|default:training_request.manager_approved_by.username }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ القرار" %}:</strong>
+                            <span class="text-muted">
+                                {% if training_request.hr_approved_date %}
+                                    {{ training_request.hr_approved_date|date:"Y-m-d" }}
+                                {% elif training_request.manager_approved_date %}
+                                    {{ training_request.manager_approved_date|date:"Y-m-d" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if training_request.approval_notes %}
+                    <hr>
+                    <h6>{% trans "ملاحظات" %}</h6>
+                    <p class="text-muted">{{ training_request.approval_notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Status Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "الحالة" %}</h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if training_request.status == 'pending' %}
+                    <i class="fas fa-clock fa-4x text-warning mb-3"></i>
+                    <h5 class="text-warning">{% trans "قيد الانتظار" %}</h5>
+                    {% elif training_request.status == 'approved' %}
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <h5 class="text-success">{% trans "موافق عليه" %}</h5>
+                    {% elif training_request.status == 'rejected' %}
+                    <i class="fas fa-times-circle fa-4x text-danger mb-3"></i>
+                    <h5 class="text-danger">{% trans "مرفوض" %}</h5>
+                    {% else %}
+                    <i class="fas fa-ban fa-4x text-secondary mb-3"></i>
+                    <h5 class="text-secondary">{% trans "ملغي" %}</h5>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Employee Info -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "معلومات الموظف" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="avatar-lg bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                            <i class="fas fa-user fa-2x"></i>
+                        </div>
+                    </div>
+                    <h6 class="text-center">{{ training_request.employee.full_name }}</h6>
+                    <p class="text-center text-muted mb-3">{{ training_request.employee.job_title.name|default:"-" }}</p>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الرقم الوظيفي" %}</span>
+                        <strong>{{ training_request.employee.employee_number }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "القسم" %}</span>
+                        <strong>{{ training_request.employee.department.name|default:"-" }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "البريد" %}</span>
+                        <strong>{{ training_request.employee.email|default:"-" }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

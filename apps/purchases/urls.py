@@ -13,7 +13,8 @@ from .views.quotation_views import (
     rfq_item_search_ajax,
     quotation_get_item_stock_multi_branch_ajax,
     quotation_get_item_stock_current_branch_ajax,
-    quotation_item_search_ajax
+    quotation_item_search_ajax,
+    create_rfq_from_purchase_request
 )
 from .views.invoice_views import (
     get_supplier_item_price_ajax as invoice_get_supplier_price,
@@ -169,6 +170,7 @@ urlpatterns = [
     # ==================== Quotation Requests (RFQ) ====================
     path('rfqs/', PurchaseQuotationRequestListView.as_view(), name='rfq_list'),
     path('rfqs/create/', PurchaseQuotationRequestCreateView.as_view(), name='rfq_create'),
+    path('rfqs/create-from-request/<int:request_id>/', create_rfq_from_purchase_request, name='create_rfq_from_request'),
     path('rfqs/<int:pk>/', PurchaseQuotationRequestDetailView.as_view(), name='rfq_detail'),
     path('rfqs/<int:pk>/update/', PurchaseQuotationRequestUpdateView.as_view(), name='rfq_update'),
     path('rfqs/<int:pk>/delete/', PurchaseQuotationRequestDeleteView.as_view(), name='rfq_delete'),

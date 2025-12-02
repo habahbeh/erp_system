@@ -218,7 +218,66 @@ class PurchaseQuotationRequestDetailView(LoginRequiredMixin, PermissionRequiredM
             rfq.status != 'awarded'
         )
 
+        # قائمة الموردين النشطين للإرسال
+        context['suppliers'] = BusinessPartner.objects.filter(
+            company=self.request.current_company,
+            partner_type__in=['supplier', 'both'],
+            is_active=True
+        ).order_by('name')
+
         return context
+
+
+@login_required
+@permission_required('purchases.add_purchasequotationrequest', raise_exception=True)
+@transaction.atomic
+def create_rfq_from_purchase_request(request, request_id):
+    """إنشاء طلب عرض أسعار من طلب شراء مباشرة"""
+    try:
+        # الحصول على طلب الشراء
+        purchase_request = get_object_or_404(
+            PurchaseRequest,
+            pk=request_id,
+            company=request.current_company
+        )
+
+        # إنشاء RFQ جديد
+        from apps.core.models import Currency
+        default_currency = Currency.objects.filter(is_base=True, is_active=True).first()
+
+        rfq = PurchaseQuotationRequest.objects.create(
+            company=request.current_company,
+            purchase_request=purchase_request,
+            date=date.today(),
+            submission_deadline=date.today(),  # سيتم تعديله لاحقاً
+            currency=default_currency,
+            subject=f'طلب عرض أسعار لطلب الشراء {purchase_request.number}',
+            status='draft',
+            created_by=request.user
+        )
+
+        # نسخ المواد من طلب الشراء
+        for pr_item in purchase_request.lines.all():
+            PurchaseQuotationRequestItem.objects.create(
+                quotation_request=rfq,
+                item=pr_item.item,  # ربط المادة مباشرة
+                item_description=pr_item.item.name if pr_item.item else pr_item.item_description,
+                quantity=pr_item.quantity,
+                unit=pr_item.unit,
+                notes=pr_item.notes or '',
+            )
+
+        messages.success(
+            request,
+            _('تم إنشاء طلب عرض الأسعار من طلب الشراء بنجاح. يمكنك الآن تعديله وإضافة الموردين.')
+        )
+
+        # توجيه لصفحة التعديل
+        return redirect('purchases:rfq_update', pk=rfq.pk)
+
+    except Exception as e:
+        messages.error(request, f'حدث خطأ: {str(e)}')
+        return redirect('purchases:request_detail', pk=request_id)
 
 
 class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
@@ -248,6 +307,31 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
         context['use_live_search'] = True
         context['items_data'] = []
 
+        # إذا كان من طلب شراء - تعبئة البيانات الأولية
+        request_id = self.request.GET.get('from_request')
+        purchase_request = None
+        initial_data = []
+
+        if request_id and not self.request.POST:
+            try:
+                purchase_request = PurchaseRequest.objects.get(
+                    pk=request_id,
+                    company=self.request.current_company
+                )
+                context['purchase_request'] = purchase_request
+
+                # تعبئة البيانات الأولية من طلب الشراء
+                for pr_item in purchase_request.items.all():
+                    initial_data.append({
+                        'item': pr_item.item,  # ربط المادة مباشرة
+                        'item_description': pr_item.item.name if pr_item.item else pr_item.description,
+                        'quantity': pr_item.quantity,
+                        'unit': pr_item.unit,
+                        'notes': pr_item.notes or '',
+                    })
+            except PurchaseRequest.DoesNotExist:
+                pass
+
         if self.request.POST:
             context['formset'] = PurchaseQuotationRequestItemFormSet(
                 self.request.POST,
@@ -256,11 +340,20 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
                 company=self.request.current_company
             )
         else:
-            context['formset'] = PurchaseQuotationRequestItemFormSet(
-                instance=self.object,
-                prefix='lines',
-                company=self.request.current_company
-            )
+            # إذا كان هناك بيانات أولية من طلب الشراء
+            if initial_data:
+                context['formset'] = PurchaseQuotationRequestItemFormSet(
+                    instance=self.object,
+                    prefix='lines',
+                    company=self.request.current_company,
+                    initial=initial_data
+                )
+            else:
+                context['formset'] = PurchaseQuotationRequestItemFormSet(
+                    instance=self.object,
+                    prefix='lines',
+                    company=self.request.current_company
+                )
 
         # بيانات للجافاسكربت
         context['items_data'] = list(
@@ -273,18 +366,6 @@ class PurchaseQuotationRequestCreateView(LoginRequiredMixin, PermissionRequiredM
                 'base_uom__code'
             )
         )
-
-        # إذا كان من طلب شراء
-        request_id = self.request.GET.get('from_request')
-        if request_id:
-            try:
-                purchase_request = PurchaseRequest.objects.get(
-                    pk=request_id,
-                    company=self.request.current_company
-                )
-                context['purchase_request'] = purchase_request
-            except PurchaseRequest.DoesNotExist:
-                pass
 
         return context
 
@@ -860,6 +941,25 @@ def send_rfq_to_suppliers(request, pk):
             messages.error(request, str(e))
         except Exception as e:
             messages.error(request, f'{_("خطأ في الإرسال")}: {str(e)}')
+    else:
+        # GET request - التحقق من وجود موردين محددين مسبقاً
+        existing_quotations = rfq.quotations.filter(status='draft')
+        if existing_quotations.exists():
+            # إرسال للموردين المحددين مسبقاً مباشرة
+            supplier_ids = list(existing_quotations.values_list('supplier_id', flat=True))
+            try:
+                # تحديث حالة العروض الموجودة بدلاً من إنشاء جديدة
+                existing_quotations.update(status='sent')
+                rfq.status = 'sent'
+                rfq.save()
+                messages.success(
+                    request,
+                    _(f'تم إرسال طلب العرض لـ {len(supplier_ids)} مورد بنجاح')
+                )
+            except Exception as e:
+                messages.error(request, f'{_("خطأ في الإرسال")}: {str(e)}')
+        else:
+            messages.error(request, _('يجب تحديد الموردين في صفحة التعديل أولاً'))
 
     return redirect('purchases:rfq_detail', pk=pk)
 

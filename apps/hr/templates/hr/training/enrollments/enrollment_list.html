@@ -1,0 +1,178 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-user-graduate me-2"></i>{{ title }}</h4>
+        <div>
+            <a href="{% url 'hr:training_enrollment_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>{% trans "تسجيل جديد" %}
+            </a>
+            <a href="{% url 'hr:training_bulk_enrollment' %}" class="btn btn-success">
+                <i class="fas fa-users me-1"></i>{% trans "تسجيل جماعي" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الدورة" %}</label>
+                    <select name="course" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for course in courses %}
+                        <option value="{{ course.pk }}" {% if selected_course == course.pk|stringformat:"s" %}selected{% endif %}>{{ course.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="enrolled" {% if selected_status == "enrolled" %}selected{% endif %}>{% trans "مسجل" %}</option>
+                        <option value="in_progress" {% if selected_status == "in_progress" %}selected{% endif %}>{% trans "قيد التدريب" %}</option>
+                        <option value="completed" {% if selected_status == "completed" %}selected{% endif %}>{% trans "مكتمل" %}</option>
+                        <option value="cancelled" {% if selected_status == "cancelled" %}selected{% endif %}>{% trans "ملغي" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.pk }}" {% if selected_department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "البحث" %}</label>
+                    <input type="text" name="q" class="form-control" value="{{ search_query }}" placeholder="{% trans 'اسم الموظف...' %}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Enrollments Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الموظف" %}</th>
+                        <th>{% trans "الدورة" %}</th>
+                        <th>{% trans "القسم" %}</th>
+                        <th class="text-center">{% trans "تاريخ التسجيل" %}</th>
+                        <th class="text-center">{% trans "الحالة" %}</th>
+                        <th class="text-center">{% trans "الحضور" %}</th>
+                        <th class="text-center">{% trans "الدرجة" %}</th>
+                        <th class="text-center">{% trans "الإجراءات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for enrollment in enrollments %}
+                    <tr>
+                        <td>
+                            <strong>{{ enrollment.employee.full_name }}</strong>
+                            <br>
+                            <small class="text-muted">{{ enrollment.employee.employee_number }}</small>
+                        </td>
+                        <td>
+                            <a href="{% url 'hr:training_course_detail' enrollment.course.pk %}">
+                                {{ enrollment.course.name }}
+                            </a>
+                        </td>
+                        <td>{{ enrollment.employee.department.name|default:"-" }}</td>
+                        <td class="text-center">{{ enrollment.enrollment_date|date:"Y-m-d" }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if enrollment.status == 'completed' %}success{% elif enrollment.status == 'enrolled' %}primary{% elif enrollment.status == 'in_progress' %}warning{% elif enrollment.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                                {{ enrollment.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if enrollment.attendance_percentage %}
+                            {{ enrollment.attendance_percentage }}%
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if enrollment.score %}
+                            <span class="badge bg-{% if enrollment.score >= 80 %}success{% elif enrollment.score >= 60 %}warning{% else %}danger{% endif %}">
+                                {{ enrollment.score }}%
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'hr:training_enrollment_update' enrollment.pk %}" class="btn btn-outline-primary" title="{% trans 'تعديل' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'hr:training_feedback_create' enrollment.pk %}" class="btn btn-outline-info" title="{% trans 'تقييم' %}">
+                                    <i class="fas fa-star"></i>
+                                </a>
+                                <a href="{% url 'hr:training_enrollment_delete' enrollment.pk %}" class="btn btn-outline-danger" title="{% trans 'حذف' %}">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد تسجيلات" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if enrollments.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if enrollments.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ enrollments.previous_page_number }}{% if selected_course %}&course={{ selected_course }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">{{ enrollments.number }} / {{ enrollments.paginator.num_pages }}</span>
+            </li>
+            {% if enrollments.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ enrollments.next_page_number }}{% if selected_course %}&course={{ selected_course }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,248 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>{{ course.name }}</h4>
+        <div>
+            <a href="{% url 'hr:training_enrollment_create' %}?course={{ course.pk }}" class="btn btn-success">
+                <i class="fas fa-user-plus me-1"></i>{% trans "تسجيل متدرب" %}
+            </a>
+            <a href="{% url 'hr:training_course_edit' course.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Course Details -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "تفاصيل الدورة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "التصنيف" %}:</strong>
+                            <span class="text-muted">{{ course.category.name|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "النوع" %}:</strong>
+                            <span class="text-muted">{{ course.get_course_type_display }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "مقدم التدريب" %}:</strong>
+                            <span class="text-muted">{{ course.provider.name|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "المدرب" %}:</strong>
+                            <span class="text-muted">{{ course.instructor_name|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ البداية" %}:</strong>
+                            <span class="text-muted">{{ course.start_date|date:"Y-m-d"|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ النهاية" %}:</strong>
+                            <span class="text-muted">{{ course.end_date|date:"Y-m-d"|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "المدة" %}:</strong>
+                            <span class="text-muted">{{ course.duration_hours|default:0 }} {% trans "ساعة" %}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "المكان" %}:</strong>
+                            <span class="text-muted">{{ course.location|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "التكلفة" %}:</strong>
+                            <span class="text-muted">{{ course.cost|default:0 }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "الحالة" %}:</strong>
+                            <span class="badge bg-{% if course.status == 'active' %}success{% elif course.status == 'scheduled' %}warning{% elif course.status == 'completed' %}info{% else %}secondary{% endif %}">
+                                {{ course.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if course.description %}
+                    <hr>
+                    <h6>{% trans "الوصف" %}</h6>
+                    <p class="text-muted">{{ course.description }}</p>
+                    {% endif %}
+
+                    {% if course.objectives %}
+                    <hr>
+                    <h6>{% trans "الأهداف" %}</h6>
+                    <p class="text-muted">{{ course.objectives }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Enrollments -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{% trans "المشاركون" %}</h6>
+                    <a href="{% url 'hr:training_bulk_enrollment' %}?course={{ course.pk }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-users me-1"></i>{% trans "تسجيل جماعي" %}
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "الموظف" %}</th>
+                                <th>{% trans "القسم" %}</th>
+                                <th class="text-center">{% trans "تاريخ التسجيل" %}</th>
+                                <th class="text-center">{% trans "الحالة" %}</th>
+                                <th class="text-center">{% trans "التقييم" %}</th>
+                                <th class="text-center">{% trans "الإجراءات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for enrollment in enrollments %}
+                            <tr>
+                                <td>{{ enrollment.employee.full_name }}</td>
+                                <td>{{ enrollment.employee.department.name|default:"-" }}</td>
+                                <td class="text-center">{{ enrollment.enrollment_date|date:"Y-m-d" }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{% if enrollment.status == 'completed' %}success{% elif enrollment.status == 'enrolled' %}primary{% elif enrollment.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                                        {{ enrollment.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    {% if enrollment.score %}
+                                    {{ enrollment.score }}%
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'hr:training_enrollment_update' enrollment.pk %}" class="btn btn-outline-primary" title="{% trans 'تعديل' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'hr:training_feedback_create' enrollment.pk %}" class="btn btn-outline-info" title="{% trans 'تقييم' %}">
+                                            <i class="fas fa-star"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <i class="fas fa-users fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">{% trans "لا يوجد مشاركون" %}</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Stats Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "الإحصائيات" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>{% trans "المسجلين" %}</span>
+                        <strong>{{ enrollments_count|default:0 }} / {{ course.max_participants|default:"-" }}</strong>
+                    </div>
+                    <div class="progress mb-4" style="height: 10px;">
+                        {% widthratio enrollments_count course.max_participants 100 as fill_percentage %}
+                        <div class="progress-bar bg-success" style="width: {{ fill_percentage|default:0 }}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "مكتمل" %}</span>
+                        <strong>{{ completed_count|default:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "في الانتظار" %}</span>
+                        <strong>{{ pending_count|default:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "ملغي" %}</span>
+                        <strong>{{ cancelled_count|default:0 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Audience -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "الجمهور المستهدف" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% if course.target_departments.exists %}
+                    <h6 class="small text-muted mb-2">{% trans "الأقسام" %}</h6>
+                    {% for dept in course.target_departments.all %}
+                    <span class="badge bg-primary me-1 mb-1">{{ dept.name }}</span>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if course.target_job_grades.exists %}
+                    <h6 class="small text-muted mb-2 mt-3">{% trans "الدرجات الوظيفية" %}</h6>
+                    {% for grade in course.target_job_grades.all %}
+                    <span class="badge bg-secondary me-1 mb-1">{{ grade.name }}</span>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if not course.target_departments.exists and not course.target_job_grades.exists %}
+                    <p class="text-muted mb-0">{% trans "جميع الموظفين" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "إجراءات سريعة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'hr:training_enrollment_create' %}?course={{ course.pk }}" class="btn btn-outline-success">
+                            <i class="fas fa-user-plus me-1"></i>{% trans "تسجيل متدرب" %}
+                        </a>
+                        <a href="{% url 'hr:training_bulk_enrollment' %}?course={{ course.pk }}" class="btn btn-outline-primary">
+                            <i class="fas fa-users me-1"></i>{% trans "تسجيل جماعي" %}
+                        </a>
+                        {% if course.status == 'scheduled' %}
+                        <button type="button" class="btn btn-outline-warning" onclick="activateCourse()">
+                            <i class="fas fa-play me-1"></i>{% trans "بدء الدورة" %}
+                        </button>
+                        {% elif course.status == 'active' %}
+                        <button type="button" class="btn btn-outline-info" onclick="completeCourse()">
+                            <i class="fas fa-flag-checkered me-1"></i>{% trans "إنهاء الدورة" %}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

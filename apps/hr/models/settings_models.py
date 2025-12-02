@@ -406,6 +406,12 @@ class LeaveType(models.Model):
         help_text=_('هل يمكن ترحيل الرصيد للسنة التالية؟')
     )
 
+    max_carry_forward = models.PositiveSmallIntegerField(
+        _('الحد الأقصى للترحيل'),
+        default=0,
+        help_text=_('الحد الأقصى لأيام الإجازة القابلة للترحيل')
+    )
+
     is_active = models.BooleanField(
         _('نشط'),
         default=True

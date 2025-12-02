@@ -1,0 +1,203 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-alt me-2"></i>{{ title }}</h4>
+        <a href="{% url 'hr:training_request_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>{% trans "طلب تدريب جديد" %}
+        </a>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">{% trans "قيد الانتظار" %}</h6>
+                            <h3 class="mb-0">{{ stats.pending|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">{% trans "موافق عليها" %}</h6>
+                            <h3 class="mb-0">{{ stats.approved|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">{% trans "مرفوضة" %}</h6>
+                            <h3 class="mb-0">{{ stats.rejected|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">{% trans "الإجمالي" %}</h6>
+                            <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-list fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        <option value="pending" {% if selected_status == "pending" %}selected{% endif %}>{% trans "قيد الانتظار" %}</option>
+                        <option value="approved" {% if selected_status == "approved" %}selected{% endif %}>{% trans "موافق عليها" %}</option>
+                        <option value="rejected" {% if selected_status == "rejected" %}selected{% endif %}>{% trans "مرفوضة" %}</option>
+                        <option value="cancelled" {% if selected_status == "cancelled" %}selected{% endif %}>{% trans "ملغاة" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "القسم" %}</label>
+                    <select name="department" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.pk }}" {% if selected_department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "البحث" %}</label>
+                    <input type="text" name="q" class="form-control" value="{{ search_query }}" placeholder="{% trans 'اسم الموظف أو الدورة...' %}">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Requests Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "الموظف" %}</th>
+                        <th>{% trans "الدورة المطلوبة" %}</th>
+                        <th>{% trans "السبب" %}</th>
+                        <th class="text-center">{% trans "تاريخ الطلب" %}</th>
+                        <th class="text-center">{% trans "الحالة" %}</th>
+                        <th class="text-center">{% trans "الإجراءات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in requests %}
+                    <tr>
+                        <td>
+                            <strong>{{ request.employee.full_name }}</strong>
+                            <br>
+                            <small class="text-muted">{{ request.employee.department.name|default:"-" }}</small>
+                        </td>
+                        <td>
+                            {% if request.course %}
+                            <a href="{% url 'hr:training_course_detail' request.course.pk %}">{{ request.course.name }}</a>
+                            {% else %}
+                            {{ request.requested_course_name|default:"-" }}
+                            {% endif %}
+                        </td>
+                        <td>{{ request.reason|truncatewords:10|default:"-" }}</td>
+                        <td class="text-center">{{ request.request_date|date:"Y-m-d" }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'pending' %}warning{% elif request.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                                {{ request.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'hr:training_request_detail' request.pk %}" class="btn btn-outline-info" title="{% trans 'عرض' %}">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if request.status == 'pending' %}
+                                <a href="{% url 'hr:training_request_approve' request.pk %}" class="btn btn-outline-success" title="{% trans 'مراجعة' %}">
+                                    <i class="fas fa-check"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد طلبات تدريب" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if requests.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if requests.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ requests.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "السابق" %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">{{ requests.number }} / {{ requests.paginator.num_pages }}</span>
+            </li>
+            {% if requests.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ requests.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">{% trans "التالي" %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

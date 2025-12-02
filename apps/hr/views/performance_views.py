@@ -855,7 +855,8 @@ def note_create(request):
         if form.is_valid():
             note = form.save(commit=False)
             note.company = company
-            note.noted_by = request.user
+            # noted_by should be an Employee, not a User
+            # If form doesn't set it, we can leave it as None or set from form
             note.created_by = request.user
             note.save()
             messages.success(request, _('تم إنشاء الملاحظة بنجاح'))

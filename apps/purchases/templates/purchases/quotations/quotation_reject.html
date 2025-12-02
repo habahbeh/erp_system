@@ -1,0 +1,319 @@
+{% extends 'base/base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.reject-card {
+    border-right: 4px solid #dc3545;
+}
+
+.rejection-form {
+    background-color: #fff5f5;
+    padding: 2rem;
+    border-radius: 0.375rem;
+    border: 1px solid #f8d7da;
+}
+
+.quotation-summary {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.warning-box {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.rejection-reasons {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active">{{ breadcrumb.title }}</li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{{ breadcrumb.url }}">{{ breadcrumb.title }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-danger">
+                <i class="fas fa-times-circle"></i> {{ title }}
+            </h1>
+            <p class="text-muted mb-0">{% trans "رفض عرض السعر مع ذكر السبب" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'purchases:quotation_detail' quotation.pk %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> {% trans "رجوع" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Quotation Summary -->
+            <div class="quotation-summary">
+                <h5 class="mb-3">
+                    <i class="fas fa-file-invoice"></i> {% trans "بيانات عرض السعر" %}
+                </h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "رقم العرض" %}</label>
+                            <p class="fw-bold mb-0">{{ quotation.number }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "المورد" %}</label>
+                            <p class="fw-bold mb-0">{{ quotation.supplier.name }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "الإجمالي" %}</label>
+                            <p class="fw-bold mb-0 text-primary">
+                                {{ quotation.total_amount|floatformat:3 }}
+                                <small>{{ quotation.currency.code }}</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "تاريخ العرض" %}</label>
+                            <p class="mb-0">{{ quotation.date|date:"Y-m-d" }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "صالح حتى" %}</label>
+                            <p class="mb-0">{{ quotation.valid_until|date:"Y-m-d" }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% if quotation.score %}
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <div class="mb-2">
+                            <label class="text-muted small">{% trans "التقييم" %}</label>
+                            <p class="mb-0">
+                                <span class="badge bg-secondary fs-6">
+                                    {{ quotation.score|floatformat:2 }}/100
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Warning Box -->
+            <div class="warning-box">
+                <h6 class="mb-2">
+                    <i class="fas fa-exclamation-triangle"></i> {% trans "تحذير" %}
+                </h6>
+                <p class="mb-0 small">
+                    {% trans "رفض عرض السعر هو إجراء نهائي. سيتم تحديث حالة العرض إلى 'مرفوض' ولن يمكن ترسيته لاحقاً. يرجى التأكد من قرارك قبل المتابعة." %}
+                </p>
+            </div>
+
+            <!-- Rejection Form -->
+            <div class="card reject-card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-ban"></i> {% trans "نموذج الرفض" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="rejection-form">
+                        {% csrf_token %}
+
+                        <!-- Rejection Reason -->
+                        <div class="mb-4">
+                            <label for="rejection_reason" class="form-label fw-bold">
+                                {% trans "سبب الرفض" %} <span class="text-danger">*</span>
+                            </label>
+                            <textarea
+                                class="form-control"
+                                id="rejection_reason"
+                                name="rejection_reason"
+                                rows="8"
+                                placeholder="{% trans 'يرجى ذكر سبب رفض عرض السعر بشكل واضح ومفصل...' %}"
+                                required
+                            >{{ quotation.rejection_reason|default:'' }}</textarea>
+                            <div class="form-text">
+                                {% trans "سيتم إرسال سبب الرفض للمورد، يرجى الكتابة بشكل مهني ومحترم." %}
+                            </div>
+                        </div>
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="confirm_rejection"
+                                    required
+                                >
+                                <label class="form-check-label fw-bold text-danger" for="confirm_rejection">
+                                    {% trans "أؤكد رغبتي في رفض هذا العرض نهائياً" %}
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'purchases:quotation_detail' quotation.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="submitBtn" disabled>
+                                <i class="fas fa-ban"></i> {% trans "تأكيد الرفض" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side Panel - Common Rejection Reasons -->
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-list"></i> {% trans "أسباب رفض شائعة" %}
+                    </h6>
+                </div>
+                <div class="card-body rejection-reasons">
+                    <p class="small mb-2">
+                        <strong>{% trans "يمكنك استخدام أحد هذه الأسباب:" %}</strong>
+                    </p>
+                    <ul class="small mb-0">
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "السعر المقدم أعلى من المتوقع والعروض المنافسة" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "عدم مطابقة المواصفات الفنية المطلوبة" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "مدة التسليم أطول من المطلوب" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "شروط الدفع غير مناسبة" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "مدة الضمان غير كافية" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "عدم توفر الوثائق والشهادات المطلوبة" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "تم اختيار عرض آخر أكثر ملاءمة" %}
+                        </li>
+                        <li class="mb-2 reason-item" style="cursor: pointer;">
+                            {% trans "إلغاء المشروع / الطلب" %}
+                        </li>
+                    </ul>
+                    <p class="small text-muted mt-3 mb-0">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "انقر على أي سبب لإضافته تلقائياً" %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tips Card -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb"></i> {% trans "إرشادات" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="small mb-0">
+                        <li class="mb-2">{% trans "كن واضحاً ومحدداً في سبب الرفض" %}</li>
+                        <li class="mb-2">{% trans "استخدم لغة مهنية ومحترمة" %}</li>
+                        <li class="mb-2">{% trans "اذكر الجوانب الإيجابية إن وجدت" %}</li>
+                        <li class="mb-2">{% trans "شجع المورد على تحسين عروضه المستقبلية" %}</li>
+                        <li>{% trans "احتفظ بباب التعاون مفتوحاً للمستقبل" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Enable submit button only when checkbox is checked
+    $('#confirm_rejection').on('change', function() {
+        $('#submitBtn').prop('disabled', !this.checked);
+    });
+
+    // Click on reason to add it to textarea
+    $('.reason-item').on('click', function() {
+        const reason = $(this).text().trim();
+        const currentText = $('#rejection_reason').val();
+
+        if (currentText) {
+            $('#rejection_reason').val(currentText + '\n\n' + reason);
+        } else {
+            $('#rejection_reason').val(reason);
+        }
+
+        // Highlight the clicked item temporarily
+        $(this).addClass('text-primary fw-bold');
+        setTimeout(() => {
+            $(this).removeClass('text-primary fw-bold');
+        }, 500);
+    });
+
+    // Form validation
+    $('form').on('submit', function(e) {
+        const reason = $('#rejection_reason').val().trim();
+        const confirmed = $('#confirm_rejection').is(':checked');
+
+        if (!reason) {
+            e.preventDefault();
+            alert('{% trans "يرجى إدخال سبب الرفض" %}');
+            $('#rejection_reason').focus();
+            return false;
+        }
+
+        if (!confirmed) {
+            e.preventDefault();
+            alert('{% trans "يرجى تأكيد رغبتك في رفض العرض" %}');
+            return false;
+        }
+
+        // Final confirmation
+        return confirm('{% trans "هل أنت متأكد من رفض هذا العرض؟ هذا الإجراء لا يمكن التراجع عنه." %}');
+    });
+});
+</script>
+{% endblock %}

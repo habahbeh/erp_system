@@ -1792,18 +1792,32 @@ class PurchaseQuotationRequest(BaseModel):
         if not supplier_ids:
             raise ValidationError(_('يجب تحديد مورد واحد على الأقل'))
 
-        # إنشاء عروض أسعار فارغة للموردين
+        # إنشاء عروض أسعار للموردين مع نسخ الأصناف
         for supplier_id in supplier_ids:
             supplier = BusinessPartner.objects.get(id=supplier_id)
-            PurchaseQuotation.objects.create(
+            quotation = PurchaseQuotation.objects.create(
                 company=self.company,
                 quotation_request=self,
                 supplier=supplier,
                 date=self.date,
                 valid_until=self.submission_deadline,
+                currency=self.currency,
                 status='sent',
                 created_by=user or self.created_by
             )
+
+            # نسخ الأصناف من طلب العرض إلى عرض السعر
+            for rfq_item in self.items.all():
+                PurchaseQuotationItem.objects.create(
+                    quotation=quotation,
+                    rfq_item=rfq_item,
+                    item=rfq_item.item,
+                    description=rfq_item.item_description,
+                    quantity=rfq_item.quantity,
+                    unit_price=0,  # سيقوم المورد بتعبئة السعر
+                    discount_percentage=0,
+                    tax_percentage=0
+                )
 
         self.status = 'sent'
         self.save()
@@ -2077,6 +2091,8 @@ class PurchaseQuotation(BaseModel):
     @transaction.atomic
     def mark_as_awarded(self, user=None):
         """تحديد هذا العرض كفائز"""
+        from django.utils import timezone
+
         if self.status not in ['received', 'under_evaluation']:
             raise ValidationError(_('لا يمكن ترسية إلا العروض المستلمة أو تحت التقييم'))
 
@@ -2093,7 +2109,7 @@ class PurchaseQuotation(BaseModel):
 
         # تحديث طلب العرض
         self.quotation_request.awarded_quotation = self
-        self.quotation_request.award_date = date.today()
+        self.quotation_request.award_date = timezone.now().date()
         self.quotation_request.status = 'awarded'
         self.quotation_request.save()
 
@@ -2101,35 +2117,68 @@ class PurchaseQuotation(BaseModel):
     def convert_to_purchase_order(self, user=None):
         """تحويل لأمر شراء"""
         from django.utils import timezone
+        from datetime import timedelta
 
         if not self.is_awarded:
             raise ValidationError(_('يمكن تحويل العروض الفائزة فقط'))
 
+        # التحقق من وجود مستودع
+        warehouse = Warehouse.objects.filter(
+            company=self.company,
+            is_active=True
+        ).first()
+
+        if not warehouse:
+            raise ValidationError(_('لا يوجد مستودع نشط للشركة'))
+
+        # الحصول على الموظف من المستخدم
+        employee = None
+        if user and hasattr(user, 'employee'):
+            employee = user.employee
+        elif self.created_by and hasattr(self.created_by, 'employee'):
+            employee = self.created_by.employee
+
+        # حساب تاريخ التسليم المتوقع
+        expected_delivery = None
+        if self.delivery_period_days:
+            expected_delivery = timezone.now().date() + timedelta(days=self.delivery_period_days)
+
+        # الحصول على branch من quotation_request أو من warehouse
+        branch = None
+        if self.quotation_request and hasattr(self.quotation_request, 'branch'):
+            branch = self.quotation_request.branch
+        if not branch:
+            branch = warehouse.branch
+
         # إنشاء أمر الشراء
         order = PurchaseOrder.objects.create(
             company=self.company,
+            branch=branch,
             date=timezone.now().date(),
             supplier=self.supplier,
-            warehouse=Warehouse.objects.filter(
-                company=self.company,
-                is_active=True
-            ).first(),
+            warehouse=warehouse,
             currency=self.currency,
-            requested_by=user or self.created_by,
+            requested_by=employee,
+            expected_delivery_date=expected_delivery,
             status='draft',
-            notes=f"تحويل من عرض سعر {self.number}",
+            notes=f"تحويل من عرض سعر {self.number}\n\n"
+                  f"شروط الدفع: {self.payment_terms or '-'}\n"
+                  f"شروط التسليم: {self.delivery_terms or '-'}\n"
+                  f"مدة الضمان: {self.warranty_period_months or 0} شهر",
             created_by=user or self.created_by
         )
 
-        # نسخ السطور
+        # نسخ السطور مع جميع التفاصيل
         for line in self.lines.all():
             if line.item:
                 PurchaseOrderItem.objects.create(
                     order=order,
                     item=line.item,
-                    description=line.description,
+                    description=line.description or '',
                     quantity=line.quantity,
-                    unit_price=line.unit_price
+                    unit_price=line.unit_price,
+                    discount_percentage=line.discount_percentage,
+                    tax_rate=line.tax_rate
                 )
 
         order.calculate_total()

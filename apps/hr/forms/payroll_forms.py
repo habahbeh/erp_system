@@ -95,7 +95,7 @@ class PayrollForm(forms.ModelForm):
 
             if existing.exists():
                 raise ValidationError(
-                    _('يوجد مسير رواتب مسبق لهذه الفترة')
+                    _('يوجد كشف راتب مسبق لهذه الفترة')
                 )
 
         return cleaned_data

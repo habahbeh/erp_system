@@ -1,0 +1,211 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-calendar-check me-2"></i>{{ plan.name }}</h4>
+        <div>
+            {% if plan.status == 'draft' %}
+            <a href="{% url 'hr:training_plan_item_add' plan.pk %}" class="btn btn-success">
+                <i class="fas fa-plus me-1"></i>{% trans "إضافة دورة" %}
+            </a>
+            <a href="{% url 'hr:training_plan_edit' plan.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i>{% trans "تعديل" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Plan Details -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "تفاصيل الخطة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "السنة" %}:</strong>
+                            <span class="text-muted">{{ plan.year }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "الميزانية" %}:</strong>
+                            <span class="text-muted">{{ plan.budget|default:0 }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ البداية" %}:</strong>
+                            <span class="text-muted">{{ plan.start_date|date:"Y-m-d"|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "تاريخ النهاية" %}:</strong>
+                            <span class="text-muted">{{ plan.end_date|date:"Y-m-d"|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>{% trans "الحالة" %}:</strong>
+                            <span class="badge bg-{% if plan.status == 'approved' %}success{% elif plan.status == 'draft' %}warning{% elif plan.status == 'in_progress' %}primary{% else %}info{% endif %}">
+                                {{ plan.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if plan.description %}
+                    <hr>
+                    <h6>{% trans "الوصف" %}</h6>
+                    <p class="text-muted">{{ plan.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Plan Items (Courses) -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{% trans "الدورات المخططة" %}</h6>
+                    {% if plan.status == 'draft' %}
+                    <a href="{% url 'hr:training_plan_item_add' plan.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "إضافة" %}
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "الدورة" %}</th>
+                                <th>{% trans "الربع" %}</th>
+                                <th class="text-center">{% trans "المستهدفون" %}</th>
+                                <th class="text-center">{% trans "التكلفة" %}</th>
+                                <th class="text-center">{% trans "الأولوية" %}</th>
+                                <th class="text-center">{% trans "الحالة" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in plan_items %}
+                            <tr>
+                                <td>
+                                    {% if item.course %}
+                                    <a href="{% url 'hr:training_course_detail' item.course.pk %}">{{ item.course.name }}</a>
+                                    {% else %}
+                                    {{ item.course_name|default:"-" }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.get_quarter_display|default:"-" }}</td>
+                                <td class="text-center">{{ item.target_participants|default:0 }}</td>
+                                <td class="text-center">{{ item.estimated_cost|default:0 }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{% if item.priority == 'high' %}danger{% elif item.priority == 'medium' %}warning{% else %}info{% endif %}">
+                                        {{ item.get_priority_display }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-{% if item.status == 'completed' %}success{% elif item.status == 'in_progress' %}primary{% elif item.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                                        {{ item.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <i class="fas fa-graduation-cap fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">{% trans "لا توجد دورات مخططة" %}</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Stats Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "ملخص الخطة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <!-- Progress -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>{% trans "نسبة الإنجاز" %}</span>
+                            <strong>{{ completion_percentage|default:0 }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-success" style="width: {{ completion_percentage|default:0 }}%"></div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "عدد الدورات" %}</span>
+                        <strong>{{ items_count|default:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "الدورات المكتملة" %}</span>
+                        <strong>{{ completed_count|default:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "إجمالي التكلفة المخططة" %}</span>
+                        <strong>{{ total_cost|default:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>{% trans "الميزانية المتبقية" %}</span>
+                        <strong class="{% if remaining_budget < 0 %}text-danger{% endif %}">{{ remaining_budget|default:0 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Departments -->
+            {% if plan.target_departments.exists %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "الأقسام المستهدفة" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% for dept in plan.target_departments.all %}
+                    <span class="badge bg-primary me-1 mb-1">{{ dept.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Quick Actions -->
+            {% if plan.status == 'draft' %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">{% trans "إجراءات سريعة" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'hr:training_plan_item_add' plan.pk %}" class="btn btn-outline-success">
+                            <i class="fas fa-plus me-1"></i>{% trans "إضافة دورة" %}
+                        </a>
+                        <button type="button" class="btn btn-outline-primary" onclick="approvePlan()">
+                            <i class="fas fa-check me-1"></i>{% trans "اعتماد الخطة" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Goal Summary -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-bullseye me-2"></i>{{ goal.title }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <h5 class="text-muted">{{ goal.employee.first_name }} {{ goal.employee.last_name }}</h5>
+                            <small class="text-muted">{% trans "الموظف" %}</small>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h5 class="text-primary">{{ goal.target_value|floatformat:0|default:"-" }}</h5>
+                            <small class="text-muted">{% trans "المستهدف" %}</small>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h5 class="text-success">{{ goal.achieved_value|floatformat:0|default:"0" }}</h5>
+                            <small class="text-muted">{% trans "المحقق حالياً" %}</small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "التقدم الحالي" %}</span>
+                        <span class="fw-bold">{{ goal.progress_percentage|floatformat:0|default:"0" }}%</span>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-{% if goal.progress_percentage >= 80 %}success{% elif goal.progress_percentage >= 50 %}info{% elif goal.progress_percentage >= 25 %}warning{% else %}danger{% endif %}"
+                             role="progressbar"
+                             style="width: {{ goal.progress_percentage|default:0 }}%">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>{{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "القيمة المحققة" %} <span class="text-danger">*</span></label>
+                                {{ form.achieved_value }}
+                                {% if form.achieved_value.errors %}
+                                <div class="invalid-feedback d-block">{{ form.achieved_value.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "الحالة" %}</label>
+                                {{ form.status }}
+                                {% if form.status.errors %}
+                                <div class="invalid-feedback d-block">{{ form.status.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "ملاحظة التقدم" %}</label>
+                            {{ form.progress_note }}
+                            {% if form.progress_note.errors %}
+                            <div class="invalid-feedback d-block">{{ form.progress_note.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                            <p class="mb-0">{{ error }}</p>
+                            {% endfor %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'hr:goal_detail' goal.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-info">
+                                <i class="fas fa-save me-1"></i>{% trans "تحديث التقدم" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

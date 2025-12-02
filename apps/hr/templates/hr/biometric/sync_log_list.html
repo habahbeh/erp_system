@@ -1,0 +1,154 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="fas fa-history me-2"></i>{{ title }}</h4>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "الجهاز" %}</label>
+                    <select name="device" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for device in devices %}
+                        <option value="{{ device.pk }}" {% if request.GET.device == device.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ device.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "الحالة" %}</label>
+                    <select name="status" class="form-select">
+                        <option value="">{% trans "الكل" %}</option>
+                        {% for code, name in status_choices %}
+                        <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>
+                            {{ name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>{% trans "بحث" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- جدول السجلات -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "التاريخ" %}</th>
+                        <th>{% trans "الجهاز" %}</th>
+                        <th>{% trans "النوع" %}</th>
+                        <th>{% trans "الحالة" %}</th>
+                        <th>{% trans "السجلات" %}</th>
+                        <th>{% trans "المدة" %}</th>
+                        <th>{% trans "بواسطة" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <strong>{{ log.created_at|date:"Y-m-d" }}</strong>
+                            <br><small class="text-muted">{{ log.created_at|date:"H:i:s" }}</small>
+                        </td>
+                        <td>{{ log.device.name }}</td>
+                        <td>
+                            <span class="badge bg-{% if log.sync_type == 'manual' %}primary{% elif log.sync_type == 'auto' %}info{% else %}secondary{% endif %}">
+                                {{ log.get_sync_type_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if log.status == 'completed' %}success{% elif log.status == 'failed' %}danger{% elif log.status == 'running' %}info{% elif log.status == 'partial' %}warning{% else %}secondary{% endif %}">
+                                {{ log.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="text-success me-2"><i class="fas fa-download me-1"></i>{{ log.records_fetched }}</span>
+                            <span class="text-primary me-2"><i class="fas fa-check me-1"></i>{{ log.records_processed }}</span>
+                            {% if log.records_failed > 0 %}
+                            <span class="text-danger"><i class="fas fa-times me-1"></i>{{ log.records_failed }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.duration %}
+                            {{ log.duration.total_seconds|floatformat:0 }} {% trans "ثانية" %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ log.created_by.username|default:"-" }}</td>
+                    </tr>
+                    {% if log.error_message %}
+                    <tr class="table-danger">
+                        <td colspan="7">
+                            <small><i class="fas fa-exclamation-circle me-1"></i>{{ log.error_message|truncatewords:30 }}</small>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">{% trans "لا توجد سجلات مزامنة" %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&device={{ request.GET.device }}&status={{ request.GET.status }}">
+                    {% trans "السابق" %}
+                </a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{% trans "صفحة" %} {{ page_obj.number }} {% trans "من" %} {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&device={{ request.GET.device }}&status={{ request.GET.status }}">
+                    {% trans "التالي" %}
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

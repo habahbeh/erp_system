@@ -682,3 +682,213 @@ class IntegrationWorkflowTest(PurchaseTestBase):
         self.assertEqual(q1.status, 'awarded')
         self.assertEqual(q2.status, 'rejected')
         self.assertIsNotNone(order)
+
+
+# ============================================================================
+# QUOTATION CONVERSION TESTS
+# ============================================================================
+
+class QuotationConversionTest(PurchaseTestBase):
+    """Tests for converting quotations to purchase orders"""
+
+    def test_convert_awarded_quotation_to_purchase_order(self):
+        """Test converting an awarded quotation to a purchase order"""
+        from apps.purchases.models import (
+            PurchaseQuotation, PurchaseQuotationItem,
+            PurchaseOrder
+        )
+
+        # 1. Create RFQ
+        rfq = self.create_rfq(status='sent')
+
+        # 2. Create quotation
+        quotation = self.create_quotation(
+            rfq=rfq,
+            supplier=self.supplier,
+            status='received'
+        )
+
+        # Add items to quotation
+        PurchaseQuotationItem.objects.create(
+            quotation=quotation,
+            item=self.item1,
+            quantity=10,
+            unit_price=100,
+            discount_percentage=5,
+            tax_rate=15
+        )
+
+        # 3. Award quotation
+        quotation.mark_as_awarded(user=self.user)
+        quotation.refresh_from_db()
+
+        # Verify quotation is awarded
+        self.assertTrue(quotation.is_awarded)
+        self.assertEqual(quotation.status, 'awarded')
+
+        # 4. Convert to purchase order
+        order = quotation.convert_to_purchase_order(user=self.user)
+
+        # Verify order was created
+        self.assertIsNotNone(order)
+        self.assertIsInstance(order, PurchaseOrder)
+
+        # Verify order details
+        self.assertEqual(order.company, quotation.company)
+        self.assertEqual(order.supplier, quotation.supplier)
+        self.assertEqual(order.currency, quotation.currency)
+        self.assertEqual(order.status, 'draft')
+        self.assertIsNotNone(order.warehouse)
+
+        # Verify order notes contain quotation reference
+        self.assertIn(quotation.number, order.notes)
+
+        # Verify items were copied
+        self.assertTrue(order.lines.exists())
+        self.assertEqual(order.lines.count(), quotation.lines.count())
+
+        # Verify item details match
+        for order_line in order.lines.all():
+            quotation_line = quotation.lines.filter(item=order_line.item).first()
+            self.assertIsNotNone(quotation_line)
+            self.assertEqual(order_line.quantity, quotation_line.quantity)
+            self.assertEqual(order_line.unit_price, quotation_line.unit_price)
+
+    def test_convert_non_awarded_quotation_raises_error(self):
+        """Test that converting non-awarded quotation raises ValidationError"""
+        from django.core.exceptions import ValidationError
+        from apps.purchases.models import PurchaseQuotationItem
+
+        # Create quotation without awarding it
+        rfq = self.create_rfq(status='sent')
+        quotation = self.create_quotation(
+            rfq=rfq,
+            supplier=self.supplier,
+            status='received'
+        )
+
+        # Add items
+        PurchaseQuotationItem.objects.create(
+            quotation=quotation,
+            item=self.item1,
+            quantity=10,
+            unit_price=100
+        )
+
+        # Attempt to convert should raise error
+        with self.assertRaises(ValidationError):
+            quotation.convert_to_purchase_order(user=self.user)
+
+    def test_convert_quotation_without_warehouse_raises_error(self):
+        """Test that converting quotation without active warehouse raises error"""
+        from django.core.exceptions import ValidationError
+        from apps.purchases.models import PurchaseQuotationItem
+
+        # Create quotation
+        rfq = self.create_rfq(status='sent')
+        quotation = self.create_quotation(
+            rfq=rfq,
+            supplier=self.supplier,
+            status='received'
+        )
+
+        # Add items
+        PurchaseQuotationItem.objects.create(
+            quotation=quotation,
+            item=self.item1,
+            quantity=10,
+            unit_price=100
+        )
+
+        quotation.mark_as_awarded(user=self.user)
+
+        # Deactivate all warehouses
+        from apps.core.models import Warehouse
+        Warehouse.objects.filter(company=self.company).update(is_active=False)
+
+        # Attempt to convert should raise error
+        with self.assertRaises(ValidationError) as context:
+            quotation.convert_to_purchase_order(user=self.user)
+
+        self.assertIn('مستودع', str(context.exception))
+
+    def test_convert_quotation_copies_all_fields(self):
+        """Test that all important fields are copied during conversion"""
+        from apps.purchases.models import PurchaseQuotation, PurchaseQuotationItem
+
+        # Create quotation with full details
+        rfq = self.create_rfq(status='sent')
+        quotation = self.create_quotation(
+            rfq=rfq,
+            supplier=self.supplier,
+            status='received'
+        )
+
+        # Add detailed data
+        quotation.payment_terms = 'Net 30 days'
+        quotation.delivery_terms = 'FOB Shipping Point'
+        quotation.warranty_period_months = 12
+        quotation.delivery_period_days = 14
+        quotation.save()
+
+        # Add items
+        PurchaseQuotationItem.objects.create(
+            quotation=quotation,
+            item=self.item1,
+            quantity=10,
+            unit_price=100
+        )
+
+        # Award and convert
+        quotation.mark_as_awarded(user=self.user)
+        order = quotation.convert_to_purchase_order(user=self.user)
+
+        # Verify payment terms are in notes
+        self.assertIn('Net 30 days', order.notes)
+
+        # Verify delivery terms are in notes
+        self.assertIn('FOB Shipping Point', order.notes)
+
+        # Verify warranty info is in notes
+        self.assertIn('12', order.notes)
+
+        # Verify expected delivery date is set
+        if quotation.delivery_period_days:
+            self.assertIsNotNone(order.expected_delivery_date)
+
+    def test_mark_as_awarded_sets_status(self):
+        """Test that awarding a quotation sets correct status"""
+        # Create RFQ
+        rfq = self.create_rfq(status='sent')
+
+        # Create quotation
+        quotation = self.create_quotation(rfq=rfq, supplier=self.supplier, status='received')
+
+        # Award quotation
+        quotation.mark_as_awarded(user=self.user)
+
+        # Refresh from db
+        quotation.refresh_from_db()
+
+        # Verify quotation is awarded
+        self.assertTrue(quotation.is_awarded)
+        self.assertEqual(quotation.status, 'awarded')
+
+    def test_award_updates_rfq_status(self):
+        """Test that awarding a quotation updates RFQ status"""
+        # Create RFQ
+        rfq = self.create_rfq(status='evaluating')
+
+        # Create quotation
+        quotation = self.create_quotation(rfq=rfq, supplier=self.supplier, status='received')
+
+        # Award quotation
+        quotation.mark_as_awarded(user=self.user)
+
+        # Refresh RFQ
+        rfq.refresh_from_db()
+
+        # Verify RFQ status updated
+        self.assertEqual(rfq.status, 'awarded')
+        self.assertEqual(rfq.awarded_quotation, quotation)
+        self.assertIsNotNone(rfq.award_date)

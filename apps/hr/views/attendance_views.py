@@ -224,14 +224,114 @@ class AttendanceReportView(LoginRequiredMixin, PermissionRequiredMixin, Template
 
         # الفترة الافتراضية: الشهر الحالي
         today = date.today()
-        start_date = self.request.GET.get('start_date', today.replace(day=1).isoformat())
-        end_date = self.request.GET.get('end_date', today.isoformat())
+        from_date_str = self.request.GET.get('from_date', today.replace(day=1).isoformat())
+        to_date_str = self.request.GET.get('to_date', today.isoformat())
+        department_id = self.request.GET.get('department')
 
+        # Convert strings to date objects
+        from datetime import datetime
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+
+        # Calculate total working days
+        total_days = (to_date - from_date).days + 1
+
+        # Base queryset for attendance
+        attendance_qs = Attendance.objects.filter(
+            company=company,
+            date__gte=from_date,
+            date__lte=to_date
+        )
+
+        # Filter by department if selected
+        if department_id:
+            attendance_qs = attendance_qs.filter(employee__department_id=department_id)
+
+        # Report statistics
+        report_stats = {
+            'total_days': total_days,
+            'present_count': attendance_qs.filter(status='present').count(),
+            'absent_count': attendance_qs.filter(status='absent').count(),
+            'late_count': attendance_qs.filter(status='late').count(),
+            'leave_count': attendance_qs.filter(status='leave').count(),
+        }
+
+        # Calculate total hours
+        total_hours = 0
+        for att in attendance_qs.filter(check_in__isnull=False, check_out__isnull=False):
+            if att.check_in and att.check_out:
+                # Calculate hours between check_in and check_out
+                check_in_datetime = datetime.combine(att.date, att.check_in)
+                check_out_datetime = datetime.combine(att.date, att.check_out)
+                hours = (check_out_datetime - check_in_datetime).total_seconds() / 3600
+                total_hours += hours
+
+        report_stats['total_hours'] = round(total_hours, 1)
+
+        # Daily attendance data for chart
+        from collections import defaultdict
+        daily_counts = defaultdict(int)
+
+        for att in attendance_qs.filter(status='present'):
+            daily_counts[att.date.isoformat()] += 1
+
+        # Generate all dates in range
+        current_date = from_date
+        daily_labels = []
+        daily_data = []
+
+        while current_date <= to_date:
+            date_str = current_date.isoformat()
+            daily_labels.append(date_str)
+            daily_data.append(daily_counts.get(date_str, 0))
+            current_date += timedelta(days=1)
+
+        # Employee summary
+        from django.db.models import Case, When, IntegerField, F, ExpressionWrapper, fields
+
+        # Get all employees with attendance in the period
+        employee_ids = attendance_qs.values_list('employee_id', flat=True).distinct()
+
+        employee_summary = []
+        for emp_id in employee_ids:
+            emp_attendance = attendance_qs.filter(employee_id=emp_id)
+            employee = Employee.objects.get(id=emp_id)
+
+            present_days = emp_attendance.filter(status='present').count()
+            absent_days = emp_attendance.filter(status='absent').count()
+            late_days = emp_attendance.filter(status='late').count()
+            leave_days = emp_attendance.filter(status='leave').count()
+
+            # Calculate total hours for this employee
+            emp_hours = 0
+            for att in emp_attendance.filter(check_in__isnull=False, check_out__isnull=False):
+                if att.check_in and att.check_out:
+                    check_in_datetime = datetime.combine(att.date, att.check_in)
+                    check_out_datetime = datetime.combine(att.date, att.check_out)
+                    hours = (check_out_datetime - check_in_datetime).total_seconds() / 3600
+                    emp_hours += hours
+
+            employee_summary.append({
+                'employee__full_name': employee.full_name,
+                'employee__employee_number': employee.employee_number,
+                'present_days': present_days,
+                'absent_days': absent_days,
+                'late_days': late_days,
+                'leave_days': leave_days,
+                'total_hours': round(emp_hours, 1),
+                'total_days': total_days,
+            })
+
+        import json
         context.update({
             'title': _('تقرير الحضور'),
-            'start_date': start_date,
-            'end_date': end_date,
+            'from_date': from_date_str,
+            'to_date': to_date_str,
             'departments': Department.objects.filter(company=company, is_active=True),
+            'report_stats': report_stats,
+            'daily_labels': json.dumps(daily_labels),
+            'daily_data': json.dumps(daily_data),
+            'employee_summary': employee_summary,
             'breadcrumbs': [
                 {'title': _('الرئيسية'), 'url': reverse('core:dashboard')},
                 {'title': _('الموارد البشرية'), 'url': '#'},

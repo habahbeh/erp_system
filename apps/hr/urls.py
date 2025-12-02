@@ -304,7 +304,7 @@ urlpatterns = [
     # ============================================
 
     # ============================================
-    # مسيرات الرواتب
+    # كشوفات الرواتب
     # ============================================
     path('payroll/', PayrollListView.as_view(), name='payroll_list'),
     path('payroll/create/', PayrollCreateView.as_view(), name='payroll_create'),
@@ -532,7 +532,7 @@ urlpatterns = [
     # ============================================
     # التغذية الراجعة
     # ============================================
-    path('training/feedback/create/', feedback_create, name='training_feedback_create'),
+    path('training/feedback/create/<int:enrollment_pk>/', feedback_create, name='training_feedback_create'),
 
     # ============================================
     # Ajax Endpoints للتدريب

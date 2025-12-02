@@ -23,7 +23,7 @@ class HRNotification(BaseModel):
         ('document_expiry', 'انتهاء وثيقة'),
         ('probation_end', 'انتهاء فترة التجربة'),
         ('increment_due', 'استحقاق علاوة'),
-        ('payroll_ready', 'مسير رواتب جاهز'),
+        ('payroll_ready', 'كشف راتب جاهز'),
         ('general', 'إشعار عام'),
     ]
 

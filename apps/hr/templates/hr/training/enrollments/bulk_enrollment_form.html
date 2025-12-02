@@ -1,0 +1,158 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% for item in breadcrumbs %}
+            {% if item.url %}
+            <li class="breadcrumb-item"><a href="{{ item.url }}">{{ item.title }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item active">{{ item.title }}</li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>{{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">{% trans "الدورة" %} <span class="text-danger">*</span></label>
+                                {{ form.course }}
+                                {% if form.course.errors %}
+                                <div class="invalid-feedback d-block">{{ form.course.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">{% trans "تاريخ التسجيل" %}</label>
+                                {{ form.enrollment_date }}
+                                {% if form.enrollment_date.errors %}
+                                <div class="invalid-feedback d-block">{{ form.enrollment_date.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">{% trans "الحالة" %}</label>
+                                {{ form.status }}
+                                {% if form.status.errors %}
+                                <div class="invalid-feedback d-block">{{ form.status.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Department Filter -->
+                        <div class="card bg-light mb-4">
+                            <div class="card-body">
+                                <h6 class="mb-3">{% trans "تصفية الموظفين" %}</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">{% trans "القسم" %}</label>
+                                        <select id="department_filter" class="form-select">
+                                            <option value="">{% trans "جميع الأقسام" %}</option>
+                                            {% for dept in departments %}
+                                            <option value="{{ dept.pk }}">{{ dept.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">{% trans "الدرجة الوظيفية" %}</label>
+                                        <select id="grade_filter" class="form-select">
+                                            <option value="">{% trans "جميع الدرجات" %}</option>
+                                            {% for grade in job_grades %}
+                                            <option value="{{ grade.pk }}">{{ grade.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <button type="button" id="filter_btn" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-filter me-1"></i>{% trans "تطبيق الفلتر" %}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Employees Selection -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label mb-0">{% trans "الموظفون" %} <span class="text-danger">*</span></label>
+                                <div>
+                                    <button type="button" id="select_all" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-check-double me-1"></i>{% trans "تحديد الكل" %}
+                                    </button>
+                                    <button type="button" id="deselect_all" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-times me-1"></i>{% trans "إلغاء التحديد" %}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+                                {{ form.employees }}
+                            </div>
+                            {% if form.employees.errors %}
+                            <div class="invalid-feedback d-block">{{ form.employees.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "ملاحظات" %}</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">{{ form.notes.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'hr:training_enrollment_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i>{% trans "إلغاء" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% trans "تسجيل الموظفين" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Select All
+    document.getElementById('select_all').addEventListener('click', function() {
+        document.querySelectorAll('input[name="employees"]').forEach(function(checkbox) {
+            checkbox.checked = true;
+        });
+    });
+
+    // Deselect All
+    document.getElementById('deselect_all').addEventListener('click', function() {
+        document.querySelectorAll('input[name="employees"]').forEach(function(checkbox) {
+            checkbox.checked = false;
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}
