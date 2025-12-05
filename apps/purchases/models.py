@@ -1816,7 +1816,7 @@ class PurchaseQuotationRequest(BaseModel):
                     quantity=rfq_item.quantity,
                     unit_price=0,  # سيقوم المورد بتعبئة السعر
                     discount_percentage=0,
-                    tax_percentage=0
+                    tax_rate=0
                 )
 
         self.status = 'sent'
@@ -1824,6 +1824,11 @@ class PurchaseQuotationRequest(BaseModel):
 
     def __str__(self):
         return f"{self.number} - {self.subject}"
+
+    @property
+    def received_quotations_count(self):
+        """عدد العروض المستلمة (غير المسودات والمرسلة)"""
+        return self.quotations.exclude(status__in=['draft', 'sent']).count()
 
 
 class PurchaseQuotationRequestItem(models.Model):
