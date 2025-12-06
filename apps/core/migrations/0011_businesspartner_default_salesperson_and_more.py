@@ -8,7 +8,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0010_businesspartner_customer_account_and_more'),
-        ('hr', '0001_initial'),
     ]
 
     operations = [
