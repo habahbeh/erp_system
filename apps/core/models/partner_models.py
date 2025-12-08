@@ -103,6 +103,13 @@ class BusinessPartner(BaseModel):
     # حدود الائتمان
     credit_limit = models.DecimalField(_('حد الائتمان'), max_digits=12, decimal_places=2, default=0)
     credit_period = models.PositiveIntegerField(_('فترة الائتمان (أيام)'), default=30)
+    current_balance = models.DecimalField(
+        _('الرصيد الحالي'),
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text=_('الرصيد المستحق على العميل (يتم تحديثه تلقائياً)')
+    )
 
     # المرفقات الأربعة المطلوبة
     commercial_register_file = models.FileField(
@@ -266,7 +273,7 @@ class BusinessPartner(BaseModel):
             result['message'] = _('لا يوجد حد ائتمان محدد')
             return result
 
-        current_balance = self.get_current_balance()
+        current_balance = self.current_balance
         result['current_balance'] = current_balance
 
         new_balance = current_balance + Decimal(str(amount))
@@ -292,6 +299,27 @@ class BusinessPartner(BaseModel):
             ).format(available=available_credit)
 
         return result
+
+    def add_to_balance(self, amount):
+        """إضافة مبلغ إلى الرصيد (زيادة الدين على العميل)"""
+        from decimal import Decimal
+        self.current_balance += Decimal(str(amount))
+        self.save(update_fields=['current_balance'])
+
+    def deduct_from_balance(self, amount):
+        """خصم مبلغ من الرصيد (تقليل الدين - عند الدفع)"""
+        from decimal import Decimal
+        self.current_balance -= Decimal(str(amount))
+        if self.current_balance < 0:
+            self.current_balance = Decimal('0')  # منع الرصيد السالب
+        self.save(update_fields=['current_balance'])
+
+    def get_available_credit(self):
+        """حساب الائتمان المتاح"""
+        from decimal import Decimal
+        if self.credit_limit == 0:
+            return Decimal('0')
+        return max(Decimal('0'), self.credit_limit - self.current_balance)
 
 
 class PartnerRepresentative(BaseModel):

@@ -248,30 +248,71 @@ select[data-select2-id] {
                             </h6>
 
                             <div class="row g-3">
-                                <!-- Received From -->
-                                <div class="col-md-8">
-                                    <label for="{{ form.received_from.id_for_label }}" class="form-label required-field">
-                                        {{ form.received_from.label }}
-                                    </label>
-                                    {{ form.received_from|add_class:"form-control" }}
-                                    {% if form.received_from.errors %}
-                                        <ul class="error-list">
-                                            {% for error in form.received_from.errors %}
-                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    {% endif %}
-                                </div>
-
                                 <!-- Payer Type -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.payer_type.id_for_label }}" class="form-label">
+                                    <label for="{{ form.payer_type.id_for_label }}" class="form-label required-field">
                                         {{ form.payer_type.label }}
                                     </label>
                                     {{ form.payer_type|add_class:"form-select" }}
                                     {% if form.payer_type.errors %}
                                         <ul class="error-list">
                                             {% for error in form.payer_type.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Partner (للعملاء والموردين) -->
+                                <div class="col-md-8" id="partner_field_receipt" style="display:none;">
+                                    <label for="{{ form.partner.id_for_label }}"
+                                           class="form-label required-field">
+                                        {{ form.partner.label }}
+                                    </label>
+                                    {{ form.partner|add_class:"form-select" }}
+                                    {% if form.partner.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.partner.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle text-info"></i>
+                                        اختر الشريك التجاري من القائمة
+                                    </div>
+                                </div>
+
+                                <!-- Employee (للموظفين) -->
+                                <div class="col-md-8" id="employee_field_receipt" style="display:none;">
+                                    <label for="{{ form.employee.id_for_label }}"
+                                           class="form-label required-field">
+                                        {{ form.employee.label }}
+                                    </label>
+                                    {{ form.employee|add_class:"form-select" }}
+                                    {% if form.employee.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.employee.errors %}
+                                                <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                    <div class="help-text">
+                                        <i class="fas fa-info-circle text-info"></i>
+                                        اختر الموظف من القائمة
+                                    </div>
+                                </div>
+
+                                <!-- Received From (للحالات الأخرى) -->
+                                <div class="col-md-8" id="received_from_field" style="display:none;">
+                                    <label for="{{ form.received_from.id_for_label }}"
+                                           class="form-label required-field">
+                                        {{ form.received_from.label }}
+                                    </label>
+                                    {{ form.received_from|add_class:"form-control" }}
+                                    {% if form.received_from.errors %}
+                                        <ul class="error-list">
+                                            {% for error in form.received_from.errors %}
                                                 <li><i class="fas fa-exclamation-circle me-1"></i>{{ error }}</li>
                                             {% endfor %}
                                         </ul>
@@ -665,6 +706,49 @@ $(document).ready(function() {
     }
 
     // ==============================
+    // Payer Type Toggle
+    // ==============================
+    function togglePayerFields() {
+        const payerType = $('#id_payer_type').val();
+
+        // إخفاء جميع الحقول أولاً
+        $('#partner_field_receipt, #employee_field_receipt, #received_from_field').slideUp();
+        $('#id_partner_receipt, #id_employee_receipt, #id_received_from').prop('required', false);
+
+        if (payerType === 'customer' || payerType === 'supplier') {
+            $('#partner_field_receipt').slideDown();
+            $('#id_partner_receipt').prop('required', true);
+        } else if (payerType === 'employee') {
+            $('#employee_field_receipt').slideDown();
+            $('#id_employee_receipt').prop('required', true);
+        } else if (payerType === 'other') {
+            $('#received_from_field').slideDown();
+            $('#id_received_from').prop('required', true);
+        }
+    }
+
+    $('#id_payer_type').on('change', togglePayerFields);
+    togglePayerFields(); // Initialize on page load
+
+    // Initialize Partner Select2
+    $('#id_partner_receipt').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر الشريك التجاري...',
+        allowClear: true
+    });
+
+    // Initialize Employee Select2
+    $('#id_employee_receipt').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dir: "rtl",
+        placeholder: 'اختر الموظف...',
+        allowClear: true
+    });
+
+    // ==============================
     // Amount Preview
     // ==============================
     function updateAmountPreview() {
@@ -747,16 +831,42 @@ $(document).ready(function() {
     }
 
     function validateReceivedFrom() {
-        const receivedFrom = $('#id_received_from').val().trim();
+        const payerType = $('#id_payer_type').val();
 
-        if (receivedFrom.length < 3) {
-            Swal.fire({
-                icon: 'error',
-                title: 'بيانات الدافع ناقصة',
-                text: 'يجب إدخال اسم الدافع (3 أحرف على الأقل)',
-                confirmButtonText: 'حسناً'
-            });
-            return false;
+        // التحقق من نوع الدافع واختيار الحقل المناسب
+        if (payerType === 'customer' || payerType === 'supplier') {
+            const partner = $('#id_partner_receipt').val();
+            if (!partner) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'بيانات الدافع ناقصة',
+                    text: 'يجب اختيار الشريك التجاري من القائمة',
+                    confirmButtonText: 'حسناً'
+                });
+                return false;
+            }
+        } else if (payerType === 'employee') {
+            const employee = $('#id_employee_receipt').val();
+            if (!employee) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'بيانات الدافع ناقصة',
+                    text: 'يجب اختيار الموظف من القائمة',
+                    confirmButtonText: 'حسناً'
+                });
+                return false;
+            }
+        } else if (payerType === 'other') {
+            const receivedFrom = $('#id_received_from').val().trim();
+            if (receivedFrom.length < 3) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'بيانات الدافع ناقصة',
+                    text: 'يجب إدخال اسم الدافع (3 أحرف على الأقل)',
+                    confirmButtonText: 'حسناً'
+                });
+                return false;
+            }
         }
 
         return true;

@@ -106,10 +106,23 @@ class PaymentVoucherCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         kwargs['request'] = self.request
         return kwargs
 
+    def get_form(self, form_class=None):
+        """تعيين company و branch للـ instance قبل إنشاء النموذج"""
+        form = super().get_form(form_class)
+        if not form.instance.pk:  # سند جديد فقط
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
+        return form
+
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
+        # التأكد من تعيين القيم مرة أخرى عند الحفظ
+        if not form.instance.company_id:
+            form.instance.company = self.request.current_company
+        if not form.instance.branch_id:
+            form.instance.branch = self.request.current_branch
+        if not form.instance.created_by_id:
+            form.instance.created_by = self.request.user
         response = super().form_valid(form)
         messages.success(self.request, f'تم إنشاء سند الصرف {self.object.number} بنجاح')
         return response
@@ -311,10 +324,23 @@ class ReceiptVoucherCreateView(LoginRequiredMixin, PermissionRequiredMixin, Comp
         kwargs['request'] = self.request
         return kwargs
 
+    def get_form(self, form_class=None):
+        """تعيين company و branch للـ instance قبل إنشاء النموذج"""
+        form = super().get_form(form_class)
+        if not form.instance.pk:  # سند جديد فقط
+            form.instance.company = self.request.current_company
+            form.instance.branch = self.request.current_branch
+            form.instance.created_by = self.request.user
+        return form
+
     def form_valid(self, form):
-        form.instance.company = self.request.current_company
-        form.instance.branch = self.request.current_branch
-        form.instance.created_by = self.request.user
+        # التأكد من تعيين القيم مرة أخرى عند الحفظ
+        if not form.instance.company_id:
+            form.instance.company = self.request.current_company
+        if not form.instance.branch_id:
+            form.instance.branch = self.request.current_branch
+        if not form.instance.created_by_id:
+            form.instance.created_by = self.request.user
         response = super().form_valid(form)
         messages.success(self.request, f'تم إنشاء سند القبض {self.object.number} بنجاح')
         return response

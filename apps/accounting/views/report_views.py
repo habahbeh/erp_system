@@ -112,6 +112,7 @@ class GeneralLedgerView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
 
     def get_ledger_entries(self, account, date_from, date_to):
         """الحصول على حركات الحساب"""
+        from apps.core.models import BusinessPartner
 
         # الحصول على خطوط القيود
         lines = JournalEntryLine.objects.filter(
@@ -141,6 +142,32 @@ class GeneralLedgerView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
                 # حسابات دائنة الطبيعة
                 running_balance += credit_amount - debit_amount
 
+            # الحصول على اسم العميل/المورد
+            partner_name = None
+            partner_type_display = None
+
+            # محاولة 1: من السطر نفسه
+            if line.partner_id and line.partner_type in ['customer', 'supplier']:
+                try:
+                    partner = BusinessPartner.objects.get(id=line.partner_id)
+                    partner_name = partner.name
+                    partner_type_display = line.partner_type
+                except BusinessPartner.DoesNotExist:
+                    pass
+
+            # محاولة 2: البحث في سطور القيد الأخرى
+            if not partner_name:
+                other_lines = line.journal_entry.lines.exclude(id=line.id).filter(
+                    partner_id__isnull=False
+                ).first()
+                if other_lines and other_lines.partner_id:
+                    try:
+                        partner = BusinessPartner.objects.get(id=other_lines.partner_id)
+                        partner_name = partner.name
+                        partner_type_display = other_lines.partner_type
+                    except BusinessPartner.DoesNotExist:
+                        pass
+
             entries.append({
                 'entry_number': line.journal_entry.number,
                 'entry_date': line.journal_entry.entry_date,
@@ -151,7 +178,9 @@ class GeneralLedgerView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixi
                 'balance': abs(running_balance),
                 'balance_type': 'مدين' if running_balance >= 0 else 'دائن',
                 'journal_entry_id': line.journal_entry.id,
-                'created_by': line.journal_entry.created_by.get_full_name() or line.journal_entry.created_by.username
+                'created_by': line.journal_entry.created_by.get_full_name() or line.journal_entry.created_by.username,
+                'partner_name': partner_name,
+                'partner_type': partner_type_display
             })
 
         return entries
@@ -589,6 +618,7 @@ class AccountStatementView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
 
     def get_statement_entries(self, account, date_from, date_to):
         """الحصول على حركات كشف الحساب"""
+        from apps.core.models import BusinessPartner
 
         # الحصول على خطوط القيود مع تفاصيل أكثر
         lines = JournalEntryLine.objects.filter(
@@ -619,6 +649,32 @@ class AccountStatementView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
             # تحديد نوع العملية
             transaction_type = self.determine_transaction_type(line, account)
 
+            # الحصول على اسم العميل/المورد
+            partner_name = None
+            partner_type_display = None
+
+            # محاولة 1: من السطر نفسه
+            if line.partner_id and line.partner_type in ['customer', 'supplier']:
+                try:
+                    partner = BusinessPartner.objects.get(id=line.partner_id)
+                    partner_name = partner.name
+                    partner_type_display = line.partner_type
+                except BusinessPartner.DoesNotExist:
+                    pass
+
+            # محاولة 2: البحث في سطور القيد الأخرى
+            if not partner_name:
+                other_lines = line.journal_entry.lines.exclude(id=line.id).filter(
+                    partner_id__isnull=False
+                ).first()
+                if other_lines and other_lines.partner_id:
+                    try:
+                        partner = BusinessPartner.objects.get(id=other_lines.partner_id)
+                        partner_name = partner.name
+                        partner_type_display = other_lines.partner_type
+                    except BusinessPartner.DoesNotExist:
+                        pass
+
             entries.append({
                 'entry_number': line.journal_entry.number,
                 'entry_date': line.journal_entry.entry_date,
@@ -631,7 +687,9 @@ class AccountStatementView(LoginRequiredMixin, PermissionRequiredMixin, CompanyM
                 'journal_entry_id': line.journal_entry.id,
                 'created_by': line.journal_entry.created_by.get_full_name() or line.journal_entry.created_by.username,
                 'transaction_type': transaction_type,
-                'days_since': (date.today() - line.journal_entry.entry_date).days
+                'days_since': (date.today() - line.journal_entry.entry_date).days,
+                'partner_name': partner_name,
+                'partner_type': partner_type_display
             })
 
         return entries
@@ -730,17 +788,166 @@ class AccountComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Company
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # سنطورها لاحقاً
+        # معاملات البحث
+        account_ids = self.request.GET.getlist('account_ids')
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+        comparison_type = self.request.GET.get('comparison_type', 'balance')
+
+        # تحديد فترة افتراضية
+        if not date_from:
+            date_from = date.today().replace(month=1, day=1).strftime('%Y-%m-%d')
+        if not date_to:
+            date_to = date.today().strftime('%Y-%m-%d')
+
+        # الحصول على قائمة الحسابات للاختيار
+        accounts = Account.objects.filter(
+            company=self.request.current_company,
+            is_active=True
+        ).select_related('account_type').order_by('code')
+
+        # أنواع المقارنة
+        comparison_types = [
+            ('balance', 'مقارنة الأرصدة'),
+            ('movement', 'مقارنة الحركات'),
+            ('detailed', 'مقارنة تفصيلية'),
+        ]
+
         context.update({
             'title': _('مقارنة الحسابات'),
             'breadcrumbs': [
                 {'title': _('المحاسبة'), 'url': reverse('accounting:dashboard')},
                 {'title': _('التقارير'), 'url': '#'},
                 {'title': _('مقارنة الحسابات'), 'url': ''},
-            ]
+            ],
+            'accounts': accounts,
+            'selected_account_ids': account_ids,
+            'date_from': date_from,
+            'date_to': date_to,
+            'comparison_type': comparison_type,
+            'comparison_types': comparison_types,
         })
 
+        # إذا تم اختيار حسابات، نجهز بيانات المقارنة
+        if account_ids:
+            comparison_data = self.get_comparison_data(account_ids, date_from, date_to, comparison_type)
+            context['comparison_data'] = comparison_data
+
         return context
+
+    def get_comparison_data(self, account_ids, date_from, date_to, comparison_type):
+        """الحصول على بيانات المقارنة للحسابات المختارة"""
+
+        # تحويل التواريخ
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+
+        accounts_data = []
+
+        for account_id in account_ids[:5]:  # حد أقصى 5 حسابات
+            try:
+                account = Account.objects.get(
+                    id=account_id,
+                    company=self.request.current_company
+                )
+
+                # حساب الرصيد الافتتاحي (قبل تاريخ البداية)
+                opening_balance = self.get_account_balance(account, None, date_from_obj)
+
+                # حساب إجمالي المدين والدائن خلال الفترة
+                lines_in_period = JournalEntryLine.objects.filter(
+                    account=account,
+                    journal_entry__company=self.request.current_company,
+                    journal_entry__status='posted',
+                    journal_entry__entry_date__gte=date_from_obj,
+                    journal_entry__entry_date__lte=date_to_obj
+                )
+
+                totals = lines_in_period.aggregate(
+                    total_debit=Sum('debit_amount', default=Decimal('0')),
+                    total_credit=Sum('credit_amount', default=Decimal('0')),
+                    transaction_count=Count('id')
+                )
+
+                total_debit = totals['total_debit'] or Decimal('0')
+                total_credit = totals['total_credit'] or Decimal('0')
+                transaction_count = totals['transaction_count'] or 0
+
+                # صافي الحركة
+                net_movement = total_debit - total_credit
+
+                # الرصيد الختامي
+                closing_balance = opening_balance + net_movement
+
+                # حساب نسبة النمو (إذا كان هناك رصيد افتتاحي)
+                growth_rate = None
+                if opening_balance and opening_balance != 0:
+                    growth_rate = ((closing_balance - opening_balance) / abs(opening_balance)) * 100
+
+                accounts_data.append({
+                    'account': account,
+                    'opening_balance': opening_balance,
+                    'total_debit': total_debit,
+                    'total_credit': total_credit,
+                    'net_movement': net_movement,
+                    'closing_balance': closing_balance,
+                    'transaction_count': transaction_count,
+                    'growth_rate': growth_rate,
+                })
+
+            except Account.DoesNotExist:
+                continue
+
+        # إعداد البيانات التحليلية
+        if accounts_data:
+            highest_balance = max(accounts_data, key=lambda x: x['closing_balance'])
+            most_active = max(accounts_data, key=lambda x: x['transaction_count'])
+
+            # أكبر نمو (استثناء القيم None)
+            accounts_with_growth = [a for a in accounts_data if a['growth_rate'] is not None]
+            highest_growth = max(accounts_with_growth, key=lambda x: x['growth_rate']) if accounts_with_growth else None
+
+            return {
+                'accounts': accounts_data,
+                'show_percentages': comparison_type in ['detailed', 'movement'],
+                'highest_balance': {
+                    'account': highest_balance['account'],
+                    'amount': highest_balance['closing_balance']
+                },
+                'most_active': {
+                    'account': most_active['account'],
+                    'count': most_active['transaction_count']
+                },
+                'highest_growth': {
+                    'account': highest_growth['account'] if highest_growth else None,
+                    'rate': highest_growth['growth_rate'] if highest_growth else 0
+                } if highest_growth else {'account': None, 'rate': 0},
+            }
+
+        return None
+
+    def get_account_balance(self, account, date_from=None, date_to=None):
+        """حساب رصيد الحساب في فترة معينة"""
+
+        query = JournalEntryLine.objects.filter(
+            account=account,
+            journal_entry__company=self.request.current_company,
+            journal_entry__status='posted'
+        )
+
+        if date_from:
+            query = query.filter(journal_entry__entry_date__gte=date_from)
+        if date_to:
+            query = query.filter(journal_entry__entry_date__lt=date_to)
+
+        totals = query.aggregate(
+            total_debit=Sum('debit_amount', default=Decimal('0')),
+            total_credit=Sum('credit_amount', default=Decimal('0'))
+        )
+
+        balance = (totals['total_debit'] or Decimal('0')) - (totals['total_credit'] or Decimal('0'))
+
+        return balance
 
 
 class IncomeStatementView(LoginRequiredMixin, PermissionRequiredMixin, CompanyMixin, TemplateView):

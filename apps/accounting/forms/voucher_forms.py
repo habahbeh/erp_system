@@ -7,7 +7,13 @@ from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from ..models import PaymentVoucher, ReceiptVoucher, Account
-from apps.core.models import Currency
+from apps.core.models import Currency, BusinessPartner
+
+try:
+    from apps.hr.models import Employee
+    HR_INSTALLED = True
+except ImportError:
+    HR_INSTALLED = False
 
 
 class PaymentVoucherForm(forms.ModelForm):
@@ -16,7 +22,7 @@ class PaymentVoucherForm(forms.ModelForm):
     class Meta:
         model = PaymentVoucher
         fields = [
-            'date', 'amount', 'currency', 'beneficiary_name', 'beneficiary_type',
+            'date', 'amount', 'currency', 'beneficiary_type', 'partner', 'employee', 'beneficiary_name',
             'cash_account', 'expense_account', 'payment_method',
             'check_number', 'check_date', 'bank_name',
             'description', 'notes'
@@ -40,7 +46,16 @@ class PaymentVoucherForm(forms.ModelForm):
                 'placeholder': 'اسم المستفيد...'
             }),
             'beneficiary_type': forms.Select(attrs={
-                'class': 'form-select'
+                'class': 'form-select',
+                'id': 'id_beneficiary_type'
+            }),
+            'partner': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_partner'
+            }),
+            'employee': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_employee'
             }),
             'cash_account': forms.Select(attrs={
                 'class': 'form-select account-select',
@@ -116,6 +131,25 @@ class PaymentVoucherForm(forms.ModelForm):
 
             self.fields['expense_account'].required = False
 
+            # فلترة الشركاء
+            self.fields['partner'].queryset = BusinessPartner.objects.filter(
+                company=self.request.current_company,
+                is_active=True
+            ).order_by('name')
+            self.fields['partner'].required = False
+
+            # فلترة الموظفين
+            if HR_INSTALLED:
+                self.fields['employee'].queryset = Employee.objects.filter(
+                    company=self.request.current_company,
+                    is_active=True
+                ).order_by('first_name', 'last_name')
+            else:
+                self.fields['employee'].queryset = Employee.objects.none()
+            self.fields['employee'].required = False
+
+            self.fields['beneficiary_name'].required = False
+
     def clean(self):
         cleaned_data = super().clean()
         payment_method = cleaned_data.get('payment_method')
@@ -140,6 +174,23 @@ class PaymentVoucherForm(forms.ModelForm):
 
         return cleaned_data
 
+    def save(self, commit=True):
+        """حفظ مع إضافة الشركة والفرع والمستخدم"""
+        instance = super().save(commit=False)
+
+        # إضافة الشركة والفرع من الطلب
+        if self.request:
+            if not instance.company_id:
+                instance.company = self.request.current_company
+            if not instance.branch_id:
+                instance.branch = self.request.current_branch
+            if not instance.created_by_id:
+                instance.created_by = self.request.user
+
+        if commit:
+            instance.save()
+        return instance
+
 
 class ReceiptVoucherForm(forms.ModelForm):
     """نموذج سند القبض"""
@@ -147,7 +198,7 @@ class ReceiptVoucherForm(forms.ModelForm):
     class Meta:
         model = ReceiptVoucher
         fields = [
-            'date', 'amount', 'currency', 'received_from', 'payer_type',
+            'date', 'amount', 'currency', 'payer_type', 'partner', 'employee', 'received_from',
             'cash_account', 'income_account', 'receipt_method',
             'check_number', 'check_date', 'bank_name',
             'description', 'notes'
@@ -171,7 +222,16 @@ class ReceiptVoucherForm(forms.ModelForm):
                 'placeholder': 'اسم الدافع...'
             }),
             'payer_type': forms.Select(attrs={
-                'class': 'form-select'
+                'class': 'form-select',
+                'id': 'id_payer_type'
+            }),
+            'partner': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_partner_receipt'
+            }),
+            'employee': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_employee_receipt'
             }),
             'cash_account': forms.Select(attrs={
                 'class': 'form-select account-select',
@@ -247,6 +307,25 @@ class ReceiptVoucherForm(forms.ModelForm):
 
             self.fields['income_account'].required = False
 
+            # فلترة الشركاء
+            self.fields['partner'].queryset = BusinessPartner.objects.filter(
+                company=self.request.current_company,
+                is_active=True
+            ).order_by('name')
+            self.fields['partner'].required = False
+
+            # فلترة الموظفين
+            if HR_INSTALLED:
+                self.fields['employee'].queryset = Employee.objects.filter(
+                    company=self.request.current_company,
+                    is_active=True
+                ).order_by('first_name', 'last_name')
+            else:
+                self.fields['employee'].queryset = Employee.objects.none()
+            self.fields['employee'].required = False
+
+            self.fields['received_from'].required = False
+
     def clean(self):
         cleaned_data = super().clean()
         receipt_method = cleaned_data.get('receipt_method')
@@ -270,3 +349,20 @@ class ReceiptVoucherForm(forms.ModelForm):
             raise ValidationError({'cash_account': _('حساب الصندوق/البنك مطلوب')})
 
         return cleaned_data
+
+    def save(self, commit=True):
+        """حفظ مع إضافة الشركة والفرع والمستخدم"""
+        instance = super().save(commit=False)
+
+        # إضافة الشركة والفرع من الطلب
+        if self.request:
+            if not instance.company_id:
+                instance.company = self.request.current_company
+            if not instance.branch_id:
+                instance.branch = self.request.current_branch
+            if not instance.created_by_id:
+                instance.created_by = self.request.user
+
+        if commit:
+            instance.save()
+        return instance

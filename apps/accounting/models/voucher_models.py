@@ -34,10 +34,14 @@ class PaymentVoucher(DocumentBaseModel):
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # المستفيد
-    beneficiary_name = models.CharField(_('اسم المستفيد'), max_length=200)
     beneficiary_type = models.CharField(_('نوع المستفيد'), max_length=20,
-                                       choices=[('supplier', _('مورد')), ('employee', _('موظف')), ('other', _('أخرى'))])
-    beneficiary_id = models.IntegerField(_('معرف المستفيد'), null=True, blank=True)
+                                       choices=[('supplier', _('مورد')), ('customer', _('عميل')), ('employee', _('موظف')), ('other', _('أخرى'))])
+    partner = models.ForeignKey('core.BusinessPartner', on_delete=models.PROTECT, null=True, blank=True,
+                               verbose_name=_('الشريك التجاري'), help_text=_('للموردين والعملاء'))
+    employee = models.ForeignKey('hr.Employee', on_delete=models.PROTECT, null=True, blank=True,
+                                 verbose_name=_('الموظف'), help_text=_('عند اختيار موظف'))
+    beneficiary_name = models.CharField(_('اسم المستفيد'), max_length=200, blank=True,
+                                       help_text=_('للحالات الأخرى فقط'))
 
     # التفاصيل المالية
     amount = models.DecimalField(_('المبلغ'), max_digits=15, decimal_places=3, validators=[MinValueValidator(0)])
@@ -81,6 +85,32 @@ class PaymentVoucher(DocumentBaseModel):
     def clean(self):
         """التحقق من صحة البيانات"""
         super().clean()
+
+        # التحقق من بيانات المستفيد
+        if self.beneficiary_type in ['supplier', 'customer']:
+            if not self.partner:
+                raise ValidationError({
+                    'partner': _('يجب اختيار الشريك التجاري عند اختيار مورد أو عميل')
+                })
+            # التحقق من نوع الشريك
+            if self.beneficiary_type == 'supplier' and not self.partner.is_supplier:
+                raise ValidationError({
+                    'partner': _('الشريك المختار ليس مورداً')
+                })
+            if self.beneficiary_type == 'customer' and not self.partner.is_customer:
+                raise ValidationError({
+                    'partner': _('الشريك المختار ليس عميلاً')
+                })
+        elif self.beneficiary_type == 'employee':
+            if not self.employee:
+                raise ValidationError({
+                    'employee': _('يجب اختيار الموظف')
+                })
+        elif self.beneficiary_type == 'other':
+            if not self.beneficiary_name:
+                raise ValidationError({
+                    'beneficiary_name': _('يجب إدخال اسم المستفيد')
+                })
 
         # التحقق من أن الحسابات من نفس الشركة
         if self.cash_account and self.cash_account.company != self.company:
@@ -282,10 +312,14 @@ class ReceiptVoucher(DocumentBaseModel):
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # المستلم من
-    received_from = models.CharField(_('مستلم من'), max_length=200)
     payer_type = models.CharField(_('نوع الدافع'), max_length=20,
-                                 choices=[('customer', _('عميل')), ('other', _('أخرى'))])
-    payer_id = models.IntegerField(_('معرف الدافع'), null=True, blank=True)
+                                 choices=[('customer', _('عميل')), ('supplier', _('مورد')), ('employee', _('موظف')), ('other', _('أخرى'))])
+    partner = models.ForeignKey('core.BusinessPartner', on_delete=models.PROTECT, null=True, blank=True,
+                               verbose_name=_('الشريك التجاري'), help_text=_('للعملاء والموردين'))
+    employee = models.ForeignKey('hr.Employee', on_delete=models.PROTECT, null=True, blank=True,
+                                 verbose_name=_('الموظف'), help_text=_('عند اختيار موظف'))
+    received_from = models.CharField(_('مستلم من'), max_length=200, blank=True,
+                                    help_text=_('للحالات الأخرى فقط'))
 
     # التفاصيل المالية
     amount = models.DecimalField(_('المبلغ'), max_digits=15, decimal_places=3, validators=[MinValueValidator(0)])
@@ -329,6 +363,32 @@ class ReceiptVoucher(DocumentBaseModel):
     def clean(self):
         """التحقق من صحة البيانات"""
         super().clean()
+
+        # التحقق من بيانات الدافع
+        if self.payer_type in ['customer', 'supplier']:
+            if not self.partner:
+                raise ValidationError({
+                    'partner': _('يجب اختيار الشريك التجاري عند اختيار عميل أو مورد')
+                })
+            # التحقق من نوع الشريك
+            if self.payer_type == 'customer' and not self.partner.is_customer:
+                raise ValidationError({
+                    'partner': _('الشريك المختار ليس عميلاً')
+                })
+            if self.payer_type == 'supplier' and not self.partner.is_supplier:
+                raise ValidationError({
+                    'partner': _('الشريك المختار ليس مورداً')
+                })
+        elif self.payer_type == 'employee':
+            if not self.employee:
+                raise ValidationError({
+                    'employee': _('يجب اختيار الموظف')
+                })
+        elif self.payer_type == 'other':
+            if not self.received_from:
+                raise ValidationError({
+                    'received_from': _('يجب إدخال اسم الدافع')
+                })
 
         # التحقق من أن الحسابات من نفس الشركة
         if self.cash_account and self.cash_account.company != self.company:
@@ -484,6 +544,26 @@ class ReceiptVoucher(DocumentBaseModel):
         self.posted_date = timezone.now()
         self.save()
 
+        # تحديث ائتمان العميل (إذا كان الدافع عميل)
+        if self.payer_type == 'customer' and self.partner:
+            # الحصول على إعدادات النظام
+            try:
+                system_settings = self.company.settings
+                credit_restore_on_check_date = system_settings.credit_restore_on_check_date
+            except:
+                credit_restore_on_check_date = False
+
+            # تحديد متى يتم استرجاع الائتمان
+            should_restore_now = True
+            if credit_restore_on_check_date and self.receipt_method == 'check':
+                # إذا كان الإعداد مفعل وطريقة القبض بالشيك، لا نسترجع الآن
+                should_restore_now = False
+                # TODO: يمكن لاحقاً إضافة scheduled task لاسترجاع الائتمان في check_date
+
+            # استرجاع الائتمان (تقليل الرصيد المستحق)
+            if should_restore_now:
+                self.partner.deduct_from_balance(self.amount)
+
         return journal_entry
 
     @transaction.atomic
@@ -491,6 +571,24 @@ class ReceiptVoucher(DocumentBaseModel):
         """إلغاء ترحيل السند"""
         if not self.can_unpost():
             raise ValidationError(_('لا يمكن إلغاء ترحيل هذا السند'))
+
+        # إلغاء تحديث ائتمان العميل (إذا كان قد تم تحديثه سابقاً)
+        if self.payer_type == 'customer' and self.partner:
+            # الحصول على إعدادات النظام
+            try:
+                system_settings = self.company.settings
+                credit_restore_on_check_date = system_settings.credit_restore_on_check_date
+            except:
+                credit_restore_on_check_date = False
+
+            # تحديد إذا كان قد تم استرجاع الائتمان عند الترحيل
+            was_restored = True
+            if credit_restore_on_check_date and self.receipt_method == 'check':
+                was_restored = False
+
+            # إلغاء الاسترجاع (إعادة المبلغ إلى الرصيد)
+            if was_restored:
+                self.partner.add_to_balance(self.amount)
 
         # إلغاء ترحيل القيد
         if self.journal_entry:

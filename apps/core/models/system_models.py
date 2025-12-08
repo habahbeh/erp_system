@@ -160,6 +160,11 @@ class SystemSettings(models.Model):
                                                        ('lifo', _('الوارد أخيراً صادر أولاً')),
                                                        ('average', _('متوسط التكلفة'))], default='average')
     customer_credit_check = models.BooleanField(_('فحص حد ائتمان العملاء'), default=True)
+    credit_restore_on_check_date = models.BooleanField(
+        _('استرجاع الائتمان عند تاريخ صرف الشيك'),
+        default=False,
+        help_text=_('إذا كان نعم، يتم استرجاع ائتمان العميل عند تاريخ صرف الشيك وليس عند إدخال سند القبض')
+    )
     auto_create_journal_entries = models.BooleanField(_('إنشاء قيود تلقائياً'), default=True)
     session_timeout = models.IntegerField(_('مهلة انتهاء الجلسة (دقائق)'), default=30)
     created_at = models.DateTimeField(auto_now_add=True)
