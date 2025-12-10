@@ -8,8 +8,388 @@
 <!-- Select2 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css?v=2.0" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css?v=2.0" rel="stylesheet" />
+<!-- Handsontable CSS -->
+<link href="https://cdn.jsdelivr.net/npm/handsontable@12.4.0/dist/handsontable.full.min.css" rel="stylesheet">
 
 <style>
+/* ============================================
+   Oracle-Style LOV Modal
+============================================ */
+.lov-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+}
+.lov-overlay.active { display: flex; }
+
+.lov-window {
+    background: white;
+    border-radius: 10px;
+    width: 95%;
+    max-width: 900px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    animation: lovSlideIn 0.2s ease-out;
+}
+
+@keyframes lovSlideIn {
+    from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.lov-header {
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.lov-title {
+    font-size: 17px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lov-close {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: white;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.lov-close:hover { background: rgba(255,255,255,0.25); }
+
+.lov-search-box {
+    padding: 14px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.lov-search-wrapper {
+    position: relative;
+}
+
+.lov-search-wrapper i {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+    font-size: 18px;
+}
+
+.lov-search-input {
+    width: 100%;
+    padding: 12px 50px 12px 14px;
+    border: 2px solid #1976d2;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    background: white;
+}
+
+.lov-search-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(25,118,210,0.2);
+}
+
+.lov-hints {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #666;
+    flex-wrap: wrap;
+}
+
+.lov-hints kbd {
+    background: white;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 11px;
+}
+
+.lov-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.lov-table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.lov-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.lov-table th {
+    padding: 11px 14px;
+    text-align: right;
+    font-weight: 600;
+    color: #444;
+    background: #f1f3f4;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.lov-table td {
+    padding: 11px 14px;
+    text-align: right;
+    border-bottom: 1px solid #eee;
+}
+
+.lov-table tbody tr {
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.lov-table tbody tr:hover { background: #f5f7fa; }
+
+.lov-table tbody tr.active {
+    background: linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.lov-table tbody tr.active td {
+    font-weight: 600;
+    color: #1565c0;
+}
+
+.lov-table tbody tr.active td:first-child::before {
+    content: '▸ ';
+    color: #1976d2;
+}
+
+.lov-match {
+    background: #fff59d;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+.lov-empty {
+    text-align: center;
+    padding: 50px 20px;
+    color: #999;
+}
+
+.lov-empty i {
+    font-size: 56px;
+    opacity: 0.4;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.lov-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 0 0 10px 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.lov-count {
+    color: #666;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lov-count strong {
+    color: #1976d2;
+    font-size: 15px;
+}
+
+.lov-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.lov-btn {
+    padding: 9px 22px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.lov-btn-cancel {
+    background: white;
+    border: 1px solid #ccc;
+    color: #555;
+}
+.lov-btn-cancel:hover { background: #f5f5f5; }
+
+.lov-btn-select {
+    background: #1976d2;
+    color: white;
+}
+.lov-btn-select:hover { background: #1565c0; }
+
+/* Handsontable RTL & Style */
+#items-handsontable {
+    border: 1px solid #dee2e6;
+    background: white;
+}
+
+.handsontable {
+    direction: rtl;
+    font-family: inherit !important;
+    font-size: 13px;
+}
+
+.handsontable th {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    font-weight: 600 !important;
+    color: #495057 !important;
+    border-bottom: 2px solid #dee2e6 !important;
+}
+
+.handsontable td {
+    text-align: right !important;
+    vertical-align: middle !important;
+}
+
+.handsontable td.htNumeric {
+    text-align: left !important;
+    font-family: 'Courier New', monospace;
+}
+
+.handsontable .htDimmed {
+    color: #6c757d;
+    background: #f8f9fa;
+}
+
+.handsontable .htBold {
+    font-weight: 700 !important;
+    color: #198754 !important;
+}
+
+.handsontable .current {
+    background-color: #e3f2fd !important;
+}
+
+.handsontable .area {
+    background-color: #bbdefb !important;
+}
+
+/* Column Move Indicators */
+.handsontable th {
+    cursor: grab !important;
+    user-select: none;
+}
+
+.handsontable th:active {
+    cursor: grabbing !important;
+}
+
+.handsontable .ht__manualColumnMove--guideline {
+    background: #1976d2 !important;
+    width: 3px !important;
+}
+
+.handsontable .ht__manualColumnMove--backlight {
+    background: rgba(25, 118, 210, 0.2) !important;
+}
+
+.handsontable thead th.ht__highlight {
+    background: #c8e6c9 !important;
+}
+
+/* Hot Toolbar */
+.hot-toolbar {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+}
+
+.hot-toolbar kbd {
+    background: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #ced4da;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Grid Toolbar */
+.grid-toolbar {
+    background: #f8f9fa;
+    padding: 10px 14px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.grid-toolbar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.grid-toolbar button:hover {
+    background: #f0f0f0;
+    border-color: #1976d2;
+}
+
+.shortcut-hint {
+    margin-right: auto;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.shortcut-hint kbd {
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
 .card {
     border: none;
     box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
@@ -453,89 +833,73 @@ kbd {
 }
 
 /* ========================================
-   POS Style Totals Section
+   Invoice Summary Section (Like sample_inv)
 ======================================== */
-.pos-totals-section {
+.invoice-summary {
     background: #f8f9fa;
-    border: 2px solid #dee2e6;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-}
-
-.pos-total-line {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    background: white;
-    border-radius: 0.375rem;
+    padding: 14px 18px;
+    border-radius: 8px;
     border: 1px solid #dee2e6;
-    min-height: 90px;
 }
 
-.pos-total-label {
-    text-transform: uppercase;
+.invoice-summary .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    font-size: 15px;
+    color: #495057;
+}
+
+.invoice-summary .summary-row span:first-child {
     font-weight: 600;
-    color: #6c757d;
-    letter-spacing: 0.5px;
-    font-size: 0.85rem;
-    margin-bottom: 0.5rem;
 }
 
-.pos-total-value {
+.invoice-summary .summary-row span:last-child {
     font-family: 'Courier New', monospace;
-    font-weight: bold;
-    font-size: 1.4rem;
-    color: #212529;
-    text-align: center;
+    font-weight: 700;
+    font-size: 16px;
+    direction: ltr;
 }
 
-.pos-total-line-separator {
-    border-top: 2px dashed #dee2e6;
-    margin: 0.5rem 0;
+.invoice-summary .summary-row.total {
+    border-top: 2px solid #0d6efd;
+    margin-top: 6px;
+    padding-top: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0d6efd;
 }
 
-.pos-total-final {
-    background: #0d6efd;
-    border-color: #0d6efd;
+.invoice-summary .summary-row.total span:last-child {
+    font-size: 20px;
+    color: #0d6efd;
 }
 
-.pos-total-final .pos-total-label {
-    color: white;
-    font-size: 0.9rem;
+/* Tafqeet Box */
+.tafqeet-box {
+    background: #f8f9fa;
+    padding: 14px 18px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    height: 100%;
 }
 
-.pos-total-final .pos-total-value {
-    font-size: 1.5rem;
-    color: white;
-}
-
-/* Tafqeet Section */
-.tafqeet-section {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px dashed #dee2e6;
-}
-
-.tafqeet-label {
+.tafqeet-box .tafqeet-label {
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 14px;
     color: #6c757d;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
+    margin-bottom: 6px;
 }
 
-.tafqeet-value {
+.tafqeet-box .tafqeet-value {
     background: #fff3cd;
     border: 1px solid #ffc107;
-    border-radius: 0.375rem;
-    padding: 0.75rem;
-    font-size: 0.95rem;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 15px;
     font-weight: 600;
     color: #664d03;
-    line-height: 1.6;
-    text-align: center;
+    line-height: 1.5;
 }
 
 /* ========================================
@@ -899,7 +1263,111 @@ kbd {
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div class="table-responsive">
+                        <!-- Handsontable Grid -->
+                        <div class="hot-toolbar" style="padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="hotAddRow()">
+                                <i class="fas fa-plus me-1"></i> إضافة صف
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="hotDeleteRow()">
+                                <i class="fas fa-trash me-1"></i> حذف صف
+                            </button>
+
+                            <!-- Column Visibility Dropdown -->
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-columns me-1"></i> الأعمدة
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="min-width: 180px;">
+                                    <li><h6 class="dropdown-header">إظهار/إخفاء الأعمدة</h6></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-0" data-col="0" checked>
+                                            <label class="form-check-label" for="hot-col-0">الصنف</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-1" data-col="1" checked>
+                                            <label class="form-check-label" for="hot-col-1">الكمية</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-2" data-col="2" checked>
+                                            <label class="form-check-label" for="hot-col-2">الوحدة</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-3" data-col="3" checked>
+                                            <label class="form-check-label" for="hot-col-3">السعر</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-4" data-col="4" checked>
+                                            <label class="form-check-label" for="hot-col-4">نسبة الضريبة</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-5" data-col="5" checked>
+                                            <label class="form-check-label" for="hot-col-5">مبلغ الضريبة</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-6" data-col="6" checked>
+                                            <label class="form-check-label" for="hot-col-6">نسبة الخصم</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-7" data-col="7" checked>
+                                            <label class="form-check-label" for="hot-col-7">مبلغ الخصم</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item">
+                                            <input class="form-check-input hot-col-toggle" type="checkbox" id="hot-col-8" data-col="8" checked>
+                                            <label class="form-check-label" for="hot-col-8">الإجمالي</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-primary" onclick="hotShowAllColumns()">
+                                            <i class="fas fa-eye me-1"></i> إظهار الكل
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-info" onclick="openColumnOrderModal()">
+                                            <i class="fas fa-sort me-1"></i> ترتيب الأعمدة
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-warning" onclick="hotResetColumnOrder()">
+                                            <i class="fas fa-undo me-1"></i> إعادة الترتيب الافتراضي
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-danger" onclick="hotResetAll()">
+                                            <i class="fas fa-sync me-1"></i> إعادة تعيين الكل
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="ms-auto" style="font-size: 12px; color: #666;">
+                                <kbd>Enter</kbd> أو <kbd>F4</kbd> فتح LOV |
+                                <kbd>↑↓</kbd> تنقل |
+                                <kbd>Tab</kbd> الخلية التالية
+                            </div>
+                        </div>
+                        <div id="items-handsontable" style="width: 100%; height: 220px; overflow: hidden;"></div>
+
+                        <!-- Hidden formset for form submission -->
+                        <div class="table-responsive" style="display: none;">
                             <table class="table table-hover invoice-table mb-0">
                                 <thead>
                                     <tr id="invoice-table-header">
@@ -1000,47 +1468,32 @@ kbd {
                     </div>
                 </div>
 
-                <!-- Totals Section -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-calculator me-2"></i>
-                            الإجماليات
-                        </h5>
+                <!-- Totals Section - Inline with Table -->
+                <div class="row mt-1">
+                    <div class="col-md-7">
+                        <!-- Tafqeet Section -->
+                        <div class="tafqeet-box">
+                            <div class="tafqeet-label"><i class="fas fa-font me-1"></i> المبلغ بالأحرف:</div>
+                            <div class="tafqeet-value" id="tafqeet-text">صفر دينار أردني فقط لا غير</div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="pos-totals-section">
-                            <div class="row g-3">
-                                <div class="col-md-3">
-                                    <div class="pos-total-line">
-                                        <span class="pos-total-label">المجموع قبل الضريبة</span> <!-- ✅ الملاحظة 2 -->
-                                        <span class="pos-total-value" id="summary-subtotal">0.000</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="pos-total-line">
-                                        <span class="pos-total-label">الخصم</span>
-                                        <span class="pos-total-value" id="summary-discount">0.000</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="pos-total-line">
-                                        <span class="pos-total-label">الضريبة</span>
-                                        <span class="pos-total-value" id="summary-tax">0.000</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="pos-total-line pos-total-final">
-                                        <span class="pos-total-label">الإجمالي</span>
-                                        <span class="pos-total-value" id="summary-total">0.000</span>
-                                    </div>
-                                </div>
+                    <div class="col-md-5">
+                        <div class="invoice-summary">
+                            <div class="summary-row">
+                                <span>المجموع الفرعي:</span>
+                                <span id="summary-subtotal">0.000 د.أ</span>
                             </div>
-
-                            <!-- Tafqeet Section -->
-                            <div class="tafqeet-section mt-3">
-                                <div class="tafqeet-label">المبلغ بالأحرف:</div>
-                                <div class="tafqeet-value" id="tafqeet-text">صفر دينار أردني فقط لا غير</div>
+                            <div class="summary-row">
+                                <span>الضريبة:</span>
+                                <span id="summary-tax">0.000 د.أ</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>الخصم:</span>
+                                <span id="summary-discount">0.000 د.أ</span>
+                            </div>
+                            <div class="summary-row total">
+                                <span>الإجمالي:</span>
+                                <span id="summary-total">0.000 د.أ</span>
                             </div>
                         </div>
                     </div>
@@ -1440,12 +1893,75 @@ kbd {
     </div>
 </div>
 
+<!-- ============================================
+     Oracle-Style LOV Modal
+============================================ -->
+<div class="lov-overlay" id="lovOverlay">
+    <div class="lov-window" onclick="event.stopPropagation()">
+        <div class="lov-header">
+            <div class="lov-title">
+                <i class="fas fa-search"></i>
+                اختيار صنف
+            </div>
+            <button type="button" class="lov-close" onclick="LOV.close()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="lov-search-box">
+            <div class="lov-search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" class="lov-search-input" id="lovInput"
+                       placeholder="ابحث بالاسم أو الكود... (أحرف متفرقة مدعومة: م غ = مضخة غاطسة)"
+                       autocomplete="off">
+            </div>
+            <div class="lov-hints">
+                <span><kbd>↑</kbd> <kbd>↓</kbd> تنقل</span>
+                <span><kbd>PageUp</kbd> <kbd>PageDown</kbd> قفز 5</span>
+                <span><kbd>Enter</kbd> اختيار</span>
+                <span><kbd>Esc</kbd> إغلاق</span>
+            </div>
+        </div>
+        <div class="lov-content">
+            <div class="lov-table-wrap" id="lovTableWrap">
+                <table class="lov-table">
+                    <thead>
+                        <tr>
+                            <th style="width:110px">الكود</th>
+                            <th>اسم الصنف</th>
+                            <th style="width:70px">الوحدة</th>
+                            <th style="width:100px">السعر</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lovBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="lov-footer">
+            <div class="lov-count">
+                <i class="fas fa-list"></i>
+                <strong id="lovCount">0</strong> نتيجة
+            </div>
+            <div class="lov-buttons">
+                <button type="button" class="lov-btn lov-btn-cancel" onclick="LOV.close()">
+                    <i class="fas fa-times"></i> إلغاء
+                </button>
+                <button type="button" class="lov-btn lov-btn-select" onclick="LOV.select()">
+                    <i class="fas fa-check"></i> اختيار
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <!-- Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ar.js"></script>
+
+<!-- Handsontable JS -->
+<script src="https://cdn.jsdelivr.net/npm/handsontable@12.4.0/dist/handsontable.full.min.js"></script>
 
 <!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -3242,6 +3758,15 @@ $(document).ready(function() {
         $input.on('keydown', function(e) {
             var $items = $list.find('.autocomplete-item');
 
+            // F4 يفتح LOV
+            if (e.key === 'F4') {
+                e.preventDefault();
+                e.stopPropagation();
+                var rowIndex = $input.closest('tr').index();
+                LOV.open(rowIndex, $input.val() || '');
+                return false;
+            }
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 currentIndex = Math.min(currentIndex + 1, $items.length - 1);
@@ -4707,6 +5232,1013 @@ $(document).ready(function() {
         html += '</div>';
         return html;
     }
+
+    // ============================================
+    // 🎯 Oracle-Style LOV Module (Improved)
+    // ============================================
+    const LOV = {
+        isOpen: false,
+        currentRow: -1,
+        filtered: [],
+        activeIndex: 0,
+        query: '',
+        allItems: [],
+        isLoading: false,
+        isLoaded: false,
+
+        // تحميل المواد من السيرفر
+        loadItems: function(callback) {
+            if (this.isLoading) return;
+            if (this.isLoaded && this.allItems.length > 0) {
+                if (callback) callback();
+                return;
+            }
+
+            this.isLoading = true;
+            var self = this;
+
+            $.ajax({
+                url: '{% url "purchases:item_search_ajax" %}',
+                data: { term: '', limit: 2000 },
+                dataType: 'json',
+                success: function(data) {
+                    console.log('📦 LOV API Response:', data);
+
+                    // API يرجع items وليس results
+                    var items = data.items || data.results || [];
+
+                    self.allItems = items.map(function(item) {
+                        return {
+                            id: item.id,
+                            variant_id: item.variant_id,
+                            name: item.name || item.text || '',
+                            code: item.code || item.variant_code || '',
+                            unit: item.base_uom_name || item.unit || 'قطعة',
+                            price: parseFloat(item.last_purchase_price || item.purchase_price || item.price || 0),
+                            tax_rate: parseFloat(item.tax_rate || 0),
+                            stock: parseFloat(item.current_branch_stock || 0)
+                        };
+                    });
+
+                    self.isLoading = false;
+                    self.isLoaded = true;
+                    console.log('✅ LOV: Loaded ' + self.allItems.length + ' items');
+
+                    if (callback) callback();
+                },
+                error: function(xhr, status, error) {
+                    self.isLoading = false;
+                    console.error('❌ LOV: Failed to load items:', error);
+                }
+            });
+        },
+
+        open: function(row, initialQuery) {
+            var self = this;
+            this.currentRow = row;
+            this.activeIndex = 0;
+            this.query = initialQuery || '';
+
+            // Disable Handsontable if exists
+            if (typeof hot !== 'undefined' && hot) {
+                hot.unlisten();
+            }
+
+            // Show overlay
+            document.getElementById('lovOverlay').classList.add('active');
+            this.isOpen = true;
+
+            // Set search value
+            var input = document.getElementById('lovInput');
+            input.value = this.query;
+
+            // إذا لم تكن البيانات محملة، حملها أولاً
+            if (!this.isLoaded || this.allItems.length === 0) {
+                document.getElementById('lovBody').innerHTML =
+                    '<tr><td colspan="4" class="text-center py-4">' +
+                    '<i class="fas fa-spinner fa-spin fa-2x text-primary"></i>' +
+                    '<div class="mt-2">جاري تحميل المواد...</div></td></tr>';
+                document.getElementById('lovCount').textContent = '...';
+
+                this.loadItems(function() {
+                    self.filter(self.query);
+                    input.focus();
+                    if (self.query) input.select();
+                });
+            } else {
+                // Filter with query
+                this.filter(this.query);
+
+                // Focus and select
+                setTimeout(function() {
+                    input.focus();
+                    if (self.query) input.select();
+                }, 100);
+            }
+        },
+
+        close: function() {
+            document.getElementById('lovOverlay').classList.remove('active');
+            this.isOpen = false;
+
+            // Re-enable Handsontable
+            if (typeof hot !== 'undefined' && hot) {
+                hot.listen();
+                setTimeout(function() {
+                    hot.selectCell(LOV.currentRow, 0);
+                }, 50);
+            }
+        },
+
+        // Fuzzy search - يدعم أحرف متفرقة
+        fuzzyMatch: function(text, parts) {
+            var lowerText = text.toLowerCase();
+            var positions = [];
+            var lastIndex = 0;
+            var totalGap = 0;
+
+            for (var i = 0; i < parts.length; i++) {
+                var part = parts[i];
+                var index = lowerText.indexOf(part.toLowerCase(), lastIndex);
+                if (index === -1) return { matched: false, positions: [], score: 9999 };
+
+                for (var j = 0; j < part.length; j++) {
+                    positions.push(index + j);
+                }
+                totalGap += (index - lastIndex);
+                lastIndex = index + part.length;
+            }
+            return { matched: true, positions: positions, score: totalGap };
+        },
+
+        filter: function(query) {
+            this.query = query;
+            var q = query.trim();
+
+            if (!q) {
+                // إرجاع الكل
+                this.filtered = LOV.allItems.map(function(item) {
+                    return $.extend({}, item, { matchPositions: { name: [], code: [] } });
+                });
+            } else {
+                // تقسيم البحث إلى أجزاء
+                var parts = q.split(/\s+/).filter(function(p) { return p.length > 0; });
+                this.filtered = [];
+
+                var self = this;
+                LOV.allItems.forEach(function(item) {
+                    var nameMatch = self.fuzzyMatch(item.name, parts);
+                    var codeMatch = self.fuzzyMatch(item.code || '', parts);
+
+                    if (nameMatch.matched || codeMatch.matched) {
+                        self.filtered.push($.extend({}, item, {
+                            matchPositions: {
+                                name: nameMatch.positions,
+                                code: codeMatch.positions
+                            },
+                            score: Math.min(
+                                nameMatch.matched ? nameMatch.score : 9999,
+                                codeMatch.matched ? codeMatch.score : 9999
+                            )
+                        }));
+                    }
+                });
+
+                // ترتيب حسب جودة التطابق
+                this.filtered.sort(function(a, b) { return a.score - b.score; });
+            }
+
+            this.activeIndex = 0;
+            this.render();
+        },
+
+        highlight: function(text, positions) {
+            if (!positions || positions.length === 0) return text;
+            var result = '';
+            for (var i = 0; i < text.length; i++) {
+                if (positions.indexOf(i) !== -1) {
+                    result += '<span class="lov-match">' + text[i] + '</span>';
+                } else {
+                    result += text[i];
+                }
+            }
+            return result;
+        },
+
+        render: function() {
+            var tbody = document.getElementById('lovBody');
+
+            if (this.filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="lov-empty">' +
+                    '<i class="fas fa-search"></i>' +
+                    '<div>لا توجد نتائج' + (this.query ? ' لـ "' + this.query + '"' : '') + '</div>' +
+                    '</div></td></tr>';
+                document.getElementById('lovCount').textContent = '0';
+                return;
+            }
+
+            var self = this;
+            var html = this.filtered.map(function(item, i) {
+                return '<tr class="' + (i === self.activeIndex ? 'active' : '') + '" data-idx="' + i + '">' +
+                    '<td>' + self.highlight(item.code || '-', (item.matchPositions && item.matchPositions.code) || []) + '</td>' +
+                    '<td><strong>' + self.highlight(item.name, (item.matchPositions && item.matchPositions.name) || []) + '</strong></td>' +
+                    '<td>' + item.unit + '</td>' +
+                    '<td>' + item.price.toFixed(3) + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            tbody.innerHTML = html;
+            document.getElementById('lovCount').textContent = this.filtered.length;
+
+            // إضافة event listeners
+            var rows = tbody.querySelectorAll('tr');
+            rows.forEach(function(row, idx) {
+                row.addEventListener('mouseenter', function() { LOV.setActive(idx); });
+                row.addEventListener('click', function() { LOV.select(); });
+                row.addEventListener('dblclick', function() { LOV.select(); });
+            });
+
+            this.scrollToActive();
+        },
+
+        setActive: function(i) {
+            if (i >= 0 && i < this.filtered.length) {
+                this.activeIndex = i;
+                this.render();
+            }
+        },
+
+        moveUp: function() {
+            if (this.activeIndex > 0) {
+                this.activeIndex--;
+                this.render();
+            }
+        },
+
+        moveDown: function() {
+            if (this.activeIndex < this.filtered.length - 1) {
+                this.activeIndex++;
+                this.render();
+            }
+        },
+
+        pageUp: function() {
+            this.activeIndex = Math.max(this.activeIndex - 5, 0);
+            this.render();
+        },
+
+        pageDown: function() {
+            this.activeIndex = Math.min(this.activeIndex + 5, this.filtered.length - 1);
+            this.render();
+        },
+
+        scrollToActive: function() {
+            var row = document.querySelector('.lov-table tbody tr.active');
+            if (row) row.scrollIntoView({ block: 'nearest' });
+        },
+
+        select: function() {
+            if (this.filtered.length === 0 || this.activeIndex < 0) return;
+
+            var item = this.filtered[this.activeIndex];
+            var row = this.currentRow;
+
+            this.close();
+
+            // تحديث Handsontable
+            if (typeof hot !== 'undefined' && hot) {
+                // الأعمدة الجديدة:
+                // 0: الصنف, 1: الكمية, 2: الوحدة, 3: السعر, 4: ض%, 5: الضريبة, 6: خصم%, 7: الخصم, 8: الإجمالي
+                hot.setDataAtCell([
+                    [row, 0, item.name],           // اسم الصنف
+                    [row, 2, item.unit],           // الوحدة
+                    [row, 3, item.price],          // السعر
+                    [row, 4, item.tax_rate || 0]   // نسبة الضريبة
+                ], 'lov');
+
+                // حفظ بيانات الصنف (بما في ذلك variant_id)
+                if (typeof hotItemsData !== 'undefined') {
+                    while (hotItemsData.length <= row) {
+                        hotItemsData.push({ id: '', variant_id: '', name: '', unit: '', price: 0, tax_rate: 0 });
+                    }
+                    hotItemsData[row] = {
+                        id: item.id,
+                        variant_id: item.variant_id,
+                        name: item.name,
+                        unit: item.unit,
+                        price: item.price,
+                        tax_rate: item.tax_rate || 0
+                    };
+                }
+
+                // إضافة تعليق على خلية الصنف بمعلومات السعر والمخزون
+                var commentPlugin = hot.getPlugin('comments');
+                if (commentPlugin) {
+                    var commentText = '💰 السعر: ' + item.price.toFixed(3) + ' د.أ';
+                    if (item.stock > 0) {
+                        commentText += '\n📦 المخزون: ' + item.stock;
+                    }
+                    if (item.code) {
+                        commentText += '\n🔖 الكود: ' + item.code;
+                    }
+                    commentPlugin.setCommentAtCell(row, 0, commentText);
+                }
+
+                // حساب الصف
+                setTimeout(function() {
+                    hotCalculateRow(hot, row);
+                    hotUpdateTotals();
+                    // الانتقال لحقل الكمية
+                    hot.selectCell(row, 1);
+                }, 50);
+
+                console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Tax:', item.tax_rate);
+            } else {
+                // تحديث الجدول HTML الحالي
+                var $row = $('#items-tbody tr.item-row').eq(row);
+                if ($row.length) {
+                    // تحديث اسم الصنف
+                    $row.find('.item-search-input').val(item.name);
+
+                    // تحديث select المخفي
+                    var $select = $row.find('.item-select');
+                    // إضافة option جديد إذا لم يكن موجوداً
+                    if ($select.find('option[value="' + item.id + '"]').length === 0) {
+                        $select.append('<option value="' + item.id + '">' + item.name + '</option>');
+                    }
+                    $select.val(item.id).trigger('change');
+
+                    // تحديث الوحدة
+                    $row.find('.unit-display-input').val(item.unit);
+                    var $unitSelect = $row.find('.unit-select');
+                    $unitSelect.find('option').each(function() {
+                        if ($(this).text().indexOf(item.unit) !== -1) {
+                            $unitSelect.val($(this).val());
+                        }
+                    });
+
+                    // تحديث السعر
+                    $row.find('.price-input').val(item.price.toFixed(3)).trigger('change');
+
+                    // الانتقال لحقل الكمية
+                    setTimeout(function() {
+                        $row.find('.quantity-input').focus().select();
+                    }, 100);
+
+                    // حساب الإجمالي
+                    calculateItemTotal($row);
+                    calculateTotals();
+                }
+            }
+        }
+    };
+
+    // LOV Input Event Handlers
+    $(document).ready(function() {
+        // تحميل المواد
+        LOV.loadItems();
+
+        var lovInput = document.getElementById('lovInput');
+
+        lovInput.addEventListener('input', function(e) {
+            LOV.filter(e.target.value);
+        });
+
+        lovInput.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.moveDown();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.moveUp();
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.select();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.close();
+                    break;
+                case 'PageDown':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.pageDown();
+                    break;
+                case 'PageUp':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    LOV.pageUp();
+                    break;
+            }
+        });
+
+        // إغلاق عند النقر خارج النافذة
+        document.getElementById('lovOverlay').addEventListener('click', function(e) {
+            if (e.target.id === 'lovOverlay') LOV.close();
+        });
+
+        // Global ESC handler
+        document.addEventListener('keydown', function(e) {
+            if (LOV.isOpen && e.key === 'Escape') {
+                e.preventDefault();
+                LOV.close();
+            }
+        });
+    });
+
+    // ============================================
+    // 📊 Handsontable Integration (Oracle-Style)
+    // ============================================
+    var hot = null;
+    var hotItemsData = []; // لحفظ بيانات المواد (id, name, code, unit, price)
+
+    // أعمدة الجدول:
+    // 0: اسم الصنف (text, editable - يفتح LOV)
+    // 1: الكمية (numeric, editable)
+    // 2: الوحدة (text, readonly)
+    // 3: السعر (numeric, editable)
+    // 4: نسبة الضريبة % (numeric, editable)
+    // 5: مبلغ الضريبة (numeric, readonly - محسوب)
+    // 6: الخصم % (numeric, editable)
+    // 7: مبلغ الخصم (numeric, readonly - محسوب)
+    // 8: الإجمالي (numeric, readonly - محسوب)
+
+    function initHandsontable() {
+        var container = document.getElementById('items-handsontable');
+        if (!container) {
+            console.log('⚠️ Handsontable container not found');
+            return;
+        }
+
+        // استخراج البيانات الموجودة من الـ formset
+        var existingData = [];
+        hotItemsData = [];
+
+        $('#items-tbody tr.item-row').each(function(index) {
+            var $row = $(this);
+            var itemId = $row.find('.item-select').val() || '';
+            var itemName = $row.find('.item-search-input').val() || '';
+            var quantity = parseFloat($row.find('.quantity-input').val()) || 1;
+            var unit = $row.find('.unit-display-input').val() || '';
+            var price = parseFloat($row.find('.price-input').val()) || 0;
+            var taxRate = parseFloat($row.find('.tax-rate-input').val()) || 0;
+            var discountPct = parseFloat($row.find('.discount-pct-input').val()) || 0;
+
+            // حسابات
+            var subtotal = quantity * price;
+            var taxAmount = subtotal * (taxRate / 100);
+            var discountAmount = subtotal * (discountPct / 100);
+            var total = subtotal + taxAmount - discountAmount;
+
+            if (itemName) {
+                existingData.push([itemName, quantity, unit, price, taxRate, taxAmount, discountPct, discountAmount, total]);
+                hotItemsData.push({ id: itemId, name: itemName, unit: unit, price: price });
+            }
+        });
+
+        // إضافة صفوف فارغة (6 صفوف)
+        while (existingData.length < 6) {
+            existingData.push(['', 1, '', 0, 0, 0, 0, 0, 0]);
+            hotItemsData.push({ id: '', name: '', unit: '', price: 0 });
+        }
+
+        hot = new Handsontable(container, {
+            data: existingData,
+            colHeaders: ['الصنف', 'الكمية', 'الوحدة', 'السعر', 'ض%', 'الضريبة', 'خصم%', 'الخصم', 'الإجمالي'],
+            columns: [
+                { type: 'text', width: 220 },                    // 0: الصنف
+                { type: 'numeric', width: 70 },                  // 1: الكمية
+                { type: 'text', readOnly: true, width: 70, className: 'htDimmed' },  // 2: الوحدة
+                { type: 'numeric', numericFormat: { pattern: '0,0.000' }, width: 90 }, // 3: السعر
+                { type: 'numeric', width: 50 },                  // 4: نسبة الضريبة
+                { type: 'numeric', numericFormat: { pattern: '0,0.000' }, readOnly: true, width: 80, className: 'htDimmed' }, // 5: مبلغ الضريبة
+                { type: 'numeric', width: 50 },                  // 6: نسبة الخصم
+                { type: 'numeric', numericFormat: { pattern: '0,0.000' }, readOnly: true, width: 80, className: 'htDimmed' }, // 7: مبلغ الخصم
+                { type: 'numeric', numericFormat: { pattern: '0,0.000' }, readOnly: true, width: 100, className: 'htDimmed htBold' } // 8: الإجمالي
+            ],
+            stretchH: 'all',
+            height: 220,
+            rowHeaders: true,
+            startRows: 6,
+            minSpareRows: 1,
+            contextMenu: ['row_above', 'row_below', 'remove_row', '---------', 'undo', 'redo', '---------', 'commentsAddEdit', 'commentsRemove', '---------', 'copy', 'cut'],
+            comments: true,
+            copyPaste: true,
+            licenseKey: 'non-commercial-and-evaluation',
+            className: 'htRight',
+            language: 'ar-SA',
+
+            // Plugin لإخفاء الأعمدة
+            hiddenColumns: {
+                columns: [],
+                indicators: false
+            },
+
+            // Plugin لتحريك الأعمدة (سحب وإفلات)
+            manualColumnMove: true,
+
+            // حفظ ترتيب الأعمدة عند التغيير
+            afterColumnMove: function(movedColumns, finalIndex, dropIndex, movePossible, orderChanged) {
+                if (orderChanged) {
+                    // تحديث التتبع أولاً ثم الحفظ
+                    updateColumnOrderTracking(movedColumns, finalIndex);
+                    hotSaveColumnOrder();
+                    console.log('📊 Columns moved:', movedColumns, 'to position:', finalIndex);
+                }
+            },
+
+            // فتح LOV عند Enter أو F4 في عمود الصنف
+            beforeKeyDown: function(e) {
+                if (LOV.isOpen) {
+                    e.stopImmediatePropagation();
+                    return false;
+                }
+
+                var sel = this.getSelected();
+                if (!sel) return;
+
+                var row = sel[0][0];
+                var col = sel[0][1];
+
+                // عمود الصنف (0) - Enter أو F4
+                if (col === 0 && (e.key === 'Enter' || e.key === 'F4')) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    LOV.open(row, this.getDataAtCell(row, col) || '');
+                    return false;
+                }
+            },
+
+            // حساب تلقائي عند تغيير القيم
+            afterChange: function(changes, source) {
+                if (!changes || source === 'loadData' || source === 'lov' || source === 'calc') return;
+
+                var self = this;
+                changes.forEach(function(change) {
+                    var row = change[0];
+                    var col = change[1];
+
+                    // إعادة الحساب إذا تغيرت الكمية أو السعر أو الضريبة أو الخصم
+                    if ([1, 3, 4, 6].indexOf(col) !== -1) {
+                        hotCalculateRow(self, row);
+                    }
+                });
+
+                hotUpdateTotals();
+            }
+        });
+
+        console.log('✅ Handsontable initialized with ' + existingData.length + ' rows');
+
+        // تفعيل plugins بعد التهيئة
+        var movePlugin = hot.getPlugin('manualColumnMove');
+        if (movePlugin && !movePlugin.isEnabled()) {
+            movePlugin.enablePlugin();
+            console.log('✅ manualColumnMove plugin enabled');
+        }
+
+        var hiddenPlugin = hot.getPlugin('hiddenColumns');
+        if (hiddenPlugin && !hiddenPlugin.isEnabled()) {
+            hiddenPlugin.enablePlugin();
+            console.log('✅ hiddenColumns plugin enabled');
+        }
+
+        // تحديث الإجماليات الأولية
+        setTimeout(hotUpdateTotals, 100);
+
+        // تحميل إعدادات الأعمدة المحفوظة
+        setTimeout(function() {
+            hotLoadColumnSettings();
+            hotLoadColumnOrder();
+        }, 200);
+    }
+
+    // حساب صف واحد
+    function hotCalculateRow(hotInstance, row) {
+        var qty = parseFloat(hotInstance.getDataAtCell(row, 1)) || 0;
+        var price = parseFloat(hotInstance.getDataAtCell(row, 3)) || 0;
+        var taxRate = parseFloat(hotInstance.getDataAtCell(row, 4)) || 0;
+        var discountPct = parseFloat(hotInstance.getDataAtCell(row, 6)) || 0;
+
+        var subtotal = qty * price;
+        var taxAmount = subtotal * (taxRate / 100);
+        var discountAmount = subtotal * (discountPct / 100);
+        var total = subtotal + taxAmount - discountAmount;
+
+        hotInstance.setDataAtCell([
+            [row, 5, taxAmount],
+            [row, 7, discountAmount],
+            [row, 8, total]
+        ], 'calc');
+    }
+
+    // تحديث إجماليات الفاتورة
+    // تنسيق الأرقام بفواصل
+    function formatCurrency(num) {
+        return num.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' د.أ';
+    }
+
+    function hotUpdateTotals() {
+        if (!hot) return;
+
+        var subtotal = 0;
+        var totalTax = 0;
+        var totalDiscount = 0;
+        var grandTotal = 0;
+
+        var data = hot.getData();
+        data.forEach(function(row) {
+            if (row[0] && row[0].trim() !== '') {
+                var qty = parseFloat(row[1]) || 0;
+                var price = parseFloat(row[3]) || 0;
+                subtotal += qty * price;
+                totalTax += parseFloat(row[5]) || 0;
+                totalDiscount += parseFloat(row[7]) || 0;
+                grandTotal += parseFloat(row[8]) || 0;
+            }
+        });
+
+        $('#summary-subtotal').text(formatCurrency(subtotal));
+        $('#summary-tax').text(formatCurrency(totalTax));
+        $('#summary-discount').text(formatCurrency(totalDiscount));
+        $('#summary-total').text(formatCurrency(grandTotal));
+
+        if (typeof numberToArabicWords === 'function') {
+            $('#tafqeet-text').text(numberToArabicWords(grandTotal));
+        }
+    }
+
+    // إضافة صف جديد
+    function hotAddRow() {
+        if (!hot) return;
+        hot.alter('insert_row_below');
+        var lastRow = hot.countRows() - 1;
+        hotItemsData.push({ id: '', name: '', unit: '', price: 0 });
+        hot.selectCell(lastRow, 0);
+    }
+
+    // حذف الصف المحدد
+    function hotDeleteRow() {
+        if (!hot) return;
+        var sel = hot.getSelected();
+        if (sel && sel[0]) {
+            var row = sel[0][0];
+            if (hot.countRows() > 1) {
+                hot.alter('remove_row', row, 1);
+                hotItemsData.splice(row, 1);
+                hotUpdateTotals();
+            }
+        }
+    }
+
+    // ============================================
+    // 🔧 Column Visibility Control
+    // ============================================
+    function hotToggleColumn(colIndex, show) {
+        if (!hot) return;
+        var plugin = hot.getPlugin('hiddenColumns');
+        if (show) {
+            plugin.showColumn(colIndex);
+        } else {
+            plugin.hideColumn(colIndex);
+        }
+        hot.render();
+        hotSaveColumnSettings();
+    }
+
+    function hotShowAllColumns() {
+        if (!hot) return;
+        var plugin = hot.getPlugin('hiddenColumns');
+        for (var i = 0; i <= 8; i++) {
+            plugin.showColumn(i);
+            $('#hot-col-' + i).prop('checked', true);
+        }
+        hot.render();
+        hotSaveColumnSettings();
+    }
+
+    function hotSaveColumnSettings() {
+        if (!hot) return;
+        var hidden = [];
+        var plugin = hot.getPlugin('hiddenColumns');
+        for (var i = 0; i <= 8; i++) {
+            if (plugin.isHidden(i)) {
+                hidden.push(i);
+            }
+        }
+        localStorage.setItem('hotHiddenColumns', JSON.stringify(hidden));
+    }
+
+    function hotLoadColumnSettings() {
+        if (!hot) return;
+        var saved = localStorage.getItem('hotHiddenColumns');
+        if (saved) {
+            var hidden = JSON.parse(saved);
+            var plugin = hot.getPlugin('hiddenColumns');
+            hidden.forEach(function(colIndex) {
+                plugin.hideColumn(colIndex);
+                $('#hot-col-' + colIndex).prop('checked', false);
+            });
+            hot.render();
+        }
+    }
+
+    // ربط Checkboxes مع الأعمدة
+    $(document).on('change', '.hot-col-toggle', function() {
+        var col = parseInt($(this).data('col'));
+        var show = $(this).is(':checked');
+        hotToggleColumn(col, show);
+    });
+
+    // ============================================
+    // 🔄 Column Order Control
+    // ============================================
+    var currentColumnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8]; // الترتيب الحالي
+
+    function hotSaveColumnOrder() {
+        if (!hot) return;
+        // نستخدم متغير currentColumnOrder لأن Handsontable 12 لا يوفر طريقة مباشرة
+        localStorage.setItem('hotColumnOrder', JSON.stringify(currentColumnOrder));
+        console.log('💾 Column order saved:', currentColumnOrder);
+    }
+
+    function hotLoadColumnOrder() {
+        if (!hot) return;
+        var saved = localStorage.getItem('hotColumnOrder');
+        if (saved) {
+            try {
+                var order = JSON.parse(saved);
+                if (Array.isArray(order) && order.length === 9) {
+                    currentColumnOrder = order;
+                    // استخدام updateSettings لتطبيق الترتيب
+                    hot.updateSettings({
+                        manualColumnMove: order
+                    });
+                    hot.render();
+                    console.log('📂 Column order loaded:', order);
+                }
+            } catch (e) {
+                console.error('Error loading column order:', e);
+            }
+        }
+    }
+
+    function hotResetColumnOrder() {
+        if (!hot) return;
+        currentColumnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+        // إعادة إنشاء الجدول بالترتيب الافتراضي
+        hot.updateSettings({
+            manualColumnMove: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        });
+        hot.render();
+        localStorage.removeItem('hotColumnOrder');
+        console.log('🔄 Column order reset');
+
+        Swal.fire({
+            icon: 'success',
+            title: 'تم إعادة الترتيب',
+            text: 'تم إعادة ترتيب الأعمدة للوضع الافتراضي',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+
+    // تتبع تغيير ترتيب الأعمدة
+    function updateColumnOrderTracking(movedColumns, finalIndex) {
+        // تحديث الترتيب الداخلي
+        var newOrder = [];
+        for (var i = 0; i < 9; i++) {
+            newOrder.push(hot.toPhysicalColumn(i));
+        }
+        currentColumnOrder = newOrder;
+    }
+
+    // ============================================
+    // 📋 Column Order Modal
+    // ============================================
+    var columnNames = ['الصنف', 'الكمية', 'الوحدة', 'السعر', 'ض%', 'الضريبة', 'خصم%', 'الخصم', 'الإجمالي'];
+
+    function openColumnOrderModal() {
+        if (!hot) return;
+
+        // الحصول على الترتيب الحالي
+        var currentOrder = [];
+        for (var i = 0; i < 9; i++) {
+            currentOrder.push(hot.toPhysicalColumn(i));
+        }
+
+        // بناء HTML للقائمة
+        var listHtml = '<div id="col-order-list" style="text-align: right; direction: rtl;">';
+        currentOrder.forEach(function(colIdx, pos) {
+            listHtml += '<div class="col-order-item" data-col="' + colIdx + '" style="padding: 10px 15px; margin: 5px 0; background: #f8f9fa; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #dee2e6;">';
+            listHtml += '<span style="font-weight: 500;">' + (pos + 1) + '. ' + columnNames[colIdx] + '</span>';
+            listHtml += '<div>';
+            listHtml += '<button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="moveColumnUp(' + pos + ')" ' + (pos === 0 ? 'disabled' : '') + '><i class="fas fa-arrow-up"></i></button>';
+            listHtml += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="moveColumnDown(' + pos + ')" ' + (pos === 8 ? 'disabled' : '') + '><i class="fas fa-arrow-down"></i></button>';
+            listHtml += '</div>';
+            listHtml += '</div>';
+        });
+        listHtml += '</div>';
+
+        Swal.fire({
+            title: '<i class="fas fa-sort me-2"></i>ترتيب الأعمدة',
+            html: listHtml,
+            width: 400,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-check me-1"></i> حفظ',
+            cancelButtonText: '<i class="fas fa-times me-1"></i> إلغاء',
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            preConfirm: function() {
+                // حفظ الترتيب
+                var items = document.querySelectorAll('#col-order-list .col-order-item');
+                var newOrder = [];
+                items.forEach(function(item) {
+                    newOrder.push(parseInt(item.getAttribute('data-col')));
+                });
+                return newOrder;
+            }
+        }).then(function(result) {
+            if (result.isConfirmed && result.value) {
+                applyColumnOrder(result.value);
+            }
+        });
+    }
+
+    function moveColumnUp(pos) {
+        if (pos <= 0) return;
+        var list = document.getElementById('col-order-list');
+        var items = list.querySelectorAll('.col-order-item');
+        if (items[pos] && items[pos - 1]) {
+            list.insertBefore(items[pos], items[pos - 1]);
+            refreshColumnOrderList();
+        }
+    }
+
+    function moveColumnDown(pos) {
+        if (pos >= 8) return;
+        var list = document.getElementById('col-order-list');
+        var items = list.querySelectorAll('.col-order-item');
+        if (items[pos] && items[pos + 1]) {
+            list.insertBefore(items[pos + 1], items[pos]);
+            refreshColumnOrderList();
+        }
+    }
+
+    function refreshColumnOrderList() {
+        var list = document.getElementById('col-order-list');
+        var items = list.querySelectorAll('.col-order-item');
+        items.forEach(function(item, pos) {
+            var colIdx = parseInt(item.getAttribute('data-col'));
+            var span = item.querySelector('span');
+            span.textContent = (pos + 1) + '. ' + columnNames[colIdx];
+
+            var buttons = item.querySelectorAll('button');
+            buttons[0].disabled = (pos === 0);
+            buttons[1].disabled = (pos === 8);
+
+            // تحديث onclick
+            buttons[0].setAttribute('onclick', 'moveColumnUp(' + pos + ')');
+            buttons[1].setAttribute('onclick', 'moveColumnDown(' + pos + ')');
+        });
+    }
+
+    function applyColumnOrder(newOrder) {
+        if (!hot || !newOrder || newOrder.length !== 9) return;
+
+        // تطبيق الترتيب الجديد
+        hot.updateSettings({
+            manualColumnMove: newOrder
+        });
+        hot.render();
+
+        // حفظ في localStorage
+        currentColumnOrder = newOrder;
+        localStorage.setItem('hotColumnOrder', JSON.stringify(newOrder));
+
+        console.log('✅ Column order applied:', newOrder);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'تم الحفظ',
+            text: 'تم تطبيق ترتيب الأعمدة الجديد',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+
+    // إعادة تعيين كل شيء (الأعمدة والترتيب)
+    function hotResetAll() {
+        if (!hot) return;
+
+        // 1. إعادة إظهار جميع الأعمدة
+        var hiddenPlugin = hot.getPlugin('hiddenColumns');
+        for (var i = 0; i <= 8; i++) {
+            if (hiddenPlugin.isHidden(i)) {
+                hiddenPlugin.showColumn(i);
+            }
+            $('#hot-col-' + i).prop('checked', true);
+        }
+
+        // 2. إعادة ترتيب الأعمدة للوضع الافتراضي
+        currentColumnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+        hot.updateSettings({
+            manualColumnMove: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        });
+
+        // 3. تحديث العرض
+        hot.render();
+
+        // 4. حذف الإعدادات المحفوظة
+        localStorage.removeItem('hotHiddenColumns');
+        localStorage.removeItem('hotColumnOrder');
+
+        console.log('🔄 All settings reset to defaults');
+
+        // إظهار رسالة نجاح
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: 'تم إعادة التعيين',
+                text: 'تم إعادة جميع إعدادات الجدول للوضع الافتراضي',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+    }
+
+    // مزامنة Handsontable مع formset قبل الإرسال
+    function syncHandsontableToFormset() {
+        if (!hot) return true;
+
+        var data = hot.getData();
+        var validRows = [];
+
+        // جمع الصفوف الصالحة (التي تحتوي على صنف)
+        data.forEach(function(row, idx) {
+            if (row[0] && row[0].trim() !== '' && hotItemsData[idx] && hotItemsData[idx].id) {
+                validRows.push({
+                    itemId: hotItemsData[idx].id,
+                    quantity: row[1] || 1,
+                    price: row[3] || 0,
+                    taxRate: row[4] || 0,
+                    discountPct: row[6] || 0
+                });
+            }
+        });
+
+        if (validRows.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'لا توجد بنود',
+                text: 'يرجى إضافة صنف واحد على الأقل'
+            });
+            return false;
+        }
+
+        // تحديث formset
+        var $tbody = $('#items-tbody');
+        var $rows = $tbody.find('tr.item-row');
+        var formPrefix = 'lines';
+
+        // تحديث TOTAL_FORMS
+        $('#id_' + formPrefix + '-TOTAL_FORMS').val(validRows.length);
+
+        // تحديث كل صف في formset
+        validRows.forEach(function(rowData, idx) {
+            var $row = $rows.eq(idx);
+            if ($row.length) {
+                $row.find('.item-select').val(rowData.itemId);
+                $row.find('.quantity-input').val(rowData.quantity);
+                $row.find('.price-input').val(rowData.price);
+                $row.find('.tax-rate-input').val(rowData.taxRate);
+                $row.find('.discount-pct-input').val(rowData.discountPct);
+            }
+        });
+
+        console.log('✅ Synced ' + validRows.length + ' rows to formset');
+        return true;
+    }
+
+    // تفعيل Handsontable عند تحميل الصفحة
+    $(document).ready(function() {
+        initHandsontable();
+
+        // مزامنة قبل الإرسال
+        $('form').on('submit', function(e) {
+            if (!syncHandsontableToFormset()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    });
 
 </script>
 
