@@ -241,20 +241,33 @@ kbd {
     transition: background-color 0.1s;
 }
 
-.autocomplete-item:hover,
+.autocomplete-item:hover {
+    background-color: #e3f2fd;
+    color: #212529;
+}
+
 .autocomplete-item.active {
-    background-color: #0d6efd;
-    color: white;
+    background-color: #e3f2fd;
+    color: #212529;
+    border-right: 3px solid #0d6efd;
 }
 
 /* Make badges visible on active item */
 .autocomplete-item.active .badge {
-    filter: brightness(1.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    filter: brightness(0.95);
 }
 
 .autocomplete-item.active small {
-    color: rgba(255, 255, 255, 0.9) !important;
+    color: #6c757d !important;
+}
+
+/* Autocomplete has value - show clear button */
+.autocomplete-wrapper.has-value .autocomplete-clear-btn {
+    display: flex !important;
+}
+
+.autocomplete-wrapper.has-value .autocomplete-search-input {
+    padding-left: 60px !important;
 }
 
 .autocomplete-item:last-child {
@@ -2817,54 +2830,72 @@ $(document).ready(function() {
     // Simple Autocomplete - Oracle Desktop Style
     // ============================================
 
-    // Generic autocomplete from select options (for local data)
-    function initSelectAutocomplete($input, $select) {
+    // ============================================
+    // 🎹 Keyboard-First Autocomplete System
+    // ============================================
+    function initSelectAutocomplete($input, $select, options) {
         // Prevent double initialization
         if ($input.data('autocomplete-initialized')) return;
         $input.data('autocomplete-initialized', true);
+
+        // Default options
+        options = $.extend({
+            searchByCode: true,        // البحث في الكود أيضاً
+            closeDelay: 150,           // تأخير الإغلاق (ms)
+            moveToNextOnSelect: true   // الانتقال للحقل التالي بعد الاختيار
+        }, options || {});
 
         var $wrapper = $input.closest('.autocomplete-wrapper');
         var $list = $wrapper.find('.autocomplete-list');
         var currentIndex = -1;
         var filteredOptions = [];
+        var closeTimeout = null;
+        var isFirstKeyAfterFocus = true;
+        var originalValue = '';
 
-        // Get all options from select
+        // إضافة زر المسح X إذا لم يكن موجوداً
+        if (!$wrapper.find('.autocomplete-clear-btn').length) {
+            var $clearBtn = $('<button type="button" class="autocomplete-clear-btn" tabindex="-1" title="مسح"><i class="fas fa-times"></i></button>');
+            $wrapper.append($clearBtn);
+        }
+        var $clearBtn = $wrapper.find('.autocomplete-clear-btn');
+
+        // Get all options from select (with code support)
         function getOptions() {
-            var options = [];
+            var opts = [];
             $select.find('option').each(function() {
                 var value = $(this).val();
                 var text = $(this).text().trim();
-                if (value && text && text !== '-') {
-                    options.push({
+                var code = $(this).data('code') || '';
+                if (value && text && text !== '---------' && text !== '-') {
+                    opts.push({
                         id: value,
-                        text: text
+                        text: text,
+                        code: code,
+                        searchText: (text + ' ' + code).toLowerCase()
                     });
                 }
             });
-            return options;
+            return opts;
         }
 
-        // Filter and display options
-        function searchOptions(query) {
+        // Filter options by query
+        function filterOptions(query) {
             var allOptions = getOptions();
-
             if (!query || query.length < 1) {
-                $list.removeClass('show').empty();
-                return;
+                return allOptions; // إرجاع الكل إذا لم يكن هناك بحث
             }
 
-            // Filter options
             var queryLower = query.toLowerCase();
-            filteredOptions = allOptions.filter(function(opt) {
-                return opt.text.toLowerCase().indexOf(queryLower) !== -1;
+            return allOptions.filter(function(opt) {
+                return opt.searchText.indexOf(queryLower) !== -1;
             });
-
-            displayResults(filteredOptions);
         }
 
         // Display results
         function displayResults(results) {
             $list.empty();
+            currentIndex = -1;
 
             if (results.length === 0) {
                 $list.html('<div class="autocomplete-loading">لا توجد نتائج</div>');
@@ -2873,94 +2904,238 @@ $(document).ready(function() {
             }
 
             results.forEach(function(item, index) {
+                var displayHtml = '<strong>' + item.text + '</strong>';
+                if (item.code) {
+                    displayHtml += '<small class="text-muted me-2">' + item.code + '</small>';
+                }
                 var $item = $('<div class="autocomplete-item" data-index="' + index + '" data-id="' + item.id + '">' +
-                    '<strong>' + item.text + '</strong>' +
-                    '</div>');
+                    displayHtml + '</div>');
                 $list.append($item);
             });
 
             $list.addClass('show');
-            currentIndex = -1;
         }
 
-        // Select item
-        function selectItem(index) {
+        // Show all options (dropdown)
+        function showAllOptions() {
+            filteredOptions = getOptions();
+            if (filteredOptions.length > 0) {
+                displayResults(filteredOptions);
+            }
+        }
+
+        // Select item and move to next field
+        function selectItem(index, moveToNext) {
             if (index < 0 || index >= filteredOptions.length) return;
 
             var item = filteredOptions[index];
             $input.val(item.text);
             $select.val(item.id).trigger('change');
             $list.removeClass('show');
+            updateClearButton();
+
+            // الانتقال للحقل التالي
+            if (moveToNext !== false && options.moveToNextOnSelect) {
+                moveToNextField();
+            }
         }
 
-        // Keyboard navigation
+        // Update clear button visibility
+        function updateClearButton() {
+            if ($select.val()) {
+                $wrapper.addClass('has-value');
+            } else {
+                $wrapper.removeClass('has-value');
+            }
+        }
+
+        // Move to next field (RTL: left is next)
+        function moveToNextField() {
+            var $focusable = $('input:visible:not([readonly]):not([disabled]), select:visible:not([disabled]), textarea:visible:not([disabled])');
+            var currentIdx = $focusable.index($input);
+            if (currentIdx < $focusable.length - 1) {
+                $focusable.eq(currentIdx + 1).focus();
+            }
+        }
+
+        // Move to previous field (RTL: right is previous)
+        function moveToPrevField() {
+            var $focusable = $('input:visible:not([readonly]):not([disabled]), select:visible:not([disabled]), textarea:visible:not([disabled])');
+            var currentIdx = $focusable.index($input);
+            if (currentIdx > 0) {
+                $focusable.eq(currentIdx - 1).focus();
+            }
+        }
+
+        // Scroll active item into view
+        function scrollToActive() {
+            var $activeItem = $list.find('.autocomplete-item.active');
+            if ($activeItem.length) {
+                var itemTop = $activeItem.position().top;
+                var itemHeight = $activeItem.outerHeight();
+                var listHeight = $list.height();
+                var scrollTop = $list.scrollTop();
+
+                if (itemTop < 0) {
+                    $list.scrollTop(scrollTop + itemTop);
+                } else if (itemTop + itemHeight > listHeight) {
+                    $list.scrollTop(scrollTop + itemTop + itemHeight - listHeight);
+                }
+            }
+        }
+
+        // ========== Event Handlers ==========
+
+        // 1. Focus: فتح القائمة تلقائياً
+        $input.on('focus', function() {
+            isFirstKeyAfterFocus = true;
+            originalValue = $input.val();
+            clearTimeout(closeTimeout);
+            showAllOptions();
+        });
+
+        // 2. Blur: إغلاق بعد 150ms
+        $input.on('blur', function() {
+            closeTimeout = setTimeout(function() {
+                $list.removeClass('show');
+            }, options.closeDelay);
+        });
+
+        // 3. Input: البحث مع مسح القيمة القديمة عند أول حرف
+        $input.on('input', function() {
+            var query = $(this).val();
+            filteredOptions = filterOptions(query);
+            displayResults(filteredOptions);
+        });
+
+        // 4. Keyboard navigation
         $input.on('keydown', function(e) {
             var $items = $list.find('.autocomplete-item');
+            var listVisible = $list.hasClass('show');
 
+            // مسح القيمة القديمة عند أول حرف بعد التركيز
+            if (isFirstKeyAfterFocus && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                isFirstKeyAfterFocus = false;
+                $input.val('');
+                $select.val('').trigger('change');
+                updateClearButton();
+            }
+
+            // السهم للأسفل ↓
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                currentIndex = Math.min(currentIndex + 1, $items.length - 1);
-                $items.removeClass('active').eq(currentIndex).addClass('active');
-                return false;
-            }
-
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                currentIndex = Math.max(currentIndex - 1, 0);
-                $items.removeClass('active').eq(currentIndex).addClass('active');
-                return false;
-            }
-
-            if (e.key === 'Enter' && $list.hasClass('show')) {
-                e.preventDefault();
-                if (currentIndex >= 0) {
-                    selectItem(currentIndex);
+                if (!listVisible) {
+                    showAllOptions();
+                } else {
+                    currentIndex = Math.min(currentIndex + 1, $items.length - 1);
+                    $items.removeClass('active').eq(currentIndex).addClass('active');
+                    scrollToActive();
                 }
                 return false;
             }
 
+            // السهم للأعلى ↑
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (listVisible) {
+                    currentIndex = Math.max(currentIndex - 1, 0);
+                    $items.removeClass('active').eq(currentIndex).addClass('active');
+                    scrollToActive();
+                }
+                return false;
+            }
+
+            // Enter: اختيار العنصر والانتقال للحقل التالي
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (listVisible && currentIndex >= 0) {
+                    selectItem(currentIndex, true);
+                } else if (listVisible && filteredOptions.length === 1) {
+                    // إذا كان هناك نتيجة واحدة فقط، اخترها
+                    selectItem(0, true);
+                } else {
+                    moveToNextField();
+                }
+                return false;
+            }
+
+            // Escape: إغلاق القائمة
             if (e.key === 'Escape') {
                 $list.removeClass('show');
+                $input.val(originalValue); // استعادة القيمة الأصلية
                 return false;
+            }
+
+            // السهم اليسار ← (RTL: الحقل التالي)
+            if (e.key === 'ArrowLeft' && !listVisible) {
+                e.preventDefault();
+                moveToNextField();
+                return false;
+            }
+
+            // السهم اليمين → (RTL: الحقل السابق)
+            if (e.key === 'ArrowRight' && !listVisible) {
+                e.preventDefault();
+                moveToPrevField();
+                return false;
+            }
+
+            // Tab: الانتقال الطبيعي
+            if (e.key === 'Tab') {
+                $list.removeClass('show');
+                // لا نمنع السلوك الافتراضي
             }
         });
 
-        // Search on input
-        $input.on('input', function() {
-            searchOptions($(this).val());
-        });
-
-        // Click on item
-        $list.on('click', '.autocomplete-item', function() {
+        // 5. Click on item: اختيار والانتقال للحقل التالي
+        $list.on('mousedown', '.autocomplete-item', function(e) {
+            e.preventDefault(); // منع blur قبل الاختيار
+            clearTimeout(closeTimeout);
             var index = parseInt($(this).data('index'));
-            selectItem(index);
+            selectItem(index, true);
         });
 
-        // Dropdown button click - show all options
-        $wrapper.find('.autocomplete-dropdown-btn').on('click', function(e) {
+        // 6. Dropdown button click
+        $wrapper.find('.autocomplete-dropdown-btn').on('mousedown', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            clearTimeout(closeTimeout);
 
-            // Show all options
-            filteredOptions = getOptions();
-            if (filteredOptions.length > 0) {
-                displayResults(filteredOptions);
+            if ($list.hasClass('show')) {
+                $list.removeClass('show');
+            } else {
+                showAllOptions();
                 $input.focus();
             }
         });
 
-        // Close on click outside
-        $(document).on('click', function(e) {
-            if (!$wrapper.is(e.target) && $wrapper.has(e.target).length === 0) {
-                $list.removeClass('show');
-            }
+        // 7. Clear button click
+        $clearBtn.on('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            clearTimeout(closeTimeout);
+
+            $input.val('');
+            $select.val('').trigger('change');
+            updateClearButton();
+            $input.focus();
+            showAllOptions();
         });
 
-        // If select has a value, show it in input
+        // 8. Hover on items
+        $list.on('mouseenter', '.autocomplete-item', function() {
+            var index = parseInt($(this).data('index'));
+            currentIndex = index;
+            $list.find('.autocomplete-item').removeClass('active');
+            $(this).addClass('active');
+        });
+
+        // Initialize: show current value and update clear button
         if ($select.val()) {
             var selectedText = $select.find('option:selected').text();
             $input.val(selectedText);
         }
+        updateClearButton();
     }
 
     // Item autocomplete with AJAX
