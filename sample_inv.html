@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فاتورة مشتريات - Oracle LOV احترافي</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/handsontable@12.4.0/dist/handsontable.full.min.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Cairo', sans-serif; }
+        :root {
+            --primary: #1976d2;
+            --success: #2e7d32;
+            --danger: #c62828;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #eeeeee;
+            --gray-300: #e0e0e0;
+        }
+        body { background: var(--gray-100); padding: 20px; }
+        .page-header { background: white; padding: 20px 24px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .page-title { display: flex; align-items: center; gap: 12px; color: var(--primary); margin: 0; font-weight: 700; font-size: 22px; }
+        .main-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+        .card-section { padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
+        .card-section:last-child { border-bottom: none; }
+        .section-title { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .form-label { font-weight: 600; color: #555; margin-bottom: 5px; font-size: 13px; }
+        .required-field::after { content: "*"; color: var(--danger); margin-right: 4px; }
+        .form-control { border: 2px solid var(--gray-300); border-radius: 6px; padding: 9px 12px; font-size: 14px; transition: all 0.2s; }
+        .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(25,118,210,0.15); outline: none; }
+        .form-control:hover { border-color: #90caf9; }
+        .invoice-number { background: var(--gray-50); border: 2px dashed var(--gray-300); padding: 10px; border-radius: 6px; text-align: center; font-weight: 700; color: var(--primary); font-size: 16px; }
+        
+        /* Autocomplete */
+        .autocomplete-container { position: relative; }
+        .autocomplete-wrapper { position: relative; display: flex; align-items: center; }
+        .autocomplete-wrapper .form-control { padding-left: 35px; flex: 1; }
+        .clear-btn { position: absolute; left: 8px; width: 24px; height: 24px; border: none; background: transparent; color: #999; cursor: pointer; display: none; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s; z-index: 10; }
+        .clear-btn:hover { background-color: #ffebee; color: var(--danger); }
+        .clear-btn.show { display: flex; }
+        .clear-btn .material-icons { font-size: 18px; }
+        .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid var(--primary); border-top: none; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: -2px; }
+        .autocomplete-dropdown.show { display: block; }
+        .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--gray-200); transition: background 0.1s; }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover, .autocomplete-item.selected { background-color: #e3f2fd; }
+        .autocomplete-item strong { color: var(--primary); display: block; }
+        .autocomplete-item small { color: #666; font-size: 12px; display: block; margin-top: 2px; }
+        .autocomplete-item.no-results { color: #999; text-align: center; cursor: default; }
+        .autocomplete-item.no-results:hover { background-color: white; }
+        
+        /* Grid */
+        .grid-container { margin-top: 12px; border: 2px solid var(--gray-300); border-radius: 8px; overflow: hidden; }
+        .grid-toolbar { background: var(--gray-50); padding: 10px 14px; border-bottom: 1px solid var(--gray-300); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .grid-toolbar button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 4px; background: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .grid-toolbar button:hover { background: var(--gray-100); border-color: var(--primary); }
+        .shortcut-hint { margin-right: auto; font-size: 12px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
+        .shortcut-hint kbd { background: var(--gray-200); padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+        .handsontable { direction: rtl; font-family: 'Cairo', sans-serif !important; }
+        .handsontable th { background: var(--gray-50); font-weight: 600; color: #555; }
+        .handsontable td { text-align: right; }
+        
+        /* Summary */
+        .summary-section { background: var(--gray-50); padding: 16px; border-radius: 6px; }
+        .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+        .summary-row.total { border-top: 2px solid var(--gray-300); margin-top: 6px; padding-top: 10px; font-size: 17px; font-weight: 700; color: var(--primary); }
+        .action-buttons { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; background: var(--gray-50); flex-wrap: wrap; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; border: none; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-outline-secondary { background: white; border: 1px solid var(--gray-300); color: #666; }
+        .badge-draft { background: #ffa726; color: white; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .alert-info { background: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .alert-info kbd { background: white; padding: 2px 6px; border-radius: 3px; border: 1px solid #90caf9; font-weight: 600; font-size: 11px; }
+        .keyboard-hint { background: #fff3e0; border: 1px solid #ffb74d; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #e65100; }
+        .keyboard-hint kbd { background: #fff; padding: 2px 6px; border-radius: 3px; border: 1px solid #ffb74d; margin: 0 2px; font-weight: 600; }
+
+        /* LOV Modal */
+        .lov-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99999; align-items: center; justify-content: center; }
+        .lov-overlay.active { display: flex; }
+        .lov-window { background: white; border-radius: 10px; width: 95%; max-width: 850px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.4); animation: lovSlideIn 0.2s ease-out; }
+        @keyframes lovSlideIn { from { opacity: 0; transform: scale(0.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .lov-header { background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); color: white; padding: 14px 20px; border-radius: 10px 10px 0 0; display: flex; align-items: center; justify-content: space-between; }
+        .lov-title { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .lov-close { background: rgba(255,255,255,0.15); border: none; color: white; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .lov-close:hover { background: rgba(255,255,255,0.25); }
+        .lov-search-box { padding: 14px 20px; background: #f8f9fa; border-bottom: 1px solid var(--gray-200); }
+        .lov-search-wrapper { position: relative; }
+        .lov-search-wrapper .material-icons { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #888; font-size: 22px; }
+        .lov-search-input { width: 100%; padding: 12px 50px 12px 14px; border: 2px solid var(--primary); border-radius: 8px; font-size: 15px; font-weight: 500; background: white; }
+        .lov-search-input:focus { outline: none; box-shadow: 0 0 0 4px rgba(25,118,210,0.2); }
+        .lov-hints { display: flex; gap: 20px; margin-top: 10px; font-size: 12px; color: #666; flex-wrap: wrap; }
+        .lov-hints kbd { background: white; padding: 2px 7px; border-radius: 4px; border: 1px solid #ccc; font-size: 11px; }
+        .lov-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .lov-table-wrap { flex: 1; overflow-y: auto; }
+        .lov-table { width: 100%; border-collapse: collapse; }
+        .lov-table th { padding: 11px 14px; text-align: right; font-weight: 600; color: #444; background: #f1f3f4; border-bottom: 2px solid var(--gray-300); position: sticky; top: 0; z-index: 2; }
+        .lov-table td { padding: 11px 14px; text-align: right; border-bottom: 1px solid #eee; }
+        .lov-table tbody tr { cursor: pointer; transition: background 0.1s; }
+        .lov-table tbody tr:hover { background: #f5f7fa; }
+        .lov-table tbody tr.active { background: linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%); }
+        .lov-table tbody tr.active td { font-weight: 600; color: #1565c0; }
+        .lov-table tbody tr.active td:first-child::before { content: '▸ '; color: var(--primary); }
+        .lov-match { background: #fff59d; padding: 1px 3px; border-radius: 2px; }
+        .lov-empty { text-align: center; padding: 50px 20px; color: #999; }
+        .lov-empty .material-icons { font-size: 56px; opacity: 0.4; margin-bottom: 10px; }
+        .lov-footer { padding: 12px 20px; border-top: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 0 0 10px 10px; flex-wrap: wrap; gap: 10px; }
+        .lov-count { color: #666; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .lov-count strong { color: var(--primary); font-size: 15px; }
+        .lov-buttons { display: flex; gap: 10px; }
+        .lov-btn { padding: 9px 22px; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; }
+        .lov-btn-cancel { background: white; border: 1px solid #ccc; color: #555; }
+        .lov-btn-cancel:hover { background: #f5f5f5; }
+        .lov-btn-select { background: var(--primary); color: white; }
+        .lov-btn-select:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h1 class="page-title">
+            <span class="material-icons">receipt_long</span>
+            فاتورة مشتريات جديدة
+            <span class="badge-draft">مسودة</span>
+        </h1>
+    </div>
+
+    <form id="invoiceForm">
+    <div class="main-card">
+        <!-- معلومات الفاتورة -->
+        <div class="card-section">
+            <h5 class="section-title"><span class="material-icons">info</span>معلومات الفاتورة - استخدم الكيبورد فقط!</h5>
+            
+            <div class="keyboard-hint">
+                <strong>⌨️ اختصارات:</strong>
+                <kbd>↑↓</kbd> التنقل في النتائج |
+                <kbd>←→</kbd> الانتقال بين الحقول |
+                <kbd>Enter</kbd> اختيار/انتقال |
+                <kbd>Esc</kbd> إغلاق |
+                <kbd>X</kbd> مسح الحقل
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">رقم الفاتورة</label>
+                    <div class="invoice-number">PUR-2024-0001</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label required-field">تاريخ الفاتورة</label>
+                    <input type="date" class="form-control" id="invoiceDate" value="2024-12-10" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">تاريخ الاستحقاق</label>
+                    <input type="date" class="form-control" id="dueDate" value="2025-01-09">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label required-field">المخزن المستلم</label>
+                    <div class="autocomplete-container">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control autocomplete-field" id="warehouse" data-type="warehouse" placeholder="ابدأ الكتابة..." autocomplete="off" required>
+                            <button type="button" class="clear-btn" data-for="warehouse"><span class="material-icons">close</span></button>
+                        </div>
+                        <div class="autocomplete-dropdown" id="warehouseDropdown"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                    <label class="form-label required-field">المورد</label>
+                    <div class="autocomplete-container">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control autocomplete-field" id="supplier" data-type="supplier" placeholder="ابدأ الكتابة للبحث..." autocomplete="off" required>
+                            <button type="button" class="clear-btn" data-for="supplier"><span class="material-icons">close</span></button>
+                        </div>
+                        <div class="autocomplete-dropdown" id="supplierDropdown"></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">أمر شراء (اختياري)</label>
+                    <div class="autocomplete-container">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control autocomplete-field" id="purchaseOrder" data-type="po" placeholder="رقم أمر الشراء..." autocomplete="off">
+                            <button type="button" class="clear-btn" data-for="purchaseOrder"><span class="material-icons">close</span></button>
+                        </div>
+                        <div class="autocomplete-dropdown" id="purchaseOrderDropdown"></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label required-field">طريقة الدفع</label>
+                    <div class="autocomplete-container">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" class="form-control autocomplete-field" id="paymentMethod" data-type="payment" placeholder="طريقة الدفع..." autocomplete="off" required>
+                            <button type="button" class="clear-btn" data-for="paymentMethod"><span class="material-icons">close</span></button>
+                        </div>
+                        <div class="autocomplete-dropdown" id="paymentMethodDropdown"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-3 mt-2">
+                <div class="col-md-4">
+                    <label class="form-label">رقم فاتورة المورد</label>
+                    <input type="text" class="form-control" id="supplierInvoice" placeholder="رقم الفاتورة...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">مصاريف الشحن</label>
+                    <input type="number" class="form-control" id="shippingCost" value="0" min="0" step="0.01">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">خصم إضافي</label>
+                    <input type="number" class="form-control" id="additionalDiscount" value="0" min="0" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <!-- الأصناف -->
+        <div class="card-section">
+            <h5 class="section-title"><span class="material-icons">inventory_2</span>الأصناف</h5>
+            <div class="alert-info">
+                <span class="material-icons">lightbulb</span>
+                اكتب جزء من الاسم ثم <kbd>Enter</kbd> أو <kbd>F4</kbd> لفتح LOV |
+                <kbd>↑↓</kbd> للتنقل |
+                <kbd>Enter</kbd> للاختيار |
+                البحث بأحرف متفرقة: "م غ" = مضخة غاطسة
+            </div>
+            <div class="grid-container">
+                <div class="grid-toolbar">
+                    <button type="button" onclick="addRow()"><span class="material-icons" style="font-size:16px">add</span>إضافة صف</button>
+                    <button type="button" onclick="deleteSelectedRows()"><span class="material-icons" style="font-size:16px">delete</span>حذف</button>
+                    <button type="button" onclick="clearGrid()"><span class="material-icons" style="font-size:16px">clear_all</span>مسح الكل</button>
+                    <div class="shortcut-hint">
+                        <span><kbd>Tab</kbd> انتقال</span>
+                        <span><kbd>Enter/F4</kbd> LOV</span>
+                        <span><kbd>Del</kbd> حذف</span>
+                    </div>
+                </div>
+                <div id="itemsGrid" style="height: 300px;"></div>
+            </div>
+        </div>
+
+        <!-- الملخص -->
+        <div class="card-section">
+            <div class="row">
+                <div class="col-md-7">
+                    <label class="form-label">ملاحظات</label>
+                    <textarea class="form-control" rows="3" placeholder="أي ملاحظات على الفاتورة..."></textarea>
+                </div>
+                <div class="col-md-5">
+                    <div class="summary-section">
+                        <div class="summary-row"><span>المجموع الفرعي:</span><span id="subtotal">0.00 د.أ</span></div>
+                        <div class="summary-row"><span>الخصم:</span><span id="discount">0.00 د.أ</span></div>
+                        <div class="summary-row"><span>مصاريف الشحن:</span><span id="shipping">0.00 د.أ</span></div>
+                        <div class="summary-row total"><span>الإجمالي:</span><span id="grandTotal">0.00 د.أ</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button type="button" class="btn btn-outline-secondary"><span class="material-icons">close</span>إلغاء</button>
+            <button type="button" class="btn btn-outline-secondary"><span class="material-icons">print</span>طباعة</button>
+            <button type="button" class="btn btn-primary"><span class="material-icons">save</span>حفظ كمسودة</button>
+            <button type="button" class="btn btn-success"><span class="material-icons">check_circle</span>حفظ واعتماد</button>
+        </div>
+    </div>
+    </form>
+
+    <!-- LOV Modal -->
+    <div class="lov-overlay" id="lovOverlay">
+        <div class="lov-window" onclick="event.stopPropagation()">
+            <div class="lov-header">
+                <div class="lov-title"><span class="material-icons">search</span>اختيار صنف</div>
+                <button class="lov-close" onclick="LOV.close()"><span class="material-icons">close</span></button>
+            </div>
+            <div class="lov-search-box">
+                <div class="lov-search-wrapper">
+                    <span class="material-icons">search</span>
+                    <input type="text" class="lov-search-input" id="lovInput" placeholder="ابحث بالاسم أو الكود... (أحرف متفرقة مدعومة)" autocomplete="off">
+                </div>
+                <div class="lov-hints">
+                    <span><kbd>↑</kbd> <kbd>↓</kbd> تنقل</span>
+                    <span><kbd>Enter</kbd> اختيار</span>
+                    <span><kbd>Esc</kbd> إغلاق</span>
+                </div>
+            </div>
+            <div class="lov-content">
+                <div class="lov-table-wrap" id="lovTableWrap">
+                    <table class="lov-table">
+                        <thead><tr><th style="width:110px">الكود</th><th>اسم الصنف</th><th style="width:70px">الوحدة</th><th style="width:90px">السعر</th></tr></thead>
+                        <tbody id="lovBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="lov-footer">
+                <div class="lov-count"><span class="material-icons" style="font-size:18px">list</span><strong id="lovCount">0</strong> نتيجة</div>
+                <div class="lov-buttons">
+                    <button class="lov-btn lov-btn-cancel" onclick="LOV.close()">إلغاء</button>
+                    <button class="lov-btn lov-btn-select" onclick="LOV.select()"><span class="material-icons" style="font-size:18px">check</span>اختيار</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@12.4.0/dist/handsontable.full.min.js"></script>
+    <script>
+        // ============ DATA SOURCES ============
+        const dataSources = {
+            supplier: [
+                { id: 1, name: 'مؤسسة النور للأدوات الصناعية', code: 'SUP-001', balance: 15000 },
+                { id: 2, name: 'الشركة الأردنية للمواد الكيماوية', code: 'SUP-002', balance: 8500 },
+                { id: 3, name: 'شركة الأمل للتجارة والمقاولات', code: 'SUP-003', balance: 22000 },
+                { id: 4, name: 'المؤسسة العربية لقطع الغيار', code: 'SUP-004', balance: 12000 }
+            ],
+            warehouse: [
+                { id: 1, name: 'المخزن الرئيسي - عمان' },
+                { id: 2, name: 'فرع الزرقاء' },
+                { id: 3, name: 'فرع إربد' },
+                { id: 4, name: 'فرع العقبة' }
+            ],
+            payment: [
+                { id: 1, name: 'نقدي' },
+                { id: 2, name: 'آجل' },
+                { id: 3, name: 'تحويل بنكي' },
+                { id: 4, name: 'شيك' }
+            ],
+            po: [
+                { id: 0, name: 'بدون أمر شراء' },
+                { id: 1, name: 'PO-2024-0045' },
+                { id: 2, name: 'PO-2024-0046' },
+                { id: 3, name: 'PO-2024-0047' }
+            ]
+        };
+
+        const ITEMS = [
+            { id: 1, name: 'مضخة مياه 2HP', code: 'PUMP-001', unit: 'قطعة', price: 250.000 },
+            { id: 2, name: 'مضخة مياه 3HP', code: 'PUMP-002', unit: 'قطعة', price: 320.000 },
+            { id: 3, name: 'مضخة مياه 5HP', code: 'PUMP-003', unit: 'قطعة', price: 450.000 },
+            { id: 4, name: 'مضخة غاطسة 4 بوصة', code: 'PUMP-004', unit: 'قطعة', price: 580.000 },
+            { id: 5, name: 'مضخة غاطسة 6 بوصة', code: 'PUMP-005', unit: 'قطعة', price: 780.000 },
+            { id: 6, name: 'محرك كهربائي 5HP', code: 'MOTOR-001', unit: 'قطعة', price: 450.000 },
+            { id: 7, name: 'محرك كهربائي 7.5HP', code: 'MOTOR-002', unit: 'قطعة', price: 620.000 },
+            { id: 8, name: 'محرك كهربائي 10HP', code: 'MOTOR-003', unit: 'قطعة', price: 850.000 },
+            { id: 9, name: 'صمام كروي 2 بوصة', code: 'VALVE-002', unit: 'قطعة', price: 35.500 },
+            { id: 10, name: 'صمام كروي 3 بوصة', code: 'VALVE-003', unit: 'قطعة', price: 55.000 },
+            { id: 11, name: 'كابل كهرباء 10 ملم', code: 'CABLE-001', unit: 'متر', price: 3.250 },
+            { id: 12, name: 'كابل كهرباء 16 ملم', code: 'CABLE-002', unit: 'متر', price: 5.500 }
+        ];
+
+        // ============ KEYBOARD AUTOCOMPLETE ============
+        class KeyboardAutocomplete {
+            constructor(input) {
+                this.input = input;
+                this.type = input.dataset.type;
+                this.dropdown = document.getElementById(input.id + 'Dropdown');
+                this.clearBtn = document.querySelector(`[data-for="${input.id}"]`);
+                this.selectedIndex = -1;
+                this.items = [];
+                this.isFirstKeyAfterFocus = false;
+                this.init();
+            }
+
+            init() {
+                this.input.addEventListener('input', () => { this.handleInput(); this.updateClearBtn(); });
+                this.input.addEventListener('focus', () => this.handleFocus());
+                this.input.addEventListener('blur', () => setTimeout(() => this.hideDropdown(), 150));
+                this.input.addEventListener('keydown', (e) => this.handleKeydown(e));
+                if (this.clearBtn) this.clearBtn.addEventListener('click', () => this.clear());
+                this.updateClearBtn();
+            }
+
+            updateClearBtn() {
+                if (this.clearBtn) this.clearBtn.classList.toggle('show', this.input.value.trim() !== '');
+            }
+
+            clear() {
+                this.input.value = '';
+                this.input.dataset.selectedId = '';
+                this.hideDropdown();
+                this.updateClearBtn();
+                this.input.focus();
+            }
+
+            handleInput() { this.filter(this.input.value.toLowerCase()); }
+            handleFocus() { this.isFirstKeyAfterFocus = true; this.filter(this.input.value.toLowerCase()); }
+
+            handleKeydown(e) {
+                // Check if printable character
+                const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
+                
+                // First key after focus - clear and start fresh
+                if (this.isFirstKeyAfterFocus && isPrintable) {
+                    this.input.value = '';
+                    this.isFirstKeyAfterFocus = false;
+                    return; // Let character be typed
+                }
+                
+                if (isPrintable) this.isFirstKeyAfterFocus = false;
+                
+                if (!this.dropdown.classList.contains('show')) {
+                    if (e.key === 'Enter') { e.preventDefault(); this.navigateNext(); return; }
+                    if (!['Tab','Enter','ArrowLeft','ArrowRight','Escape'].includes(e.key)) {
+                        // Show dropdown on typing
+                        setTimeout(() => this.filter(this.input.value.toLowerCase()), 0);
+                    }
+                    return;
+                }
+                switch(e.key) {
+                    case 'ArrowDown': e.preventDefault(); this.selectNext(); break;
+                    case 'ArrowUp': e.preventDefault(); this.selectPrev(); break;
+                    case 'Enter': 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        if (this.selectedIndex >= 0 && this.items.length > 0) {
+                            this.select(this.selectedIndex);
+                        } else {
+                            this.hideDropdown();
+                            this.navigateNext();
+                        }
+                        break;
+                    case 'Escape': e.preventDefault(); this.hideDropdown(); break;
+                    case 'ArrowLeft': case 'ArrowRight':
+                        this.hideDropdown();
+                        this.navigateNext(e.key === 'ArrowRight' ? 'prev' : 'next');
+                        e.preventDefault();
+                        break;
+                }
+            }
+
+            filter(query) {
+                const data = dataSources[this.type];
+                if (!data) return;
+                this.items = data.filter(item => item.name.toLowerCase().includes(query) || (item.code && item.code.toLowerCase().includes(query)));
+                this.render();
+            }
+
+            render() {
+                if (this.items.length === 0) {
+                    this.dropdown.innerHTML = '<div class="autocomplete-item no-results">لا توجد نتائج</div>';
+                    this.dropdown.classList.add('show');
+                    return;
+                }
+                this.dropdown.innerHTML = this.items.map((item, i) => {
+                    let content = `<strong>${item.name}</strong>`;
+                    if (item.code) content += `<small>${item.code}${item.balance ? ` | رصيد: ${item.balance.toLocaleString()} د.أ` : ''}</small>`;
+                    return `<div class="autocomplete-item ${i === 0 ? 'selected' : ''}" data-index="${i}">${content}</div>`;
+                }).join('');
+                this.selectedIndex = 0;
+                this.dropdown.classList.add('show');
+                this.dropdown.querySelectorAll('.autocomplete-item').forEach((el, idx) => {
+                    if (!el.classList.contains('no-results')) el.addEventListener('click', () => this.select(idx));
+                });
+            }
+
+            selectNext() { if (this.selectedIndex < this.items.length - 1) { this.selectedIndex++; this.updateSelection(); } }
+            selectPrev() { if (this.selectedIndex > 0) { this.selectedIndex--; this.updateSelection(); } }
+            updateSelection() {
+                this.dropdown.querySelectorAll('.autocomplete-item').forEach((item, idx) => item.classList.toggle('selected', idx === this.selectedIndex));
+                const sel = this.dropdown.querySelector('.selected');
+                if (sel) sel.scrollIntoView({ block: 'nearest' });
+            }
+
+            selectCurrent() {
+                if (this.input.value.trim() === '') { this.hideDropdown(); this.navigateNext(); return; }
+                if (this.selectedIndex >= 0 && this.selectedIndex < this.items.length) this.select(this.selectedIndex);
+            }
+
+            select(index) {
+                const item = this.items[index];
+                if (item) {
+                    this.input.value = item.name;
+                    this.input.dataset.selectedId = item.id;
+                    this.hideDropdown();
+                    this.updateClearBtn();
+                    this.navigateNext();
+                }
+            }
+
+            hideDropdown() { this.dropdown.classList.remove('show'); }
+
+            navigateNext(dir = 'next') {
+                const fields = Array.from(document.querySelectorAll('input:not([readonly]):not([type="button"]), select, textarea'));
+                const idx = fields.indexOf(this.input);
+                if (dir === 'next' && idx < fields.length - 1) fields[idx + 1].focus();
+                else if (dir === 'prev' && idx > 0) fields[idx - 1].focus();
+            }
+        }
+
+        // ============ LOV MODULE ============
+        const LOV = {
+            isOpen: false, currentRow: -1, filtered: [], activeIndex: 0, query: '',
+
+            open(row, initialQuery = '') {
+                this.currentRow = row;
+                this.activeIndex = 0;
+                this.query = initialQuery || '';
+                
+                // Disable Handsontable
+                hot.unlisten();
+                
+                // Show overlay
+                document.getElementById('lovOverlay').classList.add('active');
+                this.isOpen = true;
+                
+                // Set search value
+                const input = document.getElementById('lovInput');
+                input.value = this.query;
+                
+                // Filter with query
+                this.filter(this.query);
+                
+                // Focus and select
+                setTimeout(() => {
+                    input.focus();
+                    if (this.query) input.select();
+                }, 100);
+            },
+
+            close() {
+                document.getElementById('lovOverlay').classList.remove('active');
+                this.isOpen = false;
+                hot.listen();
+                setTimeout(() => hot.selectCell(this.currentRow, 0), 50);
+            },
+
+            filter(query) {
+                this.query = query;
+                const q = query.trim();
+                if (!q) {
+                    this.filtered = ITEMS.map(item => ({ ...item, matchPositions: { name: [], code: [] } }));
+                } else {
+                    const parts = q.split(/\s+/).filter(p => p.length > 0);
+                    this.filtered = [];
+                    ITEMS.forEach(item => {
+                        const nameMatch = this.fuzzyMatch(item.name, parts);
+                        const codeMatch = this.fuzzyMatch(item.code, parts);
+                        if (nameMatch.matched || codeMatch.matched) {
+                            this.filtered.push({
+                                ...item,
+                                matchPositions: { name: nameMatch.positions, code: codeMatch.positions },
+                                score: Math.min(nameMatch.matched ? nameMatch.score : 9999, codeMatch.matched ? codeMatch.score : 9999)
+                            });
+                        }
+                    });
+                    this.filtered.sort((a, b) => a.score - b.score);
+                }
+                this.activeIndex = 0;
+                this.render();
+            },
+
+            fuzzyMatch(text, parts) {
+                const lowerText = text.toLowerCase();
+                const positions = [];
+                let lastIndex = 0, totalGap = 0;
+                for (const part of parts) {
+                    const index = lowerText.indexOf(part.toLowerCase(), lastIndex);
+                    if (index === -1) return { matched: false, positions: [], score: 9999 };
+                    for (let i = 0; i < part.length; i++) positions.push(index + i);
+                    totalGap += (index - lastIndex);
+                    lastIndex = index + part.length;
+                }
+                return { matched: true, positions, score: totalGap };
+            },
+
+            highlight(text, positions) {
+                if (!positions || positions.length === 0) return text;
+                let result = '';
+                for (let i = 0; i < text.length; i++) {
+                    result += positions.includes(i) ? `<span class="lov-match">${text[i]}</span>` : text[i];
+                }
+                return result;
+            },
+
+            render() {
+                const tbody = document.getElementById('lovBody');
+                if (this.filtered.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4"><div class="lov-empty"><span class="material-icons">search_off</span><div>لا توجد نتائج${this.query ? ` لـ "${this.query}"` : ''}</div></div></td></tr>`;
+                    document.getElementById('lovCount').textContent = '0';
+                    return;
+                }
+                tbody.innerHTML = this.filtered.map((item, i) => `
+                    <tr class="${i === this.activeIndex ? 'active' : ''}" data-idx="${i}" onmouseenter="LOV.setActive(${i})" onclick="LOV.select()">
+                        <td>${this.highlight(item.code, item.matchPositions?.code || [])}</td>
+                        <td><strong>${this.highlight(item.name, item.matchPositions?.name || [])}</strong></td>
+                        <td>${item.unit}</td>
+                        <td>${item.price.toFixed(3)}</td>
+                    </tr>
+                `).join('');
+                document.getElementById('lovCount').textContent = this.filtered.length;
+                this.scrollToActive();
+            },
+
+            setActive(i) { if (i >= 0 && i < this.filtered.length) { this.activeIndex = i; this.render(); } },
+            moveUp() { if (this.activeIndex > 0) { this.activeIndex--; this.render(); } },
+            moveDown() { if (this.activeIndex < this.filtered.length - 1) { this.activeIndex++; this.render(); } },
+            scrollToActive() { const row = document.querySelector('.lov-table tbody tr.active'); if (row) row.scrollIntoView({ block: 'nearest' }); },
+
+            select() {
+                if (this.filtered.length === 0 || this.activeIndex < 0) return;
+                const item = this.filtered[this.activeIndex];
+                const row = this.currentRow;
+                this.close();
+                hot.setDataAtCell([[row, 0, item.name], [row, 1, item.code], [row, 3, item.unit], [row, 4, item.price]], 'lov');
+                setTimeout(() => hot.selectCell(row, 2), 100);
+            }
+        };
+
+        // LOV Input Handler
+        const lovInput = document.getElementById('lovInput');
+        
+        lovInput.addEventListener('input', (e) => {
+            LOV.filter(e.target.value);
+        });
+        
+        lovInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.moveDown();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.moveUp();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.select();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.close();
+            } else if (e.key === 'PageDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.activeIndex = Math.min(LOV.activeIndex + 5, LOV.filtered.length - 1);
+                LOV.render();
+            } else if (e.key === 'PageUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                LOV.activeIndex = Math.max(LOV.activeIndex - 5, 0);
+                LOV.render();
+            }
+        });
+        
+        document.getElementById('lovOverlay').addEventListener('click', (e) => { if (e.target.id === 'lovOverlay') LOV.close(); });
+        
+        // Global keyboard handler for LOV
+        document.addEventListener('keydown', (e) => {
+            if (LOV.isOpen) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    LOV.close();
+                }
+            }
+        });
+
+        // ============ HANDSONTABLE ============
+        const gridData = [['', '', 1, 'قطعة', 0, 0], ['', '', 1, 'قطعة', 0, 0], ['', '', 1, 'قطعة', 0, 0]];
+
+        const hot = new Handsontable(document.getElementById('itemsGrid'), {
+            data: gridData,
+            colHeaders: ['اسم الصنف', 'الكود', 'الكمية', 'الوحدة', 'السعر', 'الإجمالي'],
+            columns: [
+                { type: 'text', width: 200 },
+                { type: 'text', readOnly: true, width: 100 },
+                { type: 'numeric', width: 80 },
+                { type: 'text', readOnly: true, width: 70 },
+                { type: 'numeric', numericFormat: { pattern: '0,0.000' }, width: 90 },
+                { type: 'numeric', numericFormat: { pattern: '0,0.00' }, readOnly: true, width: 100 }
+            ],
+            stretchH: 'all',
+            height: 300,
+            rowHeaders: true,
+            minSpareRows: 1,
+
+            beforeKeyDown: function(e) {
+                if (LOV.isOpen) { e.stopImmediatePropagation(); return false; }
+                const sel = this.getSelected();
+                if (!sel) return;
+                const row = sel[0][0], col = sel[0][1];
+                if (col === 0 && (e.key === 'Enter' || e.key === 'F4')) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    LOV.open(row, this.getDataAtCell(row, col) || '');
+                    return false;
+                }
+            },
+
+            afterChange: function(changes, source) {
+                if (!changes || source === 'loadData' || source === 'lov' || source === 'calc') return;
+                changes.forEach(([row, col]) => {
+                    if (col === 2 || col === 4) {
+                        const qty = parseFloat(this.getDataAtCell(row, 2)) || 0;
+                        const price = parseFloat(this.getDataAtCell(row, 4)) || 0;
+                        this.setDataAtCell(row, 5, qty * price, 'calc');
+                    }
+                });
+                updateTotals();
+            },
+            licenseKey: 'non-commercial-and-evaluation'
+        });
+
+        function addRow() { hot.alter('insert_row_below'); }
+        function deleteSelectedRows() {
+            const sel = hot.getSelected();
+            if (sel && confirm('حذف الصف المحدد؟')) hot.alter('remove_row', sel[0][0], 1);
+        }
+        function clearGrid() { if (confirm('مسح جميع الأصناف؟')) hot.loadData([['', '', 1, 'قطعة', 0, 0], ['', '', 1, 'قطعة', 0, 0]]); }
+
+        function updateTotals() {
+            let subtotal = 0;
+            hot.getData().forEach(row => { subtotal += parseFloat(row[5]) || 0; });
+            const shipping = parseFloat(document.getElementById('shippingCost').value) || 0;
+            const discount = parseFloat(document.getElementById('additionalDiscount').value) || 0;
+            const total = subtotal - discount + shipping;
+            document.getElementById('subtotal').textContent = subtotal.toFixed(2) + ' د.أ';
+            document.getElementById('discount').textContent = discount.toFixed(2) + ' د.أ';
+            document.getElementById('shipping').textContent = shipping.toFixed(2) + ' د.أ';
+            document.getElementById('grandTotal').textContent = total.toFixed(2) + ' د.أ';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.autocomplete-field').forEach(input => new KeyboardAutocomplete(input));
+            document.getElementById('warehouse').value = 'المخزن الرئيسي - عمان';
+            document.getElementById('supplier').value = 'مؤسسة النور للأدوات الصناعية';
+            document.getElementById('paymentMethod').value = 'آجل';
+            document.querySelectorAll('.clear-btn').forEach(btn => {
+                const input = document.getElementById(btn.dataset.for);
+                if (input && input.value.trim()) btn.classList.add('show');
+            });
+            document.getElementById('shippingCost').addEventListener('change', updateTotals);
+            document.getElementById('additionalDiscount').addEventListener('change', updateTotals);
+            updateTotals();
+        });
+    </script>
+</body>
+</html>

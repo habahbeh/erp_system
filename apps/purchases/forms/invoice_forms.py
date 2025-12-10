@@ -357,33 +357,55 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         self.fields['quantity'].required = False
         self.fields['expense_account'].required = False
 
-        # Set empty querysets by default to avoid errors
+        # ✅ PERFORMANCE FIX: Set empty querysets by default
+        # Items and variants will be loaded via AJAX search
+        # This prevents loading 5000+ variants on page load
         self.fields['item'].queryset = Item.objects.none()
         self.fields['item_variant'].queryset = ItemVariant.objects.none()
         self.fields['unit'].queryset = UnitOfMeasure.objects.none()
         self.fields['expense_account'].queryset = Account.objects.none()
 
+        # ✅ For existing records (edit mode) OR POST data, include values in queryset
+        # This ensures form validation works for selected items
+        item_id = None
+        variant_id = None
+
+        # Check POST data first (for form submission)
+        if self.data:
+            # Get the field name prefix for this form in formset
+            prefix = self.prefix
+            if prefix:
+                item_id = self.data.get(f'{prefix}-item')
+                variant_id = self.data.get(f'{prefix}-item_variant')
+            else:
+                item_id = self.data.get('item')
+                variant_id = self.data.get('item_variant')
+
+        # Fallback to instance values (for edit mode)
+        if not item_id and self.instance and self.instance.pk:
+            item_id = self.instance.item_id
+            variant_id = self.instance.item_variant_id
+
+        # Update querysets to include the selected values
+        if item_id:
+            self.fields['item'].queryset = Item.objects.filter(pk=item_id)
+        if variant_id:
+            self.fields['item_variant'].queryset = ItemVariant.objects.filter(pk=variant_id)
+
         if self.company:
-            # تصفية المواد
-            self.fields['item'].queryset = Item.objects.filter(
-                company=self.company,
-                is_active=True
-            ).select_related('category', 'base_uom')
+            # ✅ Items: Keep empty - loaded via AJAX search (item_search_ajax)
+            # self.fields['item'].queryset = Item.objects.none()
 
-            # تصفية المتغيرات
-            self.fields['item_variant'].queryset = ItemVariant.objects.filter(
-                item__company=self.company,
-                is_active=True
-            ).select_related('item')
+            # ✅ Variants: Keep empty - loaded via AJAX when item is selected
+            # self.fields['item_variant'].queryset = ItemVariant.objects.none()
 
-            # تصفية الوحدات
+            # تصفية الوحدات - هذه خفيفة (عادة < 50 وحدة)
             self.fields['unit'].queryset = UnitOfMeasure.objects.filter(
                 company=self.company,
                 is_active=True
             )
 
-            # تصفية حسابات المصروفات
-            # Note: AccountType is a ForeignKey, need to filter by AccountType objects
+            # تصفية حسابات المصروفات - خفيفة نسبياً
             from apps.accounting.models import AccountType
             expense_types = AccountType.objects.filter(
                 name__icontains='مصروف'
@@ -400,7 +422,6 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
                     account_type__in=expense_types
                 ).select_related('parent', 'account_type')
             else:
-                # Fallback: show all accounts if no expense types found
                 self.fields['expense_account'].queryset = Account.objects.filter(
                     company=self.company,
                     is_active=True
