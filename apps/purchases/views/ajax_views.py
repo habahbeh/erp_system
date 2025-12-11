@@ -12,7 +12,7 @@ from decimal import Decimal
 import json
 
 from apps.core.models import Item, ItemVariant, BusinessPartner
-from ..models import PurchaseInvoice, PurchaseInvoiceItem
+from ..models import PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem
 
 
 @login_required
@@ -197,6 +197,285 @@ def ajax_request_credit_approval(request):
             'success': False,
             'error': _('بيانات غير صحيحة')
         }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_purchase_orders_search(request):
+    """
+    البحث عن أوامر الشراء - Search Purchase Orders
+    """
+    query = request.GET.get('q', '').strip()
+    supplier_id = request.GET.get('supplier_id', '')
+
+    # البحث في أوامر الشراء المعتمدة فقط
+    orders = PurchaseOrder.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        status='approved'  # فقط الأوامر المعتمدة
+    ).select_related('supplier')
+
+    # تصفية حسب المورد إذا تم تحديده
+    if supplier_id:
+        orders = orders.filter(supplier_id=supplier_id)
+
+    # البحث بالنص
+    if query:
+        orders = orders.filter(
+            Q(number__icontains=query) |
+            Q(supplier__name__icontains=query)
+        )
+
+    orders = orders.order_by('-date')[:20]
+
+    results = []
+    for order in orders:
+        results.append({
+            'id': order.number,
+            'text': f"{order.number} - {order.supplier.name} - {order.date}",
+            'number': order.number,
+            'supplier_id': order.supplier.id,
+            'supplier_name': order.supplier.name,
+            'date': str(order.date),
+            'total': str(order.total_amount)
+        })
+
+    return JsonResponse({'results': results})
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_documents_search(request):
+    """
+    البحث عن كل المستندات (أوامر شراء + فواتير سابقة) - Search All Documents
+    """
+    query = request.GET.get('q', '').strip()
+    supplier_id = request.GET.get('supplier_id', '')
+
+    results = []
+
+    # 1. البحث في أوامر الشراء المعتمدة
+    orders = PurchaseOrder.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        status='approved'
+    ).select_related('supplier')
+
+    if supplier_id:
+        orders = orders.filter(supplier_id=supplier_id)
+
+    if query:
+        orders = orders.filter(
+            Q(number__icontains=query) |
+            Q(supplier__name__icontains=query)
+        )
+
+    for order in orders.order_by('-date')[:10]:
+        results.append({
+            'id': order.number,
+            'type': 'order',
+            'type_label': 'أمر شراء',
+            'number': order.number,
+            'supplier_id': order.supplier.id,
+            'supplier_name': order.supplier.name,
+            'date': str(order.date),
+            'total': str(order.total_amount),
+            'icon': 'fa-file-alt',
+            'color': 'primary'
+        })
+
+    # 2. البحث في فواتير المشتريات المرحّلة
+    invoices = PurchaseInvoice.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        is_posted=True
+    ).select_related('supplier')
+
+    if supplier_id:
+        invoices = invoices.filter(supplier_id=supplier_id)
+
+    if query:
+        invoices = invoices.filter(
+            Q(number__icontains=query) |
+            Q(supplier__name__icontains=query)
+        )
+
+    for inv in invoices.order_by('-date')[:10]:
+        results.append({
+            'id': inv.number,
+            'type': 'invoice',
+            'type_label': 'فاتورة مشتريات',
+            'number': inv.number,
+            'supplier_id': inv.supplier.id,
+            'supplier_name': inv.supplier.name,
+            'date': str(inv.date),
+            'total': str(inv.total_amount),
+            'icon': 'fa-file-invoice',
+            'color': 'success'
+        })
+
+    # ترتيب حسب التاريخ
+    results.sort(key=lambda x: x['date'], reverse=True)
+
+    return JsonResponse({'results': results[:20]})
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_get_document_details(request, doc_type, doc_number):
+    """
+    جلب تفاصيل أي مستند - Get Document Details
+    """
+    try:
+        if doc_type == 'order':
+            # جلب أمر شراء
+            order = PurchaseOrder.objects.get(
+                company=request.current_company,
+                number=doc_number,
+                status='approved'
+            )
+
+            items = []
+            for item in order.items.all().select_related('item', 'item_variant', 'unit'):
+                items.append({
+                    'item_id': item.item.id,
+                    'item_name': item.item.name,
+                    'item_code': item.item.code,
+                    'variant_id': item.item_variant.id if item.item_variant else None,
+                    'variant_name': str(item.item_variant) if item.item_variant else '',
+                    'quantity': str(item.quantity),
+                    'unit': item.unit.name if item.unit else item.item.unit.name,
+                    'unit_id': item.unit.id if item.unit else item.item.unit.id,
+                    'unit_price': str(item.unit_price),
+                    'tax_rate': str(item.tax_rate),
+                    'discount_percentage': str(item.discount_percentage),
+                    'subtotal': str(item.subtotal)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'document': {
+                    'type': 'order',
+                    'number': order.number,
+                    'date': str(order.date),
+                    'supplier_id': order.supplier.id,
+                    'supplier_name': order.supplier.name,
+                    'warehouse_id': order.warehouse.id if hasattr(order, 'warehouse') and order.warehouse else None,
+                    'notes': order.notes or '',
+                    'items': items
+                }
+            })
+
+        elif doc_type == 'invoice':
+            # جلب فاتورة
+            invoice = PurchaseInvoice.objects.get(
+                company=request.current_company,
+                number=doc_number,
+                is_posted=True
+            )
+
+            items = []
+            for item in invoice.items.all().select_related('item', 'item_variant', 'unit'):
+                items.append({
+                    'item_id': item.item.id,
+                    'item_name': item.item.name,
+                    'item_code': item.item.code,
+                    'variant_id': item.item_variant.id if item.item_variant else None,
+                    'variant_name': str(item.item_variant) if item.item_variant else '',
+                    'quantity': str(item.quantity),
+                    'unit': item.unit.name if item.unit else item.item.unit.name,
+                    'unit_id': item.unit.id if item.unit else item.item.unit.id,
+                    'unit_price': str(item.unit_price),
+                    'tax_rate': str(item.tax_rate),
+                    'discount_percentage': str(item.discount_percentage),
+                    'subtotal': str(item.subtotal)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'document': {
+                    'type': 'invoice',
+                    'number': invoice.number,
+                    'date': str(invoice.date),
+                    'supplier_id': invoice.supplier.id,
+                    'supplier_name': invoice.supplier.name,
+                    'warehouse_id': invoice.warehouse.id,
+                    'notes': invoice.notes or '',
+                    'items': items
+                }
+            })
+
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': _('نوع المستند غير معروف')
+            }, status=400)
+
+    except (PurchaseOrder.DoesNotExist, PurchaseInvoice.DoesNotExist):
+        return JsonResponse({
+            'success': False,
+            'error': _('المستند غير موجود')
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_get_purchase_order_details(request, order_number):
+    """
+    جلب تفاصيل أمر الشراء - Get Purchase Order Details
+    """
+    try:
+        order = PurchaseOrder.objects.get(
+            company=request.current_company,
+            number=order_number,
+            status='approved'
+        )
+
+        items = []
+        for item in order.items.all().select_related('item', 'item_variant', 'unit'):
+            items.append({
+                'item_id': item.item.id,
+                'item_name': item.item.name,
+                'item_code': item.item.code,
+                'variant_id': item.item_variant.id if item.item_variant else None,
+                'variant_name': str(item.item_variant) if item.item_variant else '',
+                'quantity': str(item.quantity),
+                'unit': item.unit.name if item.unit else item.item.unit.name,
+                'unit_id': item.unit.id if item.unit else item.item.unit.id,
+                'unit_price': str(item.unit_price),
+                'tax_rate': str(item.tax_rate),
+                'discount_percentage': str(item.discount_percentage),
+                'subtotal': str(item.subtotal)
+            })
+
+        return JsonResponse({
+            'success': True,
+            'order': {
+                'number': order.number,
+                'date': str(order.date),
+                'supplier_id': order.supplier.id,
+                'supplier_name': order.supplier.name,
+                'warehouse_id': order.warehouse.id if hasattr(order, 'warehouse') and order.warehouse else None,
+                'notes': order.notes or '',
+                'items': items
+            }
+        })
+
+    except PurchaseOrder.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': _('أمر الشراء غير موجود أو غير معتمد')
+        }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,
