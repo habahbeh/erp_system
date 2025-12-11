@@ -148,6 +148,9 @@ from .ajax_views import (
     price_list_datatable_ajax, price_list_items_ajax, get_item_variants
 )
 
+# System Settings Views
+from .settings_views import AccountSettingsView, SystemSettingsView
+
 
 __all__ = [
     # Base Views

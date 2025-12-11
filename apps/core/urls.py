@@ -259,6 +259,9 @@ urlpatterns = [
     path('item-templates/<int:pk>/clone/', views.ItemTemplateCloneView.as_view(), name='item_template_clone'),
     path('item-templates/<int:pk>/use/', views.ItemTemplateUseView.as_view(), name='item_template_use'),
 
+    # ==================== System Settings ====================
+    path('settings/accounts/', views.AccountSettingsView.as_view(), name='account_settings'),
+    path('settings/system/', views.SystemSettingsView.as_view(), name='system_settings'),
 ]
 
 

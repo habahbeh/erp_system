@@ -154,18 +154,93 @@ class SystemSettings(models.Model):
     """إعدادات النظام"""
 
     company = models.OneToOneField('Company', on_delete=models.CASCADE, verbose_name=_('الشركة'), related_name='settings')
+
+    # إعدادات المخزون
     negative_stock_allowed = models.BooleanField(_('السماح بالرصيد السالب'), default=False)
     stock_valuation_method = models.CharField(_('طريقة تقييم المخزون'), max_length=20,
                                               choices=[('fifo', _('الوارد أولاً صادر أولاً')),
                                                        ('lifo', _('الوارد أخيراً صادر أولاً')),
                                                        ('average', _('متوسط التكلفة'))], default='average')
+
+    # إعدادات العملاء
     customer_credit_check = models.BooleanField(_('فحص حد ائتمان العملاء'), default=True)
     credit_restore_on_check_date = models.BooleanField(
         _('استرجاع الائتمان عند تاريخ صرف الشيك'),
         default=False,
         help_text=_('إذا كان نعم، يتم استرجاع ائتمان العميل عند تاريخ صرف الشيك وليس عند إدخال سند القبض')
     )
+
+    # إعدادات المحاسبة
     auto_create_journal_entries = models.BooleanField(_('إنشاء قيود تلقائياً'), default=True)
+
+    # حسابات المشتريات الافتراضية
+    default_inventory_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_inventory',
+        verbose_name=_('حساب المخزون الافتراضي'),
+        help_text=_('الحساب الافتراضي للمخزون في فواتير المشتريات')
+    )
+    default_purchase_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_purchase',
+        verbose_name=_('حساب المشتريات الافتراضي'),
+        help_text=_('الحساب الافتراضي للمشتريات (للجرد الدوري)')
+    )
+    default_purchase_vat_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_purchase_vat',
+        verbose_name=_('حساب ضريبة المشتريات'),
+        help_text=_('حساب ضريبة القيمة المضافة للمشتريات')
+    )
+    default_purchase_discount_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_purchase_discount',
+        verbose_name=_('حساب خصم المشتريات'),
+        help_text=_('حساب الخصم المكتسب على المشتريات')
+    )
+
+    # حسابات المبيعات الافتراضية
+    default_sales_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_sales',
+        verbose_name=_('حساب المبيعات الافتراضي'),
+        help_text=_('الحساب الافتراضي لإيرادات المبيعات')
+    )
+    default_sales_vat_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_sales_vat',
+        verbose_name=_('حساب ضريبة المبيعات'),
+        help_text=_('حساب ضريبة القيمة المضافة للمبيعات')
+    )
+    default_cost_of_goods_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_cogs',
+        verbose_name=_('حساب تكلفة البضاعة المباعة'),
+        help_text=_('حساب تكلفة المبيعات')
+    )
+
+    # إعدادات الجلسة
     session_timeout = models.IntegerField(_('مهلة انتهاء الجلسة (دقائق)'), default=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

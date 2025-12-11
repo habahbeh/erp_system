@@ -64,6 +64,7 @@ from .views.report_views import (
     export_items_purchases_excel, export_items_purchases_pdf,
     export_contracts_excel, export_contracts_pdf
 )
+from .views.settings_views import PurchaseSettingsView
 
 app_name = 'purchases'
 
@@ -251,4 +252,7 @@ urlpatterns = [
     path('reports/items-purchases/export/pdf/', export_items_purchases_pdf, name='export_items_purchases_pdf'),
     path('reports/contracts/export/excel/', export_contracts_excel, name='export_contracts_excel'),
     path('reports/contracts/export/pdf/', export_contracts_pdf, name='export_contracts_pdf'),
+
+    # ==================== Settings ====================
+    path('settings/', PurchaseSettingsView.as_view(), name='purchase_settings'),
 ]

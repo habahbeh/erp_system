@@ -237,6 +237,16 @@ class PurchaseInvoiceCreateView(LoginRequiredMixin, PermissionRequiredMixin, Cre
         context['items_data'] = []  # Empty - will use AJAX search
         context['use_live_search'] = True  # Flag for JavaScript
 
+        # جلب حساب المخزون من إعدادات النظام
+        from apps.core.models import SystemSettings
+        try:
+            settings = SystemSettings.objects.select_related('default_inventory_account').get(
+                company=self.request.current_company
+            )
+            context['settings_inventory_account'] = settings.default_inventory_account
+        except SystemSettings.DoesNotExist:
+            context['settings_inventory_account'] = None
+
         return context
 
     @transaction.atomic
@@ -378,6 +388,16 @@ class PurchaseInvoiceUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Upd
         # Now using AJAX Live Search instead
         context['items_data'] = []  # Empty - will use AJAX search
         context['use_live_search'] = True  # Flag for JavaScript
+
+        # جلب حساب المخزون من إعدادات النظام
+        from apps.core.models import SystemSettings
+        try:
+            settings = SystemSettings.objects.select_related('default_inventory_account').get(
+                company=self.request.current_company
+            )
+            context['settings_inventory_account'] = settings.default_inventory_account
+        except SystemSettings.DoesNotExist:
+            context['settings_inventory_account'] = None
 
         return context
 
