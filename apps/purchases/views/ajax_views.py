@@ -430,6 +430,39 @@ def ajax_get_document_details(request, doc_type, doc_number):
 
 @login_required
 @require_http_methods(["GET"])
+def ajax_get_supplier_account(request, supplier_id):
+    """
+    جلب حساب المورد - Get Supplier Account
+    """
+    try:
+        supplier = BusinessPartner.objects.select_related('supplier_account').get(
+            id=supplier_id,
+            company=request.current_company,
+            partner_type__in=['supplier', 'both']
+        )
+
+        if supplier.supplier_account:
+            return JsonResponse({
+                'success': True,
+                'account_id': supplier.supplier_account.id,
+                'account_name': supplier.supplier_account.name,
+                'account_code': supplier.supplier_account.code
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': _('لا يوجد حساب مرتبط بهذا المورد')
+            })
+
+    except BusinessPartner.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': _('المورد غير موجود')
+        }, status=404)
+
+
+@login_required
+@require_http_methods(["GET"])
 def ajax_get_purchase_order_details(request, order_number):
     """
     جلب تفاصيل أمر الشراء - Get Purchase Order Details

@@ -9,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from ..models import BusinessPartner, User, PartnerRepresentative
+from apps.accounting.models import Account
 
 
 class BusinessPartnerForm(forms.ModelForm):
@@ -23,6 +24,7 @@ class BusinessPartnerForm(forms.ModelForm):
             'tax_number', 'tax_status', 'commercial_register',
             'tax_exemption_start_date', 'tax_exemption_end_date', 'tax_exemption_reason',
             'credit_limit', 'credit_period',
+            'customer_account', 'supplier_account',
             'commercial_register_file', 'payment_letter_file', 'tax_exemption_file', 'other_attachments',
             'notes'
         ]
@@ -148,6 +150,12 @@ class BusinessPartnerForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': _('ملاحظات عامة')
             }),
+            'customer_account': forms.Select(attrs={
+                'class': 'form-select select2',
+            }),
+            'supplier_account': forms.Select(attrs={
+                'class': 'form-select select2',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -157,6 +165,20 @@ class BusinessPartnerForm(forms.ModelForm):
         # جعل بعض الحقول اختيارية في العرض
         self.fields['code'].required = False
         self.fields['tax_number'].required = False
+
+        # فلترة الحسابات حسب الشركة
+        if self.request and hasattr(self.request, 'current_company'):
+            company = self.request.current_company
+            # حسابات العملاء (ذمم مدينة) - عادة تبدأ بـ 12 أو 220
+            self.fields['customer_account'].queryset = Account.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('code')
+            # حسابات الموردين (ذمم دائنة) - عادة تبدأ بـ 21
+            self.fields['supplier_account'].queryset = Account.objects.filter(
+                company=company,
+                is_active=True
+            ).order_by('code')
 
     def clean_code(self):
         """التحقق من عدم تكرار رمز العميل"""

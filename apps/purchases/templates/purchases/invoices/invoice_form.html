@@ -1263,21 +1263,19 @@ kbd {
 
                         <!-- Row 3: Accounting Fields -->
                         <div class="row g-2 mt-1">
-                            <!-- Supplier Account -->
+                            <!-- Supplier Account (Read Only - Auto-filled from Supplier) -->
                             <div class="col-md-6">
                                 <label for="{{ form.supplier_account.id_for_label }}" class="form-label">
                                     {{ form.supplier_account.label }}
-                                    <i class="fas fa-calculator text-info" title="حساب الذمم الدائنة"></i>
+                                    <i class="fas fa-lock text-secondary" title="يُحدد تلقائياً من المورد"></i>
                                 </label>
-                                <div class="autocomplete-wrapper">
-                                    <input type="text" class="form-control form-control-sm account-search-input autocomplete-search-input" placeholder="اكتب لبحث عن الحساب..." autocomplete="off">
-                                    <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
-                                        <i class="fas fa-chevron-down"></i>
-                                    </button>
-                                    <div class="autocomplete-list"></div>
-                                    <div style="display: none;">
-                                        {{ form.supplier_account|add_class:"supplier-account-select" }}
-                                    </div>
+                                <input type="text"
+                                       class="form-control form-control-sm supplier-account-display"
+                                       readonly
+                                       placeholder="سيُملأ تلقائياً عند اختيار المورد"
+                                       style="background-color: #f8f9fa; cursor: not-allowed;">
+                                <div style="display: none;">
+                                    {{ form.supplier_account|add_class:"supplier-account-select" }}
                                 </div>
                             </div>
 
@@ -4195,6 +4193,13 @@ $(document).ready(function() {
 
     // Event handler: When supplier is changed
     $('#id_supplier').on('change', function() {
+        var supplierId = $(this).val();
+
+        // Auto-fill supplier account from supplier's linked account
+        if (supplierId) {
+            fetchSupplierAccount(supplierId);
+        }
+
         // Auto-fill prices for all existing rows
         $('#items-tbody tr.item-row').each(function() {
             const $row = $(this);
@@ -4203,6 +4208,56 @@ $(document).ready(function() {
             }
         });
     });
+
+    // ============================================
+    // Fetch Supplier Account - جلب حساب المورد تلقائياً
+    // ============================================
+    function fetchSupplierAccount(supplierId) {
+        if (!supplierId) {
+            // Clear display and hidden select
+            $('.supplier-account-display').val('');
+            $('.supplier-account-select').val('');
+            return;
+        }
+
+        $.ajax({
+            url: '/purchases/ajax/invoices/get-supplier-account/' + supplierId + '/',
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.account_id) {
+                    // Update the hidden select
+                    var $select = $('.supplier-account-select');
+
+                    // Check if option exists, if not add it
+                    if ($select.find('option[value="' + response.account_id + '"]').length === 0) {
+                        var newOption = new Option(
+                            response.account_code + ' - ' + response.account_name,
+                            response.account_id,
+                            true,
+                            true
+                        );
+                        $select.append(newOption);
+                    }
+
+                    // Set the value
+                    $select.val(response.account_id);
+
+                    // Update the read-only display field
+                    $('.supplier-account-display').val(response.account_code + ' - ' + response.account_name);
+
+                    console.log('✅ Supplier account auto-filled:', response.account_name);
+                } else {
+                    // No linked account - clear fields
+                    $('.supplier-account-display').val('');
+                    $('.supplier-account-select').val('');
+                    console.log('⚠️  No linked account found for supplier');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('❌ Error fetching supplier account:', error);
+            }
+        });
+    }
 
     // ============================================
     // Update price when unit changes

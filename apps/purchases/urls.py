@@ -26,7 +26,7 @@ from .views.invoice_views import (
     get_item_all_prices_ajax,
     copy_invoice_as_draft
 )
-from .views.ajax_views import ajax_get_item_price_by_uom, ajax_purchase_orders_search, ajax_get_purchase_order_details, ajax_documents_search, ajax_get_document_details
+from .views.ajax_views import ajax_get_item_price_by_uom, ajax_purchase_orders_search, ajax_get_purchase_order_details, ajax_documents_search, ajax_get_document_details, ajax_get_supplier_account
 from .views.order_views import (
     get_supplier_item_price_ajax as order_get_supplier_price,
     get_item_stock_multi_branch_ajax as order_get_stock_multi_branch,
@@ -101,6 +101,7 @@ urlpatterns = [
     path('ajax/invoices/get-purchase-order/<str:order_number>/', ajax_get_purchase_order_details, name='ajax_get_purchase_order_details'),
     path('ajax/invoices/documents-search/', ajax_documents_search, name='ajax_documents_search'),
     path('ajax/invoices/get-document/<str:doc_type>/<str:doc_number>/', ajax_get_document_details, name='ajax_get_document_details'),
+    path('ajax/invoices/get-supplier-account/<int:supplier_id>/', ajax_get_supplier_account, name='ajax_get_supplier_account'),
     path('invoices/export/', export_invoices_excel, name='export_invoices_excel'),
 
     # ==================== Purchase Orders ====================

@@ -23,7 +23,7 @@ class BusinessPartner(BaseModel):
         ('export', _('تصدير'))
     ]
 
-    partner_type = models.CharField(_('نوع العميل'), max_length=10, choices=PARTNER_TYPES, default='customer')
+    partner_type = models.CharField(_('نوع العميل'), max_length=10, choices=PARTNER_TYPES, default='both')
     code = models.CharField(_('الرمز'), max_length=50)
     name = models.CharField(_('الاسم'), max_length=200)
     name_en = models.CharField(_('الاسم الإنجليزي'), max_length=200, blank=True)
@@ -208,6 +208,95 @@ class BusinessPartner(BaseModel):
             new_number = 1
 
         return f"{prefix}{new_number:06d}"
+
+    def create_accounts(self):
+        """إنشاء الحسابات المحاسبية للشريك تلقائياً"""
+        from apps.accounting.models import Account
+        from apps.core.models import Currency
+
+        # الحصول على العملة الافتراضية
+        default_currency = Currency.objects.filter(is_base=True).first()
+        if not default_currency:
+            default_currency = Currency.objects.first()
+
+        # إنشاء حساب العميل (ذمم مدينة) إذا لم يوجد
+        if not self.customer_account and self.partner_type in ['customer', 'both']:
+            try:
+                customer_parent = Account.objects.get(code='110201', company=self.company)
+            except Account.DoesNotExist:
+                customer_parent = Account.objects.filter(
+                    code__startswith='1102', company=self.company
+                ).first()
+
+            if customer_parent:
+                # البحث عن آخر كود
+                last_acc = Account.objects.filter(
+                    code__startswith=customer_parent.code,
+                    company=self.company
+                ).exclude(code=customer_parent.code).order_by('-code').first()
+
+                if last_acc:
+                    new_code = str(int(last_acc.code) + 1)
+                else:
+                    new_code = f'{customer_parent.code}01'
+
+                self.customer_account = Account.objects.create(
+                    company=self.company,
+                    code=new_code,
+                    name=f'ذمم - {self.name}',
+                    name_en=f'AR - {self.name_en or self.name}',
+                    account_type=customer_parent.account_type,
+                    parent=customer_parent,
+                    level=customer_parent.level + 1,
+                    is_active=True,
+                    accept_entries=True,
+                    currency=default_currency
+                )
+
+        # إنشاء حساب المورد (ذمم دائنة) إذا لم يوجد
+        if not self.supplier_account and self.partner_type in ['supplier', 'both']:
+            try:
+                supplier_parent = Account.objects.get(code='210101', company=self.company)
+            except Account.DoesNotExist:
+                supplier_parent = Account.objects.filter(
+                    code__startswith='2101', company=self.company
+                ).first()
+
+            if supplier_parent:
+                # البحث عن آخر كود
+                last_acc = Account.objects.filter(
+                    code__startswith=supplier_parent.code,
+                    company=self.company
+                ).exclude(code=supplier_parent.code).order_by('-code').first()
+
+                if last_acc:
+                    new_code = str(int(last_acc.code) + 1)
+                else:
+                    new_code = f'{supplier_parent.code}01'
+
+                self.supplier_account = Account.objects.create(
+                    company=self.company,
+                    code=new_code,
+                    name=f'ذمم - {self.name}',
+                    name_en=f'AP - {self.name_en or self.name}',
+                    account_type=supplier_parent.account_type,
+                    parent=supplier_parent,
+                    level=supplier_parent.level + 1,
+                    is_active=True,
+                    accept_entries=True,
+                    currency=default_currency
+                )
+
+    def save(self, *args, **kwargs):
+        """حفظ مع إنشاء الحسابات تلقائياً"""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+
+        # إنشاء الحسابات للشركاء الجدد فقط
+        if is_new and self.company:
+            self.create_accounts()
+            # حفظ مرة أخرى لتحديث روابط الحسابات
+            super().save(update_fields=['customer_account', 'supplier_account'])
 
     def get_account(self):
         """الحصول على الحساب المحاسبي المناسب"""

@@ -138,7 +138,7 @@ class AccountForm(forms.ModelForm):
             # فلترة الحسابات الأب - فقط الحسابات التي يمكن أن تكون آباء
             parent_queryset = Account.objects.filter(
                 company=company,
-                level__lt=4  # حتى المستوى 3 يمكن أن يكون أب
+                level__lte=5  # حتى المستوى 5 يمكن أن يكون أب
             ).select_related('account_type').order_by('code')
 
             # استبعاد الحساب نفسه إذا كان تعديل
@@ -267,8 +267,8 @@ class AccountForm(forms.ModelForm):
             current_parent = parent
             while current_parent:
                 level += 1
-                if level > 4:
-                    raise ValidationError('لا يمكن تجاوز 4 مستويات في التسلسل الهرمي')
+                if level > 10:  # زيادة الحد الأقصى للمستويات
+                    raise ValidationError('لا يمكن تجاوز 10 مستويات في التسلسل الهرمي')
                 current_parent = current_parent.parent
 
                 # التحقق من عدم إنشاء دورة
