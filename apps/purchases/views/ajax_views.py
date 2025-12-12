@@ -11,8 +11,15 @@ from django.views.decorators.http import require_http_methods
 from decimal import Decimal
 import json
 
-from apps.core.models import Item, ItemVariant, BusinessPartner
-from ..models import PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem
+from apps.core.models import Item, ItemVariant, BusinessPartner, PriceList, PriceListItem
+from apps.inventory.models import ItemStock
+from ..models import (
+    PurchaseInvoice, PurchaseInvoiceItem,
+    PurchaseOrder, PurchaseOrderItem,
+    GoodsReceipt, GoodsReceiptLine
+)
+# استيراد نماذج المبيعات
+from apps.sales.models import SalesInvoice, SalesOrder
 
 
 @login_required
@@ -289,7 +296,45 @@ def ajax_documents_search(request):
             'color': 'primary'
         })
 
-    # 2. البحث في فواتير المشتريات المرحّلة
+    # 2. البحث في استلامات البضاعة غير المفوترة
+    receipts = GoodsReceipt.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        status='confirmed',  # فقط المؤكدة
+        invoice__isnull=True  # غير مفوترة بعد
+    ).select_related('supplier', 'purchase_order')
+
+    if supplier_id:
+        receipts = receipts.filter(supplier_id=supplier_id)
+
+    if query:
+        receipts = receipts.filter(
+            Q(number__icontains=query) |
+            Q(supplier__name__icontains=query) |
+            Q(purchase_order__number__icontains=query)
+        )
+
+    for gr in receipts.order_by('-date')[:10]:
+        # حساب الإجمالي من البنود
+        total = sum(
+            line.received_quantity * line.unit_price
+            for line in gr.lines.all()
+        )
+        results.append({
+            'id': gr.number,
+            'type': 'goods_receipt',
+            'type_label': 'استلام بضاعة',
+            'number': gr.number,
+            'supplier_id': gr.supplier.id,
+            'supplier_name': gr.supplier.name,
+            'date': str(gr.date),
+            'total': str(total),
+            'icon': 'fa-truck-loading',
+            'color': 'warning',
+            'po_number': gr.purchase_order.number if gr.purchase_order else ''
+        })
+
+    # 3. البحث في فواتير المشتريات المرحّلة
     invoices = PurchaseInvoice.objects.filter(
         company=request.current_company,
         is_active=True,
@@ -319,10 +364,68 @@ def ajax_documents_search(request):
             'color': 'success'
         })
 
+    # 4. البحث في فواتير المبيعات (للمرتجعات)
+    sales_invoices = SalesInvoice.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        is_posted=True
+    ).select_related('customer')
+
+    if query:
+        sales_invoices = sales_invoices.filter(
+            Q(number__icontains=query) |
+            Q(customer__name__icontains=query)
+        )
+
+    for sinv in sales_invoices.order_by('-date')[:10]:
+        results.append({
+            'id': sinv.number,
+            'type': 'sales_invoice',
+            'type_label': 'فاتورة مبيعات',
+            'number': sinv.number,
+            'supplier_id': sinv.customer.id if sinv.customer else None,
+            'supplier_name': sinv.customer.name if sinv.customer else '-',
+            'date': str(sinv.date),
+            'total': str(sinv.total_amount),
+            'icon': 'fa-receipt',
+            'color': 'info'
+        })
+
+    # 5. البحث في أوامر البيع
+    sales_orders = SalesOrder.objects.filter(
+        company=request.current_company,
+        is_active=True,
+        is_approved=True  # أوامر البيع المعتمدة فقط
+    ).select_related('customer')
+
+    if query:
+        sales_orders = sales_orders.filter(
+            Q(number__icontains=query) |
+            Q(customer__name__icontains=query)
+        )
+
+    for so in sales_orders.order_by('-date')[:10]:
+        # حساب الإجمالي من السطور (الكمية × السعر)
+        total = Decimal('0')
+        for line in so.lines.all():
+            total += line.quantity * line.unit_price
+        results.append({
+            'id': so.number,
+            'type': 'sales_order',
+            'type_label': 'أمر بيع',
+            'number': so.number,
+            'supplier_id': so.customer.id if so.customer else None,
+            'supplier_name': so.customer.name if so.customer else '-',
+            'date': str(so.date),
+            'total': str(total),
+            'icon': 'fa-shopping-cart',
+            'color': 'purple'
+        })
+
     # ترتيب حسب التاريخ
     results.sort(key=lambda x: x['date'], reverse=True)
 
-    return JsonResponse({'results': results[:20]})
+    return JsonResponse({'results': results[:30]})
 
 
 @login_required
@@ -341,7 +444,7 @@ def ajax_get_document_details(request, doc_type, doc_number):
             )
 
             items = []
-            for item in order.items.all().select_related('item', 'item_variant', 'unit'):
+            for item in order.lines.all().select_related('item', 'item_variant', 'unit'):
                 items.append({
                     'item_id': item.item.id,
                     'item_name': item.item.name,
@@ -372,15 +475,14 @@ def ajax_get_document_details(request, doc_type, doc_number):
             })
 
         elif doc_type == 'invoice':
-            # جلب فاتورة
+            # جلب فاتورة (مرحّلة أو غير مرحّلة)
             invoice = PurchaseInvoice.objects.get(
                 company=request.current_company,
-                number=doc_number,
-                is_posted=True
+                number=doc_number
             )
 
             items = []
-            for item in invoice.items.all().select_related('item', 'item_variant', 'unit'):
+            for item in invoice.lines.all().select_related('item', 'item_variant', 'unit'):
                 items.append({
                     'item_id': item.item.id,
                     'item_name': item.item.name,
@@ -410,13 +512,137 @@ def ajax_get_document_details(request, doc_type, doc_number):
                 }
             })
 
+        elif doc_type == 'goods_receipt':
+            # جلب استلام بضاعة
+            gr = GoodsReceipt.objects.get(
+                company=request.current_company,
+                number=doc_number,
+                status='confirmed'
+            )
+
+            items = []
+            for line in gr.lines.all().select_related('item', 'item_variant'):
+                # جلب الوحدة من أمر الشراء إذا متوفر
+                unit_name = line.item.unit.name if line.item.unit else 'قطعة'
+                unit_id = line.item.unit.id if line.item.unit else None
+                if line.purchase_order_line and line.purchase_order_line.unit:
+                    unit_name = line.purchase_order_line.unit.name
+                    unit_id = line.purchase_order_line.unit.id
+
+                items.append({
+                    'item_id': line.item.id,
+                    'item_name': line.item.name,
+                    'item_code': line.item.code,
+                    'variant_id': line.item_variant.id if line.item_variant else None,
+                    'variant_name': str(line.item_variant) if line.item_variant else '',
+                    'quantity': str(line.received_quantity),
+                    'unit': unit_name,
+                    'unit_id': unit_id,
+                    'unit_price': str(line.unit_price),
+                    'tax_rate': '0',  # استلام البضاعة لا يحتوي ضريبة
+                    'discount_percentage': '0',
+                    'subtotal': str(line.received_quantity * line.unit_price)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'document': {
+                    'type': 'goods_receipt',
+                    'number': gr.number,
+                    'date': str(gr.date),
+                    'supplier_id': gr.supplier.id,
+                    'supplier_name': gr.supplier.name,
+                    'warehouse_id': gr.warehouse.id,
+                    'notes': gr.notes or '',
+                    'po_number': gr.purchase_order.number if gr.purchase_order else '',
+                    'items': items
+                }
+            })
+
+        elif doc_type == 'sales_invoice':
+            # جلب فاتورة مبيعات
+            sinv = SalesInvoice.objects.get(
+                company=request.current_company,
+                number=doc_number,
+                is_posted=True
+            )
+
+            items = []
+            for line in sinv.lines.all().select_related('item', 'item_variant', 'unit'):
+                items.append({
+                    'item_id': line.item.id if line.item else None,
+                    'item_name': line.item.name if line.item else '',
+                    'item_code': line.item.code if line.item else '',
+                    'variant_id': line.item_variant.id if line.item_variant else None,
+                    'variant_name': str(line.item_variant) if line.item_variant else '',
+                    'quantity': str(line.quantity),
+                    'unit': line.unit.name if line.unit else (line.item.unit.name if line.item and line.item.unit else 'قطعة'),
+                    'unit_id': line.unit.id if line.unit else (line.item.unit.id if line.item and line.item.unit else None),
+                    'unit_price': str(line.unit_price),
+                    'tax_rate': str(line.tax_rate if hasattr(line, 'tax_rate') else 0),
+                    'discount_percentage': str(line.discount_percentage if hasattr(line, 'discount_percentage') else 0),
+                    'subtotal': str(line.total_amount if hasattr(line, 'total_amount') else line.quantity * line.unit_price)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'document': {
+                    'type': 'sales_invoice',
+                    'number': sinv.number,
+                    'date': str(sinv.date),
+                    'supplier_id': sinv.customer.id if sinv.customer else None,
+                    'supplier_name': sinv.customer.name if sinv.customer else '',
+                    'warehouse_id': sinv.warehouse.id if hasattr(sinv, 'warehouse') and sinv.warehouse else None,
+                    'notes': sinv.notes or '',
+                    'items': items
+                }
+            })
+
+        elif doc_type == 'sales_order':
+            # جلب أمر بيع
+            so = SalesOrder.objects.get(
+                company=request.current_company,
+                number=doc_number
+            )
+
+            items = []
+            for line in so.lines.all().select_related('item', 'item_variant', 'unit'):
+                items.append({
+                    'item_id': line.item.id if line.item else None,
+                    'item_name': line.item.name if line.item else '',
+                    'item_code': line.item.code if line.item else '',
+                    'variant_id': line.item_variant.id if line.item_variant else None,
+                    'variant_name': str(line.item_variant) if line.item_variant else '',
+                    'quantity': str(line.quantity),
+                    'unit': line.unit.name if line.unit else (line.item.unit.name if line.item and line.item.unit else 'قطعة'),
+                    'unit_id': line.unit.id if line.unit else (line.item.unit.id if line.item and line.item.unit else None),
+                    'unit_price': str(line.unit_price),
+                    'tax_rate': str(line.tax_rate if hasattr(line, 'tax_rate') else 0),
+                    'discount_percentage': str(line.discount_percentage if hasattr(line, 'discount_percentage') else 0),
+                    'subtotal': str(line.total_amount if hasattr(line, 'total_amount') else line.quantity * line.unit_price)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'document': {
+                    'type': 'sales_order',
+                    'number': so.number,
+                    'date': str(so.date),
+                    'supplier_id': so.customer.id if so.customer else None,
+                    'supplier_name': so.customer.name if so.customer else '',
+                    'warehouse_id': so.warehouse.id if hasattr(so, 'warehouse') and so.warehouse else None,
+                    'notes': so.notes or '',
+                    'items': items
+                }
+            })
+
         else:
             return JsonResponse({
                 'success': False,
                 'error': _('نوع المستند غير معروف')
             }, status=400)
 
-    except (PurchaseOrder.DoesNotExist, PurchaseInvoice.DoesNotExist):
+    except (PurchaseOrder.DoesNotExist, PurchaseInvoice.DoesNotExist, GoodsReceipt.DoesNotExist, SalesInvoice.DoesNotExist, SalesOrder.DoesNotExist):
         return JsonResponse({
             'success': False,
             'error': _('المستند غير موجود')
@@ -458,6 +684,69 @@ def ajax_get_supplier_account(request, supplier_id):
         return JsonResponse({
             'success': False,
             'error': _('المورد غير موجود')
+        }, status=404)
+
+
+@login_required
+@require_http_methods(["GET"])
+def ajax_get_item_full_info(request, item_id):
+    """
+    جلب معلومات الصنف الشاملة - Get Item Full Info
+    يشمل: الكود، كل الأسعار، المخزون في كل المستودعات
+    """
+    try:
+        item = Item.objects.get(id=item_id, company=request.current_company)
+
+        # 1. المعلومات الأساسية
+        info = {
+            'id': item.id,
+            'code': item.code or '-',
+            'name': item.name,
+            'unit': item.base_uom.name if item.base_uom else '-',
+        }
+
+        # 2. آخر سعر شراء
+        last_purchase = PurchaseInvoiceItem.objects.filter(
+            invoice__company=request.current_company,
+            invoice__is_posted=True,
+            item=item
+        ).order_by('-invoice__date').first()
+        info['last_purchase_price'] = str(last_purchase.unit_price) if last_purchase else '-'
+
+        # 3. قوائم الأسعار
+        price_lists = []
+        for pl in PriceList.objects.filter(company=request.current_company, is_active=True)[:10]:
+            price_item = PriceListItem.objects.filter(price_list=pl, item=item).first()
+            if price_item:
+                price_lists.append({
+                    'name': pl.name,
+                    'price': str(price_item.price)
+                })
+        info['price_lists'] = price_lists
+
+        # 4. المخزون في كل المستودعات
+        stocks = []
+        total_stock = Decimal('0')
+        for stock in ItemStock.objects.filter(item=item).select_related('warehouse', 'warehouse__branch'):
+            branch_name = stock.warehouse.branch.name if stock.warehouse.branch else '-'
+            stocks.append({
+                'warehouse': stock.warehouse.name,
+                'branch': branch_name,
+                'quantity': str(stock.quantity)
+            })
+            total_stock += stock.quantity
+        info['stocks'] = stocks
+        info['total_stock'] = str(total_stock)
+
+        return JsonResponse({
+            'success': True,
+            'item': info
+        })
+
+    except Item.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': _('الصنف غير موجود')
         }, status=404)
 
 

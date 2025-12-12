@@ -1047,6 +1047,8 @@ kbd {
         {% csrf_token %}
         {{ formset.management_form }}
         {{ form.branch }}
+        <!-- 🚀 Hidden invoice ID for AJAX update -->
+        <input type="hidden" id="invoice_id" value="{% if object and object.pk %}{{ object.pk }}{% endif %}">
 
         <!-- Invoice Number Display -->
         <div class="alert alert-primary d-flex justify-content-between align-items-center mb-3" style="background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); border: none; box-shadow: 0 2px 8px rgba(25,118,210,0.3);">
@@ -1055,8 +1057,8 @@ kbd {
                 <strong style="font-size: 16px;">فاتورة مشتريات</strong>
             </div>
             <div style="font-size: 22px; font-weight: 700; letter-spacing: 1px;">
-                {% if object and object.invoice_number %}
-                    <i class="fas fa-hashtag me-1" style="font-size: 18px;"></i>{{ object.invoice_number }}
+                {% if object and object.number %}
+                    <i class="fas fa-hashtag me-1" style="font-size: 18px;"></i>{{ object.number }}
                 {% else %}
                     <span style="font-size: 16px; opacity: 0.9;">
                         <i class="fas fa-clock me-1"></i>سيتم توليد الرقم عند الحفظ
@@ -1176,17 +1178,20 @@ kbd {
                                     المرجع
                                     <i class="fas fa-link text-primary" title="ربط بمستند سابق"></i>
                                 </label>
-                                <div class="autocomplete-wrapper">
+                                <div class="input-group input-group-sm">
                                     <input type="text"
-                                           class="form-control form-control-sm document-reference-input autocomplete-search-input"
+                                           class="form-control form-control-sm document-reference-input"
                                            placeholder="أمر/فاتورة..."
                                            autocomplete="off"
                                            title="اختر مستند لملء الفاتورة تلقائياً">
-                                    <button type="button" class="autocomplete-dropdown-btn" tabindex="-1">
-                                        <i class="fas fa-chevron-down"></i>
+                                    <button type="button" class="btn btn-outline-primary" id="btn-open-documents-lov"
+                                            title="فتح قائمة المستندات (F9)">
+                                        <i class="fas fa-search"></i>
                                     </button>
-                                    <div class="autocomplete-list"></div>
                                 </div>
+                                <!-- حقل مخفي لحفظ نوع ورقم المستند -->
+                                <input type="hidden" id="source_document_type" name="source_document_type" value="">
+                                <input type="hidden" id="source_document_number" name="source_document_number" value="">
                             </div>
 
                             <!-- Payment Method -->
@@ -1677,6 +1682,87 @@ kbd {
             </div>
         </div>
     </form>
+</div>
+
+<!-- Documents LOV Modal (Oracle-style) -->
+<div class="modal fade" id="documentsLovModal" tabindex="-1" aria-labelledby="documentsLovModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h5 class="modal-title" id="documentsLovModalLabel">
+                    <i class="fas fa-list-alt me-2"></i>
+                    قائمة المستندات المتاحة
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Document Type Filter -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <select id="lov-doc-type-filter" class="form-select form-select-sm">
+                            <option value="">كل الأنواع</option>
+                            <optgroup label="المشتريات">
+                                <option value="order">أوامر الشراء</option>
+                                <option value="goods_receipt">استلامات البضاعة</option>
+                                <option value="invoice">فواتير مشتريات</option>
+                            </optgroup>
+                            <optgroup label="المبيعات">
+                                <option value="sales_invoice">فواتير مبيعات</option>
+                                <option value="sales_order">أوامر بيع</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" id="lov-search-input" class="form-control" placeholder="بحث برقم المستند أو اسم المورد...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Table -->
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-hover table-striped mb-0" id="documents-lov-table">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width: 30px;">#</th>
+                                <th style="width: 80px;">النوع</th>
+                                <th>الرقم</th>
+                                <th>المورد</th>
+                                <th>التاريخ</th>
+                                <th class="text-end">المبلغ</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="documents-lov-tbody">
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    <span class="ms-2">جاري التحميل...</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- No Results Message -->
+                <div id="lov-no-results" class="text-center py-4 text-muted" style="display: none;">
+                    <i class="fas fa-inbox fa-3x mb-2"></i>
+                    <p>لا توجد مستندات مطابقة</p>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <small class="text-muted me-auto">
+                    <i class="fas fa-info-circle me-1"></i>
+                    اضغط مرتين لاختيار المستند، أو اختر ثم اضغط "تحميل"
+                </small>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-load-selected-document" disabled>
+                    <i class="fas fa-download me-1"></i>تحميل
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Column Settings Modal -->
@@ -3200,55 +3286,7 @@ $(document).ready(function() {
         }
     });
 
-    $('form').on('submit', function(e) {
-        console.log("=" * 80);
-        console.log("📝 Form submit triggered!");
-
-        // التحقق من وجود بنود في الفاتورة
-        var hasItems = false;
-        var itemCount = 0;
-        $('#items-tbody tr:visible').each(function(index) {
-            // البحث عن .item-select بدلاً من select[name*="item"] لأن العنصر مخفي
-            var itemSelect = $(this).find('.item-select');
-            var itemValue = itemSelect.val();
-            var itemName = itemSelect.find('option:selected').text();
-
-            // Check if row is marked for deletion
-            var isDeleted = $(this).find('input[name$="-DELETE"]').is(':checked');
-
-            console.log("Row " + index + ":");
-            console.log("  - Item select:", itemSelect.length > 0 ? "Found" : "NOT FOUND");
-            console.log("  - Item value:", itemValue || "EMPTY");
-            console.log("  - Item name:", itemName || "NONE");
-            console.log("  - Is deleted:", isDeleted);
-
-            if (itemValue && !isDeleted) {
-                hasItems = true;
-                itemCount++;
-            }
-        });
-
-        console.log("Total items found:", itemCount);
-        console.log("Has items:", hasItems);
-
-        if (!hasItems) {
-            e.preventDefault();
-            console.error("❌ No items found - preventing form submit");
-            Swal.fire({
-                icon: 'warning',
-                title: 'بنود الفاتورة فارغة',
-                text: 'يرجى إضافة سطر واحد على الأقل للفاتورة قبل الحفظ',
-                confirmButtonText: 'حسناً'
-            });
-            return false;
-        }
-
-        console.log("✅ Form validation passed - submitting...");
-        formChanged = false;
-        $('button[type="submit"]').prop('disabled', true).html(
-            '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
-        );
-    });
+    // ⚠️ تم نقل معالج submit إلى نهاية الملف (AJAX/JSON)
 
     // Initial calculation
     calculateTotals();
@@ -5327,6 +5365,72 @@ $(document).ready(function() {
     }
 
     // ============================================
+    // 🔍 إضافة Comment على خلية الصنف (Excel/Oracle-style)
+    // ============================================
+    function showItemInfoPopover(itemId, row) {
+        console.log('📝 showItemInfoPopover called:', itemId, row, 'window.hot:', !!window.hot);
+
+        if (!itemId) {
+            console.log('⚠️ No itemId provided');
+            return;
+        }
+
+        if (!window.hot) {
+            console.log('⚠️ window.hot not available yet');
+            return;
+        }
+
+        $.ajax({
+            url: '/purchases/ajax/invoices/get-item-full-info/' + itemId + '/',
+            method: 'GET',
+            success: function(response) {
+                console.log('📦 Item info response:', response);
+                if (response.success && response.item) {
+                    var item = response.item;
+
+                    // بناء نص الـ comment
+                    var comment = '📦 ' + item.code + '\n';
+                    comment += '━━━━━━━━━━━━━━━\n';
+                    comment += '💰 آخر سعر شراء: ' + (item.last_purchase_price || '-') + '\n';
+
+                    // قوائم الأسعار
+                    if (item.price_lists && item.price_lists.length > 0) {
+                        comment += '━━━━━━━━━━━━━━━\n';
+                        comment += '🏷️ قوائم الأسعار:\n';
+                        item.price_lists.slice(0, 5).forEach(function(pl) {
+                            comment += '  • ' + pl.name + ': ' + parseFloat(pl.price).toFixed(3) + '\n';
+                        });
+                    }
+
+                    // المخزون
+                    comment += '━━━━━━━━━━━━━━━\n';
+                    comment += '📊 إجمالي المخزون: ' + parseFloat(item.total_stock).toLocaleString('ar-JO') + '\n';
+
+                    if (item.stocks && item.stocks.length > 0) {
+                        item.stocks.slice(0, 5).forEach(function(stock) {
+                            var qty = parseFloat(stock.quantity);
+                            comment += '  • ' + stock.branch + ': ' + qty.toLocaleString('ar-JO') + '\n';
+                        });
+                    }
+
+                    // إضافة الـ comment على الخلية باستخدام window.hot
+                    try {
+                        var commentsPlugin = window.hot.getPlugin('comments');
+                        commentsPlugin.setCommentAtCell(row, 0, comment);
+                        window.hot.render();
+                        console.log('✅ Comment added successfully for item:', item.name, 'at row:', row);
+                    } catch (e) {
+                        console.error('❌ Error setting comment:', e);
+                    }
+                }
+            },
+            error: function(xhr) {
+                console.log('❌ Error fetching item info:', xhr.responseText);
+            }
+        });
+    }
+
+    // ============================================
     // 🎯 Oracle-Style LOV Module (Improved)
     // ============================================
     const LOV = {
@@ -5367,6 +5471,7 @@ $(document).ready(function() {
                             name: item.name || item.text || '',
                             code: item.code || item.variant_code || '',
                             unit: item.base_uom_name || item.unit || 'قطعة',
+                            unit_id: item.base_uom_id || null,  // 🚀 إضافة unit_id
                             price: parseFloat(item.last_purchase_price || item.purchase_price || item.price || 0),
                             tax_rate: parseFloat(item.tax_rate || 0),
                             stock: parseFloat(item.current_branch_stock || 0)
@@ -5664,33 +5769,24 @@ $(document).ready(function() {
                     [row, 4, item.tax_rate || 0]   // نسبة الضريبة
                 ], 'lov');
 
-                // حفظ بيانات الصنف (بما في ذلك variant_id)
+                // حفظ بيانات الصنف (بما في ذلك variant_id و unit_id)
                 if (typeof hotItemsData !== 'undefined') {
                     while (hotItemsData.length <= row) {
-                        hotItemsData.push({ id: '', variant_id: '', name: '', unit: '', price: 0, tax_rate: 0 });
+                        hotItemsData.push({ id: '', variant_id: '', name: '', unit: '', unit_id: null, price: 0, tax_rate: 0 });
                     }
                     hotItemsData[row] = {
                         id: item.id,
                         variant_id: item.variant_id,
                         name: item.name,
                         unit: item.unit,
+                        unit_id: item.unit_id,  // 🚀 إضافة unit_id
                         price: item.price,
                         tax_rate: item.tax_rate || 0
                     };
                 }
 
-                // إضافة تعليق على خلية الصنف بمعلومات السعر والمخزون
-                var commentPlugin = hot.getPlugin('comments');
-                if (commentPlugin) {
-                    var commentText = '💰 السعر: ' + item.price.toFixed(3) + ' د.أ';
-                    if (item.stock > 0) {
-                        commentText += '\n📦 المخزون: ' + item.stock;
-                    }
-                    if (item.code) {
-                        commentText += '\n🔖 الكود: ' + item.code;
-                    }
-                    commentPlugin.setCommentAtCell(row, 0, commentText);
-                }
+                // جلب وعرض معلومات الصنف بجانب الخلية (Oracle-style)
+                showItemInfoPopover(item.id, row);
 
                 // حساب الصف
                 setTimeout(function() {
@@ -5805,7 +5901,9 @@ $(document).ready(function() {
     // ============================================
     // 📊 Handsontable Integration (Oracle-Style)
     // ============================================
-    var hot = null;
+    // جعل hot متغير عام للوصول إليه من خارج النطاق
+    window.hot = null;
+    var hot = null;  // Reference محلي
     var hotItemsData = []; // لحفظ بيانات المواد (id, name, code, unit, price)
 
     // أعمدة الجدول:
@@ -5882,7 +5980,7 @@ $(document).ready(function() {
             copyPaste: true,
             licenseKey: 'non-commercial-and-evaluation',
             className: 'htRight',
-            language: 'ar-SA',
+            // language: 'ar-SA',  // تم تعطيله - يحتاج ملف لغة منفصل
 
             // Plugin لإخفاء الأعمدة
             hiddenColumns: {
@@ -5979,6 +6077,10 @@ $(document).ready(function() {
             hotLoadColumnSettings();
             hotLoadColumnOrder();
         }, 200);
+
+        // ✅ جعل hot متاح عالمياً للوصول من showItemInfoPopover
+        window.hot = hot;
+        console.log('✅ Handsontable initialized and window.hot set');
     }
 
     // حساب صف واحد
@@ -6454,55 +6556,133 @@ $(document).ready(function() {
     // Load Document Details (Order or Invoice)
     // ============================================
     function loadDocumentDetails(docType, docNumber) {
+        loadDocumentDetailsWithMode(docType, docNumber, true);
+    }
+
+    function loadDocumentDetailsWithMode(docType, docNumber, replaceAll) {
         $.ajax({
-            url: '/purchases/ajax/invoices/get-document/' + docType + '/' + encodeURIComponent(docNumber) + '/',
+            url: '/purchases/ajax/invoices/get-document/' + docType + '/' + docNumber + '/',
             success: function(response) {
+                console.log('📥 API Response:', response);
                 if (response.success && response.document) {
                     var doc = response.document;
+                    console.log('📋 Document items:', doc.items);
 
-                    // تعبئة حقول الفاتورة
-                    $('#id_supplier').val(doc.supplier_id).trigger('change');
-                    if (doc.warehouse_id) {
-                        $('#id_warehouse').val(doc.warehouse_id).trigger('change');
+                    // تعبئة حقول الفاتورة (فقط في حالة الاستبدال أو إذا كانت فارغة)
+                    if (replaceAll || !$('#id_supplier').val()) {
+                        $('#id_supplier').val(doc.supplier_id).trigger('change');
                     }
-
-                    // مسح الجدول أولاً
-                    if (hot) {
-                        hot.loadData([]);
+                    if ((replaceAll || !$('#id_warehouse').val()) && doc.warehouse_id) {
+                        $('#id_warehouse').val(doc.warehouse_id).trigger('change');
                     }
 
                     // ملء بنود الفاتورة
                     if (doc.items && doc.items.length > 0) {
-                        var tableData = [];
-                        doc.items.forEach(function(item) {
-                            tableData.push({
-                                item_id: item.item_id,
-                                item_name: item.item_name + (item.variant_name ? ' - ' + item.variant_name : ''),
-                                variant_id: item.variant_id,
-                                quantity: parseFloat(item.quantity),
-                                unit: item.unit,
-                                unit_id: item.unit_id,
-                                price: parseFloat(item.unit_price),
-                                tax_rate: parseFloat(item.tax_rate),
-                                tax_amount: 0,
-                                discount_pct: parseFloat(item.discount_percentage),
-                                discount_amount: 0,
-                                total: parseFloat(item.subtotal)
+                        var existingData = [];
+                        var startIdx = 0;
+
+                        if (!replaceAll && hot) {
+                            // الاحتفاظ بالبيانات الموجودة
+                            existingData = hot.getData().filter(function(row) {
+                                return row[0] && row[0].toString().trim() !== '';
                             });
+                            startIdx = existingData.length;
+                        } else {
+                            // استبدال الكل - مسح كل البيانات القديمة
+                            hotItemsData = [];
+                            existingData = [];  // مسح البيانات الموجودة
+                            startIdx = 0;
+                        }
+
+                        var newData = [];
+                        doc.items.forEach(function(item, idx) {
+                            var quantity = parseFloat(item.quantity) || 1;
+                            var price = parseFloat(item.unit_price) || 0;
+                            var taxRate = parseFloat(item.tax_rate) || 0;
+                            var discountPct = parseFloat(item.discount_percentage) || 0;
+
+                            // حساب الضريبة
+                            var subtotal = quantity * price;
+                            var discountAmount = subtotal * discountPct / 100;
+                            var afterDiscount = subtotal - discountAmount;
+                            var taxAmount = afterDiscount * taxRate / 100;
+                            var total = afterDiscount + taxAmount;
+
+                            // تنسيق البيانات للـ Handsontable (مصفوفة)
+                            newData.push([
+                                item.item_name + (item.variant_name ? ' - ' + item.variant_name : ''),
+                                quantity,
+                                item.unit || 'قطعة',
+                                price,
+                                taxRate,
+                                taxAmount,
+                                discountPct,
+                                discountAmount,
+                                total
+                            ]);
+
+                            // حفظ معلومات المادة في hotItemsData
+                            // استخدام push لضمان التسلسل الصحيح
+                            var itemData = {
+                                id: item.item_id,
+                                variant_id: item.variant_id || null,
+                                name: item.item_name,
+                                unit: item.unit || 'قطعة',
+                                unit_id: item.unit_id || null,
+                                price: price,
+                                tax_rate: taxRate
+                            };
+                            // إذا replaceAll، نستخدم push مباشرة
+                            // إذا لا، نضع في الموقع الصحيح بعد البيانات الموجودة
+                            if (replaceAll) {
+                                hotItemsData.push(itemData);
+                            } else {
+                                hotItemsData[startIdx + idx] = itemData;
+                            }
                         });
 
+                        // دمج البيانات
+                        var finalData = replaceAll ? newData : existingData.concat(newData);
+
+                        // إضافة صفوف فارغة لـ hotItemsData لتتطابق مع finalData + minSpareRows
+                        while (hotItemsData.length < finalData.length) {
+                            hotItemsData.push({ id: '', variant_id: null, name: '', unit: '', unit_id: null, price: 0, tax_rate: 0 });
+                        }
+                        console.log('📊 Final data to load:', finalData);
+                        console.log('🔧 hotItemsData:', JSON.stringify(hotItemsData));
+
                         if (hot) {
-                            hot.loadData(tableData);
+                            hot.loadData(finalData);
+                            console.log('✅ Data loaded, current data:', hot.getData());
                             hot.render();
-                            updateSummary();
+                            if (typeof updateSummary === 'function') {
+                                updateSummary();
+                            }
+
+                            // إضافة comments لكل صنف محمّل
+                            doc.items.forEach(function(item, idx) {
+                                var rowIdx = replaceAll ? idx : startIdx + idx;
+                                if (item.item_id) {
+                                    showItemInfoPopover(item.item_id, rowIdx);
+                                }
+                            });
                         }
 
                         // رسالة نجاح
-                        var typeLabel = doc.type === 'order' ? 'أمر الشراء' : 'الفاتورة';
+                        var typeLabels = {
+                            'order': 'أمر الشراء',
+                            'goods_receipt': 'استلام البضاعة',
+                            'invoice': 'الفاتورة',
+                            'sales_invoice': 'فاتورة المبيعات',
+                            'sales_order': 'أمر البيع',
+                            'quotation': 'عرض السعر'
+                        };
+                        var typeLabel = typeLabels[doc.type] || 'المستند';
+                        var actionText = replaceAll ? 'تم تحميل' : 'تم إضافة';
                         Swal.fire({
                             icon: 'success',
-                            title: 'تم التحميل',
-                            text: 'تم تحميل ' + doc.items.length + ' صنف من ' + typeLabel + ' ' + docNumber,
+                            title: actionText,
+                            text: actionText + ' ' + doc.items.length + ' صنف من ' + typeLabel + ' ' + docNumber,
                             timer: 2000,
                             showConfirmButton: false
                         });
@@ -6525,48 +6705,379 @@ $(document).ready(function() {
         });
     }
 
+    // ============================================
+    // Documents LOV (Oracle-style F9)
+    // ============================================
+    var selectedDocument = null;  // المستند المحدد
+
+    function setupDocumentsLOV() {
+        var $modal = $('#documentsLovModal');
+        var $tbody = $('#documents-lov-tbody');
+        var $searchInput = $('#lov-search-input');
+        var $typeFilter = $('#lov-doc-type-filter');
+        var $loadBtn = $('#btn-load-selected-document');
+        var $noResults = $('#lov-no-results');
+
+        // فتح LOV عند الضغط على الزر
+        $('#btn-open-documents-lov').on('click', function() {
+            selectedDocument = null;
+            $loadBtn.prop('disabled', true);
+            $modal.modal('show');
+            loadDocumentsForLOV();
+        });
+
+        // فتح LOV عند الضغط على F9 في حقل المرجع
+        $('.document-reference-input').on('keydown', function(e) {
+            if (e.key === 'F9' || e.keyCode === 120) {
+                e.preventDefault();
+                $('#btn-open-documents-lov').click();
+            }
+        });
+
+        // البحث عند الكتابة
+        var searchTimeout;
+        $searchInput.on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                loadDocumentsForLOV();
+            }, 300);
+        });
+
+        // تصفية حسب النوع
+        $typeFilter.on('change', function() {
+            loadDocumentsForLOV();
+        });
+
+        // اختيار صف بالنقر
+        $tbody.on('click', 'tr[data-doc]', function() {
+            $tbody.find('tr').removeClass('table-primary');
+            $(this).addClass('table-primary');
+            selectedDocument = $(this).data('doc');
+            $loadBtn.prop('disabled', false);
+        });
+
+        // تحميل بالنقر المزدوج
+        $tbody.on('dblclick', 'tr[data-doc]', function() {
+            selectedDocument = $(this).data('doc');
+            loadSelectedDocument();
+        });
+
+        // زر تحميل
+        $loadBtn.on('click', function() {
+            if (selectedDocument) {
+                loadSelectedDocument();
+            }
+        });
+
+        // التنقل بالأسهم
+        $modal.on('keydown', function(e) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                var $rows = $tbody.find('tr[data-doc]');
+                var $current = $rows.filter('.table-primary');
+                var currentIdx = $rows.index($current);
+                var newIdx;
+
+                if (e.key === 'ArrowDown') {
+                    newIdx = currentIdx < $rows.length - 1 ? currentIdx + 1 : 0;
+                } else {
+                    newIdx = currentIdx > 0 ? currentIdx - 1 : $rows.length - 1;
+                }
+
+                $rows.removeClass('table-primary');
+                var $newRow = $rows.eq(newIdx).addClass('table-primary');
+                selectedDocument = $newRow.data('doc');
+                $loadBtn.prop('disabled', false);
+
+                // Scroll into view
+                $newRow[0].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && selectedDocument) {
+                e.preventDefault();
+                loadSelectedDocument();
+            }
+        });
+    }
+
+    function loadDocumentsForLOV() {
+        var $tbody = $('#documents-lov-tbody');
+        var $noResults = $('#lov-no-results');
+        var query = $('#lov-search-input').val().trim();
+        var docType = $('#lov-doc-type-filter').val();
+        // لا نفلتر بالمورد في LOV - نظهر كل المستندات
+        // var supplierId = $('#id_supplier').val() || '';
+
+        // Loading state
+        $tbody.html('<tr><td colspan="7" class="text-center py-4">' +
+            '<div class="spinner-border spinner-border-sm text-primary"></div>' +
+            '<span class="ms-2">جاري التحميل...</span></td></tr>');
+        $noResults.hide();
+
+        $.ajax({
+            url: '{% url "purchases:ajax_documents_search" %}',
+            data: {
+                q: query,
+                supplier_id: ''  // إظهار كل المستندات بغض النظر عن المورد
+            },
+            success: function(response) {
+                $tbody.empty();
+
+                if (!response.results || response.results.length === 0) {
+                    $noResults.show();
+                    return;
+                }
+
+                var results = response.results;
+
+                // تصفية حسب النوع إذا تم تحديده
+                if (docType) {
+                    results = results.filter(function(doc) {
+                        return doc.type === docType;
+                    });
+                }
+
+                if (results.length === 0) {
+                    $noResults.show();
+                    return;
+                }
+
+                $noResults.hide();
+
+                results.forEach(function(doc, idx) {
+                    var $row = $('<tr data-doc></tr>')
+                        .data('doc', doc)
+                        .html(
+                            '<td>' + (idx + 1) + '</td>' +
+                            '<td><span class="badge bg-' + doc.color + '">' +
+                                '<i class="fas ' + doc.icon + ' me-1"></i>' + doc.type_label + '</span></td>' +
+                            '<td><strong>' + doc.number + '</strong></td>' +
+                            '<td>' + doc.supplier_name + '</td>' +
+                            '<td>' + doc.date + '</td>' +
+                            '<td class="text-end">' + parseFloat(doc.total).toLocaleString('ar-JO', {minimumFractionDigits: 2}) + '</td>' +
+                            '<td><button type="button" class="btn btn-sm btn-outline-primary btn-select-doc">' +
+                                '<i class="fas fa-check"></i></button></td>'
+                        );
+                    $tbody.append($row);
+                });
+
+                // اختيار بالضغط على زر التحديد
+                $tbody.find('.btn-select-doc').on('click', function(e) {
+                    e.stopPropagation();
+                    var $row = $(this).closest('tr');
+                    selectedDocument = $row.data('doc');
+                    loadSelectedDocument();
+                });
+            },
+            error: function() {
+                $tbody.html('<tr><td colspan="7" class="text-center text-danger py-4">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>فشل تحميل المستندات</td></tr>');
+            }
+        });
+    }
+
+    function loadSelectedDocument() {
+        if (!selectedDocument) return;
+
+        var $modal = $('#documentsLovModal');
+
+        // التحقق من وجود بيانات في الجدول
+        var hasData = false;
+        if (hot) {
+            var data = hot.getData();
+            for (var i = 0; i < data.length; i++) {
+                if (data[i][0] && data[i][0].toString().trim() !== '') {
+                    hasData = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasData) {
+            // إغلاق Modal مؤقتاً
+            $modal.modal('hide');
+
+            // سؤال المستخدم
+            Swal.fire({
+                icon: 'question',
+                title: 'يوجد بيانات في الجدول',
+                text: 'ماذا تريد أن تفعل بالبيانات الموجودة؟',
+                showDenyButton: true,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-exchange-alt me-1"></i>استبدال الكل',
+                denyButtonText: '<i class="fas fa-plus me-1"></i>إضافة للموجود',
+                cancelButtonText: '<i class="fas fa-times me-1"></i>إلغاء',
+                confirmButtonColor: '#dc3545',
+                denyButtonColor: '#28a745',
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    // استبدال الكل
+                    doLoadDocument(true);
+                } else if (result.isDenied) {
+                    // إضافة للموجود
+                    doLoadDocument(false);
+                }
+                // إلغاء = لا تفعل شيء
+            });
+        } else {
+            // لا يوجد بيانات، حمّل مباشرة
+            $modal.modal('hide');
+            doLoadDocument(true);
+        }
+    }
+
+    function doLoadDocument(replaceAll) {
+        // حفظ نوع ورقم المستند
+        $('#source_document_type').val(selectedDocument.type);
+        $('#source_document_number').val(selectedDocument.number);
+        $('.document-reference-input').val(selectedDocument.type_label + ': ' + selectedDocument.number);
+
+        // تحميل التفاصيل
+        loadDocumentDetailsWithMode(selectedDocument.type, selectedDocument.number, replaceAll);
+    }
+
     // تفعيل Handsontable عند تحميل الصفحة
     $(document).ready(function() {
         initHandsontable();
         setupDocumentReferenceAutocomplete();
+        setupDocumentsLOV();  // 🚀 LOV للمستندات
 
-        // مزامنة قبل الإرسال
+        // 🚀 NEW: إرسال البيانات عبر AJAX/JSON بدلاً من formset
         $('form').on('submit', function(e) {
-            if (!syncHandsontableToFormset()) {
-                e.preventDefault();
+            e.preventDefault();  // منع الإرسال العادي
+
+            // جمع بيانات Handsontable
+            if (!hot) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'لم يتم تهيئة جدول البنود'
+                });
                 return false;
             }
+
+            var data = hot.getData();
+            var items = [];
+
+            // جمع البنود الصالحة من Handsontable
+            data.forEach(function(row, idx) {
+                if (row[0] && row[0].trim() !== '' && hotItemsData[idx] && hotItemsData[idx].id) {
+                    items.push({
+                        item_id: hotItemsData[idx].id,
+                        variant_id: hotItemsData[idx].variant_id || null,
+                        quantity: row[1] || 1,
+                        unit_price: row[3] || 0,
+                        tax_rate: row[4] || 0,
+                        discount_percentage: row[6] || 0,
+                        unit_id: hotItemsData[idx].unit_id || null
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'بنود الفاتورة فارغة',
+                    text: 'يرجى إضافة سطر واحد على الأقل للفاتورة قبل الحفظ',
+                    confirmButtonText: 'حسناً'
+                });
+                return false;
+            }
+
+            // جمع بيانات الفاتورة الأساسية
+            var invoiceData = {
+                invoice_id: $('#invoice_id').val() || null,  // للتعديل
+                supplier_id: $('#id_supplier').val(),
+                warehouse_id: $('#id_warehouse').val(),
+                date: $('#id_date').val(),
+                invoice_type: $('#id_invoice_type').val() || 'purchase',
+                supplier_invoice_number: $('#id_supplier_invoice_number').val(),
+                supplier_invoice_date: $('#id_supplier_invoice_date').val() || null,
+                payment_method_id: $('#id_payment_method').val(),
+                currency_id: $('#id_currency').val(),
+                supplier_account_id: $('.supplier-account-select').val() || null,
+                discount_type: $('#id_discount_type').val() || 'percentage',
+                discount_value: $('#id_discount_value').val() || 0,
+                discount_account_id: $('#id_discount_account').val() || null,
+                notes: $('#id_notes').val() || '',
+                reference: $('#id_reference').val() || '',
+                items: items
+            };
+
+            console.log('📤 Sending invoice data:', invoiceData);
+
+            // تعطيل زر الحفظ
+            var $submitBtn = $('button[type="submit"]');
+            $submitBtn.prop('disabled', true).html(
+                '<i class="fas fa-spinner fa-spin me-1"></i>جاري الحفظ...'
+            );
+
+            // إرسال البيانات عبر AJAX
+            $.ajax({
+                url: '{% url "purchases:save_invoice_json" %}',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(invoiceData),
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // إلغاء تحذير المغادرة لأن البيانات تم حفظها
+                        formChanged = false;
+
+                        // الانتقال فوراً لعرض الفاتورة
+                        window.location.href = response.redirect_url;
+                    } else {
+                        $submitBtn.prop('disabled', false).html(
+                            '<i class="fas fa-save me-1"></i>حفظ الفاتورة'
+                        );
+                        var errorText = response.errors ? response.errors.join('\n') : response.error;
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ في الحفظ',
+                            text: errorText
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    $submitBtn.prop('disabled', false).html(
+                        '<i class="fas fa-save me-1"></i>حفظ الفاتورة'
+                    );
+                    var errorMsg = 'فشل الاتصال بالخادم';
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMsg = xhr.responseJSON.error;
+                    } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        errorMsg = xhr.responseJSON.errors.join('\n');
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: errorMsg
+                    });
+                }
+            });
+
+            return false;
         });
     });
 
 </script>
 
 <style>
-    /* Custom styles for price popover */
-    .item-prices-popover {
-        max-width: 450px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        border: 1px solid #dee2e6;
+    /* Handsontable Comments Style - تكبير فقاعة التعليقات */
+    .htComments .htCommentTextArea {
+        width: 280px !important;
+        height: 200px !important;
+        font-size: 12px !important;
+        direction: rtl !important;
+        text-align: right !important;
+        line-height: 1.5 !important;
+        padding: 8px !important;
     }
-
-    .item-prices-popover .popover-body {
-        padding: 1rem;
-        color: #333;
+    .htCommentCell {
+        position: relative;
     }
-
-    .item-prices-content {
-        direction: rtl;
-        text-align: right;
-    }
-
-    .item-info-btn {
-        transition: all 0.2s;
-        opacity: 0.7;
-    }
-
-    .item-info-btn:hover {
-        opacity: 1;
-        transform: scale(1.1);
+    .htCommentCell::after {
+        border-color: transparent #ff6b6b transparent transparent !important;
     }
 </style>
 

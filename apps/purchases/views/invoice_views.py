@@ -1458,3 +1458,172 @@ def get_item_uom_conversions_ajax(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ============================================
+# 🚀 NEW: JSON-based Invoice Save API
+# ============================================
+
+@login_required
+@permission_required('purchases.add_purchaseinvoice', raise_exception=True)
+@transaction.atomic
+def save_invoice_json(request):
+    """
+    ✅ حفظ فاتورة المشتريات عبر JSON (بديل عن formset)
+    يستقبل البيانات من Handsontable مباشرة
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        # تحويل التواريخ من string إلى date objects
+        invoice_date = data.get('date')
+        if invoice_date and isinstance(invoice_date, str):
+            invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date()
+
+        supplier_invoice_date = data.get('supplier_invoice_date')
+        if supplier_invoice_date and isinstance(supplier_invoice_date, str):
+            supplier_invoice_date = datetime.strptime(supplier_invoice_date, '%Y-%m-%d').date()
+        else:
+            supplier_invoice_date = None
+
+        # بيانات الفاتورة الأساسية
+        invoice_id = data.get('invoice_id')  # للتعديل
+        invoice_data = {
+            'supplier_id': data.get('supplier_id'),
+            'warehouse_id': data.get('warehouse_id'),
+            'date': invoice_date,
+            'invoice_type': data.get('invoice_type', 'purchase'),
+            'supplier_invoice_number': data.get('supplier_invoice_number'),
+            'supplier_invoice_date': supplier_invoice_date,
+            'payment_method_id': data.get('payment_method_id'),
+            'currency_id': data.get('currency_id'),
+            'supplier_account_id': data.get('supplier_account_id') or None,
+            'discount_type': data.get('discount_type', 'percentage'),
+            'discount_value': Decimal(str(data.get('discount_value', 0))),
+            'discount_account_id': data.get('discount_account_id') or None,
+            'notes': data.get('notes', ''),
+            'reference': data.get('reference', ''),
+        }
+
+        # بنود الفاتورة
+        items = data.get('items', [])
+
+        # التحقق من البيانات الأساسية
+        errors = []
+        if not invoice_data['supplier_id']:
+            errors.append('يجب اختيار المورد')
+        if not invoice_data['warehouse_id']:
+            errors.append('يجب اختيار المستودع')
+        if not invoice_data['date']:
+            errors.append('يجب تحديد تاريخ الفاتورة')
+        if not invoice_data['supplier_invoice_number']:
+            errors.append('يجب إدخال رقم فاتورة المورد')
+        if not invoice_data['payment_method_id']:
+            errors.append('يجب اختيار طريقة الدفع')
+        if not invoice_data['currency_id']:
+            errors.append('يجب اختيار العملة')
+        if not items or len(items) == 0:
+            errors.append('يجب إضافة سطر واحد على الأقل للفاتورة')
+
+        if errors:
+            return JsonResponse({
+                'success': False,
+                'errors': errors
+            }, status=400)
+
+        # إنشاء أو تعديل الفاتورة
+        if invoice_id:
+            # تعديل فاتورة موجودة
+            invoice = get_object_or_404(
+                PurchaseInvoice,
+                pk=invoice_id,
+                company=request.current_company,
+                is_posted=False
+            )
+            # تحديث الحقول
+            for key, value in invoice_data.items():
+                if value is not None or key.endswith('_id'):
+                    setattr(invoice, key, value)
+            invoice.save()
+
+            # حذف البنود القديمة
+            invoice.lines.all().delete()
+        else:
+            # إنشاء فاتورة جديدة
+            invoice = PurchaseInvoice.objects.create(
+                company=request.current_company,
+                branch=request.current_branch,
+                created_by=request.user,
+                **invoice_data
+            )
+
+        # إنشاء البنود الجديدة
+        for item_data in items:
+            item_id = item_data.get('item_id')
+            if not item_id:
+                continue
+
+            # التحقق من الحقول المطلوبة
+            quantity = Decimal(str(item_data.get('quantity', 1)))
+            unit_price = Decimal(str(item_data.get('unit_price', 0)))
+            tax_rate = Decimal(str(item_data.get('tax_rate', 0)))
+            discount_percentage = Decimal(str(item_data.get('discount_percentage', 0)))
+
+            # جلب المادة للحصول على الوحدة الافتراضية
+            item = Item.objects.get(pk=item_id)
+            unit_id = item_data.get('unit_id') or (item.base_uom_id if item.base_uom else None)
+
+            if not unit_id:
+                continue
+
+            # حساب مبلغ الضريبة والخصم
+            subtotal_before_tax = quantity * unit_price
+            tax_amount = subtotal_before_tax * (tax_rate / Decimal('100'))
+            discount_amount = subtotal_before_tax * (discount_percentage / Decimal('100'))
+            subtotal = subtotal_before_tax + tax_amount - discount_amount
+
+            PurchaseInvoiceItem.objects.create(
+                invoice=invoice,
+                item_id=item_id,
+                item_variant_id=item_data.get('variant_id') or None,
+                quantity=quantity,
+                unit_id=unit_id,
+                unit_price=unit_price,
+                tax_rate=tax_rate,
+                tax_amount=tax_amount,
+                tax_included=item_data.get('tax_included', False),
+                discount_percentage=discount_percentage,
+                discount_amount=discount_amount,
+                subtotal=subtotal,
+                description=item_data.get('description', ''),
+                batch_number=item_data.get('batch_number', ''),
+                expiry_date=item_data.get('expiry_date') or None,
+            )
+
+        # إعادة حساب المجاميع
+        invoice.calculate_totals()
+        invoice.save()
+
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.number,
+            'redirect_url': reverse('purchases:invoice_detail', kwargs={'pk': invoice.pk}),
+            'message': 'تم حفظ الفاتورة بنجاح'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'بيانات JSON غير صالحة'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
