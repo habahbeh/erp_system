@@ -6332,6 +6332,7 @@ $(document).ready(function() {
             rowHeaders: true,
             startRows: 6,
             minSpareRows: 1,
+            selectionMode: 'multiple',  // السماح بالتحديد المتعدد (Ctrl+Click)
             contextMenu: ['row_above', 'row_below', 'remove_row', '---------', 'undo', 'redo', '---------', 'commentsAddEdit', 'commentsRemove', '---------', 'copy', 'cut'],
             comments: true,
             copyPaste: true,
@@ -6596,13 +6597,29 @@ $(document).ready(function() {
     function hotDeleteRow() {
         if (!hot) return;
 
-        // استخدام الصفوف المحفوظة
-        var minRow = Math.min(lastSelectedRow, lastSelectedRowEnd);
-        var maxRow = Math.max(lastSelectedRow, lastSelectedRowEnd);
-
+        // الحصول على كل النطاقات المحددة (يدعم Ctrl+Click)
+        var selected = hot.getSelected();
+        console.log('🗑️ hotDeleteRow - selected:', JSON.stringify(selected));
         var rowsToDelete = [];
-        for (var r = minRow; r <= maxRow; r++) {
-            rowsToDelete.push(r);
+
+        if (selected && selected.length > 0) {
+            // جمع كل الصفوف من جميع النطاقات
+            selected.forEach(function(range) {
+                var startRow = Math.min(range[0], range[2]);
+                var endRow = Math.max(range[0], range[2]);
+                for (var r = startRow; r <= endRow; r++) {
+                    if (rowsToDelete.indexOf(r) === -1) {
+                        rowsToDelete.push(r);
+                    }
+                }
+            });
+        } else {
+            // fallback للصفوف المحفوظة
+            var minRow = Math.min(lastSelectedRow, lastSelectedRowEnd);
+            var maxRow = Math.max(lastSelectedRow, lastSelectedRowEnd);
+            for (var r = minRow; r <= maxRow; r++) {
+                rowsToDelete.push(r);
+            }
         }
 
         if (rowsToDelete.length === 0) return;
@@ -6616,16 +6633,34 @@ $(document).ready(function() {
             rowsToDelete.pop();
         }
 
-        // حذف الصفوف
+        // حذف الصفوف وتحديث hotItemsData و hotCommentsData
         rowsToDelete.forEach(function(row) {
             hot.alter('remove_row', row, 1);
             if (hotItemsData && hotItemsData[row]) {
                 hotItemsData.splice(row, 1);
             }
+            // حذف comment من hotCommentsData
+            if (window.hotCommentsData && window.hotCommentsData[row]) {
+                delete window.hotCommentsData[row];
+            }
         });
 
-        hotUpdateTotals();
-        console.log('✅ Deleted rows:', rowsToDelete);
+        // إعادة ترقيم hotCommentsData بعد الحذف
+        var newCommentsData = {};
+        var sortedRows = Object.keys(window.hotCommentsData).map(Number).sort(function(a, b) { return a - b; });
+        sortedRows.forEach(function(oldRow) {
+            var deletedBefore = rowsToDelete.filter(function(r) { return r < oldRow; }).length;
+            var newRow = oldRow - deletedBefore;
+            newCommentsData[newRow] = window.hotCommentsData[oldRow];
+        });
+        window.hotCommentsData = newCommentsData;
+
+        // تأخير لضمان انتهاء عملية الحذف ثم تحديث الإجماليات
+        setTimeout(function() {
+            hotUpdateTotals();
+            hot.render();
+            console.log('✅ Deleted rows:', rowsToDelete, '- Totals updated');
+        }, 50);
     }
 
     // ============================================
