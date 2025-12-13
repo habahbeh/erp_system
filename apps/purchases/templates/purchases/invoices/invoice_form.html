@@ -60,6 +60,32 @@
     border-color: #90caf9;
 }
 
+/* Multi-select selected row style */
+#items-lov-tbody tr.item-lov-row.table-success {
+    background-color: #d4edda !important;
+}
+
+#items-lov-tbody tr.item-lov-row.table-success.table-primary {
+    background-color: #9ecfae !important;
+}
+
+#items-lov-tbody tr.item-lov-row .item-multi-check {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+/* Multi-select badge animation */
+#items-lov-selected-badge {
+    animation: badgePulse 0.3s ease;
+}
+
+@keyframes badgePulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
 /* تحسين حقل البحث */
 #items-lov-search {
     font-size: 15px;
@@ -1461,7 +1487,7 @@ kbd {
     </div>
 </div>
 
-<!-- Items LOV Modal (Oracle-style) - قائمة الأصناف -->
+<!-- Items LOV Modal (Oracle-style) - قائمة الأصناف مع اختيار متعدد -->
 <div class="modal fade" id="itemsLovModal" tabindex="-1" aria-labelledby="itemsLovModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
@@ -1469,13 +1495,16 @@ kbd {
                 <h5 class="modal-title" id="itemsLovModalLabel">
                     <i class="fas fa-boxes me-2"></i>
                     قائمة الأصناف
+                    <span id="items-lov-selected-badge" class="badge bg-warning text-dark ms-2" style="display: none;">
+                        <span id="items-lov-selected-count">0</span> محدد
+                    </span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
                 <!-- Search Box -->
                 <div class="row mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" id="items-lov-search" class="form-control" placeholder="بحث بالكود أو الاسم أو الباركود..." autofocus>
@@ -1489,19 +1518,47 @@ kbd {
                             <option value="">كل التصنيفات</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div class="form-check form-switch mt-2">
                             <input class="form-check-input" type="checkbox" id="items-lov-in-stock-only">
                             <label class="form-check-label" for="items-lov-in-stock-only">المتوفر فقط</label>
                         </div>
                     </div>
+                    <div class="col-md-2">
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" id="items-lov-multi-select">
+                            <label class="form-check-label" for="items-lov-multi-select">
+                                <i class="fas fa-list-check me-1"></i>تعدد
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-Select Actions (shown when multi-select is enabled) -->
+                <div id="items-lov-multi-actions" class="mb-2 p-2 bg-light rounded border" style="display: none;">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-select-all-visible">
+                            <i class="fas fa-check-double me-1"></i>تحديد الكل
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-selection">
+                            <i class="fas fa-times me-1"></i>إلغاء التحديد
+                        </button>
+                        <span class="text-muted small">|</span>
+                        <span class="text-muted small">
+                            <kbd>Space</kbd> للتحديد |
+                            <kbd>Ctrl+A</kbd> تحديد الكل
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Items Table -->
                 <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
-                    <table class="table table-sm table-hover table-striped mb-0" id="items-lov-table">
+                    <table class="table table-sm table-hover mb-0" id="items-lov-table">
                         <thead class="table-light sticky-top">
                             <tr>
+                                <th style="width: 35px; display: none;" class="text-center" id="items-lov-check-col">
+                                    <input type="checkbox" class="form-check-input" id="items-lov-check-all" title="تحديد الكل">
+                                </th>
                                 <th style="width: 80px;">الكود</th>
                                 <th>اسم الصنف</th>
                                 <th style="width: 70px;">الوحدة</th>
@@ -1512,7 +1569,7 @@ kbd {
                         </thead>
                         <tbody id="items-lov-tbody">
                             <tr>
-                                <td colspan="6" class="text-center py-4">
+                                <td colspan="7" class="text-center py-4">
                                     <div class="spinner-border spinner-border-sm text-success" role="status"></div>
                                     <span class="ms-2">جاري التحميل...</span>
                                 </td>
@@ -1560,11 +1617,12 @@ kbd {
                 <small class="text-muted me-auto">
                     <kbd>↑↓</kbd> للتنقل |
                     <kbd>Enter</kbd> للاختيار |
+                    <kbd>Space</kbd> تحديد/إلغاء |
                     <span id="items-lov-count" class="badge bg-secondary">0</span> صنف
                 </small>
                 <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">إلغاء</button>
                 <button type="button" class="btn btn-sm btn-success" id="btn-select-item" disabled>
-                    <i class="fas fa-check me-1"></i>اختيار
+                    <i class="fas fa-check me-1"></i><span id="btn-select-item-text">اختيار</span>
                 </button>
             </div>
         </div>
@@ -5184,6 +5242,9 @@ $(document).ready(function() {
         allItems: [],
         isLoading: false,
         isLoaded: false,
+        // Multi-select properties
+        multiSelectEnabled: false,
+        selectedItems: [],  // Array of selected item objects
 
         // تحميل المواد من السيرفر
         loadItems: function(callback) {
@@ -5405,9 +5466,10 @@ $(document).ready(function() {
 
         render: function() {
             var $tbody = $('#items-lov-tbody');
+            var colSpan = this.multiSelectEnabled ? 7 : 6;
 
             if (this.filtered.length === 0) {
-                $tbody.html('<tr><td colspan="6" class="text-center py-4">' +
+                $tbody.html('<tr><td colspan="' + colSpan + '" class="text-center py-4">' +
                     '<i class="fas fa-box-open fa-2x text-muted mb-2"></i>' +
                     '<div class="text-muted">لا توجد نتائج' + (this.query ? ' لـ "' + this.query + '"' : '') + '</div>' +
                     '<small class="text-muted">جرب كلمات مختلفة أو أحرف أقل</small>' +
@@ -5432,7 +5494,20 @@ $(document).ready(function() {
                     '<span class="badge bg-secondary">0%</span>';
                 var activeClass = (i === self.activeIndex) ? ' table-primary' : '';
 
-                return '<tr class="item-lov-row' + activeClass + '" data-idx="' + i + '" style="cursor:pointer">' +
+                // Check if this item is selected (for multi-select mode)
+                var isSelected = self.isItemSelected(item);
+                var selectedClass = isSelected ? ' table-success' : '';
+                var checkboxCol = '';
+
+                if (self.multiSelectEnabled) {
+                    checkboxCol = '<td class="text-center">' +
+                        '<input type="checkbox" class="form-check-input item-multi-check" ' +
+                        'data-idx="' + i + '" ' + (isSelected ? 'checked' : '') + '>' +
+                        '</td>';
+                }
+
+                return '<tr class="item-lov-row' + activeClass + selectedClass + '" data-idx="' + i + '" style="cursor:pointer">' +
+                    checkboxCol +
                     '<td><code class="text-primary">' + self.highlight(item.code || '-', (item.matchPositions && item.matchPositions.code) || []) + '</code></td>' +
                     '<td>' + self.highlight(item.name, (item.matchPositions && item.matchPositions.name) || []) + '</td>' +
                     '<td><span class="badge bg-light text-dark">' + item.unit + '</span></td>' +
@@ -5448,11 +5523,19 @@ $(document).ready(function() {
             // تحديد الصنف الأول تلقائياً وتفعيل زر الاختيار
             if (this.filtered.length > 0 && this.activeIndex >= 0) {
                 this.selectedItem = this.filtered[this.activeIndex];
-                $('#btn-select-item').prop('disabled', false);
+                // في الاختيار المتعدد، نفعّل الزر إذا كان هناك أصناف محددة
+                if (this.multiSelectEnabled) {
+                    $('#btn-select-item').prop('disabled', this.selectedItems.length === 0);
+                } else {
+                    $('#btn-select-item').prop('disabled', false);
+                }
             } else {
                 this.selectedItem = null;
                 $('#btn-select-item').prop('disabled', true);
             }
+
+            // تحديث عداد المحددين
+            this.updateSelectedBadge();
 
             // NOTE: Event listeners are handled by delegation in $(document).ready
         },
@@ -5595,7 +5678,124 @@ $(document).ready(function() {
             }
         },
 
+        // ============================================
+        // 🔄 Multi-Select Functions
+        // ============================================
+
+        // التحقق إذا كان الصنف محدداً
+        isItemSelected: function(item) {
+            return this.selectedItems.some(function(sel) {
+                return sel.id === item.id && sel.variant_id === item.variant_id;
+            });
+        },
+
+        // تبديل تحديد صنف
+        toggleItemSelection: function(idx) {
+            if (idx < 0 || idx >= this.filtered.length) return;
+
+            var item = this.filtered[idx];
+            var existingIndex = this.selectedItems.findIndex(function(sel) {
+                return sel.id === item.id && sel.variant_id === item.variant_id;
+            });
+
+            if (existingIndex >= 0) {
+                // إزالة من التحديد
+                this.selectedItems.splice(existingIndex, 1);
+            } else {
+                // إضافة للتحديد
+                this.selectedItems.push(item);
+            }
+
+            this.updateSelectedBadge();
+            this.updateRowCheckbox(idx);
+            this.updateSelectButton();
+        },
+
+        // تحديد كل المرئيين
+        selectAllVisible: function() {
+            var self = this;
+            this.filtered.slice(0, 100).forEach(function(item) {
+                if (!self.isItemSelected(item)) {
+                    self.selectedItems.push(item);
+                }
+            });
+            this.updateSelectedBadge();
+            this.render();
+        },
+
+        // إلغاء كل التحديدات
+        clearSelection: function() {
+            this.selectedItems = [];
+            this.updateSelectedBadge();
+            this.render();
+        },
+
+        // تحديث شارة المحددين
+        updateSelectedBadge: function() {
+            var count = this.selectedItems.length;
+            var $badge = $('#items-lov-selected-badge');
+            var $count = $('#items-lov-selected-count');
+
+            $count.text(count);
+            if (count > 0 && this.multiSelectEnabled) {
+                $badge.fadeIn(200);
+                $('#btn-select-item-text').text('إضافة ' + count + ' صنف');
+            } else {
+                $badge.fadeOut(200);
+                $('#btn-select-item-text').text('اختيار');
+            }
+        },
+
+        // تحديث checkbox صف معين
+        updateRowCheckbox: function(idx) {
+            var item = this.filtered[idx];
+            var isSelected = this.isItemSelected(item);
+            var $row = $('#items-lov-tbody tr[data-idx="' + idx + '"]');
+
+            $row.find('.item-multi-check').prop('checked', isSelected);
+
+            if (isSelected) {
+                $row.addClass('table-success');
+            } else {
+                $row.removeClass('table-success');
+            }
+        },
+
+        // تحديث زر الاختيار
+        updateSelectButton: function() {
+            if (this.multiSelectEnabled) {
+                $('#btn-select-item').prop('disabled', this.selectedItems.length === 0);
+            } else {
+                $('#btn-select-item').prop('disabled', this.filtered.length === 0);
+            }
+        },
+
+        // تفعيل/تعطيل الاختيار المتعدد
+        setMultiSelectMode: function(enabled) {
+            this.multiSelectEnabled = enabled;
+
+            // إظهار/إخفاء عمود الـ checkbox
+            $('#items-lov-check-col').toggle(enabled);
+
+            // إظهار/إخفاء أزرار التحديد المتعدد
+            $('#items-lov-multi-actions').toggle(enabled);
+
+            // إعادة تعيين التحديدات عند التبديل
+            this.selectedItems = [];
+            this.updateSelectedBadge();
+
+            // إعادة رسم الجدول
+            this.render();
+        },
+
         select: function() {
+            // في حالة الاختيار المتعدد
+            if (this.multiSelectEnabled && this.selectedItems.length > 0) {
+                this.selectMultiple();
+                return;
+            }
+
+            // الاختيار المفرد
             if (this.filtered.length === 0 || this.activeIndex < 0) return;
 
             var item = this.selectedItem || this.filtered[this.activeIndex];
@@ -5605,80 +5805,126 @@ $(document).ready(function() {
 
             // تحديث Handsontable
             if (typeof window.hot !== 'undefined' && window.hot) {
-                // الأعمدة الجديدة:
-                // 0: الصنف, 1: الكمية, 2: الوحدة, 3: السعر, 4: ض%, 5: الضريبة, 6: خصم%, 7: الخصم, 8: الإجمالي
-                window.hot.setDataAtCell([
-                    [row, 0, item.name],           // اسم الصنف
-                    [row, 2, item.unit],           // الوحدة
-                    [row, 3, item.price],          // السعر
-                    [row, 4, item.tax_rate || 0]   // نسبة الضريبة
-                ], 'lov');
-
-                // حفظ بيانات الصنف (بما في ذلك variant_id و unit_id)
-                if (typeof hotItemsData !== 'undefined') {
-                    while (hotItemsData.length <= row) {
-                        hotItemsData.push({ id: '', variant_id: '', name: '', unit: '', unit_id: null, price: 0, tax_rate: 0 });
-                    }
-                    hotItemsData[row] = {
-                        id: item.id,
-                        variant_id: item.variant_id,
-                        name: item.name,
-                        unit: item.unit,
-                        unit_id: item.unit_id,
-                        price: item.price,
-                        tax_rate: item.tax_rate || 0
-                    };
-                }
-
-                // جلب وعرض معلومات الصنف بجانب الخلية (Oracle-style)
-                showItemInfoPopover(item.id, row);
-
-                // حساب الصف
-                setTimeout(function() {
-                    hotCalculateRow(window.hot, row);
-                    hotUpdateTotals();
-                    // الانتقال لحقل الكمية
-                    window.hot.selectCell(row, 1);
-                }, 50);
-
-                console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Tax:', item.tax_rate);
+                this.addItemToHot(item, row);
             } else {
-                // تحديث الجدول HTML الحالي
-                var $row = $('#items-tbody tr.item-row').eq(row);
-                if ($row.length) {
-                    // تحديث اسم الصنف
-                    $row.find('.item-search-input').val(item.name);
-
-                    // تحديث select المخفي
-                    var $select = $row.find('.item-select');
-                    // إضافة option جديد إذا لم يكن موجوداً
-                    if ($select.find('option[value="' + item.id + '"]').length === 0) {
-                        $select.append('<option value="' + item.id + '">' + item.name + '</option>');
-                    }
-                    $select.val(item.id).trigger('change');
-
-                    // تحديث الوحدة
-                    $row.find('.unit-display-input').val(item.unit);
-                    var $unitSelect = $row.find('.unit-select');
-                    $unitSelect.find('option').each(function() {
-                        if ($(this).text().indexOf(item.unit) !== -1) {
-                            $unitSelect.val($(this).val());
-                        }
-                    });
-
-                    // تحديث السعر
-                    $row.find('.price-input').val(item.price.toFixed(3)).trigger('change');
-
-                    // الانتقال لحقل الكمية
-                    setTimeout(function() {
-                        $row.find('.quantity-input').focus().select();
-                    }, 100);
-
-                    // حساب الإجمالي
-                    calculateItemTotal($row);
-                    calculateTotals();
-                }
+                this.addItemToHTML(item, row);
             }
+        },
+
+        // إضافة صنف واحد إلى Handsontable
+        addItemToHot: function(item, row) {
+            // الأعمدة الجديدة:
+            // 0: الصنف, 1: الكمية, 2: الوحدة, 3: السعر, 4: ض%, 5: الضريبة, 6: خصم%, 7: الخصم, 8: الإجمالي
+            window.hot.setDataAtCell([
+                [row, 0, item.name],           // اسم الصنف
+                [row, 2, item.unit],           // الوحدة
+                [row, 3, item.price],          // السعر
+                [row, 4, item.tax_rate || 0]   // نسبة الضريبة
+            ], 'lov');
+
+            // حفظ بيانات الصنف (بما في ذلك variant_id و unit_id)
+            if (typeof hotItemsData !== 'undefined') {
+                while (hotItemsData.length <= row) {
+                    hotItemsData.push({ id: '', variant_id: '', name: '', unit: '', unit_id: null, price: 0, tax_rate: 0 });
+                }
+                hotItemsData[row] = {
+                    id: item.id,
+                    variant_id: item.variant_id,
+                    name: item.name,
+                    unit: item.unit,
+                    unit_id: item.unit_id,
+                    price: item.price,
+                    tax_rate: item.tax_rate || 0
+                };
+            }
+
+            // جلب وعرض معلومات الصنف بجانب الخلية (Oracle-style)
+            showItemInfoPopover(item.id, row);
+
+            // حساب الصف
+            hotCalculateRow(window.hot, row);
+
+            console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Tax:', item.tax_rate);
+        },
+
+        // إضافة صنف واحد إلى HTML Table
+        addItemToHTML: function(item, row) {
+            var $row = $('#items-tbody tr.item-row').eq(row);
+            if ($row.length) {
+                // تحديث اسم الصنف
+                $row.find('.item-search-input').val(item.name);
+
+                // تحديث select المخفي
+                var $select = $row.find('.item-select');
+                if ($select.find('option[value="' + item.id + '"]').length === 0) {
+                    $select.append('<option value="' + item.id + '">' + item.name + '</option>');
+                }
+                $select.val(item.id).trigger('change');
+
+                // تحديث الوحدة
+                $row.find('.unit-display-input').val(item.unit);
+                var $unitSelect = $row.find('.unit-select');
+                $unitSelect.find('option').each(function() {
+                    if ($(this).text().indexOf(item.unit) !== -1) {
+                        $unitSelect.val($(this).val());
+                    }
+                });
+
+                // تحديث السعر
+                $row.find('.price-input').val(item.price.toFixed(3)).trigger('change');
+
+                // حساب الإجمالي
+                calculateItemTotal($row);
+            }
+        },
+
+        // إضافة أصناف متعددة
+        selectMultiple: function() {
+            var items = this.selectedItems.slice(); // نسخة
+            var startRow = this.currentRow;
+            var self = this;
+
+            this.close();
+
+            if (typeof window.hot !== 'undefined' && window.hot) {
+                var currentData = window.hot.getData();
+                var currentRowCount = currentData.length;
+
+                // تحديد الصف الفارغ الأول
+                var firstEmptyRow = startRow;
+                for (var i = 0; i < currentRowCount; i++) {
+                    if (!currentData[i][0] || currentData[i][0] === '') {
+                        firstEmptyRow = i;
+                        break;
+                    }
+                }
+
+                // إضافة صفوف جديدة إذا لزم الأمر
+                var neededRows = firstEmptyRow + items.length;
+                if (neededRows > currentRowCount) {
+                    var rowsToAdd = neededRows - currentRowCount;
+                    window.hot.alter('insert_row_below', currentRowCount - 1, rowsToAdd);
+                }
+
+                // إضافة الأصناف واحداً تلو الآخر
+                items.forEach(function(item, idx) {
+                    var targetRow = firstEmptyRow + idx;
+                    self.addItemToHot(item, targetRow);
+                });
+
+                // حساب الإجماليات
+                setTimeout(function() {
+                    hotUpdateTotals();
+                    // الانتقال للصف الأول المضاف
+                    window.hot.selectCell(firstEmptyRow, 1);
+                }, 100);
+
+                console.log('✅ LOV Multi-Selected:', items.length, 'items');
+            }
+
+            // إعادة تعيين التحديدات
+            this.selectedItems = [];
+            this.updateSelectedBadge();
         }
     };
 
@@ -5824,6 +6070,23 @@ $(document).ready(function() {
                         LOV.scrollToActive();
                     }
                     break;
+
+                case ' ': // Space - للتبديل في الاختيار المتعدد
+                    if (LOV.multiSelectEnabled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        LOV.toggleItemSelection(LOV.activeIndex);
+                    }
+                    break;
+
+                case 'a': // Ctrl+A - تحديد الكل
+                case 'A':
+                    if (e.ctrlKey && LOV.multiSelectEnabled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        LOV.selectAllVisible();
+                    }
+                    break;
             }
         });
 
@@ -5888,7 +6151,10 @@ $(document).ready(function() {
         });
 
         // Single click للتحديد وعرض التفاصيل
-        $('#items-lov-tbody').on('click', 'tr.item-lov-row', function() {
+        $('#items-lov-tbody').on('click', 'tr.item-lov-row', function(e) {
+            // إذا كان الضغط على checkbox، لا نفعل شيء (يعالج بشكل منفصل)
+            if ($(e.target).is('.item-multi-check')) return;
+
             var idx = $(this).data('idx');
             if (typeof idx !== 'undefined' && LOV.filtered[idx]) {
                 LOV.activeIndex = idx;
@@ -5896,6 +6162,58 @@ $(document).ready(function() {
                 LOV.renderSelection();
                 LOV.showItemDetails(LOV.filtered[idx]);
                 $('#btn-select-item').prop('disabled', false);
+            }
+        });
+
+        // ====== Multi-Select Event Handlers ======
+
+        // تبديل وضع الاختيار المتعدد
+        $('#items-lov-multi-select').on('change', function() {
+            var enabled = $(this).is(':checked');
+            LOV.setMultiSelectMode(enabled);
+        });
+
+        // زر تحديد الكل
+        $('#btn-select-all-visible').on('click', function() {
+            LOV.selectAllVisible();
+        });
+
+        // زر إلغاء التحديد
+        $('#btn-clear-selection').on('click', function() {
+            LOV.clearSelection();
+        });
+
+        // Checkbox في header للتحديد الكل
+        $('#items-lov-check-all').on('change', function() {
+            if ($(this).is(':checked')) {
+                LOV.selectAllVisible();
+            } else {
+                LOV.clearSelection();
+            }
+        });
+
+        // Checkbox في كل صف
+        $('#items-lov-tbody').on('change', '.item-multi-check', function(e) {
+            e.stopPropagation();
+            var idx = $(this).data('idx');
+            if (typeof idx !== 'undefined') {
+                LOV.toggleItemSelection(idx);
+            }
+        });
+
+        // إعادة تعيين الاختيار المتعدد عند إغلاق Modal
+        $('#itemsLovModal').on('hide.bs.modal', function() {
+            // حفظ حالة الـ toggle
+            var wasMultiSelect = LOV.multiSelectEnabled;
+
+            // إعادة تعيين التحديدات
+            LOV.selectedItems = [];
+            LOV.updateSelectedBadge();
+
+            // إخفاء عمود الـ checkbox إذا كان مفعلاً
+            if (wasMultiSelect) {
+                $('#items-lov-check-col').hide();
+                $('#items-lov-multi-actions').hide();
             }
         });
     });
@@ -6611,8 +6929,10 @@ $(document).ready(function() {
                             var total = afterDiscount + taxAmount;
 
                             // تنسيق البيانات للـ Handsontable (مصفوفة)
+                            // استخدام variant_name إذا وجد (لأنه يحتوي الاسم الكامل)، وإلا item_name
+                            var displayName = item.variant_name || item.item_name;
                             newData.push([
-                                item.item_name + (item.variant_name ? ' - ' + item.variant_name : ''),
+                                displayName,
                                 quantity,
                                 item.unit || 'قطعة',
                                 price,

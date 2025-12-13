@@ -1,0 +1,254 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+    .settings-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .settings-card .card-header {
+        color: white;
+        border-radius: 12px 12px 0 0;
+        padding: 16px 20px;
+    }
+    .settings-card .card-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+    .settings-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .settings-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .form-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    .form-label i {
+        margin-left: 5px;
+    }
+    .help-text {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 38px;
+    }
+    .header-purchases { background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); }
+    .header-sales { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">
+                <i class="fas fa-calculator text-primary me-2"></i>
+                {{ title }}
+            </h4>
+            <p class="text-muted mb-0">تحديد الحسابات الافتراضية للمشتريات والمبيعات</p>
+        </div>
+        <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> العودة للرئيسية
+        </a>
+    </div>
+
+    <form method="post" id="settings-form">
+        {% csrf_token %}
+
+        <div class="row">
+            <div class="col-lg-6">
+                <!-- حسابات المشتريات -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header header-purchases">
+                        <h5><i class="fas fa-shopping-cart me-2"></i> حسابات المشتريات</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- حساب المخزون -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-boxes text-info"></i>
+                                حساب المخزون الافتراضي
+                            </label>
+                            <select name="default_inventory_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_inventory_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">يُستخدم في فواتير المشتريات (الجرد المستمر)</div>
+                        </div>
+
+                        <!-- حساب المشتريات -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-file-invoice-dollar text-warning"></i>
+                                حساب المشتريات الافتراضي
+                            </label>
+                            <select name="default_purchase_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_purchase_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">يُستخدم في الجرد الدوري</div>
+                        </div>
+
+                        <!-- حساب ضريبة المشتريات -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-percentage text-success"></i>
+                                حساب ضريبة المشتريات
+                            </label>
+                            <select name="default_purchase_vat_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_purchase_vat_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">حساب الضريبة القابلة للخصم</div>
+                        </div>
+
+                        <!-- حساب خصم المشتريات -->
+                        <div class="mb-0">
+                            <label class="form-label">
+                                <i class="fas fa-tag text-danger"></i>
+                                حساب خصم المشتريات
+                            </label>
+                            <select name="default_purchase_discount_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_purchase_discount_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">حساب الخصم المكتسب</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <!-- حسابات المبيعات -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header header-sales">
+                        <h5><i class="fas fa-cash-register me-2"></i> حسابات المبيعات</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- حساب المبيعات -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-coins text-success"></i>
+                                حساب المبيعات الافتراضي
+                            </label>
+                            <select name="default_sales_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_sales_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">حساب إيرادات المبيعات</div>
+                        </div>
+
+                        <!-- حساب ضريبة المبيعات -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-percentage text-primary"></i>
+                                حساب ضريبة المبيعات
+                            </label>
+                            <select name="default_sales_vat_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_sales_vat_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">حساب الضريبة المستحقة</div>
+                        </div>
+
+                        <!-- حساب تكلفة المبيعات -->
+                        <div class="mb-0">
+                            <label class="form-label">
+                                <i class="fas fa-chart-line text-danger"></i>
+                                حساب تكلفة البضاعة المباعة
+                            </label>
+                            <select name="default_cost_of_goods_account" class="form-select account-select">
+                                <option value="">-- اختر الحساب --</option>
+                                {% for account in accounts %}
+                                    <option value="{{ account.id }}"
+                                            {% if object.default_cost_of_goods_account_id == account.id %}selected{% endif %}>
+                                        {{ account.code }} - {{ account.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">حساب تكلفة المبيعات (COGS)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- زر الحفظ -->
+                <div class="card settings-card">
+                    <div class="card-body text-center py-4">
+                        <p class="text-muted mb-3">
+                            <i class="fas fa-info-circle me-1"></i>
+                            هذه الحسابات ستُستخدم تلقائياً في جميع المعاملات
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fas fa-save me-2"></i> حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('.account-select').select2({
+        theme: 'bootstrap-5',
+        dir: 'rtl',
+        placeholder: 'اختر الحساب...',
+        allowClear: true,
+        width: '100%'
+    });
+});
+</script>
+{% endblock %}

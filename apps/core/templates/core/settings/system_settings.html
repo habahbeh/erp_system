@@ -1,0 +1,216 @@
+{% extends 'base/base.html' %}
+{% load i18n static widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .settings-card .card-header {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        color: white;
+        border-radius: 12px 12px 0 0;
+        padding: 16px 20px;
+    }
+    .settings-card .card-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+    .settings-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .settings-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .form-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    .help-text {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+    .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .form-switch .form-check-input {
+        width: 3em;
+        height: 1.5em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">
+                <i class="fas fa-sliders-h text-info me-2"></i>
+                {{ title }}
+            </h4>
+            <p class="text-muted mb-0">إعدادات المخزون والعملاء والمحاسبة</p>
+        </div>
+        <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> العودة للرئيسية
+        </a>
+    </div>
+
+    <form method="post" id="settings-form">
+        {% csrf_token %}
+
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- إعدادات المخزون -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-boxes me-2"></i> إعدادات المخزون</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="negative_stock_allowed"
+                                           id="id_negative_stock_allowed" {% if object.negative_stock_allowed %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_negative_stock_allowed">
+                                        <strong>السماح بالرصيد السالب</strong>
+                                    </label>
+                                </div>
+                                <div class="help-text">السماح بإصدار بضاعة حتى لو الكمية غير متوفرة</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">طريقة تقييم المخزون</label>
+                                <select name="stock_valuation_method" class="form-select">
+                                    <option value="fifo" {% if object.stock_valuation_method == 'fifo' %}selected{% endif %}>
+                                        الوارد أولاً صادر أولاً (FIFO)
+                                    </option>
+                                    <option value="lifo" {% if object.stock_valuation_method == 'lifo' %}selected{% endif %}>
+                                        الوارد أخيراً صادر أولاً (LIFO)
+                                    </option>
+                                    <option value="average" {% if object.stock_valuation_method == 'average' %}selected{% endif %}>
+                                        متوسط التكلفة المرجح (Average)
+                                    </option>
+                                </select>
+                                <div class="help-text">طريقة احتساب تكلفة البضاعة المباعة</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- إعدادات العملاء -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                        <h5><i class="fas fa-users me-2"></i> إعدادات العملاء</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="customer_credit_check"
+                                           id="id_customer_credit_check" {% if object.customer_credit_check %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_customer_credit_check">
+                                        <strong>فحص حد الائتمان</strong>
+                                    </label>
+                                </div>
+                                <div class="help-text">التحقق من حد ائتمان العميل قبل البيع الآجل</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="credit_restore_on_check_date"
+                                           id="id_credit_restore_on_check_date" {% if object.credit_restore_on_check_date %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_credit_restore_on_check_date">
+                                        <strong>استرجاع الائتمان عند صرف الشيك</strong>
+                                    </label>
+                                </div>
+                                <div class="help-text">استرجاع ائتمان العميل عند تاريخ صرف الشيك</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- إعدادات المحاسبة -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                        <h5><i class="fas fa-calculator me-2"></i> إعدادات المحاسبة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="auto_create_journal_entries"
+                                   id="id_auto_create_journal_entries" {% if object.auto_create_journal_entries %}checked{% endif %}>
+                            <label class="form-check-label" for="id_auto_create_journal_entries">
+                                <strong>إنشاء القيود تلقائياً</strong>
+                            </label>
+                        </div>
+                        <div class="help-text">إنشاء القيود المحاسبية تلقائياً عند ترحيل الفواتير</div>
+                    </div>
+                </div>
+
+                <!-- إعدادات الجلسة -->
+                <div class="card settings-card mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, #fd7e14 0%, #e85d04 100%);">
+                        <h5><i class="fas fa-clock me-2"></i> إعدادات الجلسة</h5>
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label">مهلة انتهاء الجلسة (بالدقائق)</label>
+                        <input type="number" name="session_timeout" class="form-control" style="max-width: 150px;"
+                               value="{{ object.session_timeout }}" min="5" max="1440">
+                        <div class="help-text">الوقت بالدقائق قبل تسجيل الخروج التلقائي (5 - 1440)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- زر الحفظ -->
+                <div class="card settings-card sticky-top" style="top: 20px;">
+                    <div class="card-body text-center py-4">
+                        <i class="fas fa-cogs fa-3x text-muted mb-3"></i>
+                        <h5 class="mb-3">إعدادات النظام</h5>
+                        <p class="text-muted mb-4">
+                            تأكد من مراجعة جميع الإعدادات قبل الحفظ
+                        </p>
+                        <button type="submit" class="btn btn-success btn-lg w-100">
+                            <i class="fas fa-save me-2"></i> حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+
+                <!-- روابط سريعة -->
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-link me-1"></i> إعدادات أخرى
+                        </h6>
+                        <div class="list-group list-group-flush">
+                            <a href="{% url 'core:account_settings' %}" class="list-group-item list-group-item-action">
+                                <i class="fas fa-calculator text-primary me-2"></i> إعدادات الحسابات
+                            </a>
+                            <a href="{% url 'core:numbering_list' %}" class="list-group-item list-group-item-action">
+                                <i class="fas fa-sort-numeric-down text-info me-2"></i> تسلسلات الترقيم
+                            </a>
+                            <a href="{% url 'core:company_detail' %}" class="list-group-item list-group-item-action">
+                                <i class="fas fa-building text-secondary me-2"></i> بيانات الشركة
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
