@@ -5817,12 +5817,26 @@ $(document).ready(function() {
             // 0: الصنف, 1: الكمية, 2: الوحدة, 3: السعر, 4: ض%, 5: الضريبة, 6: خصم%, 7: الخصم, 8: الإجمالي
             // الكمية: إذا كان المخزون > 0 نستخدمه، وإلا 1
             var qty = (parseFloat(item.stock) > 0) ? parseFloat(item.stock) : 1;
+            var price = parseFloat(item.price) || 0;
+            var taxRate = parseFloat(item.tax_rate) || 0;
+
+            // حساب القيم
+            var subtotal = qty * price;
+            var taxAmount = subtotal * (taxRate / 100);
+            var discountAmount = 0; // الخصم 0 افتراضياً
+            var total = subtotal + taxAmount - discountAmount;
+
+            // تعيين كل القيم دفعة واحدة بما فيها المحسوبة
             window.hot.setDataAtCell([
                 [row, 0, item.name],           // اسم الصنف
-                [row, 1, qty],                 // الكمية (من المخزون)
+                [row, 1, qty],                 // الكمية
                 [row, 2, item.unit],           // الوحدة
-                [row, 3, item.price],          // السعر
-                [row, 4, item.tax_rate || 0]   // نسبة الضريبة
+                [row, 3, price],               // السعر
+                [row, 4, taxRate],             // نسبة الضريبة
+                [row, 5, taxAmount],           // مبلغ الضريبة
+                [row, 6, 0],                   // نسبة الخصم
+                [row, 7, discountAmount],      // مبلغ الخصم
+                [row, 8, total]                // الإجمالي
             ], 'lov');
 
             // حفظ بيانات الصنف (بما في ذلك variant_id و unit_id)
@@ -5836,21 +5850,20 @@ $(document).ready(function() {
                     name: item.name,
                     unit: item.unit,
                     unit_id: item.unit_id,
-                    price: item.price,
-                    tax_rate: item.tax_rate || 0
+                    price: price,
+                    tax_rate: taxRate
                 };
             }
 
             // جلب وعرض معلومات الصنف بجانب الخلية (Oracle-style)
             showItemInfoPopover(item.id, row);
 
-            // حساب الصف بعد تحديث البيانات
+            // تحديث الإجماليات
             setTimeout(function() {
-                hotCalculateRow(window.hot, row);
                 hotUpdateTotals();
-            }, 50);
+            }, 100);
 
-            console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Qty:', (parseFloat(item.stock) > 0 ? item.stock : 1));
+            console.log('✅ LOV Selected:', item.name, '| Price:', price, '| Qty:', qty, '| Total:', total);
         },
 
         // إضافة صنف واحد إلى HTML Table
@@ -6392,6 +6405,12 @@ $(document).ready(function() {
                 });
 
                 hotUpdateTotals();
+            },
+
+            // حفظ الصفوف المحددة للحذف
+            afterSelection: function(row, col, row2, col2) {
+                lastSelectedRow = row;
+                lastSelectedRowEnd = row2;
             }
         });
 
@@ -6488,18 +6507,44 @@ $(document).ready(function() {
         hot.selectCell(lastRow, 0);
     }
 
-    // حذف الصف المحدد
+    // متغيرات لحفظ الصفوف المحددة
+    var lastSelectedRow = 0;
+    var lastSelectedRowEnd = 0;
+
+    // حذف الصفوف المحددة (يدعم تحديد متعدد)
     function hotDeleteRow() {
         if (!hot) return;
-        var sel = hot.getSelected();
-        if (sel && sel[0]) {
-            var row = sel[0][0];
-            if (hot.countRows() > 1) {
-                hot.alter('remove_row', row, 1);
-                hotItemsData.splice(row, 1);
-                hotUpdateTotals();
-            }
+
+        // استخدام الصفوف المحفوظة
+        var minRow = Math.min(lastSelectedRow, lastSelectedRowEnd);
+        var maxRow = Math.max(lastSelectedRow, lastSelectedRowEnd);
+
+        var rowsToDelete = [];
+        for (var r = minRow; r <= maxRow; r++) {
+            rowsToDelete.push(r);
         }
+
+        if (rowsToDelete.length === 0) return;
+
+        // ترتيب تنازلي لحذف من الأسفل للأعلى
+        rowsToDelete.sort(function(a, b) { return b - a; });
+
+        // التأكد من بقاء صف واحد على الأقل
+        var totalRows = hot.countRows();
+        if (totalRows - rowsToDelete.length < 1) {
+            rowsToDelete.pop();
+        }
+
+        // حذف الصفوف
+        rowsToDelete.forEach(function(row) {
+            hot.alter('remove_row', row, 1);
+            if (hotItemsData && hotItemsData[row]) {
+                hotItemsData.splice(row, 1);
+            }
+        });
+
+        hotUpdateTotals();
+        console.log('✅ Deleted rows:', rowsToDelete);
     }
 
     // ============================================
