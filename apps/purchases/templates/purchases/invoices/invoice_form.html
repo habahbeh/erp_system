@@ -5217,6 +5217,8 @@ $(document).ready(function() {
                     try {
                         var commentsPlugin = window.hot.getPlugin('comments');
                         commentsPlugin.setCommentAtCell(row, 0, comment);
+                        // حفظ في المتغير العالمي للنسخ/اللصق
+                        window.hotCommentsData[row] = comment;
                         window.hot.render();
                         console.log('✅ Comment added successfully for item:', item.name, 'at row:', row);
                     } catch (e) {
@@ -6259,6 +6261,7 @@ $(document).ready(function() {
     window.hot = null;
     var hot = null;  // Reference محلي
     var hotItemsData = []; // لحفظ بيانات المواد (id, name, code, unit, price)
+    window.hotCommentsData = {}; // لحفظ التعليقات {row: comment} - عالمي للوصول من hooks
 
     // أعمدة الجدول:
     // 0: اسم الصنف (text, editable - يفتح LOV)
@@ -6360,48 +6363,64 @@ $(document).ready(function() {
 
             // حفظ التعليقات عند النسخ
             beforeCopy: function(data, coords) {
-                var commentsPlugin = this.getPlugin('comments');
                 var copiedComments = [];
+                var baseRow = coords[0] ? coords[0].startRow : 0;
+
+                console.log('📋 beforeCopy - coords:', JSON.stringify(coords));
+                console.log('📋 beforeCopy - hotCommentsData:', JSON.stringify(window.hotCommentsData));
 
                 coords.forEach(function(coord) {
                     for (var row = coord.startRow; row <= coord.endRow; row++) {
-                        for (var col = coord.startCol; col <= coord.endCol; col++) {
-                            var comment = commentsPlugin.getCommentAtCell(row, col);
-                            if (comment) {
-                                copiedComments.push({
-                                    relRow: row - coord.startRow,
-                                    relCol: col - coord.startCol,
-                                    value: comment
-                                });
-                            }
+                        // استخدام window.hotCommentsData
+                        var comment = window.hotCommentsData[row];
+                        console.log('📋 Checking row', row, '- comment exists:', !!comment);
+                        if (comment) {
+                            copiedComments.push({
+                                relRow: row - baseRow,
+                                value: comment
+                            });
+                            console.log('📋 Found comment at row', row, '→ relRow:', row - baseRow);
                         }
                     }
                 });
 
                 window._hotCopiedComments = copiedComments;
-                console.log('📋 Copied comments:', copiedComments.length);
+                console.log('📋 Total copied comments:', copiedComments.length);
             },
 
             // لصق التعليقات بعد اللصق
             afterPaste: function(data, coords) {
-                if (!window._hotCopiedComments || window._hotCopiedComments.length === 0) return;
+                console.log('📋 afterPaste - _hotCopiedComments:', window._hotCopiedComments);
+                if (!window._hotCopiedComments || window._hotCopiedComments.length === 0) {
+                    console.log('📋 No comments to paste');
+                    return;
+                }
 
                 var commentsPlugin = this.getPlugin('comments');
                 var self = this;
+                var baseRow = coords[0] ? coords[0].startRow : 0;
 
-                coords.forEach(function(coord) {
+                console.log('📋 Pasting comments, baseRow:', baseRow, 'totalRows:', self.countRows());
+
+                // تأخير قليل للتأكد من أن الصفوف تم إنشاؤها
+                setTimeout(function() {
                     window._hotCopiedComments.forEach(function(c) {
-                        var targetRow = coord.startRow + c.relRow;
-                        var targetCol = coord.startCol + c.relCol;
+                        var targetRow = baseRow + c.relRow;
+                        console.log('📋 Pasting to row', targetRow, '(relRow:', c.relRow, ') totalRows:', self.countRows());
 
-                        if (targetRow < self.countRows() && targetCol < self.countCols()) {
-                            commentsPlugin.setCommentAtCell(targetRow, targetCol, c.value);
+                        if (targetRow < self.countRows()) {
+                            commentsPlugin.setCommentAtCell(targetRow, 0, c.value);
+                            // حفظ في window.hotCommentsData أيضاً
+                            window.hotCommentsData[targetRow] = c.value;
+                            console.log('📋 ✅ Set comment at row', targetRow);
+                        } else {
+                            console.log('📋 ❌ Row', targetRow, 'does not exist yet');
                         }
                     });
-                });
 
-                this.render();
-                console.log('📋 Pasted comments');
+                    self.render();
+                    console.log('📋 Pasted', window._hotCopiedComments.length, 'comments');
+                }, 100);
             },
 
             // فتح LOV عند Enter أو F4 في عمود الصنف
@@ -7102,19 +7121,43 @@ $(document).ready(function() {
                         console.log('🔧 hotItemsData:', JSON.stringify(hotItemsData));
 
                         if (hot) {
+                            // حفظ comments القديمة قبل loadData (فقط في حالة الإضافة)
+                            var savedComments = [];
+                            if (!replaceAll) {
+                                var commentsPlugin = hot.getPlugin('comments');
+                                for (var r = 0; r < startIdx; r++) {
+                                    var comment = commentsPlugin.getCommentAtCell(r, 0);
+                                    if (comment) {
+                                        savedComments.push({ row: r, comment: comment });
+                                    }
+                                }
+                                console.log('💾 Saved comments:', savedComments.length);
+                            }
+
                             hot.loadData(finalData);
                             console.log('✅ Data loaded, current data:', hot.getData());
                             hot.render();
                             // تحديث الإجماليات
                             hotUpdateTotals();
 
-                            // إضافة comments لكل صنف محمّل
+                            // استعادة comments القديمة
+                            if (!replaceAll && savedComments.length > 0) {
+                                var commentsPlugin = hot.getPlugin('comments');
+                                savedComments.forEach(function(c) {
+                                    commentsPlugin.setCommentAtCell(c.row, 0, c.comment);
+                                });
+                                console.log('🔄 Restored old comments');
+                            }
+
+                            // إضافة comments للأصناف الجديدة المحمّلة
                             doc.items.forEach(function(item, idx) {
                                 var rowIdx = replaceAll ? idx : startIdx + idx;
                                 if (item.item_id) {
                                     showItemInfoPopover(item.item_id, rowIdx);
                                 }
                             });
+
+                            hot.render();
                         }
 
                         // رسالة نجاح
