@@ -5815,8 +5815,11 @@ $(document).ready(function() {
         addItemToHot: function(item, row) {
             // الأعمدة الجديدة:
             // 0: الصنف, 1: الكمية, 2: الوحدة, 3: السعر, 4: ض%, 5: الضريبة, 6: خصم%, 7: الخصم, 8: الإجمالي
+            // الكمية: إذا كان المخزون > 0 نستخدمه، وإلا 1
+            var qty = (parseFloat(item.stock) > 0) ? parseFloat(item.stock) : 1;
             window.hot.setDataAtCell([
                 [row, 0, item.name],           // اسم الصنف
+                [row, 1, qty],                 // الكمية (من المخزون)
                 [row, 2, item.unit],           // الوحدة
                 [row, 3, item.price],          // السعر
                 [row, 4, item.tax_rate || 0]   // نسبة الضريبة
@@ -5841,10 +5844,13 @@ $(document).ready(function() {
             // جلب وعرض معلومات الصنف بجانب الخلية (Oracle-style)
             showItemInfoPopover(item.id, row);
 
-            // حساب الصف
-            hotCalculateRow(window.hot, row);
+            // حساب الصف بعد تحديث البيانات
+            setTimeout(function() {
+                hotCalculateRow(window.hot, row);
+                hotUpdateTotals();
+            }, 50);
 
-            console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Tax:', item.tax_rate);
+            console.log('✅ LOV Selected:', item.name, '| Price:', item.price, '| Qty:', (parseFloat(item.stock) > 0 ? item.stock : 1));
         },
 
         // إضافة صنف واحد إلى HTML Table
@@ -5943,17 +5949,30 @@ $(document).ready(function() {
 
             var parts = q ? q.split(/\s+/).filter(function(p) { return p.length > 0; }) : [];
 
-            LOV.filtered = LOV.allItems.filter(function(item) {
+            LOV.filtered = [];
+            LOV.allItems.forEach(function(item) {
                 // فلتر المتوفر
-                if (inStockOnly && parseFloat(item.stock) <= 0) return false;
+                if (inStockOnly && parseFloat(item.stock) <= 0) return;
                 // فلتر التصنيف
-                if (category && item.category !== category) return false;
-                // فلتر البحث
-                if (parts.length === 0) return true;
-                var nameMatch = LOV.fuzzyMatch(item.name, parts);
-                var codeMatch = LOV.fuzzyMatch(item.code || '', parts);
-                var barcodeMatch = LOV.fuzzyMatch(item.barcode || '', parts);
-                return nameMatch.matched || codeMatch.matched || barcodeMatch.matched;
+                if (category && item.category !== category) return;
+
+                // فلتر البحث مع حفظ مواقع التطابق للتلوين
+                if (parts.length === 0) {
+                    LOV.filtered.push($.extend({}, item, { matchPositions: { name: [], code: [] } }));
+                } else {
+                    var nameMatch = LOV.fuzzyMatch(item.name, parts);
+                    var codeMatch = LOV.fuzzyMatch(item.code || '', parts);
+                    var barcodeMatch = LOV.fuzzyMatch(item.barcode || '', parts);
+
+                    if (nameMatch.matched || codeMatch.matched || barcodeMatch.matched) {
+                        LOV.filtered.push($.extend({}, item, {
+                            matchPositions: {
+                                name: nameMatch.positions,
+                                code: codeMatch.positions
+                            }
+                        }));
+                    }
+                }
             });
 
             LOV.activeIndex = 0;
@@ -6008,6 +6027,7 @@ $(document).ready(function() {
                         LOV.activeIndex++;
                         LOV.renderSelection();
                         LOV.scrollToActive();
+                        LOV.showItemDetails(LOV.filtered[LOV.activeIndex]);
                     }
                     break;
 
@@ -6018,6 +6038,7 @@ $(document).ready(function() {
                         LOV.activeIndex--;
                         LOV.renderSelection();
                         LOV.scrollToActive();
+                        LOV.showItemDetails(LOV.filtered[LOV.activeIndex]);
                     }
                     break;
 
@@ -6126,16 +6147,19 @@ $(document).ready(function() {
             }
         });
 
-        // منع wheel scroll من التأثير على الخلفية
-        $('#itemsLovModal .modal-body').on('wheel', function(e) {
+        // منع wheel scroll من التأثير على الخلفية - على table-responsive
+        $('#itemsLovModal .table-responsive').on('wheel', function(e) {
             var $this = $(this);
             var scrollTop = $this.scrollTop();
             var scrollHeight = $this.prop('scrollHeight');
             var height = $this.height();
             var delta = e.originalEvent.deltaY;
 
+            // منع الـ scroll دائماً من الانتقال للخلفية
+            e.stopPropagation();
+
             // إذا وصلنا للحد الأعلى أو الأسفل، نمنع الـ scroll
-            if ((scrollTop === 0 && delta < 0) || (scrollTop + height >= scrollHeight && delta > 0)) {
+            if ((scrollTop <= 0 && delta < 0) || (scrollTop + height >= scrollHeight - 1 && delta > 0)) {
                 e.preventDefault();
             }
         });
@@ -6203,18 +6227,15 @@ $(document).ready(function() {
 
         // إعادة تعيين الاختيار المتعدد عند إغلاق Modal
         $('#itemsLovModal').on('hide.bs.modal', function() {
-            // حفظ حالة الـ toggle
-            var wasMultiSelect = LOV.multiSelectEnabled;
-
-            // إعادة تعيين التحديدات
+            // إعادة تعيين كل شيء متعلق بالاختيار المتعدد
             LOV.selectedItems = [];
+            LOV.multiSelectEnabled = false;
             LOV.updateSelectedBadge();
 
-            // إخفاء عمود الـ checkbox إذا كان مفعلاً
-            if (wasMultiSelect) {
-                $('#items-lov-check-col').hide();
-                $('#items-lov-multi-actions').hide();
-            }
+            // إخفاء عناصر الاختيار المتعدد
+            $('#items-lov-check-col').hide();
+            $('#items-lov-multi-actions').hide();
+            $('#items-lov-multi-select').prop('checked', false);
         });
     });
 
